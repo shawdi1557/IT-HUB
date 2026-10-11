@@ -1,0 +1,10 @@
+{
+  "description": "Automates task execution by analyzing markdown files, streamlining workflows for professionals needing efficient content-based task management.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
