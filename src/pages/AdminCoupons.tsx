@@ -1,5 +1,16 @@
 import { useState, useEffect } from "react"
-import { Plus, Tag, Pencil, Trash2, CheckCircle2, XCircle, Search, Clock, ArrowRight, ShieldCheck } from "lucide-react"
+import {
+  Plus,
+  Tag,
+  Pencil,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  Search,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+} from "lucide-react"
 import { useStore } from "../app/store"
 import {
   money,
@@ -54,7 +65,9 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
     setMinOrderValue(c.minOrderValue)
     setMaxDiscount(c.maxDiscount)
     setTotalUsageLimit(c.totalUsageLimit)
-    setStartsAt(c.startsAt ? new Date(c.startsAt).toISOString().slice(0, 16) : "")
+    setStartsAt(
+      c.startsAt ? new Date(c.startsAt).toISOString().slice(0, 16) : "",
+    )
     setEndsAt(c.endsAt ? new Date(c.endsAt).toISOString().slice(0, 16) : "")
     setError("")
     setEditorOpen(true)
@@ -70,7 +83,9 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
       return
     }
     if (!/^[A-Z0-9_-]{3,20}$/.test(upperCode)) {
-      setError("Coupon code must be 3-20 alphanumeric characters (hyphens and underscores allowed).")
+      setError(
+        "Coupon code must be 3-20 alphanumeric characters (hyphens and underscores allowed).",
+      )
       return
     }
 
@@ -93,7 +108,9 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
     }
 
     const startMs = startsAt ? new Date(startsAt).getTime() : Date.now()
-    const endMs = endsAt ? new Date(endsAt).getTime() : Date.now() + 30 * 86400000
+    const endMs = endsAt
+      ? new Date(endsAt).getTime()
+      : Date.now() + 30 * 86400000
     if (endMs <= startMs) {
       setError("End date must be after the start date.")
       return
@@ -177,7 +194,9 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
       {/* Top action bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Coupons & Promo Codes</h2>
+          <h2 className="text-xl font-bold text-foreground">
+            Coupons & Promo Codes
+          </h2>
           <p className="text-xs text-muted-foreground">
             Configure one-time or multiple-use discount codes for checkout.
           </p>
@@ -191,10 +210,22 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border pb-2 text-xs font-semibold">
-        <span className={`cursor-pointer rounded-lg px-3 py-1.5 ${view !== "usage" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}>
+        <span
+          className={`cursor-pointer rounded-lg px-3 py-1.5 ${
+            view !== "usage"
+              ? "bg-primary text-white"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
           All Coupons ({store.coupons.length})
         </span>
-        <span className={`cursor-pointer rounded-lg px-3 py-1.5 ${view === "usage" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}>
+        <span
+          className={`cursor-pointer rounded-lg px-3 py-1.5 ${
+            view === "usage"
+              ? "bg-primary text-white"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
           Usage History ({store.couponUsages.length})
         </span>
       </div>
@@ -205,7 +236,8 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
           <div className="border-b border-border p-4">
             <h3 className="text-sm font-bold">Coupon Redemptions</h3>
             <p className="text-xs text-muted-foreground">
-              Recorded each time a customer completes an order using a valid coupon.
+              Recorded each time a customer completes an order using a valid
+              coupon.
             </p>
           </div>
           {store.couponUsages.length > 0 ? (
@@ -226,7 +258,9 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                       <td className="px-5 py-3.5 font-mono font-bold text-primary">
                         {usage.couponCode}
                       </td>
-                      <td className="px-5 py-3.5">{usage.customerId || usage.userId}</td>
+                      <td className="px-5 py-3.5">
+                        {usage.customerId || usage.userId}
+                      </td>
                       <td className="px-5 py-3.5 font-mono">{usage.orderId}</td>
                       <td className="px-5 py-3.5 font-semibold text-emerald-700">
                         −{money(usage.discount)}
@@ -250,7 +284,10 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
         <div className="overflow-hidden rounded-xl border border-border bg-white">
           <div className="flex items-center justify-between border-b border-border p-4">
             <div className="relative w-full max-w-xs">
-              <Search size={14} className="absolute left-3 top-3 text-muted-foreground" />
+              <Search
+                size={14}
+                className="absolute left-3 top-3 text-muted-foreground"
+              />
               <input
                 placeholder="Search coupon code…"
                 value={query}
@@ -280,21 +317,29 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
               <tbody className="divide-y divide-border">
                 {filteredCoupons.map((c) => {
                   const now = Date.now()
-                  const isExpired = c.endsAt && new Date(c.endsAt).getTime() < now
-                  const isFuture = c.startsAt && new Date(c.startsAt).getTime() > now
+                  const isExpired =
+                    c.endsAt && new Date(c.endsAt).getTime() < now
+                  const isFuture =
+                    c.startsAt && new Date(c.startsAt).getTime() > now
                   return (
                     <tr key={c.id} className="hover:bg-muted/30">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
                           <Tag size={13} className="text-primary" />
-                          <span className="font-mono font-bold text-foreground">{c.code}</span>
+                          <span className="font-mono font-bold text-foreground">
+                            {c.code}
+                          </span>
                         </div>
                         {c.description && (
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">{c.description}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {c.description}
+                          </p>
                         )}
                       </td>
                       <td className="px-5 py-3.5 font-semibold text-emerald-700">
-                        {c.type === "percentage" ? `${c.value}% OFF` : `₹${c.value} FLAT`}
+                        {c.type === "percentage"
+                          ? `${c.value}% OFF`
+                          : `₹${c.value} FLAT`}
                         {c.type === "percentage" && c.maxDiscount > 0 && (
                           <span className="block text-[10px] text-muted-foreground font-normal">
                             Cap: ₹{c.maxDiscount}
@@ -302,16 +347,18 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        {c.minOrderValue > 0 ? money(c.minOrderValue) : "No min"}
+                        {c.minOrderValue > 0
+                          ? money(c.minOrderValue)
+                          : "No min"}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Badge tone="amber">
-                          1-Time / Customer
-                        </Badge>
+                        <Badge tone="amber">1-Time / Customer</Badge>
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="font-semibold">{c.timesUsed}</span>
-                        {c.totalUsageLimit > 0 ? ` / ${c.totalUsageLimit}` : " / ∞"}
+                        {c.totalUsageLimit > 0
+                          ? ` / ${c.totalUsageLimit}`
+                          : " / ∞"}
                       </td>
                       <td className="px-5 py-3.5 text-[11px] text-muted-foreground">
                         {formatDate(c.startsAt)} – {formatDate(c.endsAt)}
@@ -328,7 +375,13 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                                   : "green"
                           }
                         >
-                          {!c.active ? "Disabled" : isExpired ? "Expired" : isFuture ? "Scheduled" : "Active"}
+                          {!c.active
+                            ? "Disabled"
+                            : isExpired
+                              ? "Expired"
+                              : isFuture
+                                ? "Scheduled"
+                                : "Active"}
                         </Badge>
                       </td>
                       <td className="px-5 py-3.5 text-right">
@@ -367,7 +420,10 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                 })}
                 {!filteredCoupons.length && (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-xs text-muted-foreground">
+                    <td
+                      colSpan={8}
+                      className="p-8 text-center text-xs text-muted-foreground"
+                    >
                       No coupons found. Click "Create Coupon" above to add one.
                     </td>
                   </tr>
@@ -382,12 +438,18 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
       <Modal
         open={editorOpen}
         onOpenChange={setEditorOpen}
-        title={editingCoupon ? `Edit Coupon: ${editingCoupon.code}` : "Create New Coupon"}
+        title={
+          editingCoupon
+            ? `Edit Coupon: ${editingCoupon.code}`
+            : "Create New Coupon"
+        }
         description="Set discount rules, order thresholds, one-time customer limits, and active date window."
       >
         <form onSubmit={handleSave} className="space-y-4">
           {error && (
-            <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-700">{error}</p>
+            <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-700">
+              {error}
+            </p>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -422,7 +484,13 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={type === "percentage" ? "Discount Percentage (%) *" : "Discount Amount (₹) *"}>
+            <Field
+              label={
+                type === "percentage"
+                  ? "Discount Percentage (%) *"
+                  : "Discount Amount (₹) *"
+              }
+            >
               <input
                 type="number"
                 required
@@ -459,7 +527,8 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
             <Field label="Customer Usage Policy">
               <div className="flex h-10 items-center rounded-lg border border-border bg-muted/40 px-3 text-xs font-medium text-foreground">
                 <span className="inline-flex items-center gap-1.5 text-amber-700">
-                  <ShieldCheck size={14} /> 1-Time / Customer (Single redemption per user)
+                  <ShieldCheck size={14} /> 1-Time / Customer (Single redemption
+                  per user)
                 </span>
               </div>
             </Field>
@@ -497,7 +566,11 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
           </div>
 
           <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-border">
-            <Button type="button" variant="secondary" onClick={() => setEditorOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEditorOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit">
@@ -519,7 +592,10 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
               Cancel
             </Button>
-            <Button onClick={() => handleDelete(deleteConfirm)} className="bg-red-600 hover:bg-red-700">
+            <Button
+              onClick={() => handleDelete(deleteConfirm)}
+              className="bg-red-600 hover:bg-red-700"
+            >
               Delete Coupon
             </Button>
           </div>

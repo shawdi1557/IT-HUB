@@ -24,18 +24,21 @@ import {
 } from "../data/catalog"
 import { Button, Badge, Modal, Field, fieldClass } from "../components/ui"
 
-const statusTones: Record<SellRequestStatus, "amber" | "blue" | "green" | "red" | "gray"> = {
-  Pending: "amber",
-  "Under Review": "blue",
-  Contacted: "blue",
-  Approved: "green",
-  Rejected: "red",
-  Completed: "gray",
-}
+const statusTones: Record<SellRequestStatus, "amber" | "blue" | "green" | "red" | "gray"> =
+  {
+    Pending: "amber",
+    "Under Review": "blue",
+    Contacted: "blue",
+    Approved: "green",
+    Rejected: "red",
+    Completed: "gray",
+  }
 
 export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
   const store = useStore()
-  const [selectedRequest, setSelectedRequest] = useState<SellRequest | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<SellRequest | null>(
+    null,
+  )
   const [query, setQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("All")
   const [warrantyFilter, setWarrantyFilter] = useState<string>("All")
@@ -52,7 +55,8 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
   )
 
   // Detail Modal edits
-  const [editingStatus, setEditingStatus] = useState<SellRequestStatus>("Pending")
+  const [editingStatus, setEditingStatus] =
+    useState<SellRequestStatus>("Pending")
   const [internalNotes, setInternalNotes] = useState("")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
@@ -78,8 +82,10 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
     }))
 
     store.log(`Sell Request Status Changed: ${updated.id} -> ${newStatus}`)
-    if (newStatus === "Approved") store.log(`Sell Request Approved: ${updated.id}`)
-    if (newStatus === "Rejected") store.log(`Sell Request Rejected: ${updated.id}`)
+    if (newStatus === "Approved")
+      store.log(`Sell Request Approved: ${updated.id}`)
+    if (newStatus === "Rejected")
+      store.log(`Sell Request Rejected: ${updated.id}`)
     store.notify(`Request ${updated.id} status updated to ${newStatus}`)
     setSelectedRequest(updated)
     setEditingStatus(newStatus)
@@ -142,16 +148,21 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
   // Summary counts
   const countWarranty = store.sellRequests.filter((r) => r.hasWarranty).length
   const countNoWarranty = store.sellRequests.length - countWarranty
-  const countPending = store.sellRequests.filter((r) => r.status === "Pending" || r.status === "Under Review").length
+  const countPending = store.sellRequests.filter(
+    (r) => r.status === "Pending" || r.status === "Under Review",
+  ).length
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Customer Sell Requests</h2>
+          <h2 className="text-xl font-bold text-foreground">
+            Customer Sell Requests
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Review incoming evaluation requests from customers looking to sell electronics to IT HUB.
+            Review incoming evaluation requests from customers looking to sell
+            electronics to IT HUB.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
@@ -168,7 +179,10 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
       <div className="rounded-xl border border-border bg-white p-4">
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-3 text-muted-foreground" />
+            <Search
+              size={14}
+              className="absolute left-3 top-3 text-muted-foreground"
+            />
             <input
               placeholder="Search request, phone, model…"
               value={query}
@@ -183,9 +197,13 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               onChange={(e) => setCategoryFilter(e.target.value)}
               className={`${fieldClass} py-2 text-xs`}
             >
-              <option value="All">All Categories ({store.sellRequests.length})</option>
+              <option value="All">
+                All Categories ({store.sellRequests.length})
+              </option>
               {sellCategories.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>
@@ -197,8 +215,12 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               className={`${fieldClass} py-2 text-xs`}
             >
               <option value="All">All Warranty Statuses</option>
-              <option value="Warranty Available">Warranty Available ({countWarranty})</option>
-              <option value="No Warranty">No Warranty ({countNoWarranty})</option>
+              <option value="Warranty Available">
+                Warranty Available ({countWarranty})
+              </option>
+              <option value="No Warranty">
+                No Warranty ({countNoWarranty})
+              </option>
             </select>
           </div>
 
@@ -210,7 +232,9 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
             >
               <option value="All">All Statuses</option>
               {sellRequestStatuses.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           </div>
@@ -253,12 +277,20 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                     </button>
                   </td>
                   <td className="px-5 py-3.5">
-                    <p className="font-semibold text-foreground">{req.customerName}</p>
-                    <p className="text-[11px] text-muted-foreground">{req.customerPhone}</p>
+                    <p className="font-semibold text-foreground">
+                      {req.customerName}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {req.customerPhone}
+                    </p>
                   </td>
                   <td className="px-5 py-3.5">
-                    <p className="font-medium text-foreground">{req.productName}</p>
-                    <p className="text-[11px] text-muted-foreground">{req.category}</p>
+                    <p className="font-medium text-foreground">
+                      {req.productName}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {req.category}
+                    </p>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium">
@@ -306,7 +338,10 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               ))}
               {!filteredRequests.length && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-xs text-muted-foreground">
+                  <td
+                    colSpan={9}
+                    className="p-8 text-center text-xs text-muted-foreground"
+                  >
                     No sell requests match the current filters.
                   </td>
                 </tr>
@@ -333,15 +368,21 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               <div className="grid grid-cols-3 gap-3 text-xs">
                 <div>
                   <span className="text-muted-foreground">Name:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.customerName}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.customerName}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Phone:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.customerPhone}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.customerPhone}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Email:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.customerEmail}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.customerEmail}
+                  </p>
                 </div>
               </div>
             </div>
@@ -354,26 +395,38 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
                 <div>
                   <span className="text-muted-foreground">Category:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.category}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.category}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Brand:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.brand}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.brand}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Model:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.model}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.model}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Condition:</span>
-                  <p className="font-semibold text-foreground">{selectedRequest.condition}</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedRequest.condition}
+                  </p>
                 </div>
               </div>
 
               {selectedRequest.description && (
                 <div className="mt-3 border-t border-border pt-3 text-xs">
-                  <span className="text-muted-foreground">Customer's notes:</span>
-                  <p className="mt-0.5 text-foreground">{selectedRequest.description}</p>
+                  <span className="text-muted-foreground">
+                    Customer's notes:
+                  </span>
+                  <p className="mt-0.5 text-foreground">
+                    {selectedRequest.description}
+                  </p>
                 </div>
               )}
 
@@ -382,10 +435,13 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                 <span className="text-muted-foreground">Warranty status: </span>
                 {selectedRequest.hasWarranty ? (
                   <span className="font-semibold text-emerald-800">
-                    Active ({selectedRequest.warrantyRemaining}) · Provider: {selectedRequest.warrantyProvider || "Manufacturer"}
+                    Active ({selectedRequest.warrantyRemaining}) · Provider:{" "}
+                    {selectedRequest.warrantyProvider || "Manufacturer"}
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">No active warranty</span>
+                  <span className="text-muted-foreground">
+                    No active warranty
+                  </span>
                 )}
                 {selectedRequest.warrantyDetails && (
                   <p className="mt-1 text-[11px] text-muted-foreground">
@@ -398,7 +454,8 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
             {/* Photos & Bill Gallery */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Uploaded Files ({selectedRequest.imagePaths.length} Photos{selectedRequest.invoicePath ? ", 1 Invoice" : ""})
+                Uploaded Files ({selectedRequest.imagePaths.length} Photos
+                {selectedRequest.invoicePath ? ", 1 Invoice" : ""})
               </h4>
 
               {/* Photos */}
@@ -409,7 +466,11 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                     onClick={() => setPreviewImage(path)}
                     className="group relative flex h-24 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-border bg-muted hover:ring-2 hover:ring-primary"
                   >
-                    <img src={path} alt={`Photo ${idx + 1}`} className="h-full w-full object-cover" />
+                    <img
+                      src={path}
+                      alt={`Photo ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                    />
                     <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
                       Photo {idx + 1}
                     </span>
@@ -423,8 +484,12 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                   <div className="flex items-center gap-2">
                     <FileText size={18} className="text-emerald-700" />
                     <div>
-                      <p className="font-bold">Original Purchase Bill / GST Invoice</p>
-                      <p className="text-[10px] text-emerald-800">Private admin verification document</p>
+                      <p className="font-bold">
+                        Original Purchase Bill / GST Invoice
+                      </p>
+                      <p className="text-[10px] text-emerald-800">
+                        Private admin verification document
+                      </p>
                     </div>
                   </div>
                   <a
@@ -461,7 +526,9 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                     className={fieldClass}
                   >
                     {sellRequestStatuses.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
                     ))}
                   </select>
                 </Field>
@@ -509,7 +576,11 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                   />
                 </Field>
                 <div className="mt-2 flex justify-end">
-                  <Button type="button" onClick={handleSaveNotes} className="px-3 py-1.5 text-xs">
+                  <Button
+                    type="button"
+                    onClick={handleSaveNotes}
+                    className="px-3 py-1.5 text-xs"
+                  >
                     Save Notes
                   </Button>
                 </div>
@@ -517,7 +588,10 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button variant="secondary" onClick={() => setSelectedRequest(null)}>
+              <Button
+                variant="secondary"
+                onClick={() => setSelectedRequest(null)}
+              >
                 Close
               </Button>
             </div>
@@ -533,8 +607,16 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
           title="Product Image Preview"
         >
           <div className="flex flex-col items-center">
-            <img src={previewImage} alt="Preview" className="max-h-[70vh] rounded-lg object-contain" />
-            <Button variant="secondary" onClick={() => setPreviewImage(null)} className="mt-4">
+            <img
+              src={previewImage}
+              alt="Preview"
+              className="max-h-[70vh] rounded-lg object-contain"
+            />
+            <Button
+              variant="secondary"
+              onClick={() => setPreviewImage(null)}
+              className="mt-4"
+            >
               Close Preview
             </Button>
           </div>

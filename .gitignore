@@ -2,7 +2,12 @@ node_modules/
 dist/
 build/
 .cache/
+# Environment variables, local secrets, and example env files
+.env
 .env*
+.env.example
+.env.local
+.env.*.local
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo

@@ -21,7 +21,13 @@ import AuthModal from "../components/AuthModal"
 import WarrantyCheck from "../components/WarrantyCheck"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
-import { images, money, orderStatuses, serviceStatuses, type Build } from "../data/catalog"
+import {
+  images,
+  money,
+  orderStatuses,
+  serviceStatuses,
+  type Build,
+} from "../data/catalog"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ProductCard from "../components/ProductCard"
 import {
@@ -92,7 +98,9 @@ export default function Account() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">
             <Smartphone size={26} />
           </div>
-          <h1 className="mt-6 text-3xl font-bold tracking-[-.02em]">Login to your IT HUB</h1>
+          <h1 className="mt-6 text-3xl font-bold tracking-[-.02em]">
+            Login to your IT HUB
+          </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Sign in with your +91 mobile number to manage your profile, orders,
             offers, warranty and after-sales support.
@@ -129,7 +137,10 @@ export default function Account() {
               {store.profile.name || "Welcome to IT HUB"}
             </p>
             <p className="mt-1 text-[10px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1"><BadgeCheck size={12} className="text-primary" /> {store.profile.phone}</span>
+              <span className="inline-flex items-center gap-1">
+                <BadgeCheck size={12} className="text-primary" />{" "}
+                {store.profile.phone}
+              </span>
             </p>
           </div>
           <nav className="flex gap-1 overflow-x-auto lg:flex-col">
@@ -242,9 +253,12 @@ export default function Account() {
                   {(store.profile.name || "U").charAt(0).toUpperCase()}
                 </span>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{store.profile.name || "Add your name"}</h2>
+                  <h2 className="text-2xl font-bold">
+                    {store.profile.name || "Add your name"}
+                  </h2>
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <BadgeCheck size={15} className="text-primary" /> {store.profile.phone} · verified
+                    <BadgeCheck size={15} className="text-primary" />{" "}
+                    {store.profile.phone} · verified
                   </p>
                 </div>
                 <Button
@@ -264,8 +278,12 @@ export default function Account() {
                   ["Address", store.profile.address],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl bg-muted p-4">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
-                    <dd className="mt-1.5 text-sm font-medium">{value || "Not added yet"}</dd>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="mt-1.5 text-sm font-medium">
+                      {value || "Not added yet"}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -276,17 +294,25 @@ export default function Account() {
               {store.offers
                 .filter((offer) => offer.active)
                 .map((offer) => (
-                  <article key={offer.id} className="relative overflow-hidden rounded-3xl border border-border bg-card p-6">
+                  <article
+                    key={offer.id}
+                    className="relative overflow-hidden rounded-3xl border border-border bg-card p-6"
+                  >
                     <Badge>MEMBER OFFER</Badge>
                     <h3 className="mt-4 text-xl font-bold">{offer.name}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">{offer.description}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {offer.description}
+                    </p>
                     <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary/40 bg-secondary px-4 py-3">
                       <code className="text-sm font-bold tracking-widest text-primary">
-                        ITHUB{offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}
+                        ITHUB
+                        {offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}
                       </code>
                       <button
                         onClick={() => {
-                          navigator.clipboard?.writeText(`ITHUB${offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}`)
+                          navigator.clipboard?.writeText(
+                            `ITHUB${offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}`,
+                          )
                           store.notify("Offer code copied")
                         }}
                         className="text-xs font-semibold text-primary"
@@ -296,7 +322,10 @@ export default function Account() {
                     </div>
                   </article>
                 ))}
-              <Link to="/offers" className="flex items-center justify-center rounded-3xl border border-dashed border-border p-6 text-sm font-semibold text-primary">
+              <Link
+                to="/offers"
+                className="flex items-center justify-center rounded-3xl border border-dashed border-border p-6 text-sm font-semibold text-primary"
+              >
                 See all store offers <ArrowUpRight size={16} />
               </Link>
             </div>
@@ -320,7 +349,9 @@ export default function Account() {
                           </p>
                         </div>
                         <Badge tone={order.status === 6 ? "green" : "blue"}>
-                          {order.status < 0 ? "Cancelled" : orderStatuses[order.status]}
+                          {order.status < 0
+                            ? "Cancelled"
+                            : orderStatuses[order.status]}
                         </Badge>
                       </div>
                       <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
@@ -334,8 +365,13 @@ export default function Account() {
                       </div>
                       <div className="mt-4 space-y-2 border-t border-border pt-4">
                         {order.items.map((item) => (
-                          <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span className="text-muted-foreground">{item.name} × {item.quantity}</span>
+                          <div
+                            key={item.id}
+                            className="flex flex-wrap items-center justify-between gap-2 text-xs"
+                          >
+                            <span className="text-muted-foreground">
+                              {item.name} × {item.quantity}
+                            </span>
                             <Link
                               to={`/support?view=warranty&order=${order.id}&product=${item.id}`}
                               className="rounded-full bg-secondary px-3 py-1.5 font-semibold text-primary hover:bg-primary hover:text-white"
@@ -579,7 +615,8 @@ export default function Account() {
                 to="/support"
                 className="mb-6 flex items-center justify-between rounded-xl border border-primary/20 bg-secondary p-5 text-sm font-semibold text-primary"
               >
-                Open the Help &amp; Support centre — brand warranty contacts, service and on-site warranty
+                Open the Help &amp; Support centre — brand warranty contacts,
+                service and on-site warranty
                 <span>→</span>
               </Link>
               <form
@@ -806,7 +843,16 @@ export default function Account() {
   )
 }
 
-const buildPartOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"]
+const buildPartOrder = [
+  "CPU",
+  "GPU",
+  "Motherboard",
+  "RAM",
+  "Storage",
+  "PSU",
+  "Cooler",
+  "Cabinet",
+]
 const buildPartName = (build: Build, type: string) =>
   build.owned?.includes(type)
     ? "Already owned"
@@ -843,8 +889,20 @@ function PcBuilds() {
       "Hello IT HUB,",
       "I would like to enquire about the following PC build:",
       `Build:\n${build.name}`,
-      ...["CPU", "GPU", "RAM", "Storage", "Motherboard", "PSU", "Cabinet", "Cooler"].map(
-        (type) => `${type === "Cooler" ? "CPU Cooler" : type}:\n${buildPartName(build, type)}`,
+      ...[
+        "CPU",
+        "GPU",
+        "RAM",
+        "Storage",
+        "Motherboard",
+        "PSU",
+        "Cabinet",
+        "Cooler",
+      ].map(
+        (type) =>
+          `${
+            type === "Cooler" ? "CPU Cooler" : type
+          }:\n${buildPartName(build, type)}`,
       ),
       `Estimated Price:\n${money(build.price + assembly)}`,
       "Please confirm availability and provide the final quotation.",
@@ -886,7 +944,10 @@ function PcBuilds() {
         <div className="mb-6 rounded-2xl border border-primary/30 bg-secondary/40 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-bold">Compare builds</h3>
-            <button className="text-xs text-primary" onClick={() => setCompare([])}>
+            <button
+              className="text-xs text-primary"
+              onClick={() => setCompare([])}
+            >
               Clear
             </button>
           </div>
@@ -894,39 +955,55 @@ function PcBuilds() {
             {compared.map((build) => (
               <div key={build.id} className="min-w-0 rounded-xl bg-white p-3">
                 <p className="truncate text-sm font-bold">{build.name}</p>
-                <p className="mt-1 font-semibold text-primary">{money(build.price + assembly)}</p>
+                <p className="mt-1 font-semibold text-primary">
+                  {money(build.price + assembly)}
+                </p>
                 {build.designedFor && (
-                  <p className="mt-1 text-muted-foreground">For {build.designedFor}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    For {build.designedFor}
+                  </p>
                 )}
               </div>
             ))}
             {buildPartOrder.map((type) =>
               compared.map((build) => {
                 const differs =
-                  buildPartName(compared[0], type) !== buildPartName(compared[1], type)
+                  buildPartName(compared[0], type) !==
+                  buildPartName(compared[1], type)
                 return (
                   <div
                     key={`${type}-${build.id}`}
-                    className={`min-w-0 rounded-lg px-3 py-2 ${differs ? "bg-amber-50" : "bg-white"}`}
+                    className={`min-w-0 rounded-lg px-3 py-2 ${
+                      differs ? "bg-amber-50" : "bg-white"
+                    }`}
                   >
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       {type === "Cooler" ? "CPU Cooler" : type}
                     </p>
-                    <p className="mt-0.5 break-words font-medium">{buildPartName(build, type)}</p>
+                    <p className="mt-0.5 break-words font-medium">
+                      {buildPartName(build, type)}
+                    </p>
                     {build.parts[type] && !build.owned?.includes(type) && (
-                      <p className="text-muted-foreground">{money(build.parts[type].price)}</p>
+                      <p className="text-muted-foreground">
+                        {money(build.parts[type].price)}
+                      </p>
                     )}
                   </div>
                 )
               }),
             )}
           </div>
-          <p className="mt-3 text-[10px] text-muted-foreground">Highlighted rows differ between builds.</p>
+          <p className="mt-3 text-[10px] text-muted-foreground">
+            Highlighted rows differ between builds.
+          </p>
         </div>
       )}
       <div className="space-y-4">
         {store.builds.map((build) => (
-          <div key={build.id} className="rounded-2xl border border-border p-5 md:p-6">
+          <div
+            key={build.id}
+            className="rounded-2xl border border-border p-5 md:p-6"
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {renaming === build.id ? (
@@ -952,10 +1029,14 @@ function PcBuilds() {
                   <h3 className="font-bold">{build.name}</h3>
                 )}
                 {build.designedFor && (
-                  <p className="mt-1 text-xs text-muted-foreground">Designed for {build.designedFor}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Designed for {build.designedFor}
+                  </p>
                 )}
               </div>
-              <strong className="text-primary">{money(build.price + assembly)}</strong>
+              <strong className="text-primary">
+                {money(build.price + assembly)}
+              </strong>
             </div>
             <p className="mt-3 text-xs leading-6 text-muted-foreground">
               {buildPartOrder
@@ -964,10 +1045,18 @@ function PcBuilds() {
                 .join(" · ")}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <Button variant="secondary" className="px-4 py-2 text-xs" onClick={() => setViewing(build)}>
+              <Button
+                variant="secondary"
+                className="px-4 py-2 text-xs"
+                onClick={() => setViewing(build)}
+              >
                 View
               </Button>
-              <ActionLink secondary to={`/pc-builder?build=${build.id}`} className="px-4 py-2 text-xs">
+              <ActionLink
+                secondary
+                to={`/pc-builder?build=${build.id}`}
+                className="px-4 py-2 text-xs"
+              >
                 Customize
               </ActionLink>
               <button
@@ -980,7 +1069,13 @@ function PcBuilds() {
                 variant="secondary"
                 className="px-4 py-2 text-xs"
                 onClick={() =>
-                  store.addCart({ id: build.id, name: build.name, price: build.price, image: images.pc, build })
+                  store.addCart({
+                    id: build.id,
+                    name: build.name,
+                    price: build.price,
+                    image: images.pc,
+                    build,
+                  })
                 }
               >
                 Add to cart
@@ -1006,7 +1101,9 @@ function PcBuilds() {
               <button
                 className="text-xs text-red-600"
                 onClick={() => {
-                  store.set({ builds: store.builds.filter((item) => item.id !== build.id) })
+                  store.set({
+                    builds: store.builds.filter((item) => item.id !== build.id),
+                  })
                   setCompare(compare.filter((id) => id !== build.id))
                   store.notify("Build removed")
                 }}
@@ -1021,35 +1118,51 @@ function PcBuilds() {
         open={Boolean(viewing)}
         onOpenChange={(open) => !open && setViewing(null)}
         title={viewing?.name || "PC build"}
-        description={viewing?.designedFor ? `Designed for ${viewing.designedFor}` : "Your saved PC configuration."}
+        description={
+          viewing?.designedFor
+            ? `Designed for ${viewing.designedFor}`
+            : "Your saved PC configuration."
+        }
       >
         {viewing && (
           <>
             <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
               {buildPartOrder
-                .filter((type) => viewing.parts[type] || viewing.owned?.includes(type))
+                .filter(
+                  (type) =>
+                    viewing.parts[type] || viewing.owned?.includes(type),
+                )
                 .map((type) => (
                   <p key={type} className="flex justify-between gap-3">
                     <span>
-                      <span className="text-muted-foreground">{type === "Cooler" ? "CPU Cooler" : type}:</span>{" "}
+                      <span className="text-muted-foreground">
+                        {type === "Cooler" ? "CPU Cooler" : type}:
+                      </span>{" "}
                       {buildPartName(viewing, type)}
                     </span>
                     {viewing.parts[type] && !viewing.owned?.includes(type) && (
-                      <strong className="shrink-0">{money(viewing.parts[type].price)}</strong>
+                      <strong className="shrink-0">
+                        {money(viewing.parts[type].price)}
+                      </strong>
                     )}
                   </p>
                 ))}
               <p className="flex justify-between gap-3 border-t border-border pt-2">
-                <span className="text-muted-foreground">Assembly / Service</span>
+                <span className="text-muted-foreground">
+                  Assembly / Service
+                </span>
                 <strong>{assembly ? money(assembly) : "Free"}</strong>
               </p>
             </div>
             <div className="mt-4 flex items-center justify-between">
               <span className="text-sm">Estimated Total</span>
-              <strong className="text-2xl text-primary">{money(viewing.price + assembly)}</strong>
+              <strong className="text-2xl text-primary">
+                {money(viewing.price + assembly)}
+              </strong>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Component prices and availability may change. Final pricing will be confirmed by IT HUB before purchase.
+              Component prices and availability may change. Final pricing will
+              be confirmed by IT HUB before purchase.
             </p>
           </>
         )}

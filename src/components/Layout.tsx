@@ -47,20 +47,30 @@ export default function Layout() {
   const [query, setQuery] = useState("")
   const location = useLocation()
   useEffect(() => {
-    identify(store.loggedIn ? store.profile.phone || store.profile.email || "customer" : undefined)
+    identify(
+      store.loggedIn
+        ? store.profile.phone || store.profile.email || "customer"
+        : undefined,
+    )
   }, [store.loggedIn, store.profile.phone, store.profile.email])
   useEffect(() => {
     track("Page Viewed")
   }, [location.pathname, location.search])
   const wasLoggedIn = useRef(store.loggedIn)
   useEffect(() => {
-    if (wasLoggedIn.current !== store.loggedIn) track(store.loggedIn ? "Login" : "Logout")
+    if (wasLoggedIn.current !== store.loggedIn)
+      track(store.loggedIn ? "Login" : "Logout")
     wasLoggedIn.current = store.loggedIn
   }, [store.loggedIn])
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
-      const link = (event.target as HTMLElement | null)?.closest?.("a[href*='wa.me']")
-      if (link) track("Contact/WhatsApp Action", { href: link.getAttribute("href")?.split("?")[0] || "" })
+      const link = (event.target as HTMLElement | null)?.closest?.(
+        "a[href*='wa.me']",
+      )
+      if (link)
+        track("Contact/WhatsApp Action", {
+          href: link.getAttribute("href")?.split("?")[0] || "",
+        })
     }
     document.addEventListener("click", onClick)
     return () => document.removeEventListener("click", onClick)
@@ -75,7 +85,9 @@ export default function Layout() {
   useEffect(() => {
     const instance = new Lenis({ duration: 1.15, smoothWheel: true })
     lenis.current = instance
-    instance.on("scroll", ({ scroll }: { scroll: number }) => setScrolled(scroll > 24))
+    instance.on("scroll", ({ scroll }: { scroll: number }) =>
+      setScrolled(scroll > 24),
+    )
     let raf = 0
     const loop = (time: number) => {
       instance.raf(time)
@@ -140,7 +152,9 @@ export default function Layout() {
         }`}
       >
         <div
-          className={`${containerClass} flex items-center transition-all duration-500 ${scrolled ? "h-[72px]" : "h-[88px]"} justify-between gap-5`}
+          className={`${containerClass} flex items-center transition-all duration-500 ${
+            scrolled ? "h-[72px]" : "h-[88px]"
+          } justify-between gap-5`}
         >
           <Link
             to="/"
@@ -168,7 +182,15 @@ export default function Layout() {
                   }`
                 }
               >
-                <span className={item.name === "Products" || item.name === "Services" ? "font-semibold" : ""}>{item.name}</span>
+                <span
+                  className={
+                    item.name === "Products" || item.name === "Services"
+                      ? "font-semibold"
+                      : ""
+                  }
+                >
+                  {item.name}
+                </span>
               </NavLink>
             ))}
           </nav>
@@ -215,28 +237,67 @@ export default function Layout() {
               )}
               {menu && store.loggedIn && (
                 <>
-                  <button aria-label="Close account menu" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenu(false)} />
+                  <button
+                    aria-label="Close account menu"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setMenu(false)}
+                  />
                   <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-2xl border border-border bg-white p-2 shadow-md shadow-slate-900/15">
                     <div className="border-b border-border px-3 pb-3 pt-2">
-                      <p className="text-sm font-semibold">{store.profile.name || "IT HUB customer"}</p>
-                      <p className="text-xs text-muted-foreground">{store.profile.phone}</p>
+                      <p className="text-sm font-semibold">
+                        {store.profile.name || "IT HUB customer"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {store.profile.phone}
+                      </p>
                     </div>
                     {[
-                      { name: "My Profile", to: "/account/profile", Icon: UserRound },
-                      { name: "My Orders", to: "/account/orders", Icon: Package },
-                      { name: "My Address", to: "/account/addresses", Icon: HomeIcon },
+                      {
+                        name: "My Profile",
+                        to: "/account/profile",
+                        Icon: UserRound,
+                      },
+                      {
+                        name: "My Orders",
+                        to: "/account/orders",
+                        Icon: Package,
+                      },
+                      {
+                        name: "My Address",
+                        to: "/account/addresses",
+                        Icon: HomeIcon,
+                      },
                       { name: "My Offers", to: "/account/offers", Icon: Tag },
                       { name: "PC Builds", to: "/account/builds", Icon: Cpu },
-                      { name: "Wishlist", to: "/account/wishlist", Icon: Heart },
-                      { name: "Warranty", to: "/account/warranty", Icon: ShieldCheck },
-                      { name: "After-sales Support", to: "/account/support", Icon: LifeBuoy },
+                      {
+                        name: "Wishlist",
+                        to: "/account/wishlist",
+                        Icon: Heart,
+                      },
+                      {
+                        name: "Warranty",
+                        to: "/account/warranty",
+                        Icon: ShieldCheck,
+                      },
+                      {
+                        name: "After-sales Support",
+                        to: "/account/support",
+                        Icon: LifeBuoy,
+                      },
                     ].map(({ name, to, Icon }) => (
-                      <Link key={to} to={to} className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-muted">
+                      <Link
+                        key={to}
+                        to={to}
+                        className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-muted"
+                      >
                         <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border group-hover:border-primary group-hover:text-primary">
                           <Icon size={17} />
                         </span>
                         <span className="flex-1 font-medium">{name}</span>
-                        <ChevronRight size={14} className="text-muted-foreground" />
+                        <ChevronRight
+                          size={14}
+                          className="text-muted-foreground"
+                        />
                       </Link>
                     ))}
                     <button
@@ -299,9 +360,13 @@ export default function Layout() {
         )}
       </header>
       {location.pathname !== "/" && (
-        <div className={`${containerClass} relative z-10 flex items-center gap-2 pt-5 text-xs`}>
+        <div
+          className={`${containerClass} relative z-10 flex items-center gap-2 pt-5 text-xs`}
+        >
           <button
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
+            onClick={() =>
+              window.history.length > 1 ? navigate(-1) : navigate("/")
+            }
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 font-semibold transition hover:border-primary hover:text-primary"
           >
             <ArrowLeft size={14} /> Back
@@ -318,13 +383,18 @@ export default function Layout() {
               .filter(Boolean)
               .map((part) => (
                 <span key={part} className="flex items-center gap-1">
-                  <ChevronRight size={12} /> {decodeURIComponent(part).replace(/-/g, " ")}
+                  <ChevronRight size={12} />{" "}
+                  {decodeURIComponent(part).replace(/-/g, " ")}
                 </span>
               ))}
           </span>
         </div>
       )}
-      <main id="main-content" tabIndex={-1} className="min-h-[60vh] overflow-x-clip">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="min-h-[60vh] overflow-x-clip"
+      >
         <Outlet />
       </main>
       <footer className="relative mt-10 overflow-hidden rounded-t-[2.5rem] border-t border-border bg-muted">

@@ -1,13 +1,14 @@
 -- ============================================================================
--- IT HUB — Supabase / PostgreSQL Production-Ready Database Schema
--- Roles: 'admin', 'customer'
--- Authorization: Enforced via Database-Level Row Level Security (RLS) & RPCs
+-- IT HUB — Supabase / PostgreSQL Canonical Production Database Schema
+-- Roles: 'admin', 'customer', 'anon' (unauthenticated), 'service_role' (trusted backend)
+-- Architecture: Database-Level Row Level Security (RLS), Strict Triggers & Security Definer RPCs
+-- Target Environment: Supabase PostgreSQL 15+ (Fresh Installation Compatible)
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. ROLES, ENUMS & PROFILES
+-- 1. ENUMS & APPLICATION TYPES
 -- ────────────────────────────────────────────────────────────────────────────
 
 create type app_role as enum ('admin', 'customer');
@@ -28,19 +29,23 @@ create type order_status as enum (
 );
 create type coupon_type as enum ('percentage', 'fixed');
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 2. PROFILES, AUTH & ADMINISTRATIVE CONTROLS
+-- ────────────────────────────────────────────────────────────────────────────
+
 -- Profiles table linked 1:1 with Supabase Auth (auth.users)
 create table profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   role app_role not null default 'customer',
   full_name text,
-  phone text unique,               -- +91 mobile used for OTP login
+  phone text unique check (phone is null or phone ~ '^\+?[0-9]{10,15}$'), -- E.164 / Indian mobile format
   email text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 -- Core helper used by all administrative RLS policies.
--- SECURITY DEFINER and fixed search_path avoid RLS recursion and search_path poisoning.
+-- Declared SECURITY DEFINER and fixed search_path to avoid RLS recursion and search_path poisoning.
 create or replace function is_admin() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
@@ -60,6 +65,7 @@ $$;
 
 -- New auth users always start as customers; admin role cannot be self-assigned.
 -- Sanitizes empty strings to NULL to avoid unique constraint collisions on phone/email.
+-- Pre-validates phone uniqueness to ensure account creation transactions remain atomic and rollback on error.
 create or replace function handle_new_user() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -74,6 +80,11 @@ begin
     new.raw_user_meta_data->>'name'
   )), '');
 
+  -- Pre-validate unique phone to prevent orphaned auth.users records on constraint failure
+  if v_phone is not null and exists (select 1 from profiles where phone = v_phone and id <> new.id) then
+    raise exception 'Phone number % is already registered to another account', v_phone;
+  end if;
+
   insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
   values (new.id, 'customer', v_full_name, v_phone, v_email, now(), now())
   on conflict (id) do update set
@@ -82,9 +93,6 @@ begin
     full_name = coalesce(excluded.full_name, profiles.full_name),
     updated_at = now();
   return new;
-exception when others then
-  -- Fail-safe: ensure auth user creation is never aborted by profile insertion
-  return new;
 end;
 $$;
 
@@ -92,15 +100,60 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
 
+-- Self-healing reconciliation helper to recover missing profiles for authenticated users
+create or replace function ensure_profile() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user_id uuid;
+  v_user record;
+  v_profile record;
+begin
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'Authentication required to ensure profile';
+  end if;
+
+  select * into v_profile from profiles where id = v_user_id;
+  if found then
+    return jsonb_build_object('ok', true, 'created', false, 'profile', to_jsonb(v_profile));
+  end if;
+
+  select * into v_user from auth.users where id = v_user_id;
+  if not found then
+    raise exception 'Authenticated user record not found';
+  end if;
+
+  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  values (
+    v_user.id,
+    'customer',
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
+    nullif(trim(v_user.phone), ''),
+    nullif(trim(v_user.email), ''),
+    now(),
+    now()
+  )
+  on conflict (id) do update set
+    updated_at = now()
+  returning * into v_profile;
+
+  return jsonb_build_object('ok', true, 'created', true, 'profile', to_jsonb(v_profile));
+end;
+$$;
+
 -- Customers cannot promote themselves or alter roles.
+-- Enforces NULL-safe comparisons and restricts non-admin creation strictly to customer role.
 create or replace function protect_role() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if (tg_op = 'UPDATE' and new.role <> old.role and not is_admin()) then
-    raise exception 'Unauthorized: Only administrators can modify roles';
-  end if;
-  if (tg_op = 'INSERT' and new.role = 'admin' and not is_admin()) then
-    raise exception 'Unauthorized: Only administrators can create admin accounts';
+  if tg_op = 'UPDATE' then
+    if new.role is distinct from old.role and not is_admin() then
+      raise exception 'Unauthorized: Only administrators can modify roles';
+    end if;
+  elsif tg_op = 'INSERT' then
+    if new.role is distinct from 'customer' and not is_admin() then
+      raise exception 'Unauthorized: Only administrators can create admin accounts';
+    end if;
   end if;
   return new;
 end;
@@ -114,8 +167,40 @@ create trigger profiles_set_updated_at
   before update on profiles
   for each row execute function handle_updated_at();
 
+-- Safe First-Administrator Bootstrap RPC.
+-- Executable exclusively by service_role (trusted backend) or direct superuser.
+-- Guarantees the initial administrator can only be claimed if no administrator currently exists.
+create or replace function bootstrap_first_admin(p_user_id uuid) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_admin_exists boolean;
+  v_target_profile record;
+begin
+  if p_user_id is null then
+    raise exception 'Target user ID is required for initial bootstrap';
+  end if;
+
+  select exists (select 1 from profiles where role = 'admin') into v_admin_exists;
+  if v_admin_exists then
+    raise exception 'Initial administrator already exists. Further role assignments require an active administrator.';
+  end if;
+
+  select * into v_target_profile from profiles where id = p_user_id;
+  if not found then
+    raise exception 'Profile % does not exist. The user must sign up before being promoted.', p_user_id;
+  end if;
+
+  update profiles
+  set role = 'admin',
+      updated_at = now()
+  where id = p_user_id;
+
+  return jsonb_build_object('ok', true, 'user_id', p_user_id, 'role', 'admin');
+end;
+$$;
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 2. CATALOG & INVENTORY
+-- 3. CATALOG & INVENTORY
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table categories (
@@ -182,6 +267,21 @@ create trigger inventory_set_updated_at
   before update on inventory
   for each row execute function handle_updated_at();
 
+-- Auto-initialize inventory record when a new product is added to the catalog
+create or replace function sync_product_inventory() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  insert into inventory (product_id, stock, low_stock_threshold)
+  values (new.id, 0, 3)
+  on conflict (product_id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_product_created_init_inventory
+  after insert on products
+  for each row execute function sync_product_inventory();
+
 -- Safe public storefront catalog view.
 -- Exposes active fresh and second-hand items with live stock and MRP while completely shielding cost_price.
 -- Runs with security_barrier and view owner privileges (security_invoker = false) so public
@@ -227,7 +327,7 @@ create table import_runs (
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 3. OFFERS & PROMOTIONS
+-- 4. OFFERS & PROMOTIONS
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table offers (
@@ -268,7 +368,7 @@ create table offer_brands (
   primary key (offer_id, brand_id)
 );
 
--- Public view for active offers currently within their validity window (Explicit projected columns)
+-- Public view for active offers currently within their validity window
 create or replace view live_offers as
   select
     id,
@@ -288,7 +388,7 @@ create or replace view live_offers as
 alter view live_offers set (security_barrier = true);
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 4. CUSTOMER ADDRESSES & WISHLISTS
+-- 5. CUSTOMER ADDRESSES & WISHLISTS
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table addresses (
@@ -328,7 +428,7 @@ create table wishlist (
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 5. COUPONS & USAGE (ONE SUCCESSFUL REDEMPTION PER CUSTOMER)
+-- 6. COUPONS & USAGE (ONE SUCCESSFUL REDEMPTION PER CUSTOMER)
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table coupons (
@@ -358,8 +458,25 @@ create trigger coupons_set_updated_at
 -- Case-insensitive uniqueness for coupon codes
 create unique index coupons_code_upper_idx on coupons (upper(code));
 
+-- Public safe view for active storefront promotional coupons (masks internal administrative columns)
+create or replace view public_coupons as
+  select
+    id,
+    code,
+    description,
+    type,
+    value,
+    min_order_value,
+    max_discount,
+    starts_at,
+    ends_at
+  from coupons
+  where active and now() between starts_at and ends_at;
+
+alter view public_coupons set (security_barrier = true);
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 6. ORDERS, ORDER ITEMS & SECURE PAYMENT FIELDS
+-- 7. ORDERS, ORDER ITEMS & SECURE SETTLEMENT FIELDS
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table orders (
@@ -417,7 +534,7 @@ create table coupon_usages (
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 7. REVIEWS & COMMUNITY RATINGS
+-- 8. REVIEWS & COMMUNITY RATINGS
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table reviews (
@@ -436,8 +553,37 @@ create trigger reviews_set_updated_at
   before update on reviews
   for each row execute function handle_updated_at();
 
+-- Enforces that customers cannot publish reviews directly; reviews require administrator moderation.
+create or replace function protect_review() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_admin() then
+    if tg_op = 'INSERT' then
+      if new.user_id is distinct from auth.uid() then
+        raise exception 'Unauthorized: Review must belong to authenticated user';
+      end if;
+      if new.status is distinct from 'Pending' then
+        raise exception 'Unauthorized: New reviews must start in Pending moderation status';
+      end if;
+    elsif tg_op = 'UPDATE' then
+      if new.user_id is distinct from old.user_id or new.id is distinct from old.id or new.product_id is distinct from old.product_id then
+        raise exception 'Unauthorized: Review identity and product association are immutable';
+      end if;
+      if new.status is distinct from 'Pending' and not is_admin() then
+        raise exception 'Unauthorized: Only administrators can publish or hide reviews';
+      end if;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger reviews_protect
+  before insert or update on reviews
+  for each row execute function protect_review();
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 8. SERVICES, LOCATIONS & ON-SITE WARRANTY
+-- 9. SERVICES, LOCATIONS & ON-SITE WARRANTY
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table it_hub_locations (
@@ -483,53 +629,112 @@ create trigger service_requests_set_updated_at
   before update on service_requests
   for each row execute function handle_updated_at();
 
--- Enforces fine-grained customer vs admin update permissions on service requests
+-- Enforces fine-grained customer vs admin permissions on service requests on BOTH INSERT and UPDATE.
+-- Uses NULL-safe comparisons (IS DISTINCT FROM), strict quote transition checks,
+-- protects administrative notes, quote state, and technician fields.
 create or replace function protect_service_request() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
-    -- Non-admin cannot alter ownership, ID, or creation timestamp
-    if new.user_id <> old.user_id then
-      raise exception 'Unauthorized: Cannot change service request ownership';
-    end if;
-    if new.id <> old.id then
-      raise exception 'Unauthorized: Cannot change service request ID';
-    end if;
-    if new.created_at <> old.created_at then
-      raise exception 'Unauthorized: Cannot alter creation timestamp';
-    end if;
-
-    -- Non-admin cannot alter workflow status or administrative pricing
-    if new.status <> old.status then
-      raise exception 'Unauthorized: Only administrators can update service request status';
-    end if;
-    if new.quote is distinct from old.quote then
-      raise exception 'Unauthorized: Only administrators can modify quotes';
-    end if;
-    if new.technician_name is distinct from old.technician_name then
-      raise exception 'Unauthorized: Only administrators can assign technicians';
-    end if;
-    if new.courier_charge_return_delivery is distinct from old.courier_charge_return_delivery then
-      raise exception 'Unauthorized: Only administrators can modify courier return charges';
-    end if;
-
-    -- Quote state transition: Customer can only respond to a pending quote (pending -> approved | rejected)
-    if new.quote_state is distinct from old.quote_state then
-      if old.quote_state <> 'pending' or new.quote_state not in ('approved', 'rejected') then
-        raise exception 'Unauthorized: Invalid quote response transition';
+    if tg_op = 'INSERT' then
+      -- 1. Enforce ownership and default workflow values on creation
+      if new.user_id is distinct from auth.uid() then
+        raise exception 'Unauthorized: Service request user_id must match authenticated user';
       end if;
-    end if;
+      if new.status is distinct from 'Booked' then
+        raise exception 'Unauthorized: Initial service request status must be Booked';
+      end if;
+      if new.quote is not null then
+        raise exception 'Unauthorized: Customers cannot set quotation on request creation';
+      end if;
+      if new.quote_state is not null then
+        raise exception 'Unauthorized: Customers cannot set quote state on request creation';
+      end if;
+      if new.technician_name is not null then
+        raise exception 'Unauthorized: Customers cannot assign technicians';
+      end if;
+      if new.notes is not null then
+        raise exception 'Unauthorized: Administrative notes are reserved for staff';
+      end if;
+      if new.courier_charge_return_delivery is not null then
+        raise exception 'Unauthorized: Courier charges cannot be set by customer';
+      end if;
+      if trim(coalesce(new.device, '')) = '' then
+        raise exception 'Device cannot be empty';
+      end if;
+      if trim(coalesce(new.problem, '')) = '' then
+        raise exception 'Problem description cannot be empty';
+      end if;
+      if new.address_id is not null then
+        if not exists (select 1 from addresses where id = new.address_id and user_id = new.user_id) then
+          raise exception 'Unauthorized: Selected address does not belong to you';
+        end if;
+      end if;
 
-    -- Hardware & scheduling details: Customer may only modify while in 'Booked' state
-    if (new.device <> old.device or
-        new.model is distinct from old.model or
-        new.problem <> old.problem or
-        new.method <> old.method or
-        new.address_id is distinct from old.address_id or
-        new.preferred_date is distinct from old.preferred_date or
-        new.preferred_slot is distinct from old.preferred_slot) then
-      if old.status <> 'Booked' then
-        raise exception 'Unauthorized: Service request details cannot be altered once diagnosis has started';
+    elsif tg_op = 'UPDATE' then
+      -- 2. Immutable identifiers & timestamps
+      if new.user_id is distinct from old.user_id then
+        raise exception 'Unauthorized: Cannot change service request ownership';
+      end if;
+      if new.id is distinct from old.id then
+        raise exception 'Unauthorized: Cannot change service request ID';
+      end if;
+      if new.created_at is distinct from old.created_at then
+        raise exception 'Unauthorized: Cannot alter creation timestamp';
+      end if;
+
+      -- 3. Administrative fields protected from customer mutation
+      if new.status is distinct from old.status then
+        raise exception 'Unauthorized: Only administrators can update service request status';
+      end if;
+      if new.quote is distinct from old.quote then
+        raise exception 'Unauthorized: Only administrators can modify quotes';
+      end if;
+      if new.technician_name is distinct from old.technician_name then
+        raise exception 'Unauthorized: Only administrators can assign technicians';
+      end if;
+      if new.notes is distinct from old.notes then
+        raise exception 'Unauthorized: Only administrators can modify administrative notes';
+      end if;
+      if new.courier_charge_return_delivery is distinct from old.courier_charge_return_delivery then
+        raise exception 'Unauthorized: Only administrators can modify courier return charges';
+      end if;
+
+      -- 4. Quote state transition:
+      -- Customer can ONLY respond to an active pending quote when a quote is present.
+      -- Prevents transition when old.quote_state is NULL or not pending.
+      if new.quote_state is distinct from old.quote_state then
+        if (old.quote_state is distinct from 'pending') or (old.quote is null) or (new.quote_state not in ('approved', 'rejected')) then
+          raise exception 'Unauthorized: Invalid quote response transition';
+        end if;
+      end if;
+
+      -- 5. Customer-editable hardware & scheduling details:
+      -- Permitted ONLY while in 'Booked' workflow status
+      if (new.device is distinct from old.device or
+          new.model is distinct from old.model or
+          new.problem is distinct from old.problem or
+          new.method is distinct from old.method or
+          new.address_id is distinct from old.address_id or
+          new.preferred_date is distinct from old.preferred_date or
+          new.preferred_slot is distinct from old.preferred_slot) then
+        if old.status <> 'Booked' then
+          raise exception 'Unauthorized: Service request details cannot be altered once diagnosis has started';
+        end if;
+
+        if trim(coalesce(new.device, '')) = '' then
+          raise exception 'Device cannot be empty';
+        end if;
+        if trim(coalesce(new.problem, '')) = '' then
+          raise exception 'Problem description cannot be empty';
+        end if;
+
+        -- Validate customer ownership of new address_id if specified
+        if new.address_id is not null and new.address_id is distinct from old.address_id then
+          if not exists (select 1 from addresses where id = new.address_id and user_id = new.user_id) then
+            raise exception 'Unauthorized: Selected address does not belong to you';
+          end if;
+        end if;
       end if;
     end if;
   end if;
@@ -538,7 +743,7 @@ end;
 $$;
 
 create trigger service_requests_protect
-  before update on service_requests
+  before insert or update on service_requests
   for each row execute function protect_service_request();
 
 create table warranty_checks (
@@ -571,7 +776,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
 $$;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 9. PC BUILDER & STORE SETTINGS
+-- 10. PC BUILDER & STORE SETTINGS
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table pc_builds (
@@ -589,6 +794,35 @@ create table pc_builds (
 create trigger pc_builds_set_updated_at
   before update on pc_builds
   for each row execute function handle_updated_at();
+
+-- Enforces that customers cannot transition PC builds into administrative quotation statuses directly
+create or replace function protect_pc_build() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_admin() then
+    if tg_op = 'INSERT' then
+      if new.user_id is distinct from auth.uid() then
+        raise exception 'Unauthorized: PC Build user_id must match authenticated user';
+      end if;
+      if new.enquiry_status not in ('Draft', 'New') then
+        raise exception 'Unauthorized: New PC build enquiry must start as Draft or New';
+      end if;
+    elsif tg_op = 'UPDATE' then
+      if new.user_id is distinct from old.user_id or new.id is distinct from old.id then
+        raise exception 'Unauthorized: PC Build identity and ownership are immutable';
+      end if;
+      if new.enquiry_status is distinct from old.enquiry_status and new.enquiry_status in ('Contacted', 'Quoted', 'Closed') then
+        raise exception 'Unauthorized: Only administrators can update PC build status to %', new.enquiry_status;
+      end if;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger pc_builds_protect
+  before insert or update on pc_builds
+  for each row execute function protect_pc_build();
 
 create table pc_build_templates (
   id uuid primary key default gen_random_uuid(),
@@ -626,7 +860,7 @@ create trigger store_settings_set_updated_at
   for each row execute function handle_updated_at();
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 10. AFTER-SALES SUPPORT DIRECTORY
+-- 11. AFTER-SALES SUPPORT DIRECTORY
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table support_categories (
@@ -672,7 +906,7 @@ create table support_verifications (
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 11. VISITOR ANALYTICS & PRIVACY-COMPLIANT IP LOGGING
+-- 12. VISITOR ANALYTICS & PRIVACY-COMPLIANT IP LOGGING
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table visitor_sessions (
@@ -685,7 +919,7 @@ create table visitor_sessions (
   city text,
   isp text,
   location_confidence text not null default 'unavailable'
-    check (location_confidence in ('approximate', 'unavailable')),
+    check (location_confidence in ('approximate', 'unverified_client_reported', 'unavailable')),
   device text check (device is null or device in ('Desktop', 'Mobile', 'Tablet')),
   os text,
   browser text,
@@ -700,7 +934,7 @@ create table visitor_sessions (
 create table visitor_events (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references visitor_sessions (id) on delete cascade,
-  user_id uuid references auth.users (id) on delete set null,
+  user_id references auth.users (id) on delete set null,
   event_type text not null,
   path text,
   status text not null default 'Success' check (status in ('Success', 'Info', 'Warning')),
@@ -743,7 +977,9 @@ exception when others then
 end;
 $$;
 
--- Privacy-respecting visitor event logging RPC
+-- Privacy-respecting visitor event logging RPC.
+-- Enforces strict event type allowlist, metadata validation, session ownership checks,
+-- and prioritizes trusted Cloudflare / proxy headers to mitigate header spoofing.
 create or replace function log_visitor_event(
   p_session_id uuid,
   p_visitor_id text,
@@ -763,6 +999,7 @@ create or replace function log_visitor_event(
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   s analytics_settings;
+  v_session record;
   v_raw_header text;
   v_raw_ip text;
   v_ip inet;
@@ -776,23 +1013,66 @@ begin
     raise exception 'Invalid session ID';
   end if;
 
-  if p_visitor_id is null or length(p_visitor_id) < 1 or length(p_visitor_id) > 64 then
+  if p_visitor_id is null or length(trim(p_visitor_id)) < 1 or length(p_visitor_id) > 64 then
     raise exception 'Invalid visitor ID';
   end if;
 
-  if p_event_type is null or length(p_event_type) < 2 or length(p_event_type) > 64 then
-    raise exception 'Invalid event type';
+  -- 1. Explicit allowlist for permitted event types
+  if p_event_type is null or p_event_type not in (
+    'Session Started',
+    'Session Ended',
+    'Page Viewed',
+    'Login',
+    'Logout',
+    'Product Viewed',
+    'Product Added to Cart',
+    'Checkout Started',
+    'Order Created',
+    'Service Booking Started',
+    'Service Request Created',
+    'PC Builder Started',
+    'PC Build Saved',
+    'Warranty Assistance Viewed',
+    'Contact/WhatsApp Action'
+  ) then
+    -- Administrative events are permitted only for verified administrators
+    if p_event_type in ('Admin Login', 'Admin Data Change') and is_admin() then
+      null;
+    else
+      raise exception 'Disallowed or invalid event type: %', p_event_type;
+    end if;
   end if;
 
-  -- Derive IP from trusted infrastructure request headers only
+  -- 2. Metadata validation (must be object, max 4096 bytes)
+  if p_meta is not null then
+    if jsonb_typeof(p_meta) <> 'object' then
+      raise exception 'Metadata must be a JSON object';
+    end if;
+    if octet_length(p_meta::text) > 4096 then
+      raise exception 'Metadata exceeds maximum allowable size of 4096 bytes';
+    end if;
+  end if;
+
+  -- 3. Session ownership check: prevent session hijacking and cross-user contamination
+  select * into v_session from visitor_sessions where id = p_session_id;
+  if found then
+    if v_session.visitor_id <> trim(p_visitor_id) then
+      raise exception 'Session ownership violation: visitor ID mismatch';
+    end if;
+    if v_session.user_id is not null and auth.uid() is not null and v_session.user_id <> auth.uid() then
+      raise exception 'Session ownership violation: session belongs to another user';
+    end if;
+  end if;
+
+  -- 4. Derive IP from trusted infrastructure request headers (Cloudflare CF-Connecting-IP first)
   if coalesce(s.ip_logging, true) then
     begin
       v_raw_header := current_setting('request.headers', true);
       if v_raw_header is not null and v_raw_header <> '' then
         v_raw_ip := coalesce(
-          nullif(trim(split_part(v_raw_header::json ->> 'x-forwarded-for', ',', 1)), ''),
           nullif(trim(v_raw_header::json ->> 'cf-connecting-ip'), ''),
-          nullif(trim(v_raw_header::json ->> 'x-real-ip'), '')
+          nullif(trim(v_raw_header::json ->> 'x-real-ip'), ''),
+          nullif(trim(split_part(v_raw_header::json ->> 'x-forwarded-for', ',', 1)), '')
         );
         if v_raw_ip is not null then
           v_ip := v_raw_ip::inet;
@@ -808,20 +1088,20 @@ begin
     v_ip := null;
   end if;
 
-  -- Upsert visitor session
+  -- 5. Upsert visitor session
   insert into visitor_sessions as vs (
     id, visitor_id, user_id, ip, country, region, city, isp, location_confidence,
     device, os, browser, referrer, landing_page, returning, page_views
   ) values (
     p_session_id,
-    left(p_visitor_id, 64),
+    left(trim(p_visitor_id), 64),
     auth.uid(),
     v_ip,
     left(p_country, 64),
     left(p_region, 64),
     left(p_city, 64),
     left(p_isp, 64),
-    case when p_city is not null or p_region is not null or p_country is not null then 'approximate' else 'unavailable' end,
+    case when p_city is not null or p_region is not null or p_country is not null then 'unverified_client_reported' else 'unavailable' end,
     case when p_device in ('Desktop', 'Mobile', 'Tablet') then p_device else null end,
     left(p_os, 64),
     left(p_browser, 64),
@@ -832,10 +1112,10 @@ begin
   )
   on conflict (id) do update set
     last_seen = now(),
-    user_id = coalesce(auth.uid(), vs.user_id),
+    user_id = coalesce(vs.user_id, auth.uid()),
     page_views = vs.page_views + case when p_event_type = 'Page Viewed' then 1 else 0 end;
 
-  -- Append visitor event
+  -- 6. Append visitor event
   insert into visitor_events (
     session_id, user_id, event_type, path, meta
   ) values (
@@ -843,10 +1123,7 @@ begin
     auth.uid(),
     left(p_event_type, 64),
     left(p_path, 500),
-    case
-      when p_meta is not null and octet_length(p_meta::text) <= 4096 then p_meta
-      else '{}'::jsonb
-    end
+    coalesce(p_meta, '{}'::jsonb)
   );
 end;
 $$;
@@ -870,7 +1147,7 @@ end;
 $$;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 12. SELL YOUR ITEM (CUSTOMER HARDWARE SUBMISSION & VERIFICATION)
+-- 13. SELL YOUR ITEM (CUSTOMER HARDWARE SUBMISSION & VERIFICATION)
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table sell_requests (
@@ -897,22 +1174,37 @@ create trigger sell_requests_set_updated_at
   before update on sell_requests
   for each row execute function handle_updated_at();
 
--- Prevents customers from modifying admin review status or administrative notes
+-- Protects privileged fields on BOTH INSERT and UPDATE for customer sell requests
 create or replace function protect_sell_request() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
-    if new.status <> old.status then
-      raise exception 'Unauthorized: Only administrators can update sell request status';
-    end if;
-    if new.admin_notes is distinct from old.admin_notes then
-      raise exception 'Unauthorized: Only administrators can modify admin notes';
-    end if;
-    if new.customer_id <> old.customer_id then
-      raise exception 'Unauthorized: Cannot change sell request customer';
-    end if;
-    if new.id <> old.id then
-      raise exception 'Unauthorized: Cannot change sell request ID';
+    if tg_op = 'INSERT' then
+      if new.customer_id is distinct from auth.uid() then
+        raise exception 'Unauthorized: Customer ID must match authenticated user';
+      end if;
+      if new.status is distinct from 'Pending' then
+        raise exception 'Unauthorized: New sell requests must start in Pending status';
+      end if;
+      if new.admin_notes is not null then
+        raise exception 'Unauthorized: Administrative notes cannot be set on creation';
+      end if;
+    elsif tg_op = 'UPDATE' then
+      if new.status <> old.status then
+        raise exception 'Unauthorized: Only administrators can update sell request status';
+      end if;
+      if new.admin_notes is distinct from old.admin_notes then
+        raise exception 'Unauthorized: Only administrators can modify admin notes';
+      end if;
+      if new.customer_id <> old.customer_id then
+        raise exception 'Unauthorized: Cannot change sell request customer';
+      end if;
+      if new.id <> old.id then
+        raise exception 'Unauthorized: Cannot change sell request ID';
+      end if;
+      if old.status <> 'Pending' then
+        raise exception 'Unauthorized: Sell request details cannot be edited once under review';
+      end if;
     end if;
   end if;
   return new;
@@ -920,7 +1212,7 @@ end;
 $$;
 
 create trigger sell_requests_protect
-  before update on sell_requests
+  before insert or update on sell_requests
   for each row execute function protect_sell_request();
 
 create table sell_request_images (
@@ -942,7 +1234,7 @@ create table sell_request_documents (
 );
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 13. TRUSTED BUSINESS LOGIC & RPCS
+-- 14. TRUSTED BUSINESS LOGIC & RPCS
 -- ────────────────────────────────────────────────────────────────────────────
 
 -- Read-only coupon validation during checkout. Does NOT record usage.
@@ -960,6 +1252,10 @@ begin
   v_customer_id := auth.uid();
   if p_code is null or trim(p_code) = '' then
     return jsonb_build_object('ok', false, 'valid', false, 'error', 'Enter a coupon code.');
+  end if;
+
+  if p_cart_total is null or p_cart_total <= 0 then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Invalid cart total.');
   end if;
 
   select * into c
@@ -1031,8 +1327,10 @@ end;
 $$;
 
 -- Secure server-side order creation RPC.
--- Validates input methods, reserves stock with 30-min TTL, pulls authoritative price (coalesce(sale_price, price)),
--- prevents concurrent checkouts with same one-time coupon, and creates a Pending order.
+-- Validates input methods, enforces mandatory delivery addresses for home delivery,
+-- reserves stock with 30-min TTL, pulls authoritative price (coalesce(sale_price, price))
+-- with deterministic lock ordering, prevents concurrent checkouts with same one-time coupon,
+-- and creates a consistent Pending order snapshot without redundant product re-queries.
 create or replace function create_order(
   p_items jsonb,
   p_address_id uuid default null,
@@ -1058,6 +1356,8 @@ declare
   v_effective_price numeric(12, 2);
   v_coupon record;
   v_expires_at timestamptz;
+  v_snapshots jsonb := '[]'::jsonb;
+  v_snapshot_item jsonb;
 begin
   v_user_id := auth.uid();
   if v_user_id is null then
@@ -1077,14 +1377,27 @@ begin
     raise exception 'Cart is empty';
   end if;
 
+  -- Fulfilment address requirement: Delivery methods require a verified delivery address
+  if p_delivery_method in ('Kerala delivery', 'Standard delivery') then
+    if p_address_id is null then
+      raise exception 'Delivery address is required for %', p_delivery_method;
+    end if;
+  end if;
+
   if p_address_id is not null then
     if not exists (select 1 from addresses where id = p_address_id and user_id = v_user_id) then
       raise exception 'Selected delivery address does not exist or does not belong to you';
     end if;
   end if;
 
-  -- 2. Validate stock, lock inventory rows, calculate subtotal and deduct stock atomically
-  for v_item in select * from jsonb_to_recordset(p_items) as (product_id uuid, quantity int) loop
+  -- 2. Validate stock, lock inventory & catalog rows deterministically (order by product_id)
+  -- Aggregates quantities to prevent duplicate product race conditions in cart payload
+  for v_item in
+    select product_id, sum(quantity)::int as quantity
+    from jsonb_to_recordset(p_items) as (product_id uuid, quantity int)
+    group by product_id
+    order by product_id asc
+  loop
     v_item_pid := v_item.product_id;
     v_item_qty := v_item.quantity;
 
@@ -1096,13 +1409,13 @@ begin
       raise exception 'Item quantity must be a positive integer';
     end if;
 
-    -- Lock inventory row to prevent concurrent checkout overselling
+    -- Lock product (FOR SHARE) and inventory row (FOR UPDATE) to stabilize price & stock
     select p.id, p.name, p.status, p.price, p.sale_price, p.mrp, i.stock
     into v_product
     from products p
     join inventory i on i.product_id = p.id
     where p.id = v_item_pid
-    for update of i;
+    for share of p for update of i;
 
     if not found then
       raise exception 'Product % not found in catalog or inventory', v_item_pid;
@@ -1119,9 +1432,21 @@ begin
 
     -- Authoritative effective price rule: sale_price if present and valid, otherwise regular price
     v_effective_price := coalesce(v_product.sale_price, v_product.price);
+    if v_effective_price < 0 then
+      raise exception 'Invalid calculated price for "%"', v_product.name;
+    end if;
+
     v_subtotal := v_subtotal + (v_effective_price * v_item_qty);
 
-    -- Deduct stock atomically for the reservation window
+    -- Store validated snapshot entry for reuse in order-item inserts
+    v_snapshots := v_snapshots || jsonb_build_object(
+      'product_id', v_item_pid,
+      'name', v_product.name,
+      'unit_price', v_effective_price,
+      'quantity', v_item_qty
+    );
+
+    -- Deduct stock atomically for the 30-minute reservation window
     update inventory
     set stock = stock - v_item_qty,
         updated_at = now()
@@ -1205,17 +1530,16 @@ begin
     v_expires_at, true, p_notes, now(), now()
   );
 
-  -- 6. Create Order Item snapshots
-  for v_item in select * from jsonb_to_recordset(p_items) as (product_id uuid, quantity int) loop
-    select p.name, coalesce(p.sale_price, p.price) as unit_price
-    into v_product
-    from products p
-    where p.id = v_item.product_id;
-
+  -- 6. Create Order Item snapshots using validated captured prices (no secondary query)
+  for v_snapshot_item in select * from jsonb_array_elements(v_snapshots) loop
     insert into order_items (
       order_id, product_id, name, unit_price, quantity
     ) values (
-      v_order_id, v_item.product_id, v_product.name, v_product.unit_price, v_item.quantity
+      v_order_id,
+      (v_snapshot_item->>'product_id')::uuid,
+      v_snapshot_item->>'name',
+      (v_snapshot_item->>'unit_price')::numeric,
+      (v_snapshot_item->>'quantity')::int
     );
   end loop;
 
@@ -1312,29 +1636,39 @@ begin
     raise exception 'Invalid currency: %, only INR is supported', p_currency;
   end if;
 
-  -- 2. Lookup order with row lock
-  select * into v_order
-  from orders
-  where (p_order_id is not null and id = p_order_id)
-     or (orders.razorpay_order_id = p_razorpay_order_id)
-  for update;
+  -- 2. Lookup order with row lock unambiguously
+  if p_order_id is not null then
+    select * into v_order
+    from orders
+    where id = p_order_id
+    for update;
 
-  if not found then
-    raise exception 'Order not found for order_id: %, razorpay_order_id: %', p_order_id, p_razorpay_order_id;
-  end if;
+    if not found then
+      raise exception 'Order not found for order_id: %', p_order_id;
+    end if;
 
-  -- Validate internal order to Razorpay order ID mapping (must exist and match)
-  if v_order.razorpay_order_id is null or trim(v_order.razorpay_order_id) = '' then
-    raise exception 'Order % does not have an attached Razorpay order ID', v_order.id;
-  end if;
+    if v_order.razorpay_order_id is null or trim(v_order.razorpay_order_id) = '' then
+      raise exception 'Order % does not have an attached Razorpay order ID', v_order.id;
+    end if;
 
-  if v_order.razorpay_order_id <> p_razorpay_order_id then
-    raise exception 'Razorpay order ID mismatch: Expected %, Received %', v_order.razorpay_order_id, p_razorpay_order_id;
+    if v_order.razorpay_order_id <> trim(p_razorpay_order_id) then
+      raise exception 'Razorpay order ID mismatch: Expected %, Received %',
+        v_order.razorpay_order_id, trim(p_razorpay_order_id);
+    end if;
+  else
+    select * into v_order
+    from orders
+    where razorpay_order_id = trim(p_razorpay_order_id)
+    for update;
+
+    if not found then
+      raise exception 'Order not found for razorpay_order_id: %', trim(p_razorpay_order_id);
+    end if;
   end if;
 
   -- 3. Idempotency check: duplicate webhook delivery returns success without re-processing
   if v_order.payment_status = 'Paid' then
-    if v_order.razorpay_payment_id = p_razorpay_payment_id then
+    if v_order.razorpay_payment_id = trim(p_razorpay_payment_id) then
       return jsonb_build_object(
         'ok', true,
         'idempotent', true,
@@ -1355,13 +1689,13 @@ begin
   end if;
 
   -- 5. Handling payment arrived after expiration / cancellation
-  if v_order.status = 'Cancelled' or not v_order.stock_reserved then
+  if v_order.status = 'Cancelled' or not v_order.stock_reserved or v_order.expires_at < now() then
     -- Lock all item inventory rows in deterministic order to prevent deadlocks
     for v_item in
       select product_id, quantity
       from order_items
       where order_id = v_order.id and product_id is not null
-      order by product_id
+      order by product_id asc
     loop
       select stock into v_current_stock
       from inventory
@@ -1379,6 +1713,7 @@ begin
         select product_id, quantity
         from order_items
         where order_id = v_order.id and product_id is not null
+        order by product_id asc
       loop
         update inventory
         set stock = stock - v_item.quantity,
@@ -1561,8 +1896,9 @@ begin
     return jsonb_build_object('ok', true, 'message', 'Order is already cancelled');
   end if;
 
+  -- Customers cannot cancel paid or non-Pending orders directly; must follow refund/return workflow
   if not is_admin() and (v_order.status <> 'Pending' or v_order.payment_status = 'Paid') then
-    raise exception 'Cannot cancel order with status % and payment_status %', v_order.status, v_order.payment_status;
+    raise exception 'Cannot cancel order with status % and payment_status %. Paid or in-fulfillment orders require merchant refund processing.', v_order.status, v_order.payment_status;
   end if;
 
   -- Restore stock only if stock was reserved and has not yet been restored
@@ -1628,8 +1964,18 @@ begin
 end;
 $$;
 
+-- Lightweight database health check RPC for connectivity monitoring.
+-- Returns minimal timestamp and healthy status without exposing schema, config, or metrics.
+create or replace function health_check() returns jsonb
+language sql security definer set search_path = public, pg_temp as $$
+  select jsonb_build_object(
+    'status', 'ok',
+    'timestamp', extract(epoch from now())::bigint
+  );
+$$;
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 14. PERFORMANCE INDEXES
+-- 15. PERFORMANCE INDEXES
 -- ────────────────────────────────────────────────────────────────────────────
 
 create index if not exists products_category_idx on products (category_id);
@@ -1666,7 +2012,7 @@ create index if not exists sell_request_images_request_idx on sell_request_image
 create index if not exists sell_request_documents_request_idx on sell_request_documents (sell_request_id);
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 15. ROW LEVEL SECURITY (RLS) & ACCESS POLICIES
+-- 16. ROW LEVEL SECURITY (RLS) & ACCESS POLICIES
 -- ────────────────────────────────────────────────────────────────────────────
 
 alter table profiles enable row level security;
@@ -1704,7 +2050,7 @@ alter table sell_requests enable row level security;
 alter table sell_request_images enable row level security;
 alter table sell_request_documents enable row level security;
 
--- 15.1 Admin: Full access across all application tables
+-- 16.1 Admin: Full access across all application tables
 do $$
 declare t text;
 begin
@@ -1723,14 +2069,27 @@ begin
   end loop;
 end $$;
 
--- 15.2 Public Read Policies for Storefront Assets
+-- 16.2 Public Read Policies for Storefront Assets (Masks inactive and draft elements)
 create policy public_read on categories for select using (true);
 create policy public_read on brands for select using (true);
-create policy public_read on product_images for select using (true);
-create policy public_read on offers for select using (active and now() between starts_at and ends_at);
-create policy public_read on offer_products for select using (true);
-create policy public_read on offer_categories for select using (true);
-create policy public_read on offer_brands for select using (true);
+
+-- Product images visible only for Active products to shield draft/archived media
+create policy public_read on product_images for select
+  using (exists (select 1 from products p where p.id = product_id and p.status = 'Active'));
+
+create policy public_read on offers for select
+  using (active and now() between starts_at and ends_at);
+
+-- Offer mapping associations visible only for active, unexpired offers
+create policy public_read on offer_products for select
+  using (exists (select 1 from offers o where o.id = offer_id and o.active and now() between o.starts_at and o.ends_at));
+
+create policy public_read on offer_categories for select
+  using (exists (select 1 from offers o where o.id = offer_id and o.active and now() between o.starts_at and o.ends_at));
+
+create policy public_read on offer_brands for select
+  using (exists (select 1 from offers o where o.id = offer_id and o.active and now() between o.starts_at and o.ends_at));
+
 create policy public_read on it_hub_locations for select using (active);
 create policy public_read on pincode_areas for select using (true);
 create policy public_read on store_settings for select using (true);
@@ -1738,9 +2097,8 @@ create policy public_read on pc_build_templates for select using (active);
 create policy public_read on support_categories for select using (active);
 create policy public_read on brand_support for select using (active);
 create policy public_read on reviews for select using (status = 'Published' or user_id = auth.uid());
-create policy public_read on coupons for select using (active and now() between starts_at and ends_at);
 
--- 15.3 Customers: Profiles & Personal Records
+-- 16.3 Customers: Profiles & Personal Records
 create policy own_profile on profiles for select using (id = auth.uid());
 create policy own_profile_update on profiles for update
   using (id = auth.uid()) with check (id = auth.uid());
@@ -1759,25 +2117,25 @@ create policy own_builds_insert on pc_builds for insert with check (user_id = au
 create policy own_builds_update on pc_builds for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy own_builds_delete on pc_builds for delete using (user_id = auth.uid());
 
--- 15.4 Customers: Orders & Order Items
+-- 16.4 Customers: Orders & Order Items
 -- Direct INSERT/UPDATE by customers is strictly disabled.
 -- Orders are created exclusively through create_order() RPC, and paid via record_order_payment().
 create policy own_orders_read on orders for select using (user_id = auth.uid());
 create policy own_order_items_read on order_items for select
   using (exists (select 1 from orders o where o.id = order_id and o.user_id = auth.uid()));
 
--- 15.5 Customers: Coupons & Usages
+-- 16.5 Customers: Coupons & Usages
 -- Direct INSERT by customers into coupon_usages is prohibited. Recorded only upon completed payment.
 create policy own_coupon_usages_read on coupon_usages for select using (customer_id = auth.uid());
 
--- 15.6 Customers: Reviews
+-- 16.6 Customers: Reviews
 create policy own_reviews_insert on reviews for insert
   with check (user_id = auth.uid() and status = 'Pending');
 create policy own_reviews_update on reviews for update
   using (user_id = auth.uid()) with check (user_id = auth.uid() and status = 'Pending');
 create policy own_reviews_delete on reviews for delete using (user_id = auth.uid());
 
--- 15.7 Customers: Services & Warranty
+-- 16.7 Customers: Services & Warranty
 create policy own_services_read on service_requests for select using (user_id = auth.uid());
 create policy own_services_insert on service_requests for insert with check (user_id = auth.uid());
 create policy own_services_update on service_requests for update
@@ -1787,7 +2145,7 @@ create policy own_warranty_read on warranty_checks for select using (user_id = a
 create policy own_warranty_insert on warranty_checks for insert
   with check (user_id is null or user_id = auth.uid());
 
--- 15.8 Customers: Sell Requests & Private Documents
+-- 16.8 Customers: Sell Requests & Private Documents
 create policy own_sell_read on sell_requests for select using (customer_id = auth.uid());
 create policy own_sell_insert on sell_requests for insert with check (customer_id = auth.uid());
 create policy own_sell_update on sell_requests for update
@@ -1808,7 +2166,7 @@ create policy own_sell_docs_insert on sell_request_documents for insert
   with check (exists (select 1 from sell_requests sr where sr.id = sell_request_id and sr.customer_id = auth.uid() and sr.status = 'Pending'));
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 16. PRIVILEGES & SECURITY GRANTS
+-- 17. PRIVILEGES & SECURITY GRANTS (EXPLICIT FUNCTION SIGNATURES)
 -- ────────────────────────────────────────────────────────────────────────────
 
 -- 1. Revoke direct public/client access to raw products and inventory to shield cost_price
@@ -1818,42 +2176,65 @@ revoke all on table import_runs from anon, authenticated, public;
 revoke all on table visitor_sessions from anon, authenticated, public;
 revoke all on table visitor_events from anon, authenticated, public;
 revoke all on table analytics_settings from anon, authenticated, public;
+revoke all on table coupons from anon, authenticated, public;
 
 -- 2. Grant read access to public safe views
 grant select on products_public to anon, authenticated;
 grant select on live_offers to anon, authenticated;
+grant select on public_coupons to anon, authenticated;
 
--- 3. Public RPC Execution Grants
-revoke all on function is_admin from public;
-grant execute on function is_admin to anon, authenticated;
+-- 3. Client & Authenticated RPC Execution Grants (Exact Function Signatures)
+revoke all on function is_admin() from public;
+grant execute on function is_admin() to anon, authenticated;
 
-revoke all on function check_onsite_warranty from public;
-grant execute on function check_onsite_warranty to anon, authenticated;
+revoke all on function check_onsite_warranty(text) from public;
+grant execute on function check_onsite_warranty(text) to anon, authenticated;
 
-revoke all on function validate_coupon from public;
-grant execute on function validate_coupon to anon, authenticated;
+revoke all on function validate_coupon(text, numeric) from public;
+grant execute on function validate_coupon(text, numeric) to anon, authenticated;
 
-revoke all on function create_order from public;
-grant execute on function create_order to authenticated;
+revoke all on function create_order(jsonb, uuid, text, text, text, text) from public;
+grant execute on function create_order(jsonb, uuid, text, text, text, text) to authenticated;
 
-revoke all on function cancel_order from public;
-grant execute on function cancel_order to authenticated;
+revoke all on function cancel_order(uuid) from public;
+grant execute on function cancel_order(uuid) to authenticated;
 
-revoke all on function log_visitor_event from public;
-grant execute on function log_visitor_event to anon, authenticated;
+revoke all on function ensure_profile() from public, anon;
+grant execute on function ensure_profile() to authenticated;
+
+revoke all on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) from public;
+grant execute on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) to anon, authenticated;
+
+revoke all on function health_check() from public;
+grant execute on function health_check() to anon, authenticated, service_role;
 
 -- 4. Privileged / Backend-Only Execution Grants (service_role only)
-revoke all on function attach_razorpay_order_id from public, anon, authenticated;
-grant execute on function attach_razorpay_order_id to service_role;
+revoke all on function attach_razorpay_order_id(uuid, text) from public, anon, authenticated;
+grant execute on function attach_razorpay_order_id(uuid, text) to service_role;
 
-revoke all on function record_order_payment from public, anon, authenticated;
-grant execute on function record_order_payment to service_role;
+revoke all on function record_order_payment(uuid, text, text, text, numeric, text) from public, anon, authenticated;
+grant execute on function record_order_payment(uuid, text, text, text, numeric, text) to service_role;
 
-revoke all on function record_payment_failure from public, anon, authenticated;
-grant execute on function record_payment_failure to service_role;
+revoke all on function record_payment_failure(uuid, text) from public, anon, authenticated;
+grant execute on function record_payment_failure(uuid, text) to service_role;
 
-revoke all on function cleanup_expired_orders from public, anon, authenticated;
-grant execute on function cleanup_expired_orders to service_role;
+revoke all on function cleanup_expired_orders() from public, anon, authenticated;
+grant execute on function cleanup_expired_orders() to service_role;
 
-revoke all on function purge_visitor_data from public, anon, authenticated;
-grant execute on function purge_visitor_data to service_role;
+revoke all on function purge_visitor_data() from public, anon, authenticated;
+grant execute on function purge_visitor_data() to service_role;
+
+revoke all on function bootstrap_first_admin(uuid) from public, anon, authenticated;
+grant execute on function bootstrap_first_admin(uuid) to service_role;
+
+-- 5. Revoke direct public execution on internal trigger functions and helpers
+revoke all on function mask_ip_address(inet) from public, anon, authenticated;
+revoke all on function handle_updated_at() from public, anon, authenticated;
+revoke all on function handle_new_user() from public, anon, authenticated;
+revoke all on function protect_role() from public, anon, authenticated;
+revoke all on function handle_default_address() from public, anon, authenticated;
+revoke all on function protect_service_request() from public, anon, authenticated;
+revoke all on function protect_sell_request() from public, anon, authenticated;
+revoke all on function protect_review() from public, anon, authenticated;
+revoke all on function protect_pc_build() from public, anon, authenticated;
+revoke all on function sync_product_inventory() from public, anon, authenticated;

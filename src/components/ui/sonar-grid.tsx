@@ -1,32 +1,50 @@
 "use client"
+/** Distance between dots in CSS pixels. */
+/** Dot radius at rest, in CSS pixels. */
+/** Resting dot opacity (0–1). Dots on a wavefront go to 1. */
+/** Any CSS color. Defaults to the theme's primary color, so it adapts to light/dark and brand themes. */
+/** Seconds between ambient pings. Set 0 to disable them. */
+/** Wavefront speed in CSS pixels per second. */
+/** Thickness of the wavefront in CSS pixels. */
+/** How much a dot grows at the wave peak (0 = no growth, 2 = triple size). */
+/** Emit a ping where the user taps or clicks. */
+/** Maximum simultaneous rings. Older rings are dropped first. */
+/** Start with one ring already mid-expansion so the very first frame shows the idea. */
+/** Where ambient pings (and the seed ping) may spawn, as fractions of width/height: [x0, y0, x1, y1]. */
+
+/**
+ * SonarGrid — a decorative dot field that answers taps with expanding rings.
+ * Canvas-based and theme-aware (it reads the resolved `text-primary` color), it idles
+ * when no ring is alive, pauses off-screen and in hidden tabs, and renders a still grid
+ * under `prefers-reduced-motion`. Children render on top of the field.
+ */
+
+// The render loop reads props through this ref so knob changes apply live without restarting it.
+// seconds until a ring leaves the canvas
+
+// Pass 1: every resting dot in a single path and a single fill.
+// smoothstep, fading with age
+
+// Pass 2: only the dots on a wavefront get their own alpha and radius.
+// One ring already mid-expansion inside the ping area, so the first paint (and the cover) shows the idea.
+
+// Prop changes while the loop is asleep still repaint immediately.
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
 export interface SonarGridProps extends React.ComponentProps<"div"> {
-  /** Distance between dots in CSS pixels. */
   spacing?: number
-  /** Dot radius at rest, in CSS pixels. */
   dotRadius?: number
-  /** Resting dot opacity (0–1). Dots on a wavefront go to 1. */
   baseOpacity?: number
-  /** Any CSS color. Defaults to the theme's primary color, so it adapts to light/dark and brand themes. */
   color?: string
-  /** Seconds between ambient pings. Set 0 to disable them. */
   pingEvery?: number
-  /** Wavefront speed in CSS pixels per second. */
   speed?: number
-  /** Thickness of the wavefront in CSS pixels. */
   ringWidth?: number
-  /** How much a dot grows at the wave peak (0 = no growth, 2 = triple size). */
   amplitude?: number
-  /** Emit a ping where the user taps or clicks. */
   interactive?: boolean
-  /** Maximum simultaneous rings. Older rings are dropped first. */
   maxRings?: number
-  /** Start with one ring already mid-expansion so the very first frame shows the idea. */
   seedPing?: boolean
-  /** Where ambient pings (and the seed ping) may spawn, as fractions of width/height: [x0, y0, x1, y1]. */
   pingArea?: [number, number, number, number]
 }
 
@@ -37,14 +55,9 @@ interface Ring {
 }
 
 const MAX_DPR = 2
-const TAU = Math.PI * 2
-
-/**
- * SonarGrid — a decorative dot field that answers taps with expanding rings.
- * Canvas-based and theme-aware (it reads the resolved `text-primary` color), it idles
- * when no ring is alive, pauses off-screen and in hidden tabs, and renders a still grid
- * under `prefers-reduced-motion`. Children render on top of the field.
- */
+const TAU =
+  Math.PI *
+  2
 export function SonarGrid({
   spacing = 26,
   dotRadius = 1.4,
@@ -67,18 +80,44 @@ export function SonarGrid({
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const ringsRef = React.useRef<Ring[]>([])
   const refreshRef = React.useRef<() => void>(() => {})
-
-  // The render loop reads props through this ref so knob changes apply live without restarting it.
-  const opts = React.useRef({ spacing, dotRadius, baseOpacity, pingEvery, speed, ringWidth, amplitude, interactive, maxRings, seedPing, pingArea })
-  opts.current = { spacing, dotRadius, baseOpacity, pingEvery, speed, ringWidth, amplitude, interactive, maxRings, seedPing, pingArea }
+  const opts = React.useRef({
+    spacing,
+    dotRadius,
+    baseOpacity,
+    pingEvery,
+    speed,
+    ringWidth,
+    amplitude,
+    interactive,
+    maxRings,
+    seedPing,
+    pingArea,
+  })
+  opts.current = {
+    spacing,
+    dotRadius,
+    baseOpacity,
+    pingEvery,
+    speed,
+    ringWidth,
+    amplitude,
+    interactive,
+    maxRings,
+    seedPing,
+    pingArea,
+  }
 
   const setHost = React.useCallback(
     (node: HTMLDivElement | null) => {
       hostRef.current = node
-      if (typeof ref === "function") ref(node)
+      if (
+        typeof ref ===
+        "function"
+      )
+        ref(node)
       else if (ref) ref.current = node
     },
-    [ref]
+    [ref],
   )
 
   React.useEffect(() => {
@@ -106,46 +145,115 @@ export function SonarGrid({
       readColor()
       const rings = ringsRef.current
       rings.push({ x, y, born })
-      while (rings.length > opts.current.maxRings) rings.shift()
+      while (
+        rings.length >
+        opts.current.maxRings
+      )
+        rings.shift()
     }
 
     const draw = (now: number) => {
       const o = opts.current
-      const lifetime = (Math.hypot(width, height) + o.ringWidth) / o.speed // seconds until a ring leaves the canvas
-      ringsRef.current = ringsRef.current.filter((r) => (now - r.born) / 1000 < lifetime)
+      const lifetime = (Math.hypot(width, height) + o.ringWidth) / o.speed
+      ringsRef.current = ringsRef.current.filter(
+        (r) => (now - r.born) / 1000 < lifetime,
+      )
       const live = ringsRef.current.map((r) => {
         const age = (now - r.born) / 1000
-        const radius = age * o.speed
-        return { x: r.x, y: r.y, radius, reach: radius + o.ringWidth, fade: 1 - age / lifetime }
+        const radius =
+          age *
+          o.speed
+        return {
+          x: r.x,
+          y: r.y,
+          radius,
+          reach:
+            radius +
+            o.ringWidth,
+          fade: 1 - age / lifetime,
+        }
       })
 
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = stroke
 
-      const cols = Math.ceil(width / o.spacing) + 1
-      const rows = Math.ceil(height / o.spacing) + 1
+      const cols =
+        Math.ceil(
+          width /
+            o.spacing,
+        ) +
+        1
+      const rows =
+        Math.ceil(
+          height /
+            o.spacing,
+        ) +
+        1
       const offsetX = (width - (cols - 1) * o.spacing) / 2
       const offsetY = (height - (rows - 1) * o.spacing) / 2
-
-      // Pass 1: every resting dot in a single path and a single fill.
       const hot: number[] = []
       ctx.globalAlpha = o.baseOpacity
       ctx.beginPath()
-      for (let i = 0; i < cols; i++) {
+      for (
+        let i = 0;
+        i <
+        cols;
+        i++
+      ) {
         const cx = offsetX + i * o.spacing
-        for (let j = 0; j < rows; j++) {
+        for (
+          let j = 0;
+          j <
+          rows;
+          j++
+        ) {
           const cy = offsetY + j * o.spacing
           let energy = 0
           for (const r of live) {
-            if (Math.abs(cx - r.x) > r.reach || Math.abs(cy - r.y) > r.reach) continue
-            const dist = Math.abs(Math.hypot(cx - r.x, cy - r.y) - r.radius)
-            if (dist >= o.ringWidth) continue
+            if (
+              Math.abs(
+                cx -
+                  r.x,
+              ) >
+                r.reach ||
+              Math.abs(
+                cy -
+                  r.y,
+              ) >
+                r.reach
+            )
+              continue
+            const dist = Math.abs(
+              Math.hypot(
+                cx -
+                  r.x,
+                cy -
+                  r.y,
+              ) -
+                r.radius,
+            )
+            if (
+              dist >=
+              o.ringWidth
+            )
+              continue
             const t = 1 - dist / o.ringWidth
-            const k = t * t * (3 - 2 * t) * r.fade // smoothstep, fading with age
-            if (k > energy) energy = k
+            const k = t * t * (3 - 2 * t) * r.fade
+            if (
+              k >
+              energy
+            )
+              energy = k
           }
-          if (energy < 0.01) {
-            ctx.moveTo(cx + o.dotRadius, cy)
+          if (
+            energy <
+            0.01
+          ) {
+            ctx.moveTo(
+              cx +
+                o.dotRadius,
+              cy,
+            )
             ctx.arc(cx, cy, o.dotRadius, 0, TAU)
           } else {
             hot.push(cx, cy, energy)
@@ -153,13 +261,32 @@ export function SonarGrid({
         }
       }
       ctx.fill()
-
-      // Pass 2: only the dots on a wavefront get their own alpha and radius.
-      for (let k = 0; k < hot.length; k += 3) {
-        const energy = hot[k + 2] ?? 0
+      for (
+        let k = 0;
+        k <
+        hot.length;
+        k += 3
+      ) {
+        const energy =
+          hot[
+            k +
+              2
+          ] ??
+          0
         ctx.globalAlpha = o.baseOpacity + (1 - o.baseOpacity) * energy
         ctx.beginPath()
-        ctx.arc(hot[k] ?? 0, hot[k + 1] ?? 0, o.dotRadius * (1 + o.amplitude * energy), 0, TAU)
+        ctx.arc(
+          hot[k] ??
+            0,
+          hot[
+            k +
+              1
+          ] ??
+            0,
+          o.dotRadius * (1 + o.amplitude * energy),
+          0,
+          TAU,
+        )
         ctx.fill()
       }
       ctx.globalAlpha = 1
@@ -169,23 +296,40 @@ export function SonarGrid({
       const rect = host.getBoundingClientRect()
       width = Math.max(1, Math.round(rect.width))
       height = Math.max(1, Math.round(rect.height))
-      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
-      canvas.width = Math.round(width * dpr)
-      canvas.height = Math.round(height * dpr)
+      const dpr = Math.min(
+        window.devicePixelRatio ||
+          1,
+        MAX_DPR,
+      )
+      canvas.width = Math.round(
+        width *
+          dpr,
+      )
+      canvas.height = Math.round(
+        height *
+          dpr,
+      )
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       if (!seeded) {
-        // One ring already mid-expansion inside the ping area, so the first paint (and the cover) shows the idea.
         seeded = true
         const [x0, y0, x1, y1] = opts.current.pingArea
         if (opts.current.seedPing && !reduceMotion.matches)
-          addRing(width * (x0 + (x1 - x0) * 0.68), height * (y0 + (y1 - y0) * 0.34), performance.now() - 500)
+          addRing(
+            width * (x0 + (x1 - x0) * 0.68),
+            height * (y0 + (y1 - y0) * 0.34),
+            performance.now() -
+              500,
+          )
       }
       draw(performance.now())
     }
 
     const scheduleIdle = (delay: number) => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => tick(performance.now()), Math.max(16, delay))
+      timer = window.setTimeout(
+        () => tick(performance.now()),
+        Math.max(16, delay),
+      )
     }
 
     const tick = (now: number) => {
@@ -197,14 +341,34 @@ export function SonarGrid({
         return
       }
       const o = opts.current
-      if (o.pingEvery > 0 && now >= nextPing) {
+      if (
+        o.pingEvery >
+          0 &&
+        now >=
+          nextPing
+      ) {
         const [x0, y0, x1, y1] = o.pingArea
-        addRing(width * (x0 + Math.random() * (x1 - x0)), height * (y0 + Math.random() * (y1 - y0)), now)
+        addRing(
+          width * (x0 + Math.random() * (x1 - x0)),
+          height * (y0 + Math.random() * (y1 - y0)),
+          now,
+        )
         nextPing = now + o.pingEvery * 1000
       }
       draw(now)
-      if (ringsRef.current.length > 0) raf = requestAnimationFrame(tick)
-      else if (o.pingEvery > 0) scheduleIdle(nextPing - now)
+      if (
+        ringsRef.current.length >
+        0
+      )
+        raf = requestAnimationFrame(tick)
+      else if (
+        o.pingEvery >
+        0
+      )
+        scheduleIdle(
+          nextPing -
+            now,
+        )
     }
 
     const wake = () => {
@@ -216,14 +380,23 @@ export function SonarGrid({
 
     refreshRef.current = () => {
       readColor()
-      nextPing = Math.min(nextPing, performance.now() + opts.current.pingEvery * 1000)
+      nextPing = Math.min(
+        nextPing,
+        performance.now() + opts.current.pingEvery * 1000,
+      )
       wake()
     }
 
     const onDown = (e: PointerEvent) => {
       if (!opts.current.interactive || reduceMotion.matches) return
       const rect = host.getBoundingClientRect()
-      addRing(e.clientX - rect.left, e.clientY - rect.top, performance.now())
+      addRing(
+        e.clientX -
+          rect.left,
+        e.clientY -
+          rect.top,
+        performance.now(),
+      )
       wake()
     }
     const onVisibility = () => {
@@ -233,10 +406,12 @@ export function SonarGrid({
     const ro = new ResizeObserver(resize)
     const io = new IntersectionObserver(
       ([entry]) => {
-        visible = entry?.isIntersecting ?? true
+        visible =
+          entry?.isIntersecting ??
+          true
         if (visible) wake()
       },
-      { threshold: 0 }
+      { threshold: 0 },
     )
     const mo = new MutationObserver(() => refreshRef.current())
 
@@ -244,7 +419,10 @@ export function SonarGrid({
     resize()
     ro.observe(host)
     io.observe(host)
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] })
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme"],
+    })
     host.addEventListener("pointerdown", onDown)
     document.addEventListener("visibilitychange", onVisibility)
     reduceMotion.addEventListener("change", wake)
@@ -262,17 +440,31 @@ export function SonarGrid({
       refreshRef.current = () => {}
     }
   }, [])
-
-  // Prop changes while the loop is asleep still repaint immediately.
   React.useEffect(() => {
     refreshRef.current()
-  }, [spacing, dotRadius, baseOpacity, color, pingEvery, speed, ringWidth, amplitude, interactive, maxRings, pingArea])
+  }, [
+    spacing,
+    dotRadius,
+    baseOpacity,
+    color,
+    pingEvery,
+    speed,
+    ringWidth,
+    amplitude,
+    interactive,
+    maxRings,
+    pingArea,
+  ])
 
   return (
     <div
       ref={setHost}
       data-slot="sonar-grid"
-      className={cn("relative isolate overflow-hidden", interactive && "cursor-crosshair", className)}
+      className={cn(
+        "relative isolate overflow-hidden",
+        interactive && "cursor-crosshair",
+        className,
+      )}
       {...rest}
     >
       <canvas

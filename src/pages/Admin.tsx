@@ -84,6 +84,7 @@ import { compatibility } from "./Builder"
 import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
 import CouponsAdmin from "./AdminCoupons"
 import SellRequestsAdmin from "./AdminSellRequests"
+import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel"
 import { track } from "../lib/analytics"
 import type { BuildTemplate, BuildPurpose } from "../data/buildTemplates"
 import {
@@ -478,7 +479,10 @@ export default function Admin() {
     amount: item.quote,
     statusLabel: serviceStatuses[item.status],
   }))
-  const serviceFilters: Record<string, (item: { device: string; method: string }) => boolean> = {
+  const serviceFilters: Record<string, (item: {
+    device: string
+    method: string
+  }) => boolean> = {
     requests: () => true,
     laptop: (item) => /laptop|notebook|macbook/i.test(item.device),
     mobile: (item) => /mobile|phone|tablet/i.test(item.device),
@@ -649,11 +653,12 @@ export default function Admin() {
     store.notify("Sample activity loaded. Explore it in the customer account.")
   }
   const exportRows = () => {
-    const rows = section === "services"
-      ? serviceRows
-      : section === "products" || section === "inventory"
-        ? store.products
-        : orderRows
+    const rows =
+      section === "services"
+        ? serviceRows
+        : section === "products" || section === "inventory"
+          ? store.products
+          : orderRows
     const keys = rows.length
       ? Object.keys(rows[0]).filter(
           (key) =>
@@ -717,7 +722,9 @@ export default function Admin() {
                     }
                     aria-expanded={expanded}
                     className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-xs font-semibold ${
-                      isCurrent ? "text-primary" : "text-foreground hover:bg-muted"
+                      isCurrent
+                        ? "text-primary"
+                        : "text-foreground hover:bg-muted"
                     }`}
                   >
                     <Icon size={16} />
@@ -734,7 +741,11 @@ export default function Admin() {
                   </button>
                 ) : (
                   <Link
-                    to={group.section === "dashboard" ? "/admin" : `/admin/${group.section}`}
+                    to={
+                      group.section === "dashboard"
+                        ? "/admin"
+                        : `/admin/${group.section}`
+                    }
                     className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-xs font-semibold ${
                       isCurrent
                         ? "bg-secondary text-primary"
@@ -996,10 +1007,7 @@ export default function Admin() {
               <div className="mb-8">
                 <div className="mb-4 flex justify-between">
                   <h2 className="text-lg font-bold">Service desk</h2>
-                  <Link
-                    className="text-xs text-primary"
-                    to="/admin/services"
-                  >
+                  <Link className="text-xs text-primary" to="/admin/services">
                     View all →
                   </Link>
                 </div>
@@ -1047,6 +1055,10 @@ export default function Admin() {
                     {
                       title: `${store.pcEnquiries.filter((item) => item.status === "New").length} new PC build requests`,
                       to: "pc-builder?view=requests",
+                    },
+                    {
+                      title: "Supabase database connection health & latency",
+                      to: "settings?view=database",
                     },
                   ].map((item) => (
                     <Link
@@ -1166,20 +1178,20 @@ export default function Admin() {
                   render: (row) => statusBadge(String(row.status)),
                 },
               ]}
-              actions={(row) => (
+              actions={(row) =>
                 view !== "adjust" && view !== "low" && view !== "out" ? null : (
-                <button
-                  onClick={() => {
-                    setStockId(row.id)
-                    setStockAmount(1)
-                  }}
-                  className="flex items-center gap-1 text-xs font-semibold text-primary"
-                >
-                  <Plus size={13} />
-                  Adjust stock
-                </button>
+                  <button
+                    onClick={() => {
+                      setStockId(row.id)
+                      setStockAmount(1)
+                    }}
+                    className="flex items-center gap-1 text-xs font-semibold text-primary"
+                  >
+                    <Plus size={13} />
+                    Adjust stock
+                  </button>
                 )
-              )}
+              }
             />
           )}
           {section === "orders" && (
@@ -1230,7 +1242,9 @@ export default function Admin() {
                   status: offerStatus(item),
                   headline: offerHeadline(item),
                   targets: [
-                    item.products.length ? `${item.products.length} product(s)` : "",
+                    item.products.length
+                      ? `${item.products.length} product(s)`
+                      : "",
                     item.categories.join(", "),
                     item.brands.join(", "),
                   ]
@@ -1274,7 +1288,9 @@ export default function Admin() {
                 },
               ]}
               onView={(row) => {
-                setOffer(store.offers.find((item) => item.id === row.id) || null)
+                setOffer(
+                  store.offers.find((item) => item.id === row.id) || null,
+                )
                 setOfferOpen(true)
               }}
               actions={(row) => (
@@ -1373,74 +1389,75 @@ export default function Admin() {
           {section === "pc-builder" && view === "estimates" && (
             <>
               <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-                Component prices below drive the estimated build price customers see in the PC Builder. Final quotes are shared on WhatsApp.
+                Component prices below drive the estimated build price customers
+                see in the PC Builder. Final quotes are shared on WhatsApp.
               </p>
-            <DataTable
-              rows={Object.entries(store.componentCatalog).flatMap(
-                ([type, items]) =>
-                  items.map((item) => ({
-                    ...item,
-                    id: `${type}::${item.id}`,
-                    componentId: item.id,
-                    type,
-                    socket: item.socket || "—",
-                    ram: item.ram || "—",
-                  })),
-              )}
-              columns={[
-                { key: "name", label: "Component" },
-                { key: "type", label: "Type" },
-                {
-                  key: "price",
-                  label: "Price",
-                  render: (row) => money(Number(row.price)),
-                },
-                { key: "socket", label: "Socket" },
-                { key: "ram", label: "RAM generation" },
-              ]}
-              onView={(row) => {
-                const type = String(row.type)
-                setComponentType(type)
-                setComponent(
-                  store.componentCatalog[type].find(
-                    (item) => item.id === row.componentId,
-                  )!,
-                )
-                setComponentOpen(true)
-              }}
-              actions={(row) => (
-                <div className="flex gap-3">
-                  <button
-                    className="text-primary"
-                    onClick={() => {
-                      const type = String(row.type)
-                      setComponentType(type)
-                      setComponent(
-                        store.componentCatalog[type].find(
-                          (item) => item.id === row.componentId,
-                        )!,
-                      )
-                      setComponentOpen(true)
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="text-red-600"
-                    onClick={() => {
-                      setComponentType(String(row.type))
-                      setRemove({
-                        type: "component",
-                        id: String(row.componentId),
-                        name: String(row.name),
-                      })
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            />
+              <DataTable
+                rows={Object.entries(store.componentCatalog).flatMap(
+                  ([type, items]) =>
+                    items.map((item) => ({
+                      ...item,
+                      id: `${type}::${item.id}`,
+                      componentId: item.id,
+                      type,
+                      socket: item.socket || "—",
+                      ram: item.ram || "—",
+                    })),
+                )}
+                columns={[
+                  { key: "name", label: "Component" },
+                  { key: "type", label: "Type" },
+                  {
+                    key: "price",
+                    label: "Price",
+                    render: (row) => money(Number(row.price)),
+                  },
+                  { key: "socket", label: "Socket" },
+                  { key: "ram", label: "RAM generation" },
+                ]}
+                onView={(row) => {
+                  const type = String(row.type)
+                  setComponentType(type)
+                  setComponent(
+                    store.componentCatalog[type].find(
+                      (item) => item.id === row.componentId,
+                    )!,
+                  )
+                  setComponentOpen(true)
+                }}
+                actions={(row) => (
+                  <div className="flex gap-3">
+                    <button
+                      className="text-primary"
+                      onClick={() => {
+                        const type = String(row.type)
+                        setComponentType(type)
+                        setComponent(
+                          store.componentCatalog[type].find(
+                            (item) => item.id === row.componentId,
+                          )!,
+                        )
+                        setComponentOpen(true)
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-red-600"
+                      onClick={() => {
+                        setComponentType(String(row.type))
+                        setRemove({
+                          type: "component",
+                          id: String(row.componentId),
+                          name: String(row.name),
+                        })
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              />
             </>
           )}
           {section === "pc-builder" && view === "configurations" && (
@@ -1491,92 +1508,105 @@ export default function Admin() {
             />
           )}
           {section === "analytics" && (
-            <VisitorAnalytics view={view} sales={<>
-              <div className="mb-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                <Chart
-                  title="Revenue trend"
-                  type="revenue"
-                />
-                <Chart title="Orders trend" type="orders" />
-                <Chart title="Service activity" type="services" />
-              </div>
-              <div className="mb-7 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                {[
-                  [
-                    "Order revenue",
-                    money(
-                      store.orders.reduce((sum, item) => sum + item.total, 0),
-                    ),
-                  ],
-                  [
-                    "Approved service revenue",
-                    money(
-                      store.requests
-                        .filter((item) => item.quoteState === "approved")
-                        .reduce((sum, item) => sum + item.quote, 0),
-                    ),
-                  ],
-                  ["Order count", store.orders.length],
-                  ["Service requests", store.requests.length],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-lg border border-border bg-white p-5"
-                  >
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="mt-4 text-2xl font-bold">{value}</p>
-                    <p className="mt-2 text-[10px] text-muted-foreground">
-                      Current browser-local activity
-                    </p>
+            <VisitorAnalytics
+              view={view}
+              sales={
+                <>
+                  <div className="mb-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    <Chart title="Revenue trend" type="revenue" />
+                    <Chart title="Orders trend" type="orders" />
+                    <Chart title="Service activity" type="services" />
                   </div>
-                ))}
-              </div>
-              <h2 className="mb-4 text-lg font-bold">Product performance</h2>
-              {(
-                <DataTable
-                  rows={store.products.map((item) => ({
-                    ...item,
-                    sold: store.orders.reduce(
-                      (sum, order) =>
-                        sum +
-                        order.items
-                          .filter((row) => row.productId === item.id)
-                          .reduce((count, row) => count + row.quantity, 0),
-                      0,
-                    ),
-                  }))}
-                  columns={[
-                    { key: "name", label: "Product" },
-                    { key: "category", label: "Category" },
-                    { key: "sold", label: "Units sold" },
-                    { key: "stock", label: "Stock" },
-                  ]}
-                />
-              )}
-              <h2 className="mb-4 mt-8 text-lg font-bold">Service requests</h2>
-              {(
-                <DataTable
-                  rows={serviceRows}
-                  columns={columnsServices}
-                  onView={(row) => setRequestId(row.id)}
-                />
-              )}
-              <h2 className="mb-4 mt-8 text-lg font-bold">Orders</h2>
-              {(
-                <DataTable
-                  rows={orderRows}
-                  columns={columnsOrders}
-                  onView={(row) => setOrderId(row.id)}
-                />
-              )}
-            </>} />
+                  <div className="mb-7 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    {[
+                      [
+                        "Order revenue",
+                        money(
+                          store.orders.reduce(
+                            (sum, item) => sum + item.total,
+                            0,
+                          ),
+                        ),
+                      ],
+                      [
+                        "Approved service revenue",
+                        money(
+                          store.requests
+                            .filter((item) => item.quoteState === "approved")
+                            .reduce((sum, item) => sum + item.quote, 0),
+                        ),
+                      ],
+                      ["Order count", store.orders.length],
+                      ["Service requests", store.requests.length],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-lg border border-border bg-white p-5"
+                      >
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                        <p className="mt-4 text-2xl font-bold">{value}</p>
+                        <p className="mt-2 text-[10px] text-muted-foreground">
+                          Current browser-local activity
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <h2 className="mb-4 text-lg font-bold">
+                    Product performance
+                  </h2>
+                  {
+                    <DataTable
+                      rows={store.products.map((item) => ({
+                        ...item,
+                        sold: store.orders.reduce(
+                          (sum, order) =>
+                            sum +
+                            order.items
+                              .filter((row) => row.productId === item.id)
+                              .reduce((count, row) => count + row.quantity, 0),
+                          0,
+                        ),
+                      }))}
+                      columns={[
+                        { key: "name", label: "Product" },
+                        { key: "category", label: "Category" },
+                        { key: "sold", label: "Units sold" },
+                        { key: "stock", label: "Stock" },
+                      ]}
+                    />
+                  }
+                  <h2 className="mb-4 mt-8 text-lg font-bold">
+                    Service requests
+                  </h2>
+                  {
+                    <DataTable
+                      rows={serviceRows}
+                      columns={columnsServices}
+                      onView={(row) => setRequestId(row.id)}
+                    />
+                  }
+                  <h2 className="mb-4 mt-8 text-lg font-bold">Orders</h2>
+                  {
+                    <DataTable
+                      rows={orderRows}
+                      columns={columnsOrders}
+                      onView={(row) => setOrderId(row.id)}
+                    />
+                  }
+                </>
+              }
+            />
           )}
           {section === "settings" && <SettingsPanel key={view} view={view} />}
           {section === "products" && view === "brands" && (
-            <BrandsManager onRemove={(name) => setRemove({ type: "brand", id: name, name })} />
+            <BrandsManager
+              onRemove={(name) => setRemove({ type: "brand", id: name, name })}
+            />
           )}
           {section === "products" && view === "import" && <BulkImport />}
-          {section === "services" && view === "requests" && <TechnicianManager />}
+          {section === "services" && view === "requests" && (
+            <TechnicianManager />
+          )}
           {section === "services" && view === "warranty" && <WarrantyAdmin />}
           {section === "services" && view === "areas" && (
             <ServiceAreas
@@ -1584,22 +1614,26 @@ export default function Admin() {
             />
           )}
           {section === "pc-builder" && view === "requests" && <PcRequests />}
-          {section === "pc-builder" && view === "templates" && <BuildTemplatesAdmin />}
+          {section === "pc-builder" && view === "templates" && (
+            <BuildTemplatesAdmin />
+          )}
           {section === "support" && <SupportAdmin key={view} view={view} />}
           {section === "coupons" && <CouponsAdmin key={view} view={view} />}
-          {section === "sell-requests" && <SellRequestsAdmin key={view} view={view} />}
+          {section === "sell-requests" && (
+            <SellRequestsAdmin key={view} view={view} />
+          )}
           {resourceDefinitions[section] && (
             <ResourceManager key={section} section={section} />
           )}
           {!adminGroups.some((group) => group.section === section) &&
             !resourceDefinitions[section] && (
-            <Empty
-              title="Workspace not found"
-              description="Use the admin navigation to explore your hub."
-              to="/admin"
-              label="Back to dashboard"
-            />
-          )}
+              <Empty
+                title="Workspace not found"
+                description="Use the admin navigation to explore your hub."
+                to="/admin"
+                label="Back to dashboard"
+              />
+            )}
           <p className="mt-10 text-[10px] text-muted-foreground">
             IT HUB Admin · All data and financial values are prototype
             demonstrations, not real business statistics.
@@ -1650,8 +1684,9 @@ export default function Admin() {
           </p>
           <p className="text-xs text-muted-foreground">
             Current stock:{" "}
-            {store.products.find((item) => item.id === stockId)?.stock ?? 0}. Use
-            a negative number to remove units (damaged, returned to supplier).
+            {store.products.find((item) => item.id === stockId)?.stock ?? 0}.
+            Use a negative number to remove units (damaged, returned to
+            supplier).
           </p>
           <Field label="Adjust by (units)">
             <input
@@ -1665,7 +1700,9 @@ export default function Admin() {
               className={fieldClass}
             />
           </Field>
-          <Button type="submit" disabled={!stockAmount}>Apply adjustment</Button>
+          <Button type="submit" disabled={!stockAmount}>
+            Apply adjustment
+          </Button>
         </form>
       </Modal>
       <Modal
@@ -1741,7 +1778,9 @@ export default function Admin() {
                       ...previous.notifications,
                     ],
                   }))
-                  store.log(`Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`)
+                  store.log(
+                    `Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`,
+                  )
                   store.notify("Order status updated for the customer")
                 }}
               >
@@ -2371,7 +2410,9 @@ function ProductEditor({
           <Field label="SKU">
             <input
               value={draft.sku || ""}
-              onChange={(event) => setDraft({ ...draft, sku: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, sku: event.target.value })
+              }
               className={fieldClass}
             />
           </Field>
@@ -2382,7 +2423,10 @@ function ProductEditor({
               step={1}
               value={draft.lowStockThreshold ?? 3}
               onChange={(event) =>
-                setDraft({ ...draft, lowStockThreshold: Number(event.target.value) })
+                setDraft({
+                  ...draft,
+                  lowStockThreshold: Number(event.target.value),
+                })
               }
               className={fieldClass}
             />
@@ -2391,7 +2435,10 @@ function ProductEditor({
             <select
               value={draft.status || "Active"}
               onChange={(event) =>
-                setDraft({ ...draft, status: event.target.value as Product["status"] })
+                setDraft({
+                  ...draft,
+                  status: event.target.value as Product["status"],
+                })
               }
               className={fieldClass}
             >
@@ -2409,13 +2456,18 @@ function ProductEditor({
                 setDraft({
                   ...draft,
                   secondHand: event.target.value === "secondHand",
-                  condition: event.target.value === "secondHand" ? (draft.condition || "Good") : undefined,
+                  condition:
+                    event.target.value === "secondHand"
+                      ? draft.condition || "Good"
+                      : undefined,
                 })
               }
               className={fieldClass}
             >
               <option value="fresh">Fresh (Brand New Product)</option>
-              <option value="secondHand">Second-Hand / Verified Pre-Owned</option>
+              <option value="secondHand">
+                Second-Hand / Verified Pre-Owned
+              </option>
             </select>
           </Field>
           {draft.secondHand && (
@@ -2428,7 +2480,9 @@ function ProductEditor({
                 className={fieldClass}
               >
                 {productConditions.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -2506,7 +2560,9 @@ const readImage = (file: File, max = 1200) =>
         const canvas = document.createElement("canvas")
         canvas.width = Math.round(img.width * scale)
         canvas.height = Math.round(img.height * scale)
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas
+          .getContext("2d")!
+          .drawImage(img, 0, 0, canvas.width, canvas.height)
         resolve(canvas.toDataURL("image/jpeg", 0.82))
       }
       img.src = String(reader.result)
@@ -2595,7 +2651,10 @@ function OfferEditor({
             id: offer?.id || crypto.randomUUID(),
           }
           if (!next.name) return setError("Offer name is required.")
-          if (mode === "percent" && (!(next.discount >= 1) || next.discount > 90))
+          if (
+            mode === "percent" &&
+            (!(next.discount >= 1) || next.discount > 90)
+          )
             return setError("Percentage discount must be between 1 and 90.")
           if (mode === "fixed" && !(next.amount > 0))
             return setError("Fixed discount amount must be greater than ₹0.")
@@ -2603,7 +2662,11 @@ function OfferEditor({
             return setError("Choose a start and end date/time.")
           if (new Date(next.endsAt) <= new Date(next.startsAt))
             return setError("End date/time must be after the start.")
-          if (!next.products.length && !next.categories.length && !next.brands.length)
+          if (
+            !next.products.length &&
+            !next.categories.length &&
+            !next.brands.length
+          )
             return setError("Select at least one product, category or brand.")
           store.set({
             offers: offer
@@ -2618,7 +2681,9 @@ function OfferEditor({
         <Field label="Offer name">
           <input
             value={draft.name}
-            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+            onChange={(event) =>
+              setDraft({ ...draft, name: event.target.value })
+            }
             className={fieldClass}
             placeholder="e.g. Onam Gaming Sale"
           />
@@ -2638,7 +2703,10 @@ function OfferEditor({
             <select
               value={draft.type}
               onChange={(event) =>
-                setDraft({ ...draft, type: event.target.value as Offer["type"] })
+                setDraft({
+                  ...draft,
+                  type: event.target.value as Offer["type"],
+                })
               }
               className={fieldClass}
             >
@@ -2667,7 +2735,9 @@ function OfferEditor({
                 ))}
               </div>
               <input
-                aria-label={mode === "percent" ? "Discount percentage" : "Discount amount"}
+                aria-label={
+                  mode === "percent" ? "Discount percentage" : "Discount amount"
+                }
                 type="number"
                 min={mode === "percent" ? 1 : 1}
                 max={mode === "percent" ? 90 : undefined}
@@ -2714,11 +2784,15 @@ function OfferEditor({
                   }
                 />
                 <span className="flex-1">{item.name}</span>
-                <span className="text-muted-foreground">{money(item.price)}</span>
+                <span className="text-muted-foreground">
+                  {money(item.price)}
+                </span>
               </label>
             ))}
             {!matches.length && (
-              <p className="p-3 text-xs text-muted-foreground">No products match.</p>
+              <p className="p-3 text-xs text-muted-foreground">
+                No products match.
+              </p>
             )}
           </div>
         </div>
@@ -2753,7 +2827,9 @@ function OfferEditor({
             <input
               type="datetime-local"
               value={draft.endsAt}
-              onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, endsAt: event.target.value })
+              }
               className={fieldClass}
             />
           </Field>
@@ -2762,8 +2838,14 @@ function OfferEditor({
           <p className="mb-2 text-xs font-semibold">Banner image</p>
           <div className="flex flex-wrap items-center gap-3">
             <input
-              value={draft.banner.startsWith("data:") ? "Uploaded image" : draft.banner}
-              onChange={(event) => setDraft({ ...draft, banner: event.target.value })}
+              value={
+                draft.banner.startsWith("data:")
+                  ? "Uploaded image"
+                  : draft.banner
+              }
+              onChange={(event) =>
+                setDraft({ ...draft, banner: event.target.value })
+              }
               placeholder="https://… or /images/…"
               className={`${fieldClass} flex-1`}
             />
@@ -2795,17 +2877,22 @@ function OfferEditor({
           <input
             type="checkbox"
             checked={draft.active}
-            onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+            onChange={(event) =>
+              setDraft({ ...draft, active: event.target.checked })
+            }
             className="accent-primary"
           />
           Active (status is then set automatically by the date window)
         </label>
         <p className="rounded-md bg-muted p-3 text-xs">
-          Preview: <strong>{offerHeadline({
-            ...draft,
-            discount: mode === "percent" ? draft.discount : 0,
-            amount: mode === "fixed" ? draft.amount : 0,
-          })}</strong>{" "}
+          Preview:{" "}
+          <strong>
+            {offerHeadline({
+              ...draft,
+              discount: mode === "percent" ? draft.discount : 0,
+              amount: mode === "fixed" ? draft.amount : 0,
+            })}
+          </strong>{" "}
           · {offerStatus(draft)}
         </p>
         {error && (
@@ -2818,12 +2905,22 @@ function OfferEditor({
     </Modal>
   )
 }
-function Panel({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
+function Panel({
+  title,
+  children,
+  description,
+}: {
+  title: string
+  description?: string
+  children: ReactNode
+}) {
   return (
     <div className="mb-6 rounded-lg border border-border bg-white p-6">
       <h3 className="text-sm font-bold">{title}</h3>
       {description && (
-        <p className="mt-1 text-xs leading-6 text-muted-foreground">{description}</p>
+        <p className="mt-1 text-xs leading-6 text-muted-foreground">
+          {description}
+        </p>
       )}
       <div className="mt-4">{children}</div>
     </div>
@@ -2841,11 +2938,19 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
             event.preventDefault()
             const value = name.trim()
             if (!value) return
-            if (store.brands.some((item) => item.toLowerCase() === value.toLowerCase())) {
+            if (
+              store.brands.some(
+                (item) => item.toLowerCase() === value.toLowerCase(),
+              )
+            ) {
               store.notify("This brand already exists")
               return
             }
-            store.set({ brands: [...store.brands, value].sort((a, b) => a.localeCompare(b)) })
+            store.set({
+              brands: [...store.brands, value].sort((a, b) =>
+                a.localeCompare(b),
+              ),
+            })
             store.log(`Brand added: ${value}`)
             store.notify("Brand added")
             setName("")
@@ -2875,7 +2980,11 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
         actions={(row) => (
           <button
             disabled={Number(row.count) > 0}
-            title={Number(row.count) > 0 ? "Brand is used by products" : "Delete brand"}
+            title={
+              Number(row.count) > 0
+                ? "Brand is used by products"
+                : "Delete brand"
+            }
             className="text-red-600 disabled:opacity-30"
             onClick={() => onRemove(row.id)}
           >
@@ -2886,11 +2995,28 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
     </>
   )
 }
-const importSteps = ["Upload", "Parse", "Validate", "Preview", "Errors/Warnings", "Confirm", "Import", "Summary"]
-type ImportSummary = { imported: number; updated: number; created: number; skipped: number; failed: number }
+const importSteps = [
+  "Upload",
+  "Parse",
+  "Validate",
+  "Preview",
+  "Errors/Warnings",
+  "Confirm",
+  "Import",
+  "Summary",
+]
+type ImportSummary = {
+  imported: number
+  updated: number
+  created: number
+  skipped: number
+  failed: number
+}
 function BulkImport() {
   const store = useStore()
-  const [tab, setTab] = useState<"csv" | "excel" | "template" | "history">("csv")
+  const [tab, setTab] = useState<"csv" | "excel" | "template" | "history">(
+    "csv",
+  )
   const [file, setFile] = useState("")
   const [rows, setRows] = useState<ImportRow[] | null>(null)
   const [parseError, setParseError] = useState("")
@@ -2905,7 +3031,17 @@ function BulkImport() {
     setConfirming(false)
     setSummary(null)
   }
-  const step = summary ? 7 : confirming ? 5 : rows ? (rows.some((row) => row.issues.length) ? 4 : 3) : file ? 1 : 0
+  const step = summary
+    ? 7
+    : confirming
+      ? 5
+      : rows
+        ? rows.some((row) => row.issues.length)
+          ? 4
+          : 3
+        : file
+          ? 1
+          : 0
   const parse = async (input: File) => {
     reset()
     setFile(input.name)
@@ -2925,29 +3061,46 @@ function BulkImport() {
         raw: false,
       })
       if (!raw.length) {
-        setParseError("No data rows found. Check that the first row contains the column headers.")
+        setParseError(
+          "No data rows found. Check that the first row contains the column headers.",
+        )
         return
       }
       const headers = Object.keys(raw[0])
-      const missing = ["SKU", "Product Name", "Price", "Stock"].filter((key) => !headers.includes(key))
+      const missing = ["SKU", "Product Name", "Price", "Stock"].filter(
+        (key) => !headers.includes(key),
+      )
       if (missing.length) {
-        setParseError(`Missing required columns: ${missing.join(", ")}. Download the template for the expected format.`)
+        setParseError(
+          `Missing required columns: ${missing.join(", ")}. Download the template for the expected format.`,
+        )
         return
       }
       setRows(validateImportRows(raw, store.catalogCategories, store.brands))
     } catch {
-      setParseError("The file could not be parsed. Make sure it is a valid CSV or Excel workbook.")
+      setParseError(
+        "The file could not be parsed. Make sure it is a valid CSV or Excel workbook.",
+      )
     }
   }
   const download = (type: "csv" | "xlsx") => {
-    const sheet = XLSX.utils.json_to_sheet(importTemplateRows, { header: [...importColumns] })
+    const sheet = XLSX.utils.json_to_sheet(importTemplateRows, {
+      header: [...importColumns],
+    })
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, sheet, "Products")
-    XLSX.writeFile(workbook, `ithub-product-import-template.${type}`, { bookType: type })
+    XLSX.writeFile(workbook, `ithub-product-import-template.${type}`, {
+      bookType: type,
+    })
   }
   const valid = rows?.filter((row) => row.valid) || []
   const errorRows = rows?.filter((row) => !row.valid) || []
-  const warningCount = rows?.reduce((sum, row) => sum + row.issues.filter((issue) => issue.level === "warning").length, 0) || 0
+  const warningCount =
+    rows?.reduce(
+      (sum, row) =>
+        sum + row.issues.filter((issue) => issue.level === "warning").length,
+      0,
+    ) || 0
   const runImport = () => {
     if (!rows) return
     let created = 0
@@ -2958,16 +3111,22 @@ function BulkImport() {
     for (const row of valid) {
       try {
         const d = row.data
-        const num = (key: string) => (d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined)
+        const num = (key: string) =>
+          d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined
         const price = num("Price")!
         const sale = num("Sale Price")
-        const category = store.catalogCategories.find((name) => name.toLowerCase() === d.Category.toLowerCase())!
-        let brand = brands.find((name) => name.toLowerCase() === d.Brand.toLowerCase())
+        const category = store.catalogCategories.find(
+          (name) => name.toLowerCase() === d.Category.toLowerCase(),
+        )!
+        let brand = brands.find(
+          (name) => name.toLowerCase() === d.Brand.toLowerCase(),
+        )
         if (!brand) {
           brand = d.Brand
           brands.push(brand)
         }
-        const status = (d.Status[0].toUpperCase() + d.Status.slice(1).toLowerCase()) as Product["status"]
+        const status = (d.Status[0].toUpperCase() +
+          d.Status.slice(1).toLowerCase()) as Product["status"]
         const fields: Partial<Product> = {
           sku: d.SKU,
           name: d["Product Name"],
@@ -2984,7 +3143,9 @@ function BulkImport() {
           weight: d.Weight || undefined,
           status,
         }
-        const index = products.findIndex((item) => item.sku?.toLowerCase() === d.SKU.toLowerCase())
+        const index = products.findIndex(
+          (item) => item.sku?.toLowerCase() === d.SKU.toLowerCase(),
+        )
         if (index >= 0) {
           products[index] = { ...products[index], ...fields }
           updated++
@@ -2994,7 +3155,7 @@ function BulkImport() {
             image: images.pc,
             rating: 4.8,
             specs: d.Warranty ? { Warranty: d.Warranty } : {},
-            ...(fields as Omit<Product, "id" | "image" | "rating" | "specs">),
+            ...fields as Omit<Product, "id" | "image" | "rating" | "specs">,
           })
           created++
         }
@@ -3045,7 +3206,9 @@ function BulkImport() {
             key={value}
             onClick={() => setTab(value)}
             className={`-mb-px border-b-2 px-4 py-2.5 text-xs font-semibold ${
-              tab === value ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+              tab === value
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
             }`}
           >
             {label}
@@ -3102,16 +3265,26 @@ function BulkImport() {
           </ol>
           {!rows && !summary && (
             <Panel
-              title={tab === "csv" ? "Upload CSV file" : "Upload Excel file (.xlsx)"}
+              title={
+                tab === "csv" ? "Upload CSV file" : "Upload Excel file (.xlsx)"
+              }
               description="The file is parsed and validated in your browser. Nothing is imported until you confirm."
             >
               <label className="flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border p-10 text-center hover:border-primary/50">
                 <Upload size={24} className="text-primary" />
-                <span className="text-sm font-semibold">Choose a {tab === "csv" ? ".csv" : ".xlsx"} file</span>
-                <span className="text-xs text-muted-foreground">Use the Template tab for the expected columns</span>
+                <span className="text-sm font-semibold">
+                  Choose a {tab === "csv" ? ".csv" : ".xlsx"} file
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Use the Template tab for the expected columns
+                </span>
                 <input
                   type="file"
-                  accept={tab === "csv" ? ".csv,text/csv" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+                  accept={
+                    tab === "csv"
+                      ? ".csv,text/csv"
+                      : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  }
                   className="sr-only"
                   onChange={(event) => {
                     const input = event.target.files?.[0]
@@ -3133,8 +3306,12 @@ function BulkImport() {
                 <strong>{file}</strong>
                 <span>{rows.length} rows found</span>
                 <span className="text-emerald-700">✓ {valid.length} valid</span>
-                <span className="text-amber-700">⚠ {warningCount} warnings</span>
-                <span className="text-red-600">✕ {errorRows.length} errors</span>
+                <span className="text-amber-700">
+                  ⚠ {warningCount} warnings
+                </span>
+                <span className="text-red-600">
+                  ✕ {errorRows.length} errors
+                </span>
               </div>
               {rows.some((row) => row.issues.length) && (
                 <div className="mb-5 rounded-lg border border-border bg-white">
@@ -3142,8 +3319,13 @@ function BulkImport() {
                     onClick={() => setShowIssues(!showIssues)}
                     className="flex w-full items-center justify-between p-4 text-xs font-semibold text-primary"
                   >
-                    {showIssues ? "Hide errors & warnings" : "View errors & warnings"}
-                    <ChevronDown size={14} className={showIssues ? "rotate-180" : ""} />
+                    {showIssues
+                      ? "Hide errors & warnings"
+                      : "View errors & warnings"}
+                    <ChevronDown
+                      size={14}
+                      className={showIssues ? "rotate-180" : ""}
+                    />
                   </button>
                   {showIssues && (
                     <ul className="max-h-64 overflow-y-auto border-t border-border text-xs">
@@ -3152,10 +3334,16 @@ function BulkImport() {
                           <li
                             key={`${row.row}-${index}`}
                             className={`flex items-center gap-2 border-b border-border px-4 py-2 ${
-                              issue.level === "error" ? "text-red-600" : "text-amber-700"
+                              issue.level === "error"
+                                ? "text-red-600"
+                                : "text-amber-700"
                             }`}
                           >
-                            {issue.level === "error" ? <XCircle size={13} /> : <AlertTriangle size={13} />}
+                            {issue.level === "error" ? (
+                              <XCircle size={13} />
+                            ) : (
+                              <AlertTriangle size={13} />
+                            )}
                             Row {row.row} — {issue.message}
                           </li>
                         )),
@@ -3170,8 +3358,19 @@ function BulkImport() {
                     <tr>
                       <th className="px-4 py-3">Row</th>
                       <th className="px-4 py-3">Status</th>
-                      {["SKU", "Product Name", "Brand", "Category", "Price", "Sale Price", "Stock", "Status"].map((key) => (
-                        <th key={key} className="px-4 py-3">{key}</th>
+                      {[
+                        "SKU",
+                        "Product Name",
+                        "Brand",
+                        "Category",
+                        "Price",
+                        "Sale Price",
+                        "Stock",
+                        "Status",
+                      ].map((key) => (
+                        <th key={key} className="px-4 py-3">
+                          {key}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -3188,8 +3387,19 @@ function BulkImport() {
                             <Badge tone="green">Valid</Badge>
                           )}
                         </td>
-                        {["SKU", "Product Name", "Brand", "Category", "Price", "Sale Price", "Stock", "Status"].map((key) => (
-                          <td key={key} className="max-w-48 truncate px-4 py-3">{row.data[key] || "—"}</td>
+                        {[
+                          "SKU",
+                          "Product Name",
+                          "Brand",
+                          "Category",
+                          "Price",
+                          "Sale Price",
+                          "Stock",
+                          "Status",
+                        ].map((key) => (
+                          <td key={key} className="max-w-48 truncate px-4 py-3">
+                            {row.data[key] || "—"}
+                          </td>
                         ))}
                       </tr>
                     ))}
@@ -3204,18 +3414,29 @@ function BulkImport() {
               {confirming ? (
                 <div className="rounded-lg border border-primary/30 bg-secondary/50 p-5">
                   <p className="mb-4 text-sm">
-                    Import <strong>{valid.length}</strong> valid rows? {errorRows.length} row(s) with errors will be skipped.
+                    Import <strong>{valid.length}</strong> valid rows?{" "}
+                    {errorRows.length} row(s) with errors will be skipped.
                     Products with a matching SKU will be updated.
                   </p>
                   <div className="flex gap-3">
                     <Button onClick={runImport}>Confirm import</Button>
-                    <Button variant="secondary" onClick={() => setConfirming(false)}>Back</Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setConfirming(false)}
+                    >
+                      Back
+                    </Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3">
-                  <Button variant="secondary" onClick={reset}>Cancel</Button>
-                  <Button disabled={!valid.length} onClick={() => setConfirming(true)}>
+                  <Button variant="secondary" onClick={reset}>
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!valid.length}
+                    onClick={() => setConfirming(true)}
+                  >
                     Import valid rows ({valid.length})
                   </Button>
                 </div>
@@ -3225,15 +3446,13 @@ function BulkImport() {
           {summary && (
             <Panel title="Import summary" description={file}>
               <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-                {(
-                  [
-                    ["Imported", summary.imported],
-                    ["Updated", summary.updated],
-                    ["Created", summary.created],
-                    ["Skipped", summary.skipped],
-                    ["Failed", summary.failed],
-                  ] as const
-                ).map(([label, value]) => (
+                {([
+                  ["Imported", summary.imported],
+                  ["Updated", summary.updated],
+                  ["Created", summary.created],
+                  ["Skipped", summary.skipped],
+                  ["Failed", summary.failed],
+                ] as const).map(([label, value]) => (
                   <div key={label} className="rounded-md bg-muted p-4">
                     <p className="text-xs text-muted-foreground">{label}</p>
                     <p className="mt-2 text-2xl font-bold">{value}</p>
@@ -3244,7 +3463,9 @@ function BulkImport() {
                 <Button onClick={reset}>
                   <Upload size={14} /> Upload corrected file
                 </Button>
-                <ActionLink secondary to="/admin/products?view=all">View products</ActionLink>
+                <ActionLink secondary to="/admin/products?view=all">
+                  View products
+                </ActionLink>
               </div>
             </Panel>
           )}
@@ -3266,16 +3487,23 @@ function TechnicianManager() {
           {store.technicians
             .filter((item) => item !== "Unassigned")
             .map((item) => (
-              <span key={item} className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-xs">
+              <span
+                key={item}
+                className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-xs"
+              >
                 {item}
                 <button
                   aria-label={`Remove ${item}`}
                   className="text-red-600"
                   onClick={() => {
                     store.set((previous) => ({
-                      technicians: previous.technicians.filter((value) => value !== item),
+                      technicians: previous.technicians.filter(
+                        (value) => value !== item,
+                      ),
                       requests: previous.requests.map((request) =>
-                        request.technician === item ? { ...request, technician: "Unassigned" } : request,
+                        request.technician === item
+                          ? { ...request, technician: "Unassigned" }
+                          : request,
                       ),
                     }))
                     store.log(`Service staff removed: ${item}`)
@@ -3297,8 +3525,15 @@ function TechnicianManager() {
             setName("")
           }}
         >
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Staff name" className={fieldClass} />
-          <Button type="submit" variant="secondary">Add</Button>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Staff name"
+            className={fieldClass}
+          />
+          <Button type="submit" variant="secondary">
+            Add
+          </Button>
         </form>
       </Panel>
     </div>
@@ -3336,20 +3571,32 @@ function WarrantyAdmin() {
         </form>
         {result && (
           <div className="mt-4 rounded-md bg-muted p-4 text-sm">
-            {result.status === "invalid" && <p className="text-red-600">Enter a valid 6-digit Indian PIN code.</p>}
-            {result.status === "unknown" && (
-              <p className="text-amber-700">PIN {result.pincode} is not in the area directory — confirm manually.</p>
+            {result.status === "invalid" && (
+              <p className="text-red-600">
+                Enter a valid 6-digit Indian PIN code.
+              </p>
             )}
-            {(result.status === "eligible" || result.status === "ineligible") && (
+            {result.status === "unknown" && (
+              <p className="text-amber-700">
+                PIN {result.pincode} is not in the area directory — confirm
+                manually.
+              </p>
+            )}
+            {(result.status === "eligible" ||
+              result.status === "ineligible") && (
               <>
                 <Badge tone={result.status === "eligible" ? "green" : "red"}>
-                  {result.status === "eligible" ? "Eligible for on-site warranty" : "Outside service radius"}
+                  {result.status === "eligible"
+                    ? "Eligible for on-site warranty"
+                    : "Outside service radius"}
                 </Badge>
                 <p className="mt-3">
-                  Area: <strong>{result.area}</strong> · nearest: {result.location.name}
+                  Area: <strong>{result.area}</strong> · nearest:{" "}
+                  {result.location.name}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  approx. {result.distanceKm} km (PIN-area estimate) · radius {result.location.serviceRadiusKm} km
+                  approx. {result.distanceKm} km (PIN-area estimate) · radius{" "}
+                  {result.location.serviceRadiusKm} km
                 </p>
               </>
             )}
@@ -3360,7 +3607,8 @@ function WarrantyAdmin() {
       <DataTable
         rows={store.warrantyChecks.map((item) => ({
           ...item,
-          distance: item.distanceKm === null ? "—" : `approx. ${item.distanceKm} km`,
+          distance:
+            item.distanceKm === null ? "—" : `approx. ${item.distanceKm} km`,
         }))}
         columns={[
           { key: "pincode", label: "PIN code" },
@@ -3369,7 +3617,15 @@ function WarrantyAdmin() {
             key: "result",
             label: "Result",
             render: (row) => (
-              <Badge tone={row.result === "eligible" ? "green" : row.result === "ineligible" ? "red" : "amber"}>
+              <Badge
+                tone={
+                  row.result === "eligible"
+                    ? "green"
+                    : row.result === "ineligible"
+                      ? "red"
+                      : "amber"
+                }
+              >
                 {String(row.result)}
               </Badge>
             ),
@@ -3410,51 +3666,120 @@ function LocationForm({
       onSubmit={(event) => {
         event.preventDefault()
         if (draft.name.trim().length < 2) return setError("Name is required.")
-        if (!/^[1-9]\d{5}$/.test(draft.pincode)) return setError("Enter a valid 6-digit PIN code.")
-        if (!(Math.abs(draft.latitude) <= 90) || !(Math.abs(draft.longitude) <= 180))
+        if (!/^[1-9]\d{5}$/.test(draft.pincode))
+          return setError("Enter a valid 6-digit PIN code.")
+        if (
+          !(Math.abs(draft.latitude) <= 90) ||
+          !(Math.abs(draft.longitude) <= 180)
+        )
           return setError("Latitude must be −90…90 and longitude −180…180.")
-        if (!(draft.serviceRadiusKm > 0)) return setError("Service radius must be greater than 0 km.")
+        if (!(draft.serviceRadiusKm > 0))
+          return setError("Service radius must be greater than 0 km.")
         setError("")
-        onSave({ ...draft, name: draft.name.trim(), id: draft.id || crypto.randomUUID() })
+        onSave({
+          ...draft,
+          name: draft.name.trim(),
+          id: draft.id || crypto.randomUUID(),
+        })
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Location name">
-          <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={fieldClass} />
+          <input
+            value={draft.name}
+            onChange={(event) =>
+              setDraft({ ...draft, name: event.target.value })
+            }
+            className={fieldClass}
+          />
         </Field>
         <Field label="PIN code">
           <input
             value={draft.pincode}
             maxLength={6}
-            onChange={(event) => setDraft({ ...draft, pincode: event.target.value.replace(/\D/g, "") })}
+            onChange={(event) =>
+              setDraft({
+                ...draft,
+                pincode: event.target.value.replace(/\D/g, ""),
+              })
+            }
             className={fieldClass}
           />
         </Field>
       </div>
       <Field label="Address">
-        <input value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} className={fieldClass} />
+        <input
+          value={draft.address}
+          onChange={(event) =>
+            setDraft({ ...draft, address: event.target.value })
+          }
+          className={fieldClass}
+        />
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Latitude">
-          <input type="number" step="any" value={draft.latitude} onChange={(event) => setDraft({ ...draft, latitude: Number(event.target.value) })} className={fieldClass} />
+          <input
+            type="number"
+            step="any"
+            value={draft.latitude}
+            onChange={(event) =>
+              setDraft({ ...draft, latitude: Number(event.target.value) })
+            }
+            className={fieldClass}
+          />
         </Field>
         <Field label="Longitude">
-          <input type="number" step="any" value={draft.longitude} onChange={(event) => setDraft({ ...draft, longitude: Number(event.target.value) })} className={fieldClass} />
+          <input
+            type="number"
+            step="any"
+            value={draft.longitude}
+            onChange={(event) =>
+              setDraft({ ...draft, longitude: Number(event.target.value) })
+            }
+            className={fieldClass}
+          />
         </Field>
         <Field label="Service radius (km)">
-          <input type="number" min={1} step="any" value={draft.serviceRadiusKm} onChange={(event) => setDraft({ ...draft, serviceRadiusKm: Number(event.target.value) })} className={fieldClass} />
+          <input
+            type="number"
+            min={1}
+            step="any"
+            value={draft.serviceRadiusKm}
+            onChange={(event) =>
+              setDraft({
+                ...draft,
+                serviceRadiusKm: Number(event.target.value),
+              })
+            }
+            className={fieldClass}
+          />
         </Field>
       </div>
       <label className="flex items-center gap-3 text-sm">
-        <input type="checkbox" className="accent-primary" checked={draft.active} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} />
+        <input
+          type="checkbox"
+          className="accent-primary"
+          checked={draft.active}
+          onChange={(event) =>
+            setDraft({ ...draft, active: event.target.checked })
+          }
+        />
         Active (used for on-site warranty checks)
       </label>
-      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
       <Button type="submit">{submitLabel}</Button>
     </form>
   )
 }
-function ServiceAreas({ onRemove }: { onRemove: (id: string, name: string) => void }) {
+function ServiceAreas({
+  onRemove,
+}: {
+  onRemove: (id: string, name: string) => void
+}) {
   const store = useStore()
   const [editing, setEditing] = useState<ItHubLocation | null>(null)
   return (
@@ -3477,27 +3802,49 @@ function ServiceAreas({ onRemove }: { onRemove: (id: string, name: string) => vo
           { key: "pincode", label: "PIN" },
           { key: "coords", label: "Lat, Lng" },
           { key: "radius", label: "Radius" },
-          { key: "status", label: "Status", render: (row) => statusBadge(String(row.status)) },
+          {
+            key: "status",
+            label: "Status",
+            render: (row) => statusBadge(String(row.status)),
+          },
         ]}
         actions={(row) => (
           <div className="flex gap-3">
-            <button className="text-primary" onClick={() => setEditing(store.locations.find((item) => item.id === row.id) || null)}>
+            <button
+              className="text-primary"
+              onClick={() =>
+                setEditing(
+                  store.locations.find((item) => item.id === row.id) || null,
+                )
+              }
+            >
               Edit
             </button>
-            <button className="text-red-600" onClick={() => onRemove(row.id, String(row.name))}>
+            <button
+              className="text-red-600"
+              onClick={() => onRemove(row.id, String(row.name))}
+            >
               Delete
             </button>
           </div>
         )}
       />
-      <Modal open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)} title={editing?.id ? "Edit service location" : "Add service location"}>
+      <Modal
+        open={Boolean(editing)}
+        onOpenChange={(open) => !open && setEditing(null)}
+        title={editing?.id ? "Edit service location" : "Add service location"}
+      >
         {editing && (
           <LocationForm
             value={editing}
             onSave={(location) => {
               store.set((previous) => ({
-                locations: previous.locations.some((item) => item.id === location.id)
-                  ? previous.locations.map((item) => (item.id === location.id ? location : item))
+                locations: previous.locations.some(
+                  (item) => item.id === location.id,
+                )
+                  ? previous.locations.map((item) =>
+                      item.id === location.id ? location : item,
+                    )
                   : [...previous.locations, location],
               }))
               store.log(`Service location saved: ${location.name}`)
@@ -3514,21 +3861,38 @@ function PcRequests() {
   const store = useStore()
   const [openId, setOpenId] = useState("")
   const selected = store.pcEnquiries.find((item) => item.id === openId)
-  const statuses: PcEnquiry["status"][] = ["New", "Contacted", "Quoted", "Closed"]
+  const statuses: PcEnquiry["status"][] = [
+    "New",
+    "Contacted",
+    "Quoted",
+    "Closed",
+  ]
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-        Build enquiries customers sent to the IT HUB WhatsApp number from the PC Builder.
+        Build enquiries customers sent to the IT HUB WhatsApp number from the PC
+        Builder.
       </p>
       <DataTable
-        rows={store.pcEnquiries.map((item) => ({ ...item, count: item.parts.length }))}
+        rows={store.pcEnquiries.map((item) => ({
+          ...item,
+          count: item.parts.length,
+        }))}
         columns={[
           { key: "id", label: "Request" },
           { key: "summary", label: "Summary" },
           { key: "count", label: "Parts" },
-          { key: "estimate", label: "Estimate", render: (row) => money(Number(row.estimate)) },
+          {
+            key: "estimate",
+            label: "Estimate",
+            render: (row) => money(Number(row.estimate)),
+          },
           { key: "date", label: "Date" },
-          { key: "status", label: "Status", render: (row) => statusBadge(String(row.status)) },
+          {
+            key: "status",
+            label: "Status",
+            render: (row) => statusBadge(String(row.status)),
+          },
         ]}
         onView={(row) => setOpenId(row.id)}
         actions={(row) => (
@@ -3539,7 +3903,9 @@ function PcRequests() {
             onChange={(event) => {
               const status = event.target.value as PcEnquiry["status"]
               store.set({
-                pcEnquiries: store.pcEnquiries.map((item) => (item.id === row.id ? { ...item, status } : item)),
+                pcEnquiries: store.pcEnquiries.map((item) =>
+                  item.id === row.id ? { ...item, status } : item,
+                ),
               })
               store.log(`PC request ${row.id}: ${status}`)
               store.notify("Request status updated")
@@ -3551,19 +3917,28 @@ function PcRequests() {
           </select>
         )}
       />
-      <Modal open={Boolean(selected)} onOpenChange={(open) => !open && setOpenId("")} title={selected?.id || "Request"}>
+      <Modal
+        open={Boolean(selected)}
+        onOpenChange={(open) => !open && setOpenId("")}
+        title={selected?.id || "Request"}
+      >
         {selected && (
           <div className="space-y-3">
             <p className="text-sm">{selected.summary}</p>
             {selected.parts.map((part) => (
-              <p key={`${part.type}-${part.name}`} className="flex justify-between gap-3 text-xs">
+              <p
+                key={`${part.type}-${part.name}`}
+                className="flex justify-between gap-3 text-xs"
+              >
                 <span>
                   <strong>{part.type}</strong> · {part.name}
                 </span>
                 {money(part.price)}
               </p>
             ))}
-            <p className="border-t border-border pt-3 text-sm font-bold">Estimate {money(selected.estimate)}</p>
+            <p className="border-t border-border pt-3 text-sm font-bold">
+              Estimate {money(selected.estimate)}
+            </p>
           </div>
         )}
       </Modal>
@@ -3580,10 +3955,14 @@ function SettingsPanel({ view }: { view: string }) {
     store.notify("Settings saved")
   }
   const primary = store.locations[0]
+  if (view === "database") return <DatabaseConnectionPanel />
   if (view === "privacy") return <PrivacyPanel />
   if (view === "location")
     return (
-      <Panel title="Primary IT HUB location" description="Used for on-site warranty distance checks and shown as the store location.">
+      <Panel
+        title="Primary IT HUB location"
+        description="Used for on-site warranty distance checks and shown as the store location."
+      >
         <LocationForm
           value={primary || emptyLocation()}
           onSave={(location) => {
@@ -3600,11 +3979,19 @@ function SettingsPanel({ view }: { view: string }) {
     )
   if (view === "radius")
     return (
-      <Panel title="On-site service radius" description="Customers whose PIN-area estimate is within the radius of an active location are eligible for on-site warranty.">
+      <Panel
+        title="On-site service radius"
+        description="Customers whose PIN-area estimate is within the radius of an active location are eligible for on-site warranty."
+      >
         <div className="space-y-4">
           {store.locations.map((location) => (
-            <div key={location.id} className="flex flex-wrap items-center gap-4">
-              <span className="min-w-48 text-sm font-semibold">{location.name}</span>
+            <div
+              key={location.id}
+              className="flex flex-wrap items-center gap-4"
+            >
+              <span className="min-w-48 text-sm font-semibold">
+                {location.name}
+              </span>
               <input
                 type="range"
                 min={1}
@@ -3613,7 +4000,12 @@ function SettingsPanel({ view }: { view: string }) {
                 onChange={(event) =>
                   store.set({
                     locations: store.locations.map((item) =>
-                      item.id === location.id ? { ...item, serviceRadiusKm: Number(event.target.value) } : item,
+                      item.id === location.id
+                        ? {
+                            ...item,
+                            serviceRadiusKm: Number(event.target.value),
+                          }
+                        : item,
                     ),
                   })
                 }
@@ -3623,20 +4015,31 @@ function SettingsPanel({ view }: { view: string }) {
               <span className="text-sm">{location.serviceRadiusKm} km</span>
             </div>
           ))}
-          {!store.locations.length && <p className="text-xs text-muted-foreground">Add a service area first.</p>}
-          <p className="text-xs text-muted-foreground">Changes save automatically.</p>
+          {!store.locations.length && (
+            <p className="text-xs text-muted-foreground">
+              Add a service area first.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Changes save automatically.
+          </p>
         </div>
       </Panel>
     )
   if (view === "whatsapp")
     return (
-      <Panel title="WhatsApp number" description="PC Builder enquiries and contact buttons open a chat with this number. Include the country code (91 for India), digits only.">
+      <Panel
+        title="WhatsApp number"
+        description="PC Builder enquiries and contact buttons open a chat with this number. Include the country code (91 for India), digits only."
+      >
         <form
           className="max-w-md space-y-4"
           onSubmit={(event) => {
             event.preventDefault()
             if (!/^\d{10,15}$/.test(settings.whatsapp)) {
-              setError("Enter 10–15 digits including the country code, e.g. 919876543210.")
+              setError(
+                "Enter 10–15 digits including the country code, e.g. 919876543210.",
+              )
               return
             }
             setError("")
@@ -3647,17 +4050,31 @@ function SettingsPanel({ view }: { view: string }) {
             <input
               inputMode="numeric"
               value={settings.whatsapp}
-              onChange={(event) => setSettings({ ...settings, whatsapp: event.target.value.replace(/\D/g, "") })}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  whatsapp: event.target.value.replace(/\D/g, ""),
+                })
+              }
               className={fieldClass}
             />
           </Field>
           <p className="flex items-center gap-2 text-xs">
             <WhatsAppIcon size={14} className="text-primary" /> Preview:{" "}
-            <a className="text-primary underline" href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noreferrer">
+            <a
+              className="text-primary underline"
+              href={`https://wa.me/${settings.whatsapp}`}
+              target="_blank"
+              rel="noreferrer"
+            >
               https://wa.me/{settings.whatsapp}
             </a>
           </p>
-          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs text-red-600">
+              {error}
+            </p>
+          )}
           <Button type="submit">Save number</Button>
         </form>
       </Panel>
@@ -3677,27 +4094,75 @@ function SettingsPanel({ view }: { view: string }) {
         }}
       >
         <Field label="Store name">
-          <input required value={settings.storeName} onChange={(event) => setSettings({ ...settings, storeName: event.target.value })} className={fieldClass} />
+          <input
+            required
+            value={settings.storeName}
+            onChange={(event) =>
+              setSettings({ ...settings, storeName: event.target.value })
+            }
+            className={fieldClass}
+          />
         </Field>
         <Field label="Address">
-          <textarea rows={2} value={settings.address} onChange={(event) => setSettings({ ...settings, address: event.target.value })} className={fieldClass} />
+          <textarea
+            rows={2}
+            value={settings.address}
+            onChange={(event) =>
+              setSettings({ ...settings, address: event.target.value })
+            }
+            className={fieldClass}
+          />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Phone">
-            <input value={settings.phone} onChange={(event) => setSettings({ ...settings, phone: event.target.value })} className={fieldClass} />
+            <input
+              value={settings.phone}
+              onChange={(event) =>
+                setSettings({ ...settings, phone: event.target.value })
+              }
+              className={fieldClass}
+            />
           </Field>
           <Field label="Email">
-            <input type="email" value={settings.email} onChange={(event) => setSettings({ ...settings, email: event.target.value })} className={fieldClass} />
+            <input
+              type="email"
+              value={settings.email}
+              onChange={(event) =>
+                setSettings({ ...settings, email: event.target.value })
+              }
+              className={fieldClass}
+            />
           </Field>
         </div>
         <Field label="Delivery region">
-          <input required value={settings.delivery} onChange={(event) => setSettings({ ...settings, delivery: event.target.value })} className={fieldClass} />
+          <input
+            required
+            value={settings.delivery}
+            onChange={(event) =>
+              setSettings({ ...settings, delivery: event.target.value })
+            }
+            className={fieldClass}
+          />
         </Field>
         <label className="flex items-center gap-3 text-sm">
-          <input type="checkbox" checked={settings.emailNotifications} onChange={(event) => setSettings({ ...settings, emailNotifications: event.target.checked })} className="accent-primary" />
+          <input
+            type="checkbox"
+            checked={settings.emailNotifications}
+            onChange={(event) =>
+              setSettings({
+                ...settings,
+                emailNotifications: event.target.checked,
+              })
+            }
+            className="accent-primary"
+          />
           Email notifications for new orders
         </label>
-        {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+        {error && (
+          <p role="alert" className="text-xs text-red-600">
+            {error}
+          </p>
+        )}
         <Button type="submit">Save store information</Button>
       </form>
     </Panel>
@@ -3887,11 +4352,17 @@ function ShowcaseManager() {
           const canvas = document.createElement("canvas")
           canvas.width = Math.round(img.width * scale)
           canvas.height = Math.round(img.height * scale)
-          canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height)
+          canvas
+            .getContext("2d")!
+            .drawImage(img, 0, 0, canvas.width, canvas.height)
           const src = canvas.toDataURL("image/jpeg", 0.82)
           store.set((s) => ({
             showcase: [
-              { id: `showcase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, src, caption: caption.trim() || "Another happy IT HUB customer" },
+              {
+                id: `showcase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                src,
+                caption: caption.trim() || "Another happy IT HUB customer",
+              },
               ...s.showcase,
             ],
           }))
@@ -3902,7 +4373,11 @@ function ShowcaseManager() {
       reader.readAsDataURL(file)
     })
     setCaption("")
-    store.notify(files.length > 1 ? `${files.length} images added to showcase` : "Image added to showcase")
+    store.notify(
+      files.length > 1
+        ? `${files.length} images added to showcase`
+        : "Image added to showcase",
+    )
   }
   const target = store.showcase.find((item) => item.id === remove)
   return (
@@ -3910,7 +4385,8 @@ function ShowcaseManager() {
       <div className="rounded-lg border border-border bg-white p-5">
         <h3 className="text-sm font-bold">Add showcase images</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Images appear in the "Happy customers" section on the storefront home page. Newest first.
+          Images appear in the "Happy customers" section on the storefront home
+          page. Newest first.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
           <input
@@ -3935,13 +4411,25 @@ function ShowcaseManager() {
         </div>
       </div>
       {store.showcase.length === 0 ? (
-        <Empty title="No showcase images" description="Upload customer photos to show them on the home page." />
+        <Empty
+          title="No showcase images"
+          description="Upload customer photos to show them on the home page."
+        />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
           {store.showcase.map((item) => (
-            <figure key={item.id} className="group relative overflow-hidden rounded-xl border border-border bg-muted">
-              <img src={item.src} alt={item.caption} className="aspect-[4/5] w-full object-cover" />
-              <figcaption className="truncate px-3 py-2 text-[11px] text-muted-foreground">{item.caption}</figcaption>
+            <figure
+              key={item.id}
+              className="group relative overflow-hidden rounded-xl border border-border bg-muted"
+            >
+              <img
+                src={item.src}
+                alt={item.caption}
+                className="aspect-[4/5] w-full object-cover"
+              />
+              <figcaption className="truncate px-3 py-2 text-[11px] text-muted-foreground">
+                {item.caption}
+              </figcaption>
               <button
                 onClick={() => setRemove(item.id)}
                 aria-label={`Delete ${item.caption}`}
@@ -3960,13 +4448,23 @@ function ShowcaseManager() {
         title="Delete this image?"
         description="It will be removed from the storefront showcase."
       >
-        {target && <img src={target.src} alt="" className="mb-5 max-h-60 w-full rounded-xl object-cover" />}
+        {target && (
+          <img
+            src={target.src}
+            alt=""
+            className="mb-5 max-h-60 w-full rounded-xl object-cover"
+          />
+        )}
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setRemove(null)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => setRemove(null)}>
+            Cancel
+          </Button>
           <Button
             className="bg-red-600 hover:bg-red-700"
             onClick={() => {
-              store.set((s) => ({ showcase: s.showcase.filter((item) => item.id !== remove) }))
+              store.set((s) => ({
+                showcase: s.showcase.filter((item) => item.id !== remove),
+              }))
               store.log("Deleted a showcase image")
               store.notify("Image removed from showcase")
               setRemove(null)
@@ -4007,7 +4505,8 @@ const contactKeys = [
   "warrantyUrl",
   "email",
 ] as const
-const badUrl = (value: string) => Boolean(value.trim()) && !/^https:\/\/\S+$/i.test(value.trim())
+const badUrl = (value: string) =>
+  Boolean(value.trim()) && !/^https:\/\/\S+$/i.test(value.trim())
 function SupportAdmin({ view }: { view: string }) {
   const store = useStore()
   const [status, setStatus] = useState("all")
@@ -4032,7 +4531,13 @@ function SupportAdmin({ view }: { view: string }) {
               : !item.lastVerifiedAt,
     )
     .filter((item) =>
-      [item.brand, categoryName(item.category), item.warrantyPhone, item.customerCarePhone, item.supportUrl]
+      [
+        item.brand,
+        categoryName(item.category),
+        item.warrantyPhone,
+        item.customerCarePhone,
+        item.supportUrl,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(query.toLowerCase()),
@@ -4040,7 +4545,9 @@ function SupportAdmin({ view }: { view: string }) {
   const update = (id: string, patch: Partial<BrandSupport>) =>
     store.set((state) => ({
       brandSupport: state.brandSupport.map((item) =>
-        item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item,
+        item.id === id
+          ? { ...item, ...patch, updatedAt: new Date().toISOString() }
+          : item,
       ),
     }))
   return (
@@ -4067,7 +4574,12 @@ function SupportAdmin({ view }: { view: string }) {
               key: "sourceUrl",
               label: "Source",
               render: (row) => (
-                <a href={String(row.sourceUrl)} target="_blank" rel="noreferrer" className="text-primary underline">
+                <a
+                  href={String(row.sourceUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                >
                   {String(row.sourceUrl)}
                 </a>
               ),
@@ -4079,7 +4591,10 @@ function SupportAdmin({ view }: { view: string }) {
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="relative w-full max-w-xs">
-              <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
+              <Search
+                size={15}
+                className="absolute left-3 top-3 text-muted-foreground"
+              />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -4087,14 +4602,23 @@ function SupportAdmin({ view }: { view: string }) {
                 className={`${fieldClass} pl-9`}
               />
             </div>
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className={`${fieldClass} max-w-[180px]`}>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              className={`${fieldClass} max-w-[180px]`}
+            >
               <option value="all">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Disabled</option>
               <option value="verified">Verified</option>
               <option value="unverified">Unverified</option>
             </select>
-            <Button className="ml-auto" onClick={() => setEditing(emptySupport(view === "all" ? "" : view))}>
+            <Button
+              className="ml-auto"
+              onClick={() =>
+                setEditing(emptySupport(view === "all" ? "" : view))
+              }
+            >
               <Plus size={14} /> Add brand support
             </Button>
           </div>
@@ -4102,17 +4626,34 @@ function SupportAdmin({ view }: { view: string }) {
             <table className="w-full text-left text-xs">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
-                  {["Brand", "Category", "Phones", "URLs", "Verified", "Active", ""].map((label) => (
-                    <th key={label} className="px-4 py-3 font-semibold">{label}</th>
+                  {[
+                    "Brand",
+                    "Category",
+                    "Phones",
+                    "URLs",
+                    "Verified",
+                    "Active",
+                    "",
+                  ].map((label) => (
+                    <th key={label} className="px-4 py-3 font-semibold">
+                      {label}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((item) => (
-                  <tr key={item.id} className="border-t border-border align-top">
+                  <tr
+                    key={item.id}
+                    className="border-t border-border align-top"
+                  >
                     <td className="px-4 py-3 font-semibold">
                       {item.brand}
-                      {item.popular && <span className="ml-2"><Badge tone="blue">Popular</Badge></span>}
+                      {item.popular && (
+                        <span className="ml-2">
+                          <Badge tone="blue">Popular</Badge>
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">{categoryName(item.category)}</td>
                     <td className="px-4 py-3">
@@ -4120,18 +4661,29 @@ function SupportAdmin({ view }: { view: string }) {
                       <div>Care: {item.customerCarePhone || "—"}</div>
                     </td>
                     <td className="max-w-[220px] px-4 py-3">
-                      {[item.supportUrl, item.warrantyUrl].filter(Boolean).map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer" className="block truncate text-primary underline">
-                          {url}
-                        </a>
-                      ))}
+                      {[item.supportUrl, item.warrantyUrl]
+                        .filter(Boolean)
+                        .map((url) => (
+                          <a
+                            key={url}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-primary underline"
+                          >
+                            {url}
+                          </a>
+                        ))}
                     </td>
                     <td className="px-4 py-3">
                       {item.lastVerifiedAt ? (
                         <>
                           <Badge tone="green">Verified</Badge>
                           <div className="mt-1 text-[10px] text-muted-foreground">
-                            {new Date(item.lastVerifiedAt).toLocaleDateString("en-IN")} · {item.verifiedBy}
+                            {new Date(item.lastVerifiedAt).toLocaleDateString(
+                              "en-IN",
+                            )}{" "}
+                            · {item.verifiedBy}
                           </div>
                         </>
                       ) : (
@@ -4140,40 +4692,84 @@ function SupportAdmin({ view }: { view: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        className={`rounded px-2 py-1 text-[10px] font-semibold ${item.active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                        className={`rounded px-2 py-1 text-[10px] font-semibold ${
+                          item.active
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-muted text-muted-foreground"
+                        }`}
                         onClick={() => {
                           update(item.id, { active: !item.active })
-                          store.log(`Brand support ${item.active ? "disabled" : "enabled"}: ${item.brand} (${item.category})`)
-                          store.notify(item.active ? "Record disabled" : "Record enabled")
+                          store.log(
+                            `Brand support ${
+                              item.active ? "disabled" : "enabled"
+                            }: ${item.brand} (${item.category})`,
+                          )
+                          store.notify(
+                            item.active ? "Record disabled" : "Record enabled",
+                          )
                         }}
                       >
                         {item.active ? "Enabled" : "Disabled"}
                       </button>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button className="mr-3 text-primary" onClick={() => setVerifying(item)}>Mark verified</button>
-                      <button className="mr-3" onClick={() => setEditing(item)}><Pencil size={13} /></button>
-                      <button className="text-red-600" onClick={() => setRemoving(item)}><Trash2 size={13} /></button>
+                      <button
+                        className="mr-3 text-primary"
+                        onClick={() => setVerifying(item)}
+                      >
+                        Mark verified
+                      </button>
+                      <button className="mr-3" onClick={() => setEditing(item)}>
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        className="text-red-600"
+                        onClick={() => setRemoving(item)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!rows.length && <p className="p-6 text-center text-sm text-muted-foreground">No support records match.</p>}
+            {!rows.length && (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                No support records match.
+              </p>
+            )}
           </div>
           {view === "all" && <SupportCategories />}
         </>
       )}
       <SupportEditor record={editing} onClose={() => setEditing(null)} />
       <VerifyModal record={verifying} onClose={() => setVerifying(null)} />
-      <Modal open={Boolean(removing)} onOpenChange={(open) => !open && setRemoving(null)} title="Delete support record?" description={removing ? `${removing.brand} · ${categoryName(removing.category)}` : ""} size="max-w-md">
+      <Modal
+        open={Boolean(removing)}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title="Delete support record?"
+        description={
+          removing
+            ? `${removing.brand} · ${categoryName(removing.category)}`
+            : ""
+        }
+        size="max-w-md"
+      >
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setRemoving(null)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => setRemoving(null)}>
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               if (!removing) return
-              store.set((state) => ({ brandSupport: state.brandSupport.filter((item) => item.id !== removing.id) }))
-              store.log(`Brand support deleted: ${removing.brand} (${removing.category})`)
+              store.set((state) => ({
+                brandSupport: state.brandSupport.filter(
+                  (item) => item.id !== removing.id,
+                ),
+              }))
+              store.log(
+                `Brand support deleted: ${removing.brand} (${removing.category})`,
+              )
               store.notify("Support record deleted")
               setRemoving(null)
             }}
@@ -4185,7 +4781,12 @@ function SupportAdmin({ view }: { view: string }) {
     </>
   )
 }
-const appendVerification = (record: BrandSupport, verifiedBy: string, sourceUrl: string, changes: string) => ({
+const appendVerification = (
+  record: BrandSupport,
+  verifiedBy: string,
+  sourceUrl: string,
+  changes: string,
+) => ({
   id: `ver-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   supportId: record.id,
   brand: record.brand,
@@ -4195,7 +4796,13 @@ const appendVerification = (record: BrandSupport, verifiedBy: string, sourceUrl:
   changes,
   date: new Date().toISOString(),
 })
-function SupportEditor({ record, onClose }: { record: BrandSupport | null; onClose: () => void }) {
+function SupportEditor({
+  record,
+  onClose,
+}: {
+  record: BrandSupport | null
+  onClose: () => void
+}) {
   const store = useStore()
   const [form, setForm] = useState<BrandSupport>(emptySupport())
   const [reverify, setReverify] = useState(false)
@@ -4219,7 +4826,8 @@ function SupportEditor({ record, onClose }: { record: BrandSupport | null; onClo
   )
   const save = () => {
     const brand = form.brand.trim()
-    if (!brand || !form.category) return setError("Brand and category are required.")
+    if (!brand || !form.category)
+      return setError("Brand and category are required.")
     for (const key of ["supportUrl", "warrantyUrl", "sourceUrl"] as const)
       if (badUrl(form[key])) return setError("URLs must start with https://")
     if (
@@ -4245,7 +4853,8 @@ function SupportEditor({ record, onClose }: { record: BrandSupport | null; onClo
         createdAt: now,
       }
     if (reverify) next = { ...next, lastVerifiedAt: now }
-    else if (!record?.id || changed.length) next = { ...next, lastVerifiedAt: "", verifiedBy: "" }
+    else if (!record?.id || changed.length)
+      next = { ...next, lastVerifiedAt: "", verifiedBy: "" }
     store.set((state) => ({
       brandSupport: record?.id
         ? state.brandSupport.map((item) => (item.id === next.id ? next : item))
@@ -4253,25 +4862,52 @@ function SupportEditor({ record, onClose }: { record: BrandSupport | null; onClo
       supportVerifications: reverify
         ? [
             ...state.supportVerifications,
-            appendVerification(next, next.verifiedBy.trim(), next.sourceUrl.trim(), changed.length ? `Updated: ${changed.join(", ")}` : "Re-verified on save"),
+            appendVerification(
+              next,
+              next.verifiedBy.trim(),
+              next.sourceUrl.trim(),
+              changed.length
+                ? `Updated: ${changed.join(", ")}`
+                : "Re-verified on save",
+            ),
           ]
         : state.supportVerifications,
     }))
-    store.log(`Brand support ${record?.id ? "updated" : "added"}: ${brand} (${form.category})`)
+    store.log(
+      `Brand support ${
+        record?.id ? "updated" : "added"
+      }: ${brand} (${form.category})`,
+    )
     store.notify(
-      changed.length && !reverify ? "Saved — contact details changed, marked Unverified" : "Support record saved",
+      changed.length && !reverify
+        ? "Saved — contact details changed, marked Unverified"
+        : "Support record saved",
     )
     onClose()
   }
   return (
-    <Modal open={Boolean(record)} onOpenChange={(open) => !open && onClose()} title={record?.id ? "Edit brand support" : "Add brand support"} description={supportWarning}>
+    <Modal
+      open={Boolean(record)}
+      onOpenChange={(open) => !open && onClose()}
+      title={record?.id ? "Edit brand support" : "Add brand support"}
+      description={supportWarning}
+    >
       <div className="grid gap-4 md:grid-cols-2">
         {field("brand", "Brand")}
         <Field label="Category">
-          <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className={fieldClass}>
+          <select
+            value={form.category}
+            onChange={(event) =>
+              setForm({ ...form, category: event.target.value })
+            }
+            className={fieldClass}
+          >
             <option value="">Select category</option>
             {store.supportCategories.map((item: SupportCategory) => (
-              <option key={item.id} value={item.id}>{item.name}{item.active ? "" : " (inactive)"}</option>
+              <option key={item.id} value={item.id}>
+                {item.name}
+                {item.active ? "" : " (inactive)"}
+              </option>
             ))}
           </select>
         </Field>
@@ -4284,31 +4920,63 @@ function SupportEditor({ record, onClose }: { record: BrandSupport | null; onClo
         {field("verifiedBy", "Verified by")}
         <div className="flex flex-col justify-end gap-2 text-xs">
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.popular} onChange={(event) => setForm({ ...form, popular: event.target.checked })} /> Popular brand
+            <input
+              type="checkbox"
+              checked={form.popular}
+              onChange={(event) =>
+                setForm({ ...form, popular: event.target.checked })
+              }
+            />{" "}
+            Popular brand
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} /> Active
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(event) =>
+                setForm({ ...form, active: event.target.checked })
+              }
+            />{" "}
+            Active
           </label>
         </div>
         <div className="md:col-span-2">
           <Field label="Notes">
-            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className={`${fieldClass} min-h-20`} />
+            <textarea
+              value={form.notes}
+              onChange={(event) =>
+                setForm({ ...form, notes: event.target.value })
+              }
+              className={`${fieldClass} min-h-20`}
+            />
           </Field>
         </div>
         <label className="flex items-center gap-2 text-xs md:col-span-2">
-          <input type="checkbox" checked={reverify} onChange={(event) => setReverify(event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={reverify}
+            onChange={(event) => setReverify(event.target.checked)}
+          />
           I re-verified these details against the official source in this save
         </label>
       </div>
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       <div className="mt-6 flex justify-end gap-3">
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
         <Button onClick={save}>Save</Button>
       </div>
     </Modal>
   )
 }
-function VerifyModal({ record, onClose }: { record: BrandSupport | null; onClose: () => void }) {
+function VerifyModal({
+  record,
+  onClose,
+}: {
+  record: BrandSupport | null
+  onClose: () => void
+}) {
   const store = useStore()
   const [sourceUrl, setSourceUrl] = useState("")
   const [verifiedBy, setVerifiedBy] = useState("")
@@ -4321,35 +4989,77 @@ function VerifyModal({ record, onClose }: { record: BrandSupport | null; onClose
     }
   }, [record])
   return (
-    <Modal open={Boolean(record)} onOpenChange={(open) => !open && onClose()} title="Mark as verified" description={record ? `${record.brand} · ${record.category}. Confirm details against the manufacturer's official website.` : ""} size="max-w-lg">
+    <Modal
+      open={Boolean(record)}
+      onOpenChange={(open) => !open && onClose()}
+      title="Mark as verified"
+      description={
+        record
+          ? `${record.brand} · ${record.category}. Confirm details against the manufacturer's official website.`
+          : ""
+      }
+      size="max-w-lg"
+    >
       <form
         className="grid gap-4"
         onSubmit={(event) => {
           event.preventDefault()
           if (!record) return
-          if (!sourceUrl.trim() || badUrl(sourceUrl)) return setError("Enter the official source URL (https://).")
+          if (!sourceUrl.trim() || badUrl(sourceUrl))
+            return setError("Enter the official source URL (https://).")
           if (!verifiedBy.trim()) return setError("Enter the verifier name.")
           const now = new Date().toISOString()
-          const next = { ...record, sourceUrl: sourceUrl.trim(), verifiedBy: verifiedBy.trim(), lastVerifiedAt: now, updatedAt: now }
+          const next = {
+            ...record,
+            sourceUrl: sourceUrl.trim(),
+            verifiedBy: verifiedBy.trim(),
+            lastVerifiedAt: now,
+            updatedAt: now,
+          }
           store.set((state) => ({
-            brandSupport: state.brandSupport.map((item) => (item.id === record.id ? next : item)),
-            supportVerifications: [...state.supportVerifications, appendVerification(next, next.verifiedBy, next.sourceUrl, "Marked verified")],
+            brandSupport: state.brandSupport.map((item) =>
+              item.id === record.id ? next : item,
+            ),
+            supportVerifications: [
+              ...state.supportVerifications,
+              appendVerification(
+                next,
+                next.verifiedBy,
+                next.sourceUrl,
+                "Marked verified",
+              ),
+            ],
           }))
-          store.log(`Brand support verified: ${record.brand} (${record.category})`)
+          store.log(
+            `Brand support verified: ${record.brand} (${record.category})`,
+          )
           store.notify("Marked as verified")
           onClose()
         }}
       >
         <Field label="Official source URL">
-          <input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://" className={fieldClass} />
+          <input
+            value={sourceUrl}
+            onChange={(event) => setSourceUrl(event.target.value)}
+            placeholder="https://"
+            className={fieldClass}
+          />
         </Field>
         <Field label="Verified by">
-          <input value={verifiedBy} onChange={(event) => setVerifiedBy(event.target.value)} className={fieldClass} />
+          <input
+            value={verifiedBy}
+            onChange={(event) => setVerifiedBy(event.target.value)}
+            className={fieldClass}
+          />
         </Field>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-          <Button type="submit"><CheckCircle2 size={14} /> Mark verified</Button>
+          <Button variant="secondary" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit">
+            <CheckCircle2 size={14} /> Mark verified
+          </Button>
         </div>
       </form>
     </Modal>
@@ -4362,7 +5072,10 @@ function SupportCategories() {
   const [mapped, setMapped] = useState("")
   return (
     <div className="mt-8">
-      <Panel title="Support categories" description="Add categories (e.g. TV, Monitor) to extend the support directory. Map them to store catalog categories for order-aware lookup.">
+      <Panel
+        title="Support categories"
+        description="Add categories (e.g. TV, Monitor) to extend the support directory. Map them to store catalog categories for order-aware lookup."
+      >
         <form
           className="mb-4 flex flex-wrap gap-3"
           onSubmit={(event) => {
@@ -4374,22 +5087,58 @@ function SupportCategories() {
               store.notify("This category already exists")
               return
             }
-            const catalogCategories = mapped.split(",").map((item) => item.trim()).filter(Boolean)
-            store.set((state) => ({ supportCategories: [...state.supportCategories, { id, name: value, icon, catalogCategories, active: true }] }))
+            const catalogCategories = mapped
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+            store.set((state) => ({
+              supportCategories: [
+                ...state.supportCategories,
+                { id, name: value, icon, catalogCategories, active: true },
+              ],
+            }))
             store.log(`Support category added: ${value}`)
             store.notify("Category added")
             setName("")
             setMapped("")
           }}
         >
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Category name" className={`${fieldClass} max-w-[180px]`} />
-          <select value={icon} onChange={(event) => setIcon(event.target.value)} className={`${fieldClass} max-w-[150px]`}>
-            {["laptop", "smartphone", "printer", "monitor", "tv", "camera", "router", "gamepad", "cpu"].map((item) => (
-              <option key={item} value={item}>{item}</option>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Category name"
+            className={`${fieldClass} max-w-[180px]`}
+          />
+          <select
+            value={icon}
+            onChange={(event) => setIcon(event.target.value)}
+            className={`${fieldClass} max-w-[150px]`}
+          >
+            {[
+              "laptop",
+              "smartphone",
+              "printer",
+              "monitor",
+              "tv",
+              "camera",
+              "router",
+              "gamepad",
+              "cpu",
+            ].map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
             ))}
           </select>
-          <input value={mapped} onChange={(event) => setMapped(event.target.value)} placeholder="Catalog categories (comma separated)" className={`${fieldClass} max-w-xs`} />
-          <Button type="submit"><Plus size={14} /> Add</Button>
+          <input
+            value={mapped}
+            onChange={(event) => setMapped(event.target.value)}
+            placeholder="Catalog categories (comma separated)"
+            className={`${fieldClass} max-w-xs`}
+          />
+          <Button type="submit">
+            <Plus size={14} /> Add
+          </Button>
         </form>
         <div className="flex flex-wrap gap-2">
           {store.supportCategories.map((item) => (
@@ -4398,12 +5147,20 @@ function SupportCategories() {
               title="Toggle active"
               onClick={() =>
                 store.set((state) => ({
-                  supportCategories: state.supportCategories.map((cat) => (cat.id === item.id ? { ...cat, active: !cat.active } : cat)),
+                  supportCategories: state.supportCategories.map((cat) =>
+                    cat.id === item.id ? { ...cat, active: !cat.active } : cat,
+                  ),
                 }))
               }
             >
               <Badge tone={item.active ? "green" : "gray"}>
-                {item.name} · {store.brandSupport.filter((record) => record.category === item.id).length} · {item.active ? "active" : "inactive"}
+                {item.name} ·{" "}
+                {
+                  store.brandSupport.filter(
+                    (record) => record.category === item.id,
+                  ).length
+                }{" "}
+                · {item.active ? "active" : "inactive"}
               </Badge>
             </button>
           ))}
@@ -4413,9 +5170,29 @@ function SupportCategories() {
   )
 }
 
-const buildPurposes: BuildPurpose[] = ["gaming", "creation", "work", "professional", "general"]
-const tradeoffOptions = ["Value-focused", "Balanced", "Higher-performance", "Upgrade-friendly"]
-const templatePartTypes = ["CPU", "Motherboard", "RAM", "GPU", "Storage", "PSU", "Cabinet", "Cooler"]
+const buildPurposes: BuildPurpose[] = [
+  "gaming",
+  "creation",
+  "work",
+  "professional",
+  "general",
+]
+const tradeoffOptions = [
+  "Value-focused",
+  "Balanced",
+  "Higher-performance",
+  "Upgrade-friendly",
+]
+const templatePartTypes = [
+  "CPU",
+  "Motherboard",
+  "RAM",
+  "GPU",
+  "Storage",
+  "PSU",
+  "Cabinet",
+  "Cooler",
+]
 const emptyTemplate = (): BuildTemplate => ({
   id: "",
   name: "",
@@ -4438,10 +5215,15 @@ function BuildTemplatesAdmin() {
   const [removeId, setRemoveId] = useState("")
   const [error, setError] = useState("")
   const [charge, setCharge] = useState(String(store.assemblyCharge))
-  useEffect(() => setCharge(String(store.assemblyCharge)), [store.assemblyCharge])
+  useEffect(
+    () => setCharge(String(store.assemblyCharge)),
+    [store.assemblyCharge],
+  )
   const estimate = (parts: Record<string, string>) =>
     Object.entries(parts).reduce((total, [type, id]) => {
-      const option = (store.componentCatalog[type] || []).find((item) => item.id === id)
+      const option = (store.componentCatalog[type] || []).find(
+        (item) => item.id === id,
+      )
       return total + (option?.price || 0)
     }, 0)
   const templates = store.buildTemplates.filter(
@@ -4457,20 +5239,28 @@ function BuildTemplatesAdmin() {
     if (!draft) return
     if (!draft.name.trim()) return setError("Template name is required.")
     if (draft.budgetMin <= 0 || draft.budgetMax < draft.budgetMin)
-      return setError("Budget maximum must be at least the minimum, and both above zero.")
+      return setError(
+        "Budget maximum must be at least the minimum, and both above zero.",
+      )
     const missing = templatePartTypes.filter((type) => !draft.parts[type])
-    if (missing.length) return setError(`Select parts for: ${missing.join(", ")}`)
+    if (missing.length)
+      return setError(`Select parts for: ${missing.join(", ")}`)
     const record: BuildTemplate = {
       ...draft,
       name: draft.name.trim(),
-      highlights: highlights.split("\n").map((line) => line.trim()).filter(Boolean),
+      highlights: highlights
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
     }
     const isNew = !record.id
     if (isNew) record.id = `tpl-${slug(record.name)}-${Date.now().toString(36)}`
     store.set((previous) => ({
       buildTemplates: isNew
         ? [...previous.buildTemplates, record]
-        : previous.buildTemplates.map((item) => (item.id === record.id ? record : item)),
+        : previous.buildTemplates.map((item) =>
+            item.id === record.id ? record : item,
+          ),
     }))
     store.log(`Build template ${isNew ? "created" : "updated"}: ${record.name}`)
     store.notify(isNew ? "Build template added" : "Build template updated")
@@ -4479,7 +5269,8 @@ function BuildTemplatesAdmin() {
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-        Templates power Smart PC Builder recommendations. Estimated price is computed from current component prices.
+        Templates power Smart PC Builder recommendations. Estimated price is
+        computed from current component prices.
       </p>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4 rounded-lg border border-border bg-white p-4">
         <div className="flex flex-wrap gap-2">
@@ -4516,7 +5307,9 @@ function BuildTemplatesAdmin() {
                 return
               }
               store.set({ assemblyCharge: Math.round(value) })
-              store.log(`Assembly charge set to ${value ? money(value) : "free"}`)
+              store.log(
+                `Assembly charge set to ${value ? money(value) : "free"}`,
+              )
               store.notify("Assembly charge updated")
             }}
           >
@@ -4538,12 +5331,15 @@ function BuildTemplatesAdmin() {
           {
             key: "purpose",
             label: "Purpose",
-            render: (row) => <span className="capitalize">{String(row.purpose)}</span>,
+            render: (row) => (
+              <span className="capitalize">{String(row.purpose)}</span>
+            ),
           },
           {
             key: "budget",
             label: "Budget",
-            render: (row) => `${money(Number(row.budgetMin))} – ${money(Number(row.budgetMax))}`,
+            render: (row) =>
+              `${money(Number(row.budgetMin))} – ${money(Number(row.budgetMax))}`,
           },
           { key: "resolution", label: "Resolution" },
           { key: "tradeoff", label: "Trade-off" },
@@ -4560,7 +5356,9 @@ function BuildTemplatesAdmin() {
                 onClick={() => {
                   store.set((previous) => ({
                     buildTemplates: previous.buildTemplates.map((item) =>
-                      item.id === row.id ? { ...item, active: !item.active } : item,
+                      item.id === row.id
+                        ? { ...item, active: !item.active }
+                        : item,
                     ),
                   }))
                   store.log(`Build template toggled: ${String(row.name)}`)
@@ -4582,7 +5380,10 @@ function BuildTemplatesAdmin() {
           const found = store.buildTemplates.find((item) => item.id === row.id)
           return (
             <div className="flex gap-3">
-              <button className="text-primary" onClick={() => found && openEditor(found)}>
+              <button
+                className="text-primary"
+                onClick={() => found && openEditor(found)}
+              >
                 Edit
               </button>
               <button
@@ -4597,14 +5398,19 @@ function BuildTemplatesAdmin() {
                     name: `${found.name} (copy)`,
                     active: false,
                   }
-                  store.set((previous) => ({ buildTemplates: [...previous.buildTemplates, copy] }))
+                  store.set((previous) => ({
+                    buildTemplates: [...previous.buildTemplates, copy],
+                  }))
                   store.log(`Build template duplicated: ${found.name}`)
                   store.notify("Template duplicated as inactive copy")
                 }}
               >
                 Duplicate
               </button>
-              <button className="text-red-600" onClick={() => setRemoveId(String(row.id))}>
+              <button
+                className="text-red-600"
+                onClick={() => setRemoveId(String(row.id))}
+              >
                 Delete
               </button>
             </div>
@@ -4623,7 +5429,9 @@ function BuildTemplatesAdmin() {
               <Field label="Name">
                 <input
                   value={draft.name}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, name: event.target.value })
+                  }
                   className={fieldClass}
                 />
               </Field>
@@ -4631,7 +5439,10 @@ function BuildTemplatesAdmin() {
                 <select
                   value={draft.purpose}
                   onChange={(event) =>
-                    setDraft({ ...draft, purpose: event.target.value as BuildPurpose })
+                    setDraft({
+                      ...draft,
+                      purpose: event.target.value as BuildPurpose,
+                    })
                   }
                   className={fieldClass}
                 >
@@ -4647,7 +5458,12 @@ function BuildTemplatesAdmin() {
                   type="number"
                   min={0}
                   value={draft.budgetMin}
-                  onChange={(event) => setDraft({ ...draft, budgetMin: Number(event.target.value) })}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      budgetMin: Number(event.target.value),
+                    })
+                  }
                   className={fieldClass}
                 />
               </Field>
@@ -4656,35 +5472,48 @@ function BuildTemplatesAdmin() {
                   type="number"
                   min={0}
                   value={draft.budgetMax}
-                  onChange={(event) => setDraft({ ...draft, budgetMax: Number(event.target.value) })}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      budgetMax: Number(event.target.value),
+                    })
+                  }
                   className={fieldClass}
                 />
               </Field>
               <Field label="Resolution">
                 <input
                   value={draft.resolution}
-                  onChange={(event) => setDraft({ ...draft, resolution: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, resolution: event.target.value })
+                  }
                   className={fieldClass}
                 />
               </Field>
               <Field label="Trade-off">
                 <select
                   value={draft.tradeoff}
-                  onChange={(event) => setDraft({ ...draft, tradeoff: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, tradeoff: event.target.value })
+                  }
                   className={fieldClass}
                 >
-                  {[...new Set([...tradeoffOptions, draft.tradeoff])].map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  {[...new Set([...tradeoffOptions, draft.tradeoff])].map(
+                    (item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ),
+                  )}
                 </select>
               </Field>
             </div>
             <Field label="Usage">
               <input
                 value={draft.usage}
-                onChange={(event) => setDraft({ ...draft, usage: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, usage: event.target.value })
+                }
                 className={fieldClass}
               />
             </Field>
@@ -4694,7 +5523,10 @@ function BuildTemplatesAdmin() {
                   <select
                     value={draft.parts[type] || ""}
                     onChange={(event) =>
-                      setDraft({ ...draft, parts: { ...draft.parts, [type]: event.target.value } })
+                      setDraft({
+                        ...draft,
+                        parts: { ...draft.parts, [type]: event.target.value },
+                      })
                     }
                     className={fieldClass}
                   >
@@ -4720,7 +5552,9 @@ function BuildTemplatesAdmin() {
               <input
                 type="checkbox"
                 checked={draft.active}
-                onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                onChange={(event) =>
+                  setDraft({ ...draft, active: event.target.checked })
+                }
               />
               Active (shown to customers)
             </label>
@@ -4741,7 +5575,11 @@ function BuildTemplatesAdmin() {
         open={Boolean(toRemove)}
         onOpenChange={(open) => !open && setRemoveId("")}
         title="Delete build template?"
-        description={toRemove ? `"${toRemove.name}" will no longer be recommended.` : undefined}
+        description={
+          toRemove
+            ? `"${toRemove.name}" will no longer be recommended.`
+            : undefined
+        }
       >
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setRemoveId("")}>
@@ -4751,7 +5589,9 @@ function BuildTemplatesAdmin() {
             onClick={() => {
               if (!toRemove) return
               store.set((previous) => ({
-                buildTemplates: previous.buildTemplates.filter((item) => item.id !== toRemove.id),
+                buildTemplates: previous.buildTemplates.filter(
+                  (item) => item.id !== toRemove.id,
+                ),
               }))
               store.log(`Build template deleted: ${toRemove.name}`)
               store.notify("Build template deleted")

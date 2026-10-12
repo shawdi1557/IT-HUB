@@ -14,10 +14,7 @@ import {
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ShinyText from "../components/ShinyText"
 import { useStore } from "../app/store"
-import {
-  FadeContent,
-  SplitText,
-} from "../components/reactbits"
+import { FadeContent, SplitText } from "../components/reactbits"
 import {
   ActionLink,
   buttonClass,
@@ -33,7 +30,13 @@ import {
 } from "../components/ui"
 
 const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
-import { formatDate, images, offerHeadline, offerStatus, type Offer } from "../data/catalog"
+import {
+  formatDate,
+  images,
+  offerHeadline,
+  offerStatus,
+  type Offer,
+} from "../data/catalog"
 
 const offerLink = (offer: Offer) =>
   offer.categories[0]
@@ -47,7 +50,9 @@ const offerLink = (offer: Offer) =>
 export function Offers() {
   const store = useStore()
   const active = store.offers.filter((offer) => offerStatus(offer) === "Active")
-  const upcoming = store.offers.filter((offer) => offerStatus(offer) === "Scheduled")
+  const upcoming = store.offers.filter(
+    (offer) => offerStatus(offer) === "Scheduled",
+  )
   return (
     <Page>
       <PageHeading
@@ -62,14 +67,22 @@ export function Offers() {
             className="flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm"
           >
             {offer.banner ? (
-              <img src={offer.banner} alt="" className="h-40 w-full object-cover" />
+              <img
+                src={offer.banner}
+                alt=""
+                className="h-40 w-full object-cover"
+              />
             ) : (
               <div className="h-2 bg-primary" />
             )}
             <div className="flex flex-1 flex-col p-7">
               <h2 className="text-xl font-bold leading-tight">{offer.name}</h2>
-              <p className="mt-4 text-3xl font-bold text-primary">{offerHeadline(offer)}</p>
-              <p className="mt-3 text-sm text-muted-foreground">{offer.description}</p>
+              <p className="mt-4 text-3xl font-bold text-primary">
+                {offerHeadline(offer)}
+              </p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {offer.description}
+              </p>
               {offer.endsAt && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Valid until {formatDate(offer.endsAt)}
@@ -89,13 +102,20 @@ export function Offers() {
       )}
       {upcoming.length > 0 && (
         <div className="mt-12">
-          <h2 className="mb-4 text-sm font-semibold text-muted-foreground">Coming soon</h2>
+          <h2 className="mb-4 text-sm font-semibold text-muted-foreground">
+            Coming soon
+          </h2>
           <div className="grid gap-4 md:grid-cols-3">
             {upcoming.map((offer) => (
-              <div key={offer.id} className="rounded-lg border border-dashed border-border bg-muted p-5 text-sm text-muted-foreground">
+              <div
+                key={offer.id}
+                className="rounded-lg border border-dashed border-border bg-muted p-5 text-sm text-muted-foreground"
+              >
                 <p className="font-semibold text-foreground">{offer.name}</p>
                 <p className="mt-1">{offerHeadline(offer)}</p>
-                <p className="mt-1 text-xs">Starts {formatDate(offer.startsAt)}</p>
+                <p className="mt-1 text-xs">
+                  Starts {formatDate(offer.startsAt)}
+                </p>
               </div>
             ))}
           </div>
@@ -119,7 +139,9 @@ export function LocationCard() {
         <MapPin size={20} className="shrink-0 text-primary" />
         <div>
           <p className="text-sm font-bold">IT HUB</p>
-          <p className="text-[11px] text-muted-foreground">Kothamangalam, Kerala</p>
+          <p className="text-[11px] text-muted-foreground">
+            Kothamangalam, Kerala
+          </p>
         </div>
         <a
           href={MAP_URL}
@@ -140,7 +162,13 @@ export function About() {
         <div className="relative grid items-center gap-10 md:grid-cols-[1.3fr_1fr]">
           <div>
             <p className="inline-flex rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[10px] font-semibold tracking-[.17em] text-blue-200">
-              <ShinyText text="ABOUT IT HUB" color="#93b4f5" shineColor="#ffffff" speed={2.5} delay={0.8} />
+              <ShinyText
+                text="ABOUT IT HUB"
+                color="#93b4f5"
+                shineColor="#ffffff"
+                speed={2.5}
+                delay={0.8}
+              />
             </p>
             <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-[-.03em] md:text-6xl">
               <SplitText text="Technology. Experience." />{" "}
@@ -148,16 +176,24 @@ export function About() {
             </h1>
             <p className="mt-6 max-w-xl text-sm leading-7 text-blue-100">
               Established in 2011, IT HUB has grown from an IT products and
-              services store into a complete technology solutions provider.
-              With nearly 15 years of experience in the IT industry, we have
-              built our journey around reliable products, professional
-              services, and long-term customer relationships.
+              services store into a complete technology solutions provider. With
+              nearly 15 years of experience in the IT industry, we have built
+              our journey around reliable products, professional services, and
+              long-term customer relationships.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={MAP_URL} target="_blank" rel="noreferrer" className={buttonClass}>
+              <a
+                href={MAP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className={buttonClass}
+              >
                 <MapPin size={16} /> Get directions
               </a>
-              <Link to="/contact" className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold transition hover:bg-white/15">
+              <Link
+                to="/contact"
+                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold transition hover:bg-white/15"
+              >
                 Contact us <ArrowUpRight size={16} />
               </Link>
             </div>
@@ -191,8 +227,8 @@ export function About() {
           </p>
           <p>
             Today, IT HUB brings together IT products, mobile technology,
-            professional services, custom PC solutions, and software
-            development under one roof.
+            professional services, custom PC solutions, and software development
+            under one roof.
           </p>
           <p>
             Whether you're looking for the latest technology, need a device
@@ -207,21 +243,40 @@ export function About() {
             </span>
           </p>
         </FadeContent>
-        <FadeContent delay={120} className="rounded-3xl border border-border bg-card p-7 md:p-9">
+        <FadeContent
+          delay={120}
+          className="rounded-3xl border border-border bg-card p-7 md:p-9"
+        >
           <p className="text-[10px] font-semibold tracking-[.17em] text-primary">
             OUR JOURNEY
           </p>
           <ol className="relative mt-7 space-y-8 border-l-2 border-primary/20 pl-7">
             {[
-              ["2011", "IT HUB Founded", "Started with IT products, sales, and technical services."],
-              ["2016", "Mobile Technology", "Expanded into mobile phone sales and accessories."],
-              ["2026", "Software & Digital Solutions", "Entered the software development field, offering websites, web applications, and custom software solutions."],
+              [
+                "2011",
+                "IT HUB Founded",
+                "Started with IT products, sales, and technical services.",
+              ],
+              [
+                "2016",
+                "Mobile Technology",
+                "Expanded into mobile phone sales and accessories.",
+              ],
+              [
+                "2026",
+                "Software & Digital Solutions",
+                "Entered the software development field, offering websites, web applications, and custom software solutions.",
+              ],
             ].map(([year, title, text]) => (
               <li key={year} className="relative">
                 <span className="absolute -left-[37px] top-1 h-4 w-4 rounded-full border-4 border-card bg-primary ring-2 ring-primary/30" />
-                <p className="font-display text-2xl font-bold text-primary">{year}</p>
+                <p className="font-display text-2xl font-bold text-primary">
+                  {year}
+                </p>
                 <h3 className="mt-1 text-base font-semibold">{title}</h3>
-                <p className="mt-1.5 text-xs leading-6 text-muted-foreground">{text}</p>
+                <p className="mt-1.5 text-xs leading-6 text-muted-foreground">
+                  {text}
+                </p>
               </li>
             ))}
           </ol>
@@ -233,17 +288,25 @@ export function About() {
             RECOGNITION
           </p>
           <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-.02em] md:text-4xl">
-            Official Intel<sup className="text-lg">®</sup> Partner Alliance Member.
+            Official Intel<sup className="text-lg">®</sup> Partner Alliance
+            Member.
           </h2>
           <p className="mt-5 text-sm leading-7 text-blue-100">
             This recognition reflects our commitment to delivering genuine
             Intel-powered products, trusted technology solutions, and
-            exceptional customer service. Thank you to our valued customers
-            for your continued trust and support.
+            exceptional customer service. Thank you to our valued customers for
+            your continued trust and support.
           </p>
           <div className="mt-7 flex flex-wrap gap-2">
-            {["Trusted Technology", "Genuine Products", "Exceptional Service"].map((t) => (
-              <span key={t} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium">
+            {[
+              "Trusted Technology",
+              "Genuine Products",
+              "Exceptional Service",
+            ].map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium"
+              >
                 {t}
               </span>
             ))}
@@ -289,7 +352,8 @@ export function About() {
       </div>
       <div className="my-12 rounded-lg bg-secondary p-8 text-center">
         <p className="flex items-center justify-center text-xl text-amber-500">
-          <Stars size={22} /> <span className="ml-2 font-bold text-foreground">4.8/5</span>
+          <Stars size={22} />{" "}
+          <span className="ml-2 font-bold text-foreground">4.8/5</span>
         </p>
         <h3 className="mt-4 text-xl font-bold">Trusted by local customers.</h3>
         <p className="mt-3 text-sm text-muted-foreground">

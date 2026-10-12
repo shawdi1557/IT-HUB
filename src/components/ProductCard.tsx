@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router"
-import { Heart, Plus, Eye, Star, Cpu, ShieldCheck, RefreshCw } from "lucide-react"
+import {
+  Heart,
+  Plus,
+  Eye,
+  Star,
+  Cpu,
+  ShieldCheck,
+  RefreshCw,
+} from "lucide-react"
 import { useStore } from "../app/store"
 import { bestOffer, money, offerHeadline, type Product } from "../data/catalog"
 import { Badge, Button, Modal, ActionLink } from "./ui"
@@ -58,7 +66,9 @@ export default function ProductCard({ product }: { product: Product }) {
                 </Badge>
               )}
               {deal && <Badge tone="green">{offerHeadline(deal.offer)}</Badge>}
-              {product.tag && !product.secondHand && <Badge>{product.tag}</Badge>}
+              {product.tag && !product.secondHand && (
+                <Badge>{product.tag}</Badge>
+              )}
             </div>
           )}
           <button
@@ -109,10 +119,15 @@ export default function ProductCard({ product }: { product: Product }) {
               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Our price
               </p>
-              <strong className="text-lg leading-tight">{money(deal ? deal.price : product.price)}</strong>
+              <strong className="text-lg leading-tight">
+                {money(deal ? deal.price : product.price)}
+              </strong>
               {product.original > (deal ? deal.price : product.price) && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  MRP <span className="line-through">{money(product.original)}</span>
+                  MRP{" "}
+                  <span className="line-through">
+                    {money(product.original)}
+                  </span>
                 </p>
               )}
               {deal && (
@@ -131,7 +146,9 @@ export default function ProductCard({ product }: { product: Product }) {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px]">
-            <span className={product.stock ? "text-emerald-700" : "text-red-600"}>
+            <span
+              className={product.stock ? "text-emerald-700" : "text-red-600"}
+            >
               ● {product.stock ? "In stock" : "Out of stock"}
             </span>
             <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -147,7 +164,9 @@ export default function ProductCard({ product }: { product: Product }) {
           className="mx-auto h-56 w-full rounded-md bg-muted p-5"
         />
         <div className="my-5 flex justify-between">
-          <strong className="text-2xl">{money(deal ? deal.price : product.price)}</strong>
+          <strong className="text-2xl">
+            {money(deal ? deal.price : product.price)}
+          </strong>
           <Badge tone={product.stock ? "green" : "red"}>
             {product.stock ? "In stock" : "Out of stock"}
           </Badge>

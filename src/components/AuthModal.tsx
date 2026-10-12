@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeft, ArrowRight, LockKeyhole, MessageSquareText, Smartphone } from "lucide-react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  LockKeyhole,
+  MessageSquareText,
+  Smartphone,
+} from "lucide-react"
 import WhatsAppIcon from "./WhatsAppIcon"
 import { useStore } from "../app/store"
 import { Button, Modal } from "./ui"
@@ -59,7 +65,9 @@ export default function AuthModal({
       loggedIn: true,
       profile: { ...s.profile, phone: `+91 ${phone}` },
     }))
-    store.notify(isNew ? "Welcome to IT HUB! Your account is ready." : "Welcome back!")
+    store.notify(
+      isNew ? "Welcome to IT HUB! Your account is ready." : "Welcome back!",
+    )
     onOpenChange(false)
   }
   const type = (index: number, value: string) => {
@@ -89,7 +97,9 @@ export default function AuthModal({
             if (valid) send("SMS")
           }}
         >
-          <label className="mb-2 block text-xs font-semibold">Mobile number</label>
+          <label className="mb-2 block text-xs font-semibold">
+            Mobile number
+          </label>
           <div className="flex items-center overflow-hidden rounded-xl border border-border bg-card focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
             <span className="flex items-center gap-2 border-r border-border bg-muted px-4 py-3.5 text-sm font-semibold">
               🇮🇳 +91
@@ -104,10 +114,15 @@ export default function AuthModal({
               aria-label="10-digit mobile number"
               className="w-full bg-transparent px-4 py-3.5 text-base tracking-wider"
             />
-            <Smartphone size={18} className="mr-4 shrink-0 text-muted-foreground" />
+            <Smartphone
+              size={18}
+              className="mr-4 shrink-0 text-muted-foreground"
+            />
           </div>
           {phone.length === 10 && !valid && (
-            <p className="mt-2 text-xs text-destructive">Enter a valid Indian mobile number.</p>
+            <p className="mt-2 text-xs text-destructive">
+              Enter a valid Indian mobile number.
+            </p>
           )}
           <Button type="submit" disabled={!valid} className="mt-6 w-full">
             Send OTP <ArrowRight size={16} />
@@ -135,10 +150,14 @@ export default function AuthModal({
                 aria-label={`OTP digit ${i + 1}`}
                 onChange={(e) => type(i, e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Backspace" && !digit && i > 0) inputs.current[i - 1]?.focus()
+                  if (e.key === "Backspace" && !digit && i > 0)
+                    inputs.current[i - 1]?.focus()
                 }}
                 onPaste={(e) => {
-                  const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6)
+                  const text = e.clipboardData
+                    .getData("text")
+                    .replace(/\D/g, "")
+                    .slice(0, 6)
                   if (text.length === 6) {
                     e.preventDefault()
                     setOtp(text.split(""))
@@ -151,15 +170,22 @@ export default function AuthModal({
           </div>
           {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
           <p className="mt-3 rounded-lg bg-secondary px-3 py-2 text-[11px] text-secondary-foreground">
-            Prototype: no SMS gateway is connected. Your demo code is <b>{code}</b>.
+            Prototype: no SMS gateway is connected. Your demo code is{" "}
+            <b>{code}</b>.
           </p>
-          <Button type="submit" disabled={otp.join("").length < 6} className="mt-5 w-full">
+          <Button
+            type="submit"
+            disabled={otp.join("").length < 6}
+            className="mt-5 w-full"
+          >
             Verify & continue <ArrowRight size={16} />
           </Button>
           <div className="mt-6 border-t border-border pt-5 text-center">
             <p className="text-xs text-muted-foreground">
               Didn't receive the OTP?{" "}
-              {timer > 0 && <span>Resend in 0:{String(timer).padStart(2, "0")}</span>}
+              {timer > 0 && (
+                <span>Resend in 0:{String(timer).padStart(2, "0")}</span>
+              )}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <button
@@ -193,7 +219,7 @@ export default function AuthModal({
   )
 }
 
-export function LoginGate({ title, text }: { title: string; text: string }) {
+export function LoginGate({ title, text }: { title: string text: string }) {
   const store = useStore()
   return (
     <section className="mx-auto my-16 max-w-lg rounded-3xl border border-border bg-card p-10 text-center shadow-sm">

@@ -4,24 +4,7 @@
 // never bloats the main store.
 import { useSyncExternalStore } from "react"
 
-export type EventType =
-  | "Session Started"
-  | "Session Ended"
-  | "Page Viewed"
-  | "Login"
-  | "Logout"
-  | "Product Viewed"
-  | "Product Added to Cart"
-  | "Checkout Started"
-  | "Order Created"
-  | "Service Booking Started"
-  | "Service Request Created"
-  | "PC Builder Started"
-  | "PC Build Saved"
-  | "Warranty Assistance Viewed"
-  | "Contact/WhatsApp Action"
-  | "Admin Login"
-  | "Admin Data Change"
+export type EventType = "Session Started" | "Session Ended" | "Page Viewed" | "Login" | "Logout" | "Product Viewed" | "Product Added to Cart" | "Checkout Started" | "Order Created" | "Service Booking Started" | "Service Request Created" | "PC Builder Started" | "PC Build Saved" | "Warranty Assistance Viewed" | "Contact/WhatsApp Action" | "Admin Login" | "Admin Data Change"
 
 export type VisitorSession = {
   id: string
@@ -87,7 +70,11 @@ const load = (): AnalyticsState => {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null")
     return saved
-      ? { ...defaults, ...saved, settings: { ...defaults.settings, ...saved.settings } }
+      ? {
+          ...defaults,
+          ...saved,
+          settings: { ...defaults.settings, ...saved.settings },
+        }
       : defaults
   } catch {
     return defaults
@@ -101,7 +88,10 @@ const commit = (next: Partial<AnalyticsState>) => {
     localStorage.setItem(KEY, JSON.stringify(state))
   } catch {
     // Storage full — drop the oldest half of events and retry once.
-    state = { ...state, events: state.events.slice(0, Math.floor(state.events.length / 2)) }
+    state = {
+      ...state,
+      events: state.events.slice(0, Math.floor(state.events.length / 2)),
+    }
     localStorage.setItem(KEY, JSON.stringify(state))
   }
   listeners.forEach((listener) => listener())
@@ -166,10 +156,15 @@ const referrerSource = () => {
 // ── Retention ──
 const prune = () => {
   const cutoff = Date.now() - state.settings.retentionDays * 86400000
-  const sessions = state.sessions.filter((item) => new Date(item.lastSeen).getTime() >= cutoff)
+  const sessions = state.sessions.filter(
+    (item) => new Date(item.lastSeen).getTime() >= cutoff,
+  )
   const ids = new Set(sessions.map((item) => item.id))
   const events = state.events.filter((item) => ids.has(item.sessionId))
-  if (sessions.length !== state.sessions.length || events.length !== state.events.length)
+  if (
+    sessions.length !== state.sessions.length ||
+    events.length !== state.events.length
+  )
     commit({ sessions, events })
 }
 
@@ -190,7 +185,8 @@ const locate = async (sessionId: string) => {
               region: data.region || undefined,
               city: data.city || undefined,
               isp: data.org || undefined,
-              locationConfidence: data.city || data.region ? "approximate" : "unavailable",
+              locationConfidence:
+                data.city || data.region ? "approximate" : "unavailable",
             }
           : item,
       ),
@@ -204,7 +200,7 @@ let currentUser: string | undefined
 const currentSession = () => {
   const visitorId = localStorage.getItem(VISITOR_KEY)
   const raw = sessionStorage.getItem(SESSION_KEY)
-  const saved = raw ? (JSON.parse(raw) as { id: string; at: number }) : null
+  const saved = raw ? JSON.parse(raw) as { id: string at: number } : null
   if (saved && Date.now() - saved.at < SESSION_TIMEOUT) {
     const session = state.sessions.find((item) => item.id === saved.id)
     if (session) return session
@@ -263,7 +259,10 @@ export const track = (type: EventType, meta?: Record<string, string>) => {
   const session = currentSession()
   const path = location.pathname + location.search
   const now = new Date().toISOString()
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: session.id, at: Date.now() }))
+  sessionStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ id: session.id, at: Date.now() }),
+  )
   commit({
     sessions: state.sessions.map((item) =>
       item.id === session.id
@@ -276,17 +275,27 @@ export const track = (type: EventType, meta?: Record<string, string>) => {
         : item,
     ),
   })
-  push({ ...session, userId: currentUser || session.userId }, type, path, "Success", meta)
+  push(
+    { ...session, userId: currentUser || session.userId },
+    type,
+    path,
+    "Success",
+    meta,
+  )
 }
 export const identify = (userId?: string) => {
   currentUser = userId
 }
 
 // ── Admin controls ──
-export const updateAnalyticsSettings = (settings: Partial<AnalyticsSettings>) => {
+export const updateAnalyticsSettings = (
+  settings: Partial<AnalyticsSettings>,
+) => {
   commit({ settings: { ...state.settings, ...settings } })
   if (settings.ipLogging === false)
-    commit({ sessions: state.sessions.map((item) => ({ ...item, ip: undefined })) })
+    commit({
+      sessions: state.sessions.map((item) => ({ ...item, ip: undefined })),
+    })
   prune()
 }
 export const deleteVisitorData = () => commit({ sessions: [], events: [] })
@@ -308,9 +317,17 @@ export const clearDemoData = () =>
     events: state.events.filter((item) => !item.demo),
   })
 export const maskIp = (ip?: string, masked = state.settings.maskIp) =>
-  !ip ? "—" : masked ? ip.replace(/(\d+)$/, "xxx").replace(/:[0-9a-f]*$/i, ":xxxx") : ip
+  !ip
+    ? "—"
+    : masked
+      ? ip.replace(/(\d+)$/, "xxx").replace(/:[0-9a-f]*$/i, ":xxxx")
+      : ip
 export const sessionDuration = (session: VisitorSession) =>
-  Math.max(0, new Date(session.lastSeen).getTime() - new Date(session.firstSeen).getTime())
+  Math.max(
+    0,
+    new Date(session.lastSeen).getTime() -
+      new Date(session.firstSeen).getTime(),
+  )
 
 /**
  * Demo data — clearly flagged (`demo: true`) and labelled "Demo data" in the UI.
@@ -330,10 +347,11 @@ export const loadDemoData = () => {
     ["", "", ""],
   ]
   const weights = [30, 22, 14, 9, 6, 5, 4, 4, 3, 3]
-  const pick = <T,>(items: T[], w?: number[]) => {
+  const pick = <T>(items: T[], w?: number[]) => {
     if (!w) return items[Math.floor(Math.random() * items.length)]
     let roll = Math.random() * w.reduce((a, b) => a + b, 0)
-    for (let i = 0; i < items.length; i++) if ((roll -= w[i]) < 0) return items[i]
+    for (let i = 0; i < items.length; i++)
+      if ((roll -= w[i]) < 0) return items[i]
     return items[0]
   }
   const paths = [
@@ -364,12 +382,31 @@ export const loadDemoData = () => {
     const start = Date.now() - Math.random() * 60 * 86400000
     const views = 1 + Math.floor(Math.random() * 7)
     const id = crypto.randomUUID()
-    const device = pick<VisitorSession["device"]>(["Mobile", "Mobile", "Mobile", "Desktop", "Desktop", "Tablet"])
+    const device = pick<VisitorSession["device"]>([
+      "Mobile",
+      "Mobile",
+      "Mobile",
+      "Desktop",
+      "Desktop",
+      "Tablet",
+    ])
     const landing = pick(paths, [30, 15, 10, 6, 4, 12, 3, 8, 6, 6])
     let at = start
     const timeline: VisitorEvent[] = []
-    const add = (type: EventType, path: string, status: VisitorEvent["status"] = "Success") => {
-      timeline.push({ id: crypto.randomUUID(), sessionId: id, type, path, date: new Date(at).toISOString(), status, demo: true })
+    const add = (
+      type: EventType,
+      path: string,
+      status: VisitorEvent["status"] = "Success",
+    ) => {
+      timeline.push({
+        id: crypto.randomUUID(),
+        sessionId: id,
+        type,
+        path,
+        date: new Date(at).toISOString(),
+        status,
+        demo: true,
+      })
       at += (20 + Math.random() * 160) * 1000
     }
     add("Session Started", landing, "Info")
@@ -381,15 +418,30 @@ export const loadDemoData = () => {
     sessions.push({
       id,
       visitorId: pick(visitors),
-      ip: country ? `${pick(["203.0.113", "198.51.100"])}.${Math.floor(Math.random() * 254) + 1}` : undefined,
+      ip: country
+        ? `${pick(["203.0.113", "198.51.100"])}.${Math.floor(Math.random() * 254) + 1}`
+        : undefined,
       country: country || undefined,
       region: region || undefined,
       city: city || undefined,
-      isp: country ? pick(["BSNL", "Jio", "Airtel", "Asianet Broadband", "Vodafone Idea"]) : undefined,
+      isp: country
+        ? pick(["BSNL", "Jio", "Airtel", "Asianet Broadband", "Vodafone Idea"])
+        : undefined,
       locationConfidence: country ? "approximate" : "unavailable",
       device,
-      os: device === "Desktop" ? pick(["Windows", "Windows", "macOS", "Linux"]) : pick(["Android", "Android", "iOS"]),
-      browser: pick(["Chrome", "Chrome", "Chrome", "Safari", "Edge", "Samsung Internet", "Firefox"]),
+      os:
+        device === "Desktop"
+          ? pick(["Windows", "Windows", "macOS", "Linux"])
+          : pick(["Android", "Android", "iOS"]),
+      browser: pick([
+        "Chrome",
+        "Chrome",
+        "Chrome",
+        "Safari",
+        "Edge",
+        "Samsung Internet",
+        "Firefox",
+      ]),
       referrer: pick(["Direct", "Google", "Google", "WhatsApp", "Social"]),
       landingPage: landing,
       firstSeen: new Date(start).toISOString(),
@@ -409,7 +461,11 @@ export const loadDemoData = () => {
       seen.add(session.visitorId)
     })
   commit({
-    sessions: [...state.sessions, ...sessions].sort((a, b) => b.firstSeen.localeCompare(a.firstSeen)),
-    events: [...state.events, ...events].sort((a, b) => b.date.localeCompare(a.date)),
+    sessions: [...state.sessions, ...sessions].sort((a, b) =>
+      b.firstSeen.localeCompare(a.firstSeen),
+    ),
+    events: [...state.events, ...events].sort((a, b) =>
+      b.date.localeCompare(a.date),
+    ),
   })
 }

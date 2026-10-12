@@ -71,6 +71,7 @@
     "packageJson": {
       "dependencies": [
         "npm:@radix-ui/react-dialog@^1.1.23",
+        "npm:@supabase/supabase-js@^2.117.3",
         "npm:@tailwindcss/vite@4",
         "npm:@types/node@22",
         "npm:@types/react-dom@19",

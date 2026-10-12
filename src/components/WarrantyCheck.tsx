@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import { CheckCircle2, MapPin, ShieldCheck, XCircle, HelpCircle } from "lucide-react"
+import {
+  CheckCircle2,
+  MapPin,
+  ShieldCheck,
+  XCircle,
+  HelpCircle,
+} from "lucide-react"
 import WhatsAppIcon from "./WhatsAppIcon"
 import { useStore } from "../app/store"
 import { checkWarranty, type WarrantyResult } from "../data/catalog"
@@ -13,7 +19,12 @@ type Props = {
   className?: string
 }
 
-export default function WarrantyCheck({ source, pincode, compact, className = "" }: Props) {
+export default function WarrantyCheck({
+  source,
+  pincode,
+  compact,
+  className = "",
+}: Props) {
   const store = useStore()
   const [pin, setPin] = useState(pincode || "")
   const [result, setResult] = useState<WarrantyResult | null>(null)
@@ -56,9 +67,18 @@ export default function WarrantyCheck({ source, pincode, compact, className = ""
   )}`
 
   return (
-    <div className={`rounded-lg border border-border bg-white ${compact ? "p-4" : "p-6"} ${className}`}>
-      <p className={`flex items-center gap-2 font-semibold ${compact ? "text-sm" : "text-base"}`}>
-        <ShieldCheck size={compact ? 16 : 18} className="text-primary" /> Check On-Site Warranty Eligibility
+    <div
+      className={`rounded-lg border border-border bg-white ${
+        compact ? "p-4" : "p-6"
+      } ${className}`}
+    >
+      <p
+        className={`flex items-center gap-2 font-semibold ${
+          compact ? "text-sm" : "text-base"
+        }`}
+      >
+        <ShieldCheck size={compact ? 16 : 18} className="text-primary" /> Check
+        On-Site Warranty Eligibility
       </p>
       {pincode === undefined && (
         <form
@@ -97,13 +117,24 @@ export default function WarrantyCheck({ source, pincode, compact, className = ""
       )}
       {result?.status === "unknown" && (
         <div className="mt-4 flex gap-3 rounded-md bg-muted p-4 text-sm">
-          <HelpCircle size={18} className="mt-0.5 shrink-0 text-muted-foreground" />
+          <HelpCircle
+            size={18}
+            className="mt-0.5 shrink-0 text-muted-foreground"
+          />
           <div>
-            <p className="font-semibold">We couldn’t map PIN code {result.pincode} yet</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Please contact IT HUB to confirm on-site warranty availability for your area.
+            <p className="font-semibold">
+              We couldn’t map PIN code {result.pincode} yet
             </p>
-            <a href={whatsapp} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Please contact IT HUB to confirm on-site warranty availability for
+              your area.
+            </p>
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
+            >
               <WhatsAppIcon size={13} /> Contact IT HUB
             </a>
           </div>
@@ -111,9 +142,14 @@ export default function WarrantyCheck({ source, pincode, compact, className = ""
       )}
       {result?.status === "eligible" && (
         <div className="mt-4 flex gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm">
-          <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600" />
+          <CheckCircle2
+            size={18}
+            className="mt-0.5 shrink-0 text-emerald-600"
+          />
           <div>
-            <p className="font-semibold text-emerald-800">✓ On-Site Warranty Available</p>
+            <p className="font-semibold text-emerald-800">
+              ✓ On-Site Warranty Available
+            </p>
             <p className="mt-1 text-xs leading-5 text-emerald-900">
               Your location is within our on-site service coverage area.
             </p>
@@ -121,7 +157,8 @@ export default function WarrantyCheck({ source, pincode, compact, className = ""
               Approximate service distance: {result.distanceKm} km
             </p>
             <p className="mt-2 text-[11px] leading-4 text-emerald-800/80">
-              Estimated from the PIN code area to {result.location.name}. Not an exact road distance.
+              Estimated from the PIN code area to {result.location.name}. Not an
+              exact road distance.
             </p>
           </div>
         </div>
@@ -130,15 +167,23 @@ export default function WarrantyCheck({ source, pincode, compact, className = ""
         <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
           <XCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
           <div>
-            <p className="font-semibold text-amber-900">On-Site Warranty Not Available</p>
+            <p className="font-semibold text-amber-900">
+              On-Site Warranty Not Available
+            </p>
             <p className="mt-1 text-xs leading-5 text-amber-900">
-              Your location is outside our current on-site service coverage area.
+              Your location is outside our current on-site service coverage
+              area.
             </p>
             <p className="mt-1 text-xs leading-5 text-amber-900">
               You can still contact IT HUB for alternative service options.
             </p>
             <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold">
-              <a href={whatsapp} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary">
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-primary"
+              >
                 <WhatsAppIcon size={13} /> WhatsApp IT HUB
               </a>
               <a href={`tel:${store.settings.phone}`} className="text-primary">

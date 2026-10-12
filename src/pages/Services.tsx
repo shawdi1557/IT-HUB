@@ -26,7 +26,12 @@ import OurServices from "../components/OurServices"
 import WarrantyCheck from "../components/WarrantyCheck"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
-import { serviceTypes, problemsFor, serviceStatuses, money } from "../data/catalog"
+import {
+  serviceTypes,
+  problemsFor,
+  serviceStatuses,
+  money,
+} from "../data/catalog"
 import {
   ActionLink,
   Badge,
@@ -92,16 +97,25 @@ const pcServiceLink = (item: string) =>
   item === "PC Builder"
     ? "/pc-builder"
     : `/services/book?service=${encodeURIComponent(
-        item === "PC Upgrade" ? "Hardware Upgrade" : item === "PC Maintenance" ? "PC Troubleshooting" : item,
+        item === "PC Upgrade"
+          ? "Hardware Upgrade"
+          : item === "PC Maintenance"
+            ? "PC Troubleshooting"
+            : item,
       )}`
 
 export function Services() {
   return (
     <Page>
       <OurServices bleedTop />
-      <section id="on-site" className="mt-14 grid gap-8 overflow-hidden rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10">
+      <section
+        id="on-site"
+        className="mt-14 grid gap-8 overflow-hidden rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10"
+      >
         <div>
-          <p className="text-[10px] font-semibold tracking-[.17em] text-primary">ON-SITE SERVICE</p>
+          <p className="text-[10px] font-semibold tracking-[.17em] text-primary">
+            ON-SITE SERVICE
+          </p>
           <h2 className="mt-3 text-2xl font-bold tracking-[-.02em] md:text-3xl">
             IT Support at Your Location
           </h2>
@@ -111,8 +125,16 @@ export function Services() {
             location — check your PIN code to confirm.
           </p>
           <ol className="mt-6 grid gap-2 text-xs sm:grid-cols-2">
-            {["Request Service", "Enter PIN", "Check availability", "Schedule / contact IT HUB"].map((step, index) => (
-              <li key={step} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5">
+            {[
+              "Request Service",
+              "Enter PIN",
+              "Check availability",
+              "Schedule / contact IT HUB",
+            ].map((step, index) => (
+              <li
+                key={step}
+                className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5"
+              >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
                   {index + 1}
                 </span>
@@ -120,7 +142,10 @@ export function Services() {
               </li>
             ))}
           </ol>
-          <ActionLink to="/services/book?method=On-site%20service" className="mt-6">
+          <ActionLink
+            to="/services/book?method=On-site%20service"
+            className="mt-6"
+          >
             Request On-Site Service <ArrowRight size={15} />
           </ActionLink>
         </div>
@@ -143,12 +168,28 @@ export function Services() {
         </div>
         <ol className="grid gap-x-4 gap-y-8 px-7 py-10 sm:grid-cols-2 md:px-10 lg:grid-cols-7">
           {[
-            [CalendarCheck, "Book", "Choose your service and a convenient slot."],
-            [Truck, "Pickup / drop-off", "Visit the store or schedule a courier."],
+            [
+              CalendarCheck,
+              "Book",
+              "Choose your service and a convenient slot.",
+            ],
+            [
+              Truck,
+              "Pickup / drop-off",
+              "Visit the store or schedule a courier.",
+            ],
             [Search, "Diagnosis", "Our technicians find the root cause."],
-            [ClipboardCheck, "Approval", "You approve the quote before any work."],
+            [
+              ClipboardCheck,
+              "Approval",
+              "You approve the quote before any work.",
+            ],
             [Wrench, "Repair", "Fixed with genuine, quality parts."],
-            [ShieldCheck, "Quality check", "Tested thoroughly before handover."],
+            [
+              ShieldCheck,
+              "Quality check",
+              "Tested thoroughly before handover.",
+            ],
             [PackageCheck, "Return", "Collect it or get it delivered back."],
           ].map(([Icon, step, text], index, all) => {
             const StepIcon = Icon as typeof Wrench
@@ -167,7 +208,9 @@ export function Services() {
                   <p className="text-[11px] font-bold tracking-wider text-primary">
                     STEP {String(index + 1).padStart(2, "0")}
                   </p>
-                  <h3 className="mt-1 text-sm font-semibold">{step as string}</h3>
+                  <h3 className="mt-1 text-sm font-semibold">
+                    {step as string}
+                  </h3>
                   <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
                     {text as string}
                   </p>
@@ -182,7 +225,10 @@ export function Services() {
           availability is simulated.
         </p>
       </section>
-      <section id="warranty-check" className="mt-10 flex flex-col gap-4 rounded-2xl border border-border bg-card p-7 md:flex-row md:items-center md:justify-between">
+      <section
+        id="warranty-check"
+        className="mt-10 flex flex-col gap-4 rounded-2xl border border-border bg-card p-7 md:flex-row md:items-center md:justify-between"
+      >
         <div>
           <h2 className="text-xl font-bold">Need Warranty Help?</h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
@@ -209,13 +255,15 @@ export function ServiceBooking() {
   useEffect(() => track("Service Booking Started", { service: chosen }), [])
   const [busy, setBusy] = useState(false)
   const [details, setDetails] = useState({
-    device: presetDevice || (chosen.includes("Mobile")
-      ? "Mobile"
-      : chosen.includes("PC")
-        ? "Desktop"
-        : chosen.includes("Printer")
-          ? "Printer"
-          : "Laptop"),
+    device:
+      presetDevice ||
+      (chosen.includes("Mobile")
+        ? "Mobile"
+        : chosen.includes("PC")
+          ? "Desktop"
+          : chosen.includes("Printer")
+            ? "Printer"
+            : "Laptop"),
     model: "",
     problem: chosen.includes("Recovery")
       ? "Data recovery"
@@ -266,7 +314,11 @@ export function ServiceBooking() {
         },
       }),
     }
-    track("Service Request Created", { request: id, device: details.device, problem: details.problem })
+    track("Service Request Created", {
+      request: id,
+      device: details.device,
+      problem: details.problem,
+    })
     store.set((previous) => ({
       requests: [request, ...previous.requests],
       notifications: [
@@ -281,7 +333,10 @@ export function ServiceBooking() {
   if (!store.loggedIn)
     return (
       <Page>
-        <LoginGate title="Login to book a service" text="Sign in with your mobile number to book a repair, schedule a pickup and track your service request." />
+        <LoginGate
+          title="Login to book a service"
+          text="Sign in with your mobile number to book a repair, schedule a pickup and track your service request."
+        />
       </Page>
     )
   return (
@@ -346,7 +401,9 @@ export function ServiceBooking() {
                         setDetails((current) => ({
                           ...current,
                           device,
-                          problem: problemsFor(device).includes(current.problem) ? current.problem : problemsFor(device)[0],
+                          problem: problemsFor(device).includes(current.problem)
+                            ? current.problem
+                            : problemsFor(device)[0],
                         }))
                       }
                       className={`rounded-md border p-5 text-center text-sm ${
@@ -373,7 +430,13 @@ export function ServiceBooking() {
                 <input
                   required
                   minLength={2}
-                  placeholder={details.device === "Printer" ? "e.g. HP DeskJet 2331, Canon PIXMA G3010, Epson L3250" : details.device === "Mobile" ? "e.g. Samsung Galaxy A54" : "e.g. Dell Inspiron 15"}
+                  placeholder={
+                    details.device === "Printer"
+                      ? "e.g. HP DeskJet 2331, Canon PIXMA G3010, Epson L3250"
+                      : details.device === "Mobile"
+                        ? "e.g. Samsung Galaxy A54"
+                        : "e.g. Dell Inspiron 15"
+                  }
                   value={details.model}
                   onChange={(event) => update("model", event.target.value)}
                   className={fieldClass}
@@ -460,21 +523,41 @@ export function ServiceBooking() {
                     How courier service works
                   </p>
                   <ol className="space-y-2 text-xs leading-6 text-amber-700">
-                    <li className="flex gap-2"><span className="font-bold text-amber-900">1.</span> You ship the device to IT HUB's address at your own courier cost.</li>
-                    <li className="flex gap-2"><span className="font-bold text-amber-900">2.</span> IT HUB diagnoses and sends you a repair quotation for approval.</li>
-                    <li className="flex gap-2"><span className="font-bold text-amber-900">3.</span> IT HUB couriers the device back to you after repair — or after rejection.</li>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-amber-900">1.</span> You
+                      ship the device to IT HUB's address at your own courier
+                      cost.
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-amber-900">2.</span> IT
+                      HUB diagnoses and sends you a repair quotation for
+                      approval.
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold text-amber-900">3.</span> IT
+                      HUB couriers the device back to you after repair — or
+                      after rejection.
+                    </li>
                   </ol>
                   <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-4 py-2.5 text-xs font-medium">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <ShieldCheck size={13} className="text-primary" />
                       Diagnosis Charge (includes inspection & return logistics)
                     </span>
-                    <strong className="text-foreground">₹{COURIER_CHARGE_PER_LEG}</strong>
+                    <strong className="text-foreground">
+                      ₹{COURIER_CHARGE_PER_LEG}
+                    </strong>
                   </div>
                   <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-100 px-3 py-2.5 text-xs leading-5 text-amber-800">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
                     <span>
-                      If you approve the repair quotation, diagnosis is adjusted against your repair total. If you <strong>decline the quotation</strong>, only the <strong>Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})</strong> is payable.
+                      If you approve the repair quotation, diagnosis is adjusted
+                      against your repair total. If you{" "}
+                      <strong>decline the quotation</strong>, only the{" "}
+                      <strong>
+                        Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})
+                      </strong>{" "}
+                      is payable.
                     </span>
                   </p>
                 </div>
@@ -483,7 +566,11 @@ export function ServiceBooking() {
               {details.method === "On-site service" && (
                 <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">
                   <Info size={14} className="mt-0.5 shrink-0" />
-                  <span>On-site service is available within approximately <strong>15 km</strong> of IT HUB Kothamangalam. Your PIN code will be checked in the next step.</span>
+                  <span>
+                    On-site service is available within approximately{" "}
+                    <strong>15 km</strong> of IT HUB Kothamangalam. Your PIN
+                    code will be checked in the next step.
+                  </span>
                 </div>
               )}
             </div>
@@ -600,23 +687,36 @@ export function ServiceBooking() {
               {details.method === "Courier to IT HUB" && (
                 <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <p className="mb-3 flex items-center gap-2 text-xs font-semibold text-amber-800">
-                    <ShieldCheck size={14} className="shrink-0 text-amber-800" />
+                    <ShieldCheck
+                      size={14}
+                      className="shrink-0 text-amber-800"
+                    />
                     Service & Diagnosis Charge Policy
                   </p>
                   <ul className="space-y-1.5 text-xs text-amber-700">
                     <li className="flex items-center justify-between">
                       <span>Inbound shipping to IT HUB</span>
-                      <span className="font-medium text-muted-foreground">Self-arranged</span>
+                      <span className="font-medium text-muted-foreground">
+                        Self-arranged
+                      </span>
                     </li>
                     <li className="flex items-center justify-between border-t border-amber-200 pt-2 font-semibold">
                       <span>Diagnosis Charge</span>
-                      <strong className="text-foreground">₹{COURIER_CHARGE_PER_LEG}</strong>
+                      <strong className="text-foreground">
+                        ₹{COURIER_CHARGE_PER_LEG}
+                      </strong>
                     </li>
                   </ul>
                   <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-100 px-3 py-2.5 text-xs leading-5 text-amber-800">
                     <AlertCircle size={13} className="mt-0.5 shrink-0" />
                     <span>
-                      The <strong>Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})</strong> is only payable if you choose to reject the final repair quotation. If repair is approved, diagnosis is adjusted into the repair invoice.
+                      The{" "}
+                      <strong>
+                        Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})
+                      </strong>{" "}
+                      is only payable if you choose to reject the final repair
+                      quotation. If repair is approved, diagnosis is adjusted
+                      into the repair invoice.
                     </span>
                   </p>
                 </div>
@@ -858,12 +958,20 @@ export function ServiceTracking() {
                   </p>
                   {/* Diagnosis charge — only for Courier to IT HUB requests */}
                   {request.courierCharge && (
-                    <p className={`flex justify-between ${request.quoteState === "rejected" ? "font-medium text-red-600" : "text-muted-foreground"}`}>
+                    <p
+                      className={`flex justify-between ${
+                        request.quoteState === "rejected"
+                          ? "font-medium text-red-600"
+                          : "text-muted-foreground"
+                      }`}
+                    >
                       <span className="flex items-center gap-1.5">
                         <ShieldCheck size={13} className="text-primary" />
                         Diagnosis Charge
                         {request.quoteState === "rejected" && (
-                          <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">PAYABLE</span>
+                          <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+                            PAYABLE
+                          </span>
                         )}
                       </span>
                       {money(request.courierCharge.returnDelivery)}
@@ -871,14 +979,18 @@ export function ServiceTracking() {
                   )}
                   <p className="flex justify-between border-t border-border pt-4 text-lg font-bold">
                     <span>
-                      {request.courierCharge && request.quoteState === "approved"
+                      {request.courierCharge &&
+                      request.quoteState === "approved"
                         ? "Total"
-                        : request.courierCharge && request.quoteState === "rejected"
+                        : request.courierCharge &&
+                            request.quoteState === "rejected"
                           ? "Amount due (Diagnosis Charge)"
                           : "Total"}
                     </span>
                     {request.courierCharge && request.quoteState !== "pending"
-                      ? money(request.quote + request.courierCharge.returnDelivery)
+                      ? money(
+                          request.quote + request.courierCharge.returnDelivery,
+                        )
                       : money(request.quote)}
                   </p>
                 </div>
@@ -889,7 +1001,13 @@ export function ServiceTracking() {
                       <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
                         <AlertCircle size={13} className="mt-0.5 shrink-0" />
                         <span>
-                          If you <strong>reject</strong> this quote, the <strong>Diagnosis Charge (₹{request.courierCharge.returnDelivery})</strong> covers bench inspection, testing, and return logistics.
+                          If you <strong>reject</strong> this quote, the{" "}
+                          <strong>
+                            Diagnosis Charge (₹
+                            {request.courierCharge.returnDelivery})
+                          </strong>{" "}
+                          covers bench inspection, testing, and return
+                          logistics.
                         </span>
                       </p>
                     )}

@@ -63,7 +63,9 @@ export default function GlareHover({
 
   return (
     <div
-      className={`glare-hover ${playOnce ? "glare-hover--play-once" : ""} ${className}`}
+      className={`glare-hover ${
+        playOnce ? "glare-hover--play-once" : ""
+      } ${className}`}
       style={{ ...vars, ...style }}
     >
       {children}

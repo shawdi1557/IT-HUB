@@ -41,13 +41,7 @@ import {
   type BuildPurpose,
   type BuildTemplate,
 } from "../data/buildTemplates"
-import {
-  Badge,
-  Button,
-  Modal,
-  Page,
-  PageHeading,
-} from "../components/ui"
+import { Badge, Button, Modal, Page, PageHeading } from "../components/ui"
 
 export function compatibility(parts: Record<string, ComponentOption>) {
   const result: {
@@ -140,7 +134,8 @@ function ExpertBuilder({
 }) {
   const store = useStore()
   const navigate = useNavigate()
-  const [parts, setParts] = useState<Record<string, ComponentOption>>(initialParts)
+  const [parts, setParts] =
+    useState<Record<string, ComponentOption>>(initialParts)
   const [selection, setSelection] = useState("")
   const [name, setName] = useState(initialName)
   const [filter, setFilter] = useState("")
@@ -178,7 +173,9 @@ function ExpertBuilder({
   const enquire = () => {
     const message = `Hello IT HUB,\n\nI would like to enquire about this PC configuration.\n\n${partList
       .map((part) => `${part.type}: ${part.name}`)
-      .join("\n")}\n\nEstimated Price: ${money(total)}\n\nPlease confirm availability and the final quotation.`
+      .join(
+        "\n",
+      )}\n\nEstimated Price: ${money(total)}\n\nPlease confirm availability and the final quotation.`
     store.set((previous) => ({
       pcEnquiries: [
         {
@@ -311,9 +308,14 @@ function ExpertBuilder({
             </label>
             <div className="my-6 space-y-3">
               {partList.map((part) => (
-                <div key={part.type} className="flex justify-between gap-3 text-xs">
+                <div
+                  key={part.type}
+                  className="flex justify-between gap-3 text-xs"
+                >
                   <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{part.type}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {part.type}
+                    </p>
                     <p className="mt-0.5 font-medium">{part.name}</p>
                   </div>
                   <strong className="shrink-0">{money(part.price)}</strong>
@@ -339,10 +341,17 @@ function ExpertBuilder({
               customer requirements.
             </p>
             <div className="mt-6 grid gap-3">
-              <Button disabled={!complete || !valid} onClick={() => setReady(true)}>
+              <Button
+                disabled={!complete || !valid}
+                onClick={() => setReady(true)}
+              >
                 Complete configuration <CheckCircle2 size={15} />
               </Button>
-              <Button disabled={!complete || !valid} variant="secondary" onClick={add}>
+              <Button
+                disabled={!complete || !valid}
+                variant="secondary"
+                onClick={add}
+              >
                 Add build to cart <ShoppingBag size={15} />
               </Button>
               <Button
@@ -430,7 +439,8 @@ function ExpertBuilder({
           {partList.map((part) => (
             <p key={part.type} className="flex justify-between gap-3">
               <span>
-                <span className="text-muted-foreground">{part.type}:</span> {part.name}
+                <span className="text-muted-foreground">{part.type}:</span>{" "}
+                {part.name}
               </span>
               <strong className="shrink-0">{money(part.price)}</strong>
             </p>
@@ -534,29 +544,106 @@ const purposes: {
   text: string
   Icon: typeof Gamepad2
 }[] = [
-  { id: "gaming", title: "Gaming", text: "Casual, competitive, AAA and high-end gaming", Icon: Gamepad2 },
-  { id: "creation", title: "Content Creation", text: "Video editing, motion graphics, 3D, photo, streaming", Icon: Clapperboard },
-  { id: "work", title: "Work / Office", text: "Office work, programming, business and productivity", Icon: Briefcase },
-  { id: "professional", title: "Professional", text: "Software development, CAD, architecture, data/AI", Icon: DraftingCompass },
-  { id: "general", title: "General Use", text: "Browsing, media, education and home use", Icon: House },
-  { id: "custom", title: "Something Else", text: "Describe your use case in your own words", Icon: PenLine },
+  {
+    id: "gaming",
+    title: "Gaming",
+    text: "Casual, competitive, AAA and high-end gaming",
+    Icon: Gamepad2,
+  },
+  {
+    id: "creation",
+    title: "Content Creation",
+    text: "Video editing, motion graphics, 3D, photo, streaming",
+    Icon: Clapperboard,
+  },
+  {
+    id: "work",
+    title: "Work / Office",
+    text: "Office work, programming, business and productivity",
+    Icon: Briefcase,
+  },
+  {
+    id: "professional",
+    title: "Professional",
+    text: "Software development, CAD, architecture, data/AI",
+    Icon: DraftingCompass,
+  },
+  {
+    id: "general",
+    title: "General Use",
+    text: "Browsing, media, education and home use",
+    Icon: House,
+  },
+  {
+    id: "custom",
+    title: "Something Else",
+    text: "Describe your use case in your own words",
+    Icon: PenLine,
+  },
 ]
-const followUps: Record<PurposeId, { key: string; question: string; options: string[] }[]> = {
+const followUps: Record<PurposeId, {
+  key: string
+  question: string
+  options: string[]
+}[]> = {
   gaming: [
-    { key: "type", question: "What kind of gaming?", options: ["Competitive / Esports", "AAA Games", "Both"] },
-    { key: "resolution", question: "What resolution do you mainly want?", options: ["1080p", "1440p", "4K", "Not sure"] },
+    {
+      key: "type",
+      question: "What kind of gaming?",
+      options: ["Competitive / Esports", "AAA Games", "Both"],
+    },
+    {
+      key: "resolution",
+      question: "What resolution do you mainly want?",
+      options: ["1080p", "1440p", "4K", "Not sure"],
+    },
   ],
   creation: [
-    { key: "type", question: "What do you mainly create?", options: ["Video", "Motion Graphics", "3D", "Photography", "Streaming", "Mixed"] },
+    {
+      key: "type",
+      question: "What do you mainly create?",
+      options: [
+        "Video",
+        "Motion Graphics",
+        "3D",
+        "Photography",
+        "Streaming",
+        "Mixed",
+      ],
+    },
   ],
   work: [
-    { key: "type", question: "What type of work?", options: ["Office", "Programming", "Business", "Professional Software", "Mixed"] },
+    {
+      key: "type",
+      question: "What type of work?",
+      options: [
+        "Office",
+        "Programming",
+        "Business",
+        "Professional Software",
+        "Mixed",
+      ],
+    },
   ],
   professional: [
-    { key: "type", question: "Which kind of professional work?", options: ["Software Development", "Architecture", "CAD", "Engineering", "Data / AI"] },
+    {
+      key: "type",
+      question: "Which kind of professional work?",
+      options: [
+        "Software Development",
+        "Architecture",
+        "CAD",
+        "Engineering",
+        "Data / AI",
+      ],
+    },
   ],
   general: [
-    { key: "type", question: "What will you mostly use it for?", options: ["Browsing", "Media", "Education", "Home use"] },
+    {
+      key: "type",
+      question: "What will you mostly use it for?",
+      options: ["Browsing", "Media", "Education", "Home use"],
+    },
   ],
   custom: [],
 }
@@ -582,28 +669,70 @@ const keywordFor: Record<string, string[]> = {
   "Competitive / Esports": ["esports", "competitive", "high-refresh"],
   "AAA Games": ["aaa"],
 }
-type Budget = { id: string; label: string; tier: string; min: number; max: number }
+type Budget = { id: string label: string tier: string min: number max: number }
 const budgets: Budget[] = [
-  { id: "40-60", label: "₹40,000 – ₹60,000", tier: "Entry Level", min: 40000, max: 60000 },
-  { id: "60-80", label: "₹60,000 – ₹80,000", tier: "Balanced", min: 60000, max: 80000 },
-  { id: "80-100", label: "₹80,000 – ₹1,00,000", tier: "Performance", min: 80000, max: 100000 },
-  { id: "100-150", label: "₹1,00,000 – ₹1,50,000", tier: "High Performance", min: 100000, max: 150000 },
-  { id: "150+", label: "₹1,50,000+", tier: "Enthusiast", min: 150000, max: 300000 },
+  {
+    id: "40-60",
+    label: "₹40,000 – ₹60,000",
+    tier: "Entry Level",
+    min: 40000,
+    max: 60000,
+  },
+  {
+    id: "60-80",
+    label: "₹60,000 – ₹80,000",
+    tier: "Balanced",
+    min: 60000,
+    max: 80000,
+  },
+  {
+    id: "80-100",
+    label: "₹80,000 – ₹1,00,000",
+    tier: "Performance",
+    min: 80000,
+    max: 100000,
+  },
+  {
+    id: "100-150",
+    label: "₹1,00,000 – ₹1,50,000",
+    tier: "High Performance",
+    min: 100000,
+    max: 150000,
+  },
+  {
+    id: "150+",
+    label: "₹1,50,000+",
+    tier: "Enthusiast",
+    min: 150000,
+    max: 300000,
+  },
 ]
 const brandOptions = ["AMD", "Intel", "NVIDIA"]
 const ownedOptions = ["Monitor", "GPU", "Storage", "RAM", "Keyboard/Mouse"]
 const pricedOwned = ["GPU", "Storage", "RAM"]
-const partOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"]
+const partOrder = [
+  "CPU",
+  "GPU",
+  "Motherboard",
+  "RAM",
+  "Storage",
+  "PSU",
+  "Cooler",
+  "Cabinet",
+]
 const partLabels: Record<string, string> = { Cooler: "CPU Cooler" }
 const explanations: Record<string, string> = {
   CPU: "Handles general system processing and gaming workloads.",
   GPU: "Responsible primarily for gaming graphics and GPU-accelerated creative workloads.",
-  Motherboard: "Connects every component together and decides future upgrade options.",
+  Motherboard:
+    "Connects every component together and decides future upgrade options.",
   RAM: "Helps with multitasking and application performance.",
-  Storage: "Stores Windows, apps, games and files. NVMe SSDs load things quickly.",
+  Storage:
+    "Stores Windows, apps, games and files. NVMe SSDs load things quickly.",
   PSU: "Supplies stable power to every component, with headroom for safety.",
   Cooler: "Keeps the processor cool and quiet under load.",
-  Cabinet: "Houses and protects the components, with airflow to keep them cool.",
+  Cabinet:
+    "Houses and protects the components, with airflow to keep them cool.",
 }
 const DISCLAIMER =
   "Component prices and availability may change. Final pricing will be confirmed by IT HUB before purchase."
@@ -641,31 +770,53 @@ type DetailBuild = {
   templateId?: string
   inBudget?: boolean
 }
-type Recommendation = DetailBuild & { price: number; template: BuildTemplate }
+type Recommendation = DetailBuild & { price: number template: BuildTemplate }
 
 function inferPurpose(text: string): BuildPurpose {
   const t = text.toLowerCase()
-  if (/blender|unreal|render|3d|video|edit|premiere|davinci|after effects|stream|photo|youtube/.test(t)) return "creation"
-  if (/cad|autocad|solidworks|revit|architect|machine learning|\bai\b|data|tensorflow|engineering/.test(t)) return "professional"
+  if (
+    /blender|unreal|render|3d|video|edit|premiere|davinci|after effects|stream|photo|youtube/.test(
+      t,
+    )
+  )
+    return "creation"
+  if (
+    /cad|autocad|solidworks|revit|architect|machine learning|\bai\b|data|tensorflow|engineering/.test(
+      t,
+    )
+  )
+    return "professional"
   if (/game|gaming|fps|esports|valorant|gta/.test(t)) return "gaming"
-  if (/office|excel|code|coding|programming|business|accounting|tally/.test(t)) return "work"
+  if (/office|excel|code|coding|programming|business|accounting|tally/.test(t))
+    return "work"
   return "general"
 }
 function resolvedBudget(answers: Answers) {
   if (answers.budgetId === "custom") {
     const value = Number(answers.customBudget.replace(/[^0-9]/g, ""))
     if (!value) return null
-    return { min: Math.round(value * 0.85), max: value, label: `Around ${money(value)}` }
+    return {
+      min: Math.round(value * 0.85),
+      max: value,
+      label: `Around ${money(value)}`,
+    }
   }
   const band = budgets.find((item) => item.id === answers.budgetId)
   if (!band) return null
   return {
     min: band.min,
     max: band.max,
-    label: band.id === "150+" ? band.label.replace(/\s/g, "") : `${money(band.min)}–${money(band.max)}`,
+    label:
+      band.id === "150+"
+        ? band.label.replace(/\s/g, "")
+        : `${money(band.min)}–${money(band.max)}`,
   }
 }
-function findPart(catalog: Record<string, ComponentOption[]>, type: string, id: string) {
+function findPart(
+  catalog: Record<string, ComponentOption[]>,
+  type: string,
+  id: string,
+) {
   return (
     catalog[type]?.find((item) => item.id === id) ||
     componentOptions[type]?.find((item) => item.id === id)
@@ -674,7 +825,10 @@ function findPart(catalog: Record<string, ComponentOption[]>, type: string, id: 
 const sumParts = (parts: Record<string, ComponentOption>) =>
   Object.values(parts).reduce((sum, item) => sum + item.price, 0)
 const isAmd = (part?: ComponentOption) =>
-  Boolean(part && (part.socket?.startsWith("AM") || /amd|radeon|\brx\b/i.test(part.name)))
+  Boolean(
+    part &&
+      (part.socket?.startsWith("AM") || /amd|radeon|\brx\b/i.test(part.name)),
+  )
 
 /**
  * Recommendation engine. Optimises for purpose match + budget fit + compatibility
@@ -688,7 +842,9 @@ function recommend(
   const budget = resolvedBudget(answers)
   if (!budget) return []
   const purpose: BuildPurpose =
-    answers.purpose === "custom" ? inferPurpose(answers.customText) : (answers.purpose || "general") as BuildPurpose
+    answers.purpose === "custom"
+      ? inferPurpose(answers.customText)
+      : (answers.purpose || "general") as BuildPurpose
   const related: Record<BuildPurpose, BuildPurpose[]> = {
     gaming: ["creation"],
     creation: ["professional", "gaming"],
@@ -696,13 +852,19 @@ function recommend(
     professional: ["creation", "work"],
     general: ["work"],
   }
-  const resolution = answers.details.resolution && answers.details.resolution !== "Not sure"
-    ? answers.details.resolution
-    : answers.purpose === "custom" && /4k/i.test(answers.customText) ? "4K" : ""
+  const resolution =
+    answers.details.resolution && answers.details.resolution !== "Not sure"
+      ? answers.details.resolution
+      : answers.purpose === "custom" && /4k/i.test(answers.customText)
+        ? "4K"
+        : ""
   const keywords = [
     ...(keywordFor[answers.details.type] || []),
     ...(answers.purpose === "custom"
-      ? answers.customText.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 2)
+      ? answers.customText
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((word) => word.length > 2)
       : []),
   ]
   const owned = answers.owned.filter((item) => pricedOwned.includes(item))
@@ -715,9 +877,18 @@ function recommend(
         if (part) parts[type] = part
       })
       // Wi-Fi requested: swap to the cheapest compatible Wi-Fi board.
-      if (answers.wifi === "Yes" && parts.Motherboard && !parts.Motherboard.wifi) {
+      if (
+        answers.wifi === "Yes" &&
+        parts.Motherboard &&
+        !parts.Motherboard.wifi
+      ) {
         const board = (catalog.Motherboard || [])
-          .filter((item) => item.wifi && item.stock !== 0 && compatibility({ ...parts, Motherboard: item }).valid)
+          .filter(
+            (item) =>
+              item.wifi &&
+              item.stock !== 0 &&
+              compatibility({ ...parts, Motherboard: item }).valid,
+          )
           .sort((a, b) => a.price - b.price)[0]
         if (board) parts.Motherboard = board
       }
@@ -727,7 +898,8 @@ function recommend(
       let score = 0
       if (template.purpose === purpose) score += 50
       else if (related[purpose].includes(template.purpose)) score += 12
-      const text = `${template.name} ${template.usage} ${template.resolution}`.toLowerCase()
+      const text =
+        `${template.name} ${template.usage} ${template.resolution}`.toLowerCase()
       if (resolution) {
         if (template.resolution.includes(resolution)) score += 16
         else if (template.purpose === "gaming") score -= 8
@@ -743,18 +915,21 @@ function recommend(
           note = SLIGHTLY_ABOVE
         } else {
           score -= over * 220
-          note = "Above your selected range — the closest suitable configuration for your needs."
+          note =
+            "Above your selected range — the closest suitable configuration for your needs."
         }
       } else if (price < budget.min) {
         const under = (budget.min - price) / budget.min
         score += under <= 0.25 ? 22 : 22 - under * 120
-        note = "Below your selected range — covers your needs without overspending."
+        note =
+          "Below your selected range — covers your needs without overspending."
       } else score += 40
       answers.brands.forEach((brand) => {
         if (brand === "AMD") score += isAmd(parts.CPU) ? 5 : -3
         if (brand === "AMD" && parts.GPU) score += isAmd(parts.GPU) ? 5 : -3
         if (brand === "Intel") score += parts.CPU?.socket === "LGA1700" ? 8 : -4
-        if (brand === "NVIDIA" && parts.GPU) score += /rtx|nvidia/i.test(parts.GPU.name) ? 8 : -4
+        if (brand === "NVIDIA" && parts.GPU)
+          score += /rtx|nvidia/i.test(parts.GPU.name) ? 8 : -4
       })
       if (Object.values(parts).some((part) => part.stock === 0)) score -= 4
       if (parts.Motherboard?.socket === "AM5") score += 2
@@ -780,9 +955,7 @@ function recommend(
     })
     .filter((item) => item.score > -500)
     .sort((a, b) => b.score - a.score)
-  return scored
-    .slice(0, 3)
-    .sort((a, b) => a.price - b.price)
+  return scored.slice(0, 3).sort((a, b) => a.price - b.price)
 }
 
 function alternativeFor(
@@ -799,13 +972,19 @@ function alternativeFor(
         item.stock !== 0 &&
         compatibility({ ...parts, [type]: item }).valid,
     )
-    .sort((a, b) => Math.abs(a.price - current.price) - Math.abs(b.price - current.price))[0]
+    .sort(
+      (a, b) =>
+        Math.abs(a.price - current.price) - Math.abs(b.price - current.price),
+    )[0]
 }
 
 function Progress({ step }: { step: number }) {
   const labels = ["Purpose", "Budget", "Builds"]
   return (
-    <ol className="mb-10 flex items-center gap-2 overflow-x-auto pb-1 text-xs" aria-label="Progress">
+    <ol
+      className="mb-10 flex items-center gap-2 overflow-x-auto pb-1 text-xs"
+      aria-label="Progress"
+    >
       {labels.map((label, index) => (
         <li key={label} className="flex shrink-0 items-center gap-2">
           <span
@@ -819,11 +998,21 @@ function Progress({ step }: { step: number }) {
           >
             {index < step ? <Check size={13} /> : index + 1}
           </span>
-          <span className={index <= step ? "font-semibold text-foreground" : "text-muted-foreground"}>
+          <span
+            className={
+              index <= step
+                ? "font-semibold text-foreground"
+                : "text-muted-foreground"
+            }
+          >
             {label}
           </span>
           {index < labels.length - 1 && (
-            <span className={`h-px w-6 sm:w-12 ${index < step ? "bg-primary" : "bg-border"}`} />
+            <span
+              className={`h-px w-6 sm:w-12 ${
+                index < step ? "bg-primary" : "bg-border"
+              }`}
+            />
           )}
         </li>
       ))}
@@ -847,13 +1036,15 @@ function Choice({
       aria-pressed={active}
       onClick={onClick}
       className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-        active ? "border-primary bg-secondary font-semibold text-primary" : "border-border bg-white hover:border-primary"
+        active
+          ? "border-primary bg-secondary font-semibold text-primary"
+          : "border-border bg-white hover:border-primary"
       }`}
     >
       <span
-        className={`flex h-4 w-4 items-center justify-center border ${round ? "rounded-full" : "rounded"} ${
-          active ? "border-primary bg-primary text-white" : "border-border"
-        }`}
+        className={`flex h-4 w-4 items-center justify-center border ${
+          round ? "rounded-full" : "rounded"
+        } ${active ? "border-primary bg-primary text-white" : "border-border"}`}
       >
         {active && <Check size={10} strokeWidth={3} />}
       </span>
@@ -861,7 +1052,7 @@ function Choice({
     </button>
   )
 }
-function Question({ title, children }: { title: string; children: ReactNode }) {
+function Question({ title, children }: { title: string children: ReactNode }) {
   return (
     <fieldset className="mt-8">
       <legend className="mb-3 text-sm font-semibold">{title}</legend>
@@ -898,19 +1089,32 @@ function BuildDetail({
   const total = componentTotal + assembly
   const checks = compatibility(parts)
   const changed = JSON.stringify(parts) !== JSON.stringify(initial.parts)
-  const rows = partOrder.filter((type) => parts[type] || type === "GPU" || owned.includes(type))
+  const rows = partOrder.filter(
+    (type) => parts[type] || type === "GPU" || owned.includes(type),
+  )
   const display = (type: string) =>
     owned.includes(type)
       ? "Already owned"
-      : parts[type]?.name || (type === "GPU" ? "Integrated graphics (built into CPU)" : "Not selected")
+      : parts[type]?.name ||
+        (type === "GPU"
+          ? "Integrated graphics (built into CPU)"
+          : "Not selected")
   const why = [
     ...initial.highlights,
-    parts.GPU && parts.CPU ? "Balanced CPU + GPU combination" : "Integrated graphics keeps cost and power low",
+    parts.GPU && parts.CPU
+      ? "Balanced CPU + GPU combination"
+      : "Integrated graphics keeps cost and power low",
     `Suitable for ${initial.designedFor}`,
-    parts.Storage ? `${parts.Storage.name.split(" ")[0]} fast NVMe storage` : "",
-    parts.Motherboard?.socket === "AM5" || parts.Motherboard?.wifi ? "Upgrade-friendly motherboard" : "",
+    parts.Storage
+      ? `${parts.Storage.name.split(" ")[0]} fast NVMe storage`
+      : "",
+    parts.Motherboard?.socket === "AM5" || parts.Motherboard?.wifi
+      ? "Upgrade-friendly motherboard"
+      : "",
     parts.Motherboard?.wifi ? "Built-in Wi-Fi" : "",
-    checks.result.find((check) => check.label.startsWith("PSU"))?.state === "ok" ? "Adequate power supply" : "",
+    checks.result.find((check) => check.label.startsWith("PSU"))?.state === "ok"
+      ? "Adequate power supply"
+      : "",
     checks.valid ? "All parts checked for compatibility" : "",
     !changed && initial.inBudget !== undefined
       ? initial.inBudget
@@ -949,12 +1153,22 @@ function BuildDetail({
     store.notify("Saved to My Account → PC Builds")
   }
   const enquire = () => {
-    const line = (type: string) => `${partLabels[type] || type}:\n${display(type)}`
+    const line = (type: string) =>
+      `${partLabels[type] || type}:\n${display(type)}`
     const message = [
       "Hello IT HUB,",
       "I would like to enquire about the following PC build:",
       `Build:\n${name.trim() || initial.name}`,
-      ...["CPU", "GPU", "RAM", "Storage", "Motherboard", "PSU", "Cabinet", "Cooler"].map(line),
+      ...[
+        "CPU",
+        "GPU",
+        "RAM",
+        "Storage",
+        "Motherboard",
+        "PSU",
+        "Cabinet",
+        "Cooler",
+      ].map(line),
       `Estimated Price:\n${money(total)}`,
       "Please confirm availability and provide the final quotation.",
     ].join("\n\n")
@@ -965,7 +1179,11 @@ function BuildDetail({
           summary: name.trim() || initial.name,
           parts: partOrder
             .filter((type) => priced[type])
-            .map((type) => ({ type, name: priced[type].name, price: priced[type].price })),
+            .map((type) => ({
+              type,
+              name: priced[type].name,
+              price: priced[type].price,
+            })),
           estimate: total,
           date: new Date().toISOString(),
           status: "New",
@@ -983,8 +1201,12 @@ function BuildDetail({
   }
   return (
     <div>
-      <button onClick={onBack} className="mb-6 flex items-center gap-2 text-xs font-semibold text-primary">
-        <ArrowLeft size={14} /> {savedId ? "Back to PC Builder" : "Back to recommended builds"}
+      <button
+        onClick={onBack}
+        className="mb-6 flex items-center gap-2 text-xs font-semibold text-primary"
+      >
+        <ArrowLeft size={14} />{" "}
+        {savedId ? "Back to PC Builder" : "Back to recommended builds"}
       </button>
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
         <div>
@@ -997,7 +1219,9 @@ function BuildDetail({
               className="mt-3 w-full rounded-xl border border-border px-4 py-2 font-display text-2xl font-bold md:text-3xl"
             />
           ) : (
-            <h1 className="mt-3 font-display text-3xl font-bold md:text-4xl">{name}</h1>
+            <h1 className="mt-3 font-display text-3xl font-bold md:text-4xl">
+              {name}
+            </h1>
           )}
           <p className="mt-3 text-sm">
             <span className="text-muted-foreground">Designed for:</span>{" "}
@@ -1014,16 +1238,23 @@ function BuildDetail({
               onClick={() => setCustomizing(!customizing)}
               className="flex items-center gap-2 text-xs font-semibold text-primary"
             >
-              <SlidersHorizontal size={14} /> {customizing ? "Done customizing" : "Customize This Build"}
+              <SlidersHorizontal size={14} />{" "}
+              {customizing ? "Done customizing" : "Customize This Build"}
             </button>
           </div>
           <div className="mt-4 space-y-3">
             {rows.map((type) => {
               const part = parts[type]
               const isOwned = owned.includes(type)
-              const alt = part && part.stock === 0 && !isOwned ? alternativeFor(catalog, parts, type) : undefined
+              const alt =
+                part && part.stock === 0 && !isOwned
+                  ? alternativeFor(catalog, parts, type)
+                  : undefined
               return (
-                <div key={type} className="rounded-2xl border border-border bg-white p-4 md:p-5">
+                <div
+                  key={type}
+                  className="rounded-2xl border border-border bg-white p-4 md:p-5"
+                >
                   <div className="flex flex-wrap items-start gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
                       <Cpu size={20} strokeWidth={1.6} />
@@ -1032,15 +1263,25 @@ function BuildDetail({
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {partLabels[type] || type}
                       </p>
-                      <p className="mt-0.5 text-sm font-semibold">{display(type)}</p>
+                      <p className="mt-0.5 text-sm font-semibold">
+                        {display(type)}
+                      </p>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {isOwned ? "Not included in the estimate — you already own this." : explanations[type]}
+                        {isOwned
+                          ? "Not included in the estimate — you already own this."
+                          : explanations[type]}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      {part && !isOwned && <strong className="text-sm">{money(part.price)}</strong>}
+                      {part && !isOwned && (
+                        <strong className="text-sm">{money(part.price)}</strong>
+                      )}
                       {customizing && (
-                        <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => setSelection(type)}>
+                        <Button
+                          variant="secondary"
+                          className="px-3 py-1.5 text-xs"
+                          onClick={() => setSelection(type)}
+                        >
                           {part && !isOwned ? "Change" : "Add"}
                         </Button>
                       )}
@@ -1049,7 +1290,8 @@ function BuildDetail({
                   {part && part.stock === 0 && !isOwned && (
                     <div className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
                       <p className="flex items-center gap-2 font-semibold">
-                        <PackageX size={14} /> Recommended {partLabels[type] || type} is currently unavailable.
+                        <PackageX size={14} /> Recommended{" "}
+                        {partLabels[type] || type} is currently unavailable.
                       </p>
                       {alt ? (
                         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -1062,12 +1304,17 @@ function BuildDetail({
                               {money(Math.abs(alt.price - part.price))}
                             </strong>
                           </p>
-                          <Button className="px-4 py-2 text-xs" onClick={() => swap(type, alt)}>
+                          <Button
+                            className="px-4 py-2 text-xs"
+                            onClick={() => swap(type, alt)}
+                          >
                             Use Alternative
                           </Button>
                         </div>
                       ) : (
-                        <p className="mt-1">IT HUB will suggest an alternative when you enquire.</p>
+                        <p className="mt-1">
+                          IT HUB will suggest an alternative when you enquire.
+                        </p>
                       )}
                     </div>
                   )}
@@ -1079,17 +1326,29 @@ function BuildDetail({
             <div className="mt-4 rounded-2xl bg-muted p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold">Compatibility check</p>
-                <Badge tone={checks.valid ? "green" : "red"}>{checks.valid ? "Compatible" : "Needs attention"}</Badge>
+                <Badge tone={checks.valid ? "green" : "red"}>
+                  {checks.valid ? "Compatible" : "Needs attention"}
+                </Badge>
               </div>
               <div className="mt-3 space-y-1.5">
                 {checks.result.map((check, index) => (
                   <p
                     key={index}
                     className={`flex gap-2 text-xs ${
-                      check.state === "ok" ? "text-emerald-700" : check.state === "error" ? "text-red-600" : "text-amber-700"
+                      check.state === "ok"
+                        ? "text-emerald-700"
+                        : check.state === "error"
+                          ? "text-red-600"
+                          : "text-amber-700"
                     }`}
                   >
-                    {check.state === "ok" ? <CheckCircle2 size={14} /> : check.state === "error" ? <XCircle size={14} /> : <AlertTriangle size={14} />}
+                    {check.state === "ok" ? (
+                      <CheckCircle2 size={14} />
+                    ) : check.state === "error" ? (
+                      <XCircle size={14} />
+                    ) : (
+                      <AlertTriangle size={14} />
+                    )}
                     {check.label}
                   </p>
                 ))}
@@ -1107,7 +1366,11 @@ function BuildDetail({
             <ul className="mt-4 grid gap-2 sm:grid-cols-2">
               {why.map((item) => (
                 <li key={item} className="flex gap-2 text-sm">
-                  <Check size={16} className="mt-0.5 shrink-0 text-emerald-600" /> {item}
+                  <Check
+                    size={16}
+                    className="mt-0.5 shrink-0 text-emerald-600"
+                  />{" "}
+                  {item}
                 </li>
               ))}
             </ul>
@@ -1116,15 +1379,22 @@ function BuildDetail({
         <aside className="space-y-4 self-start lg:sticky lg:top-28">
           <div className="rounded-2xl border border-border bg-white p-6">
             <Badge>ESTIMATE</Badge>
-            <p className="mt-3 text-sm text-muted-foreground">Estimated Build Price</p>
-            <p className="mt-1 font-display text-3xl font-bold text-primary">{money(total)}</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Estimated Build Price
+            </p>
+            <p className="mt-1 font-display text-3xl font-bold text-primary">
+              {money(total)}
+            </p>
             <button
               onClick={() => setBreakdown(!breakdown)}
               aria-expanded={breakdown}
               className="mt-4 flex w-full items-center justify-between border-t border-border pt-4 text-sm font-semibold"
             >
               Price Breakdown
-              <ChevronDown size={16} className={`transition ${breakdown ? "rotate-180" : ""}`} />
+              <ChevronDown
+                size={16}
+                className={`transition ${breakdown ? "rotate-180" : ""}`}
+              />
             </button>
             {breakdown && (
               <div className="mt-3 space-y-2 text-xs">
@@ -1132,7 +1402,9 @@ function BuildDetail({
                   .filter((type) => priced[type])
                   .map((type) => (
                     <p key={type} className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">{partLabels[type] || type}</span>
+                      <span className="text-muted-foreground">
+                        {partLabels[type] || type}
+                      </span>
                       <span>{money(priced[type].price)}</span>
                     </p>
                   ))}
@@ -1141,13 +1413,19 @@ function BuildDetail({
                   <span>{money(componentTotal)}</span>
                 </p>
                 <p className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Assembly / Service Charge</span>
-                  <span className={assembly ? "" : "font-semibold text-emerald-700"}>
+                  <span className="text-muted-foreground">
+                    Assembly / Service Charge
+                  </span>
+                  <span
+                    className={assembly ? "" : "font-semibold text-emerald-700"}
+                  >
                     {assembly ? money(assembly) : "Free"}
                   </span>
                 </p>
                 <p className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Optional Services</span>
+                  <span className="text-muted-foreground">
+                    Optional Services
+                  </span>
                   <span>On request</span>
                 </p>
                 <p className="flex justify-between gap-3 border-t border-border pt-2 text-sm font-bold">
@@ -1156,7 +1434,9 @@ function BuildDetail({
                 </p>
               </div>
             )}
-            <p className="mt-4 text-[11px] leading-5 text-muted-foreground">{DISCLAIMER}</p>
+            <p className="mt-4 text-[11px] leading-5 text-muted-foreground">
+              {DISCLAIMER}
+            </p>
             <div className="mt-6 grid gap-3">
               <p className="text-sm font-bold">Talk to IT HUB</p>
               <button
@@ -1166,16 +1446,25 @@ function BuildDetail({
               >
                 <WhatsAppIcon size={18} /> Continue on WhatsApp
               </button>
-              <Button variant="secondary" onClick={save} disabled={!checks.valid}>
+              <Button
+                variant="secondary"
+                onClick={save}
+                disabled={!checks.valid}
+              >
                 <Save size={15} /> {savedId ? "Save Changes" : "Save Build"}
               </Button>
               {!customizing && (
-                <Button variant="secondary" onClick={() => setCustomizing(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setCustomizing(true)}
+                >
                   <SlidersHorizontal size={15} /> Customize This Build
                 </Button>
               )}
               {!checks.valid && (
-                <p className="text-[11px] text-red-600">Resolve compatibility issues to continue.</p>
+                <p className="text-[11px] text-red-600">
+                  Resolve compatibility issues to continue.
+                </p>
               )}
             </div>
           </div>
@@ -1188,24 +1477,30 @@ function BuildDetail({
         description="Every option is checked against the rest of your build. The estimate updates instantly."
       >
         <div className="space-y-3">
-          {selection === "GPU" && parts.GPU && parts.CPU && /graphics/i.test(parts.CPU.name) && (
-            <button
-              className="flex w-full items-center justify-between rounded-xl border border-border p-4 text-left text-sm hover:bg-secondary"
-              onClick={() => {
-                const next = { ...parts }
-                delete next.GPU
-                setParts(next)
-                setSelection("")
-              }}
-            >
-              Use integrated graphics (remove graphics card)
-            </button>
-          )}
+          {selection === "GPU" &&
+            parts.GPU &&
+            parts.CPU &&
+            /graphics/i.test(parts.CPU.name) && (
+              <button
+                className="flex w-full items-center justify-between rounded-xl border border-border p-4 text-left text-sm hover:bg-secondary"
+                onClick={() => {
+                  const next = { ...parts }
+                  delete next.GPU
+                  setParts(next)
+                  setSelection("")
+                }}
+              >
+                Use integrated graphics (remove graphics card)
+              </button>
+            )}
           {(catalog[selection] || []).map((item) => {
             const check = compatibility({ ...parts, [selection]: item })
             const issue = check.result.find((row) => row.state === "error")
             const current = parts[selection]
-            const diff = current && !owned.includes(selection) ? item.price - current.price : item.price
+            const diff =
+              current && !owned.includes(selection)
+                ? item.price - current.price
+                : item.price
             const active = current?.id === item.id && !owned.includes(selection)
             return (
               <button
@@ -1221,7 +1516,11 @@ function BuildDetail({
               >
                 <div>
                   <p className="text-sm font-semibold">{item.name}</p>
-                  <p className={`mt-1 text-xs ${issue ? "text-red-600" : "text-muted-foreground"}`}>
+                  <p
+                    className={`mt-1 text-xs ${
+                      issue ? "text-red-600" : "text-muted-foreground"
+                    }`}
+                  >
                     {active
                       ? "Current selection"
                       : issue
@@ -1276,13 +1575,18 @@ function SmartBuilder() {
       : null,
   )
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next })
-  const templates = store.buildTemplates.length ? store.buildTemplates : initialBuildTemplates
-  const recommendations = step === 2 ? recommend(templates, store.componentCatalog, answers) : []
+  const templates = store.buildTemplates.length
+    ? store.buildTemplates
+    : initialBuildTemplates
+  const recommendations =
+    step === 2 ? recommend(templates, store.componentCatalog, answers) : []
   const budget = resolvedBudget(answers)
   const purposeInfo = purposes.find((item) => item.id === answers.purpose)
   const basedOn = [
     answers.purpose === "custom" ? "Custom use" : purposeInfo?.title,
-    ...Object.values(answers.details).filter((value) => value && value !== "Not sure"),
+    ...Object.values(answers.details).filter(
+      (value) => value && value !== "Not sure",
+    ),
     budget?.label,
   ]
     .filter(Boolean)
@@ -1299,8 +1603,12 @@ function SmartBuilder() {
   if (mode === "expert")
     return (
       <ExpertBuilder
-        initialParts={expertSeed.parts.CPU || !saved ? expertSeed.parts : saved.parts}
-        initialName={expertSeed.parts.CPU || !saved ? expertSeed.name : saved.name}
+        initialParts={
+          expertSeed.parts.CPU || !saved ? expertSeed.parts : saved.parts
+        }
+        initialName={
+          expertSeed.parts.CPU || !saved ? expertSeed.name : saved.name
+        }
         savedId={expertSeed.savedId || saved?.id}
         onBack={() => {
           clearSaved()
@@ -1319,7 +1627,8 @@ function SmartBuilder() {
               Build the Right PC for You
             </h1>
             <p className="mt-4 max-w-lg text-base leading-7 text-muted-foreground">
-              Tell us what you need and your budget. We'll suggest suitable PC configurations.
+              Tell us what you need and your budget. We'll suggest suitable PC
+              configurations.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button
@@ -1352,12 +1661,26 @@ function SmartBuilder() {
         </section>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           {[
-            { title: "Tell us your purpose", text: "Gaming, creating, work or everyday use." },
-            { title: "Set your overall budget", text: "One number for the complete PC — not per part." },
-            { title: "Get matched builds", text: "Compatible configurations with clear estimated pricing." },
+            {
+              title: "Tell us your purpose",
+              text: "Gaming, creating, work or everyday use.",
+            },
+            {
+              title: "Set your overall budget",
+              text: "One number for the complete PC — not per part.",
+            },
+            {
+              title: "Get matched builds",
+              text: "Compatible configurations with clear estimated pricing.",
+            },
           ].map((item, index) => (
-            <div key={item.title} className="rounded-2xl border border-border p-6">
-              <span className="text-xs font-bold text-primary">0{index + 1}</span>
+            <div
+              key={item.title}
+              className="rounded-2xl border border-border p-6"
+            >
+              <span className="text-xs font-bold text-primary">
+                0{index + 1}
+              </span>
               <h2 className="mt-2 font-bold">{item.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{item.text}</p>
             </div>
@@ -1390,7 +1713,9 @@ function SmartBuilder() {
       </Page>
     )
 
-  const purposeReady = answers.purpose && (answers.purpose !== "custom" || answers.customText.trim().length > 2)
+  const purposeReady =
+    answers.purpose &&
+    (answers.purpose !== "custom" || answers.customText.trim().length > 2)
   return (
     <Page>
       <button
@@ -1403,8 +1728,12 @@ function SmartBuilder() {
 
       {step === 0 && (
         <section>
-          <h1 className="font-display text-3xl font-bold md:text-4xl">What will you mainly use this PC for?</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Pick the closest match — we'll handle the details.</p>
+          <h1 className="font-display text-3xl font-bold md:text-4xl">
+            What will you mainly use this PC for?
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pick the closest match — we'll handle the details.
+          </p>
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {purposes.map(({ id, title, text, Icon }) => {
               const active = answers.purpose === id
@@ -1414,15 +1743,27 @@ function SmartBuilder() {
                   aria-pressed={active}
                   onClick={() => update({ purpose: id, details: {} })}
                   className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 md:flex-col md:p-6 ${
-                    active ? "border-primary bg-secondary shadow-[0_10px_30px_-15px_rgba(26,79,214,.6)]" : "border-border bg-white hover:border-primary"
+                    active
+                      ? "border-primary bg-secondary shadow-[0_10px_30px_-15px_rgba(26,79,214,.6)]"
+                      : "border-border bg-white hover:border-primary"
                   }`}
                 >
-                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${active ? "bg-primary text-white" : "bg-secondary text-primary"}`}>
+                  <span
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                      active
+                        ? "bg-primary text-white"
+                        : "bg-secondary text-primary"
+                    }`}
+                  >
                     <Icon size={24} strokeWidth={1.7} />
                   </span>
                   <span>
-                    <span className="block font-bold uppercase tracking-wide">{title}</span>
-                    <span className="mt-1 block text-sm text-muted-foreground">{text}</span>
+                    <span className="block font-bold uppercase tracking-wide">
+                      {title}
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      {text}
+                    </span>
                   </span>
                 </button>
               )
@@ -1450,9 +1791,12 @@ function SmartBuilder() {
 
       {step === 1 && (
         <section>
-          <h1 className="font-display text-3xl font-bold md:text-4xl">What's your overall PC budget?</h1>
+          <h1 className="font-display text-3xl font-bold md:text-4xl">
+            What's your overall PC budget?
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            The complete PC build budget — not individual parts. We treat it as a guide, not a hard limit.
+            The complete PC build budget — not individual parts. We treat it as
+            a guide, not a hard limit.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {budgets.map((band) => {
@@ -1463,20 +1807,33 @@ function SmartBuilder() {
                   aria-pressed={active}
                   onClick={() => update({ budgetId: band.id })}
                   className={`rounded-2xl border p-5 text-left transition ${
-                    active ? "border-primary bg-secondary" : "border-border bg-white hover:border-primary"
+                    active
+                      ? "border-primary bg-secondary"
+                      : "border-border bg-white hover:border-primary"
                   }`}
                 >
                   <span className="block text-lg font-bold">{band.label}</span>
-                  <span className={`mt-1 block text-sm ${active ? "text-primary" : "text-muted-foreground"}`}>{band.tier}</span>
+                  <span
+                    className={`mt-1 block text-sm ${
+                      active ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {band.tier}
+                  </span>
                 </button>
               )
             })}
             <div
               className={`rounded-2xl border p-5 transition ${
-                answers.budgetId === "custom" ? "border-primary bg-secondary" : "border-border bg-white"
+                answers.budgetId === "custom"
+                  ? "border-primary bg-secondary"
+                  : "border-border bg-white"
               }`}
             >
-              <label className="block text-lg font-bold" htmlFor="custom-budget">
+              <label
+                className="block text-lg font-bold"
+                htmlFor="custom-budget"
+              >
                 Custom Budget
               </label>
               <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-white px-3 focus-within:border-primary">
@@ -1487,7 +1844,10 @@ function SmartBuilder() {
                   value={answers.customBudget}
                   onFocus={() => update({ budgetId: "custom" })}
                   onChange={(event) =>
-                    update({ budgetId: "custom", customBudget: event.target.value.replace(/[^0-9]/g, "") })
+                    update({
+                      budgetId: "custom",
+                      customBudget: event.target.value.replace(/[^0-9]/g, ""),
+                    })
                   }
                   placeholder="75000"
                   className="w-full bg-transparent py-2.5 text-sm outline-none"
@@ -1505,17 +1865,26 @@ function SmartBuilder() {
 
       {step === 2 && (
         <section>
-          <p className="text-xs font-bold tracking-widest text-primary">YOUR RECOMMENDED BUILDS</p>
-          <h1 className="mt-2 font-display text-3xl font-bold md:text-4xl">Builds suggested for you</h1>
+          <p className="text-xs font-bold tracking-widest text-primary">
+            YOUR RECOMMENDED BUILDS
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-bold md:text-4xl">
+            Builds suggested for you
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Based on: <strong className="text-foreground">{basedOn}</strong>
           </p>
           {recommendations.length ? (
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
               {recommendations.map((build, index) => {
-                const unavailable = Object.values(build.parts).some((part) => part.stock === 0)
+                const unavailable = Object.values(build.parts).some(
+                  (part) => part.stock === 0,
+                )
                 return (
-                  <article key={build.templateId} className="flex flex-col rounded-3xl border border-border bg-white p-6">
+                  <article
+                    key={build.templateId}
+                    className="flex flex-col rounded-3xl border border-border bg-white p-6"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
                         BUILD 0{index + 1}
@@ -1523,28 +1892,40 @@ function SmartBuilder() {
                       <Badge>{build.tradeoff}</Badge>
                     </div>
                     <h2 className="mt-3 text-xl font-bold">{build.name}</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">Designed for {build.designedFor}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Designed for {build.designedFor}
+                    </p>
                     <ul className="mt-5 space-y-2 text-sm">
                       {["CPU", "GPU", "RAM", "Storage"].map((type) => (
                         <li key={type} className="flex gap-2">
-                          <span className="w-16 shrink-0 text-xs text-muted-foreground">{type}</span>
+                          <span className="w-16 shrink-0 text-xs text-muted-foreground">
+                            {type}
+                          </span>
                           <span className="font-medium">
                             {build.owned.includes(type)
                               ? "Already owned"
-                              : build.parts[type]?.name || (type === "GPU" ? "Integrated graphics" : "—")}
+                              : build.parts[type]?.name ||
+                                (type === "GPU" ? "Integrated graphics" : "—")}
                           </span>
                         </li>
                       ))}
                     </ul>
                     <div className="mt-auto pt-6">
-                      <p className="text-xs text-muted-foreground">Estimated price</p>
+                      <p className="text-xs text-muted-foreground">
+                        Estimated price
+                      </p>
                       <p className="font-display text-2xl font-bold text-primary">
                         {money(build.price + (store.assemblyCharge || 0))}
                       </p>
-                      {build.note && <p className="mt-2 text-xs leading-5 text-muted-foreground">{build.note}</p>}
+                      {build.note && (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          {build.note}
+                        </p>
+                      )}
                       {unavailable && (
                         <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
-                          <PackageX size={13} /> One part is out of stock — alternative available
+                          <PackageX size={13} /> One part is out of stock —
+                          alternative available
                         </p>
                       )}
                       <Button
@@ -1563,9 +1944,12 @@ function SmartBuilder() {
             </div>
           ) : (
             <div className="mt-8 rounded-3xl bg-muted p-8 text-center">
-              <h2 className="text-lg font-bold">We couldn't match a ready build</h2>
+              <h2 className="text-lg font-bold">
+                We couldn't match a ready build
+              </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Try a different budget, or message IT HUB and we'll put together a configuration for you.
+                Try a different budget, or message IT HUB and we'll put together
+                a configuration for you.
               </p>
             </div>
           )}

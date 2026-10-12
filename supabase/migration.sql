@@ -208,6 +208,11 @@ begin
     new.raw_user_meta_data->>'name'
   )), '');
 
+  -- Pre-validate unique phone to prevent orphaned auth.users records on constraint failure
+  if v_phone is not null and exists (select 1 from profiles where phone = v_phone and id <> new.id) then
+    raise exception 'Phone number % is already registered to another account', v_phone;
+  end if;
+
   insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
   values (new.id, 'customer', v_full_name, v_phone, v_email, now(), now())
   on conflict (id) do update set
@@ -216,39 +221,87 @@ begin
     full_name = coalesce(excluded.full_name, profiles.full_name),
     updated_at = now();
   return new;
-exception when others then
-  return new;
 end;
 $$;
 
+-- Self-healing reconciliation helper to recover missing profiles for authenticated users
+create or replace function ensure_profile() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user_id uuid;
+  v_user record;
+  v_profile record;
+begin
+  v_user_id := auth.uid();
+  if v_user_id is null then
+    raise exception 'Authentication required to ensure profile';
+  end if;
+
+  select * into v_profile from profiles where id = v_user_id;
+  if found then
+    return jsonb_build_object('ok', true, 'created', false, 'profile', to_jsonb(v_profile));
+  end if;
+
+  select * into v_user from auth.users where id = v_user_id;
+  if not found then
+    raise exception 'Authenticated user record not found';
+  end if;
+
+  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  values (
+    v_user.id,
+    'customer',
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
+    nullif(trim(v_user.phone), ''),
+    nullif(trim(v_user.email), ''),
+    now(),
+    now()
+  )
+  on conflict (id) do update set
+    updated_at = now()
+  returning * into v_profile;
+
+  return jsonb_build_object('ok', true, 'created', true, 'profile', to_jsonb(v_profile));
+end;
+$$;
+
+-- Enforces NULL-safe comparisons and restricts non-admin creation strictly to customer role
 create or replace function protect_role() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if (tg_op = 'UPDATE' and new.role <> old.role and not is_admin()) then
-    raise exception 'Unauthorized: Only administrators can modify roles';
-  end if;
-  if (tg_op = 'INSERT' and new.role = 'admin' and not is_admin()) then
-    raise exception 'Unauthorized: Only administrators can create admin accounts';
+  if tg_op = 'UPDATE' then
+    if new.role is distinct from old.role and not is_admin() then
+      raise exception 'Unauthorized: Only administrators can modify roles';
+    end if;
+  elsif tg_op = 'INSERT' then
+    if new.role is distinct from 'customer' and not is_admin() then
+      raise exception 'Unauthorized: Only administrators can create admin accounts';
+    end if;
   end if;
   return new;
 end;
 $$;
 
+-- Enforces fine-grained customer vs admin update permissions on service requests.
+-- Uses NULL-safe comparisons (IS DISTINCT FROM), strict quote transition checks,
+-- and protects administrative notes and privileged fields.
 create or replace function protect_service_request() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
-    if new.user_id <> old.user_id then
+    -- 1. Immutable identifiers & timestamps
+    if new.user_id is distinct from old.user_id then
       raise exception 'Unauthorized: Cannot change service request ownership';
     end if;
-    if new.id <> old.id then
+    if new.id is distinct from old.id then
       raise exception 'Unauthorized: Cannot change service request ID';
     end if;
-    if new.created_at <> old.created_at then
+    if new.created_at is distinct from old.created_at then
       raise exception 'Unauthorized: Cannot alter creation timestamp';
     end if;
 
-    if new.status <> old.status then
+    -- 2. Administrative fields protected from customer mutation
+    if new.status is distinct from old.status then
       raise exception 'Unauthorized: Only administrators can update service request status';
     end if;
     if new.quote is distinct from old.quote then
@@ -257,25 +310,47 @@ begin
     if new.technician_name is distinct from old.technician_name then
       raise exception 'Unauthorized: Only administrators can assign technicians';
     end if;
+    if new.notes is distinct from old.notes then
+      raise exception 'Unauthorized: Only administrators can modify administrative notes';
+    end if;
     if new.courier_charge_return_delivery is distinct from old.courier_charge_return_delivery then
       raise exception 'Unauthorized: Only administrators can modify courier return charges';
     end if;
 
+    -- 3. Quote state transition:
+    -- Customer can ONLY respond to an active pending quote when a quote is present.
+    -- Prevents transition when old.quote_state is NULL or not pending.
     if new.quote_state is distinct from old.quote_state then
-      if old.quote_state <> 'pending' or new.quote_state not in ('approved', 'rejected') then
+      if (old.quote_state is distinct from 'pending') or (old.quote is null) or (new.quote_state not in ('approved', 'rejected')) then
         raise exception 'Unauthorized: Invalid quote response transition';
       end if;
     end if;
 
-    if (new.device <> old.device or
+    -- 4. Customer-editable hardware & scheduling details:
+    -- Permitted ONLY while in 'Booked' workflow status
+    if (new.device is distinct from old.device or
         new.model is distinct from old.model or
-        new.problem <> old.problem or
-        new.method <> old.method or
+        new.problem is distinct from old.problem or
+        new.method is distinct from old.method or
         new.address_id is distinct from old.address_id or
         new.preferred_date is distinct from old.preferred_date or
         new.preferred_slot is distinct from old.preferred_slot) then
       if old.status <> 'Booked' then
         raise exception 'Unauthorized: Service request details cannot be altered once diagnosis has started';
+      end if;
+
+      if trim(coalesce(new.device, '')) = '' then
+        raise exception 'Device cannot be empty';
+      end if;
+      if trim(coalesce(new.problem, '')) = '' then
+        raise exception 'Problem description cannot be empty';
+      end if;
+
+      -- Validate customer ownership of new address_id if specified
+      if new.address_id is not null and new.address_id is distinct from old.address_id then
+        if not exists (select 1 from addresses where id = new.address_id and user_id = new.user_id) then
+          raise exception 'Unauthorized: Selected address does not belong to you';
+        end if;
       end if;
     end if;
   end if;
@@ -321,6 +396,9 @@ exception when others then
 end;
 $$;
 
+-- Privacy-respecting visitor event logging RPC.
+-- Enforces strict event type allowlist, metadata validation, session ownership checks,
+-- and prioritizes trusted Cloudflare / proxy headers to mitigate header spoofing.
 create or replace function log_visitor_event(
   p_session_id uuid,
   p_visitor_id text,
@@ -340,6 +418,7 @@ create or replace function log_visitor_event(
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   s analytics_settings;
+  v_session record;
   v_raw_header text;
   v_raw_ip text;
   v_ip inet;
@@ -353,22 +432,66 @@ begin
     raise exception 'Invalid session ID';
   end if;
 
-  if p_visitor_id is null or length(p_visitor_id) < 1 or length(p_visitor_id) > 64 then
+  if p_visitor_id is null or length(trim(p_visitor_id)) < 1 or length(p_visitor_id) > 64 then
     raise exception 'Invalid visitor ID';
   end if;
 
-  if p_event_type is null or length(p_event_type) < 2 or length(p_event_type) > 64 then
-    raise exception 'Invalid event type';
+  -- 1. Explicit allowlist for permitted event types
+  if p_event_type is null or p_event_type not in (
+    'Session Started',
+    'Session Ended',
+    'Page Viewed',
+    'Login',
+    'Logout',
+    'Product Viewed',
+    'Product Added to Cart',
+    'Checkout Started',
+    'Order Created',
+    'Service Booking Started',
+    'Service Request Created',
+    'PC Builder Started',
+    'PC Build Saved',
+    'Warranty Assistance Viewed',
+    'Contact/WhatsApp Action'
+  ) then
+    -- Administrative events are permitted only for verified administrators
+    if p_event_type in ('Admin Login', 'Admin Data Change') and is_admin() then
+      null;
+    else
+      raise exception 'Disallowed or invalid event type: %', p_event_type;
+    end if;
   end if;
 
+  -- 2. Metadata validation (must be object, max 4096 bytes)
+  if p_meta is not null then
+    if jsonb_typeof(p_meta) <> 'object' then
+      raise exception 'Metadata must be a JSON object';
+    end if;
+    if octet_length(p_meta::text) > 4096 then
+      raise exception 'Metadata exceeds maximum allowable size of 4096 bytes';
+    end if;
+  end if;
+
+  -- 3. Session ownership check: prevent session hijacking and cross-user contamination
+  select * into v_session from visitor_sessions where id = p_session_id;
+  if found then
+    if v_session.visitor_id <> trim(p_visitor_id) then
+      raise exception 'Session ownership violation: visitor ID mismatch';
+    end if;
+    if v_session.user_id is not null and auth.uid() is not null and v_session.user_id <> auth.uid() then
+      raise exception 'Session ownership violation: session belongs to another user';
+    end if;
+  end if;
+
+  -- 4. Derive IP from trusted infrastructure request headers (Cloudflare CF-Connecting-IP first)
   if coalesce(s.ip_logging, true) then
     begin
       v_raw_header := current_setting('request.headers', true);
       if v_raw_header is not null and v_raw_header <> '' then
         v_raw_ip := coalesce(
-          nullif(trim(split_part(v_raw_header::json ->> 'x-forwarded-for', ',', 1)), ''),
           nullif(trim(v_raw_header::json ->> 'cf-connecting-ip'), ''),
-          nullif(trim(v_raw_header::json ->> 'x-real-ip'), '')
+          nullif(trim(v_raw_header::json ->> 'x-real-ip'), ''),
+          nullif(trim(split_part(v_raw_header::json ->> 'x-forwarded-for', ',', 1)), '')
         );
         if v_raw_ip is not null then
           v_ip := v_raw_ip::inet;
@@ -384,12 +507,13 @@ begin
     v_ip := null;
   end if;
 
+  -- 5. Upsert visitor session
   insert into visitor_sessions as vs (
     id, visitor_id, user_id, ip, country, region, city, isp, location_confidence,
     device, os, browser, referrer, landing_page, returning, page_views
   ) values (
     p_session_id,
-    left(p_visitor_id, 64),
+    left(trim(p_visitor_id), 64),
     auth.uid(),
     v_ip,
     left(p_country, 64),
@@ -407,9 +531,10 @@ begin
   )
   on conflict (id) do update set
     last_seen = now(),
-    user_id = coalesce(auth.uid(), vs.user_id),
+    user_id = coalesce(vs.user_id, auth.uid()),
     page_views = vs.page_views + case when p_event_type = 'Page Viewed' then 1 else 0 end;
 
+  -- 6. Append visitor event
   insert into visitor_events (
     session_id, user_id, event_type, path, meta
   ) values (
@@ -417,10 +542,7 @@ begin
     auth.uid(),
     left(p_event_type, 64),
     left(p_path, 500),
-    case
-      when p_meta is not null and octet_length(p_meta::text) <= 4096 then p_meta
-      else '{}'::jsonb
-    end
+    coalesce(p_meta, '{}'::jsonb)
   );
 end;
 $$;
@@ -439,6 +561,95 @@ begin
 
   get diagnostics removed = row_count;
   return removed;
+end;
+$$;
+
+-- Read-only coupon validation during checkout. Does NOT record usage.
+create or replace function validate_coupon(
+  p_code text,
+  p_cart_total numeric
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  c coupons;
+  v_discount numeric := 0;
+  v_customer_id uuid;
+  v_already_used boolean;
+begin
+  v_customer_id := auth.uid();
+  if p_code is null or trim(p_code) = '' then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Enter a coupon code.');
+  end if;
+
+  if p_cart_total is null or p_cart_total <= 0 then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Invalid cart total.');
+  end if;
+
+  select * into c
+  from coupons
+  where upper(code) = upper(trim(p_code)) and active;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Invalid coupon code.');
+  end if;
+
+  if now() < c.starts_at or now() > c.ends_at then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Coupon is not currently valid.');
+  end if;
+
+  if c.total_usage_limit > 0 and c.times_used >= c.total_usage_limit then
+    return jsonb_build_object('ok', false, 'valid', false, 'error', 'Coupon usage limit reached.');
+  end if;
+
+  -- Validate one-time per customer if signed in
+  if v_customer_id is not null then
+    select exists (
+      select 1 from coupon_usages
+      where coupon_id = c.id and customer_id = v_customer_id
+    ) into v_already_used;
+
+    if v_already_used then
+      return jsonb_build_object('ok', false, 'valid', false, 'error', 'You have already used this coupon.');
+    end if;
+  end if;
+
+  if c.min_order_value > 0 and p_cart_total < c.min_order_value then
+    return jsonb_build_object(
+      'ok', false,
+      'valid', false,
+      'error', format('Minimum order value of ₹%s required.', c.min_order_value::int)
+    );
+  end if;
+
+  if c.type = 'percentage' then
+    v_discount := round((p_cart_total * c.value) / 100.0, 2);
+    if c.max_discount is not null and c.max_discount > 0 then
+      v_discount := least(v_discount, c.max_discount);
+    end if;
+  else
+    v_discount := c.value;
+  end if;
+
+  v_discount := least(v_discount, p_cart_total);
+
+  return jsonb_build_object(
+    'ok', true,
+    'valid', true,
+    'coupon_id', c.id,
+    'code', c.code,
+    'description', c.description,
+    'discount', v_discount,
+    'type', c.type,
+    'coupon', jsonb_build_object(
+      'id', c.id,
+      'code', c.code,
+      'description', c.description,
+      'type', c.type,
+      'value', c.value,
+      'minOrderValue', c.min_order_value,
+      'maxDiscount', coalesce(c.max_discount, 0)
+    )
+  );
 end;
 $$;
 
@@ -467,6 +678,8 @@ declare
   v_effective_price numeric(12, 2);
   v_coupon record;
   v_expires_at timestamptz;
+  v_snapshots jsonb := '[]'::jsonb;
+  v_snapshot_item jsonb;
 begin
   v_user_id := auth.uid();
   if v_user_id is null then
@@ -486,13 +699,27 @@ begin
     raise exception 'Cart is empty';
   end if;
 
+  -- Fulfilment address requirement: Delivery methods require a verified delivery address
+  if p_delivery_method in ('Kerala delivery', 'Standard delivery') then
+    if p_address_id is null then
+      raise exception 'Delivery address is required for %', p_delivery_method;
+    end if;
+  end if;
+
   if p_address_id is not null then
     if not exists (select 1 from addresses where id = p_address_id and user_id = v_user_id) then
       raise exception 'Selected delivery address does not exist or does not belong to you';
     end if;
   end if;
 
-  for v_item in select * from jsonb_to_recordset(p_items) as (product_id uuid, quantity int) loop
+  -- 2. Validate stock, lock inventory & catalog rows deterministically (order by product_id)
+  -- Aggregates quantities to prevent duplicate product race conditions in cart payload
+  for v_item in
+    select product_id, sum(quantity)::int as quantity
+    from jsonb_to_recordset(p_items) as (product_id uuid, quantity int)
+    group by product_id
+    order by product_id asc
+  loop
     v_item_pid := v_item.product_id;
     v_item_qty := v_item.quantity;
 
@@ -504,12 +731,13 @@ begin
       raise exception 'Item quantity must be a positive integer';
     end if;
 
+    -- Lock product (FOR SHARE) and inventory row (FOR UPDATE) to stabilize price & stock
     select p.id, p.name, p.status, p.price, p.sale_price, p.mrp, i.stock
     into v_product
     from products p
     join inventory i on i.product_id = p.id
     where p.id = v_item_pid
-    for update of i;
+    for share of p for update of i;
 
     if not found then
       raise exception 'Product % not found in catalog or inventory', v_item_pid;
@@ -524,15 +752,30 @@ begin
         v_product.name, v_item_qty, v_product.stock;
     end if;
 
+    -- Authoritative effective price rule: sale_price if present and valid, otherwise regular price
     v_effective_price := coalesce(v_product.sale_price, v_product.price);
+    if v_effective_price < 0 then
+      raise exception 'Invalid calculated price for "%"', v_product.name;
+    end if;
+
     v_subtotal := v_subtotal + (v_effective_price * v_item_qty);
 
+    -- Store validated snapshot entry for reuse in order-item inserts
+    v_snapshots := v_snapshots || jsonb_build_object(
+      'product_id', v_item_pid,
+      'name', v_product.name,
+      'unit_price', v_effective_price,
+      'quantity', v_item_qty
+    );
+
+    -- Deduct stock atomically for the 30-minute reservation window
     update inventory
     set stock = stock - v_item_qty,
         updated_at = now()
     where product_id = v_item_pid;
   end loop;
 
+  -- 3. Validate coupon if provided
   if p_coupon_code is not null and trim(p_coupon_code) <> '' then
     select * into v_coupon
     from coupons
@@ -584,6 +827,7 @@ begin
     v_coupon_id := v_coupon.id;
   end if;
 
+  -- 4. Delivery charges
   if p_delivery_method = 'Store pickup' then
     v_shipping := 0.00;
   else
@@ -595,6 +839,7 @@ begin
   v_order_id := gen_random_uuid();
   v_expires_at := now() + interval '30 minutes';
 
+  -- 5. Create Pending Order with 30-minute stock reservation
   insert into orders (
     id, order_number, user_id, address_id, status, payment_status,
     subtotal, offer_savings, coupon_id, coupon_discount,
@@ -607,16 +852,16 @@ begin
     v_expires_at, true, p_notes, now(), now()
   );
 
-  for v_item in select * from jsonb_to_recordset(p_items) as (product_id uuid, quantity int) loop
-    select p.name, coalesce(p.sale_price, p.price) as unit_price
-    into v_product
-    from products p
-    where p.id = v_item.product_id;
-
+  -- 6. Create Order Item snapshots using validated captured prices (no secondary query)
+  for v_snapshot_item in select * from jsonb_array_elements(v_snapshots) loop
     insert into order_items (
       order_id, product_id, name, unit_price, quantity
     ) values (
-      v_order_id, v_item.product_id, v_product.name, v_product.unit_price, v_item.quantity
+      v_order_id,
+      (v_snapshot_item->>'product_id')::uuid,
+      v_snapshot_item->>'name',
+      (v_snapshot_item->>'unit_price')::numeric,
+      (v_snapshot_item->>'quantity')::int
     );
   end loop;
 
@@ -713,29 +958,39 @@ begin
     raise exception 'Invalid currency: %, only INR is supported', p_currency;
   end if;
 
-  -- 2. Lookup order with row lock
-  select * into v_order
-  from orders
-  where (p_order_id is not null and id = p_order_id)
-     or (orders.razorpay_order_id = p_razorpay_order_id)
-  for update;
+  -- 2. Lookup order with row lock unambiguously
+  if p_order_id is not null then
+    select * into v_order
+    from orders
+    where id = p_order_id
+    for update;
 
-  if not found then
-    raise exception 'Order not found for order_id: %, razorpay_order_id: %', p_order_id, p_razorpay_order_id;
-  end if;
+    if not found then
+      raise exception 'Order not found for order_id: %', p_order_id;
+    end if;
 
-  -- Validate internal order to Razorpay order ID mapping (must exist and match)
-  if v_order.razorpay_order_id is null or trim(v_order.razorpay_order_id) = '' then
-    raise exception 'Order % does not have an attached Razorpay order ID', v_order.id;
-  end if;
+    if v_order.razorpay_order_id is null or trim(v_order.razorpay_order_id) = '' then
+      raise exception 'Order % does not have an attached Razorpay order ID', v_order.id;
+    end if;
 
-  if v_order.razorpay_order_id <> p_razorpay_order_id then
-    raise exception 'Razorpay order ID mismatch: Expected %, Received %', v_order.razorpay_order_id, p_razorpay_order_id;
+    if v_order.razorpay_order_id <> trim(p_razorpay_order_id) then
+      raise exception 'Razorpay order ID mismatch: Expected %, Received %',
+        v_order.razorpay_order_id, trim(p_razorpay_order_id);
+    end if;
+  else
+    select * into v_order
+    from orders
+    where razorpay_order_id = trim(p_razorpay_order_id)
+    for update;
+
+    if not found then
+      raise exception 'Order not found for razorpay_order_id: %', trim(p_razorpay_order_id);
+    end if;
   end if;
 
   -- 3. Idempotency check: duplicate webhook delivery returns success without re-processing
   if v_order.payment_status = 'Paid' then
-    if v_order.razorpay_payment_id = p_razorpay_payment_id then
+    if v_order.razorpay_payment_id = trim(p_razorpay_payment_id) then
       return jsonb_build_object(
         'ok', true,
         'idempotent', true,
@@ -756,13 +1011,13 @@ begin
   end if;
 
   -- 5. Handling payment arrived after expiration / cancellation
-  if v_order.status = 'Cancelled' or not v_order.stock_reserved then
+  if v_order.status = 'Cancelled' or not v_order.stock_reserved or v_order.expires_at < now() then
     -- Lock all item inventory rows in deterministic order to prevent deadlocks
     for v_item in
       select product_id, quantity
       from order_items
       where order_id = v_order.id and product_id is not null
-      order by product_id
+      order by product_id asc
     loop
       select stock into v_current_stock
       from inventory
@@ -780,6 +1035,7 @@ begin
         select product_id, quantity
         from order_items
         where order_id = v_order.id and product_id is not null
+        order by product_id asc
       loop
         update inventory
         set stock = stock - v_item.quantity,
@@ -1062,6 +1318,9 @@ grant execute on function create_order to authenticated;
 revoke all on function cancel_order from public;
 grant execute on function cancel_order to authenticated;
 
+revoke all on function ensure_profile from public, anon;
+grant execute on function ensure_profile to authenticated;
+
 revoke all on function log_visitor_event from public;
 grant execute on function log_visitor_event to anon, authenticated;
 
@@ -1080,12 +1339,32 @@ grant execute on function cleanup_expired_orders to service_role;
 revoke all on function purge_visitor_data from public, anon, authenticated;
 grant execute on function purge_visitor_data to service_role;
 
+-- Revoke direct public execution on internal trigger functions and helpers
+revoke all on function mask_ip_address from public, anon, authenticated;
+revoke all on function handle_updated_at from public, anon, authenticated;
+revoke all on function handle_new_user from public, anon, authenticated;
+revoke all on function protect_role from public, anon, authenticated;
+revoke all on function protect_service_request from public, anon, authenticated;
+revoke all on function protect_sell_request from public, anon, authenticated;
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- 7. PERFORMANCE INDEXES
 -- ────────────────────────────────────────────────────────────────────────────
 
 create index if not exists orders_expires_reserved_idx
   on orders (expires_at) where status = 'Pending' and stock_reserved = true;
+
+-- Lightweight database health check RPC for connectivity monitoring
+create or replace function health_check() returns jsonb
+language sql security definer set search_path = public, pg_temp as $$
+  select jsonb_build_object(
+    'status', 'ok',
+    'timestamp', extract(epoch from now())::bigint
+  );
+$$;
+
+revoke all on function health_check() from public;
+grant execute on function health_check() to anon, authenticated, service_role;
 
 commit;
 

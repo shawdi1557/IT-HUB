@@ -1,6 +1,12 @@
 // ── Second-hand / Pre-owned products ──
-export type ProductCondition = 'New' | 'Like New' | 'Good' | 'Fair' | 'For Parts'
-export const productConditions: ProductCondition[] = ['New', 'Like New', 'Good', 'Fair', 'For Parts']
+export type ProductCondition = "New" | "Like New" | "Good" | "Fair" | "For Parts"
+export const productConditions: ProductCondition[] = [
+  "New",
+  "Like New",
+  "Good",
+  "Fair",
+  "For Parts",
+]
 
 export type Product = {
   id: string
@@ -230,75 +236,151 @@ export const initialProducts: Product[] = [
     },
   ),
   {
-    ...p("dell-lat-7490", "Dell Latitude 7490 (Refurbished)", "Dell", "Laptops", 24999, images.laptop, {
-      Processor: "Intel Core i7-8650U",
-      RAM: "16GB DDR4",
-      Storage: "512GB NVMe SSD",
-      Display: "14-inch Full HD",
-      Condition: "Like New",
-      Warranty: "6 Months IT HUB Warranty",
-    }, 4, "VERIFIED PRE-OWNED"),
+    ...p(
+      "dell-lat-7490",
+      "Dell Latitude 7490 (Refurbished)",
+      "Dell",
+      "Laptops",
+      24999,
+      images.laptop,
+      {
+        Processor: "Intel Core i7-8650U",
+        RAM: "16GB DDR4",
+        Storage: "512GB NVMe SSD",
+        Display: "14-inch Full HD",
+        Condition: "Like New",
+        Warranty: "6 Months IT HUB Warranty",
+      },
+      4,
+      "VERIFIED PRE-OWNED",
+    ),
     secondHand: true,
     condition: "Like New" as const,
   },
   {
-    ...p("thinkcentre-m720q", "Lenovo ThinkCentre M720q Tiny (Pre-Owned)", "Lenovo", "PC Components", 18999, images.pc, {
-      Processor: "Intel Core i5-8400T",
-      RAM: "16GB DDR4",
-      Storage: "256GB SSD + 500GB HDD",
-      Condition: "Good",
-      Warranty: "3 Months IT HUB Warranty",
-    }, 3, "VERIFIED PRE-OWNED"),
+    ...p(
+      "thinkcentre-m720q",
+      "Lenovo ThinkCentre M720q Tiny (Pre-Owned)",
+      "Lenovo",
+      "PC Components",
+      18999,
+      images.pc,
+      {
+        Processor: "Intel Core i5-8400T",
+        RAM: "16GB DDR4",
+        Storage: "256GB SSD + 500GB HDD",
+        Condition: "Good",
+        Warranty: "3 Months IT HUB Warranty",
+      },
+      3,
+      "VERIFIED PRE-OWNED",
+    ),
     secondHand: true,
     condition: "Good" as const,
   },
   {
-    ...p("iphone-13-preowned", "Apple iPhone 13 128GB (Pre-Owned)", "Apple", "Mobiles", 36999, images.phone, {
-      Storage: "128GB",
-      BatteryHealth: "89%",
-      Color: "Midnight",
-      Condition: "Like New",
-      Warranty: "6 Months IT HUB Warranty",
-    }, 2, "VERIFIED PRE-OWNED"),
+    ...p(
+      "iphone-13-preowned",
+      "Apple iPhone 13 128GB (Pre-Owned)",
+      "Apple",
+      "Mobiles",
+      36999,
+      images.phone,
+      {
+        Storage: "128GB",
+        BatteryHealth: "89%",
+        Color: "Midnight",
+        Condition: "Like New",
+        Warranty: "6 Months IT HUB Warranty",
+      },
+      2,
+      "VERIFIED PRE-OWNED",
+    ),
     secondHand: true,
     condition: "Like New" as const,
   },
 ]
 export const categories = [
-  "Laptops",
+  "Laptops & MacBooks",
+  "Desktops & Servers",
   "PC Components",
-  "Graphics Cards",
   "Processors",
   "Motherboards",
+  "Graphics Cards",
   "RAM",
   "Storage",
   "Monitors",
-  "Audio",
-  "Mobiles",
-  "Printers",
+  "Printers & Scanners",
+  "Inks & Toners",
+  "Mobiles & Tablets",
+  "Networking & CCTV",
+  "Audio & Speakers",
+  "Power & Inverters",
+  "Laptop Spare Parts",
   "Accessories",
-  "Networking",
   "Gaming",
 ]
 export const initialBrands = [
+  "Acer",
   "AMD",
-  "ASUS",
+  "Antec",
+  "Ant Esports",
+  "APC",
   "Apple",
+  "ASUS",
+  "BenQ",
+  "boAt",
+  "Brother",
+  "Canon",
+  "Colorful",
+  "Cooler Master",
   "Corsair",
+  "CP Plus",
+  "Crucial",
+  "D-Link",
+  "Deepcool",
   "Dell",
   "Epson",
+  "Fingers",
+  "Foxin",
+  "Gigabyte",
+  "Hikvision",
   "HP",
-  "IT HUB",
+  "HyperX",
   "Intel",
+  "iQOO",
+  "IT HUB",
   "JBL",
-  "Keychron",
   "Kingston",
+  "Lapcare",
   "Lenovo",
+  "LG",
   "Logitech",
+  "Motorola",
+  "MSI",
+  "Noise",
+  "Nothing",
+  "Numeric",
   "NVIDIA",
+  "OnePlus",
+  "OPPO",
+  "POCO",
+  "Portronics",
+  "Realme",
+  "Redmi / Xiaomi",
   "Samsung",
+  "SanDisk",
+  "Sapphire",
+  "Seagate",
   "Sony",
+  "Tenda",
   "TP-Link",
+  "TVS-E",
+  "V-Guard",
+  "Vivo",
+  "Western Digital",
+  "Zebronics",
+  "Zotac",
 ]
 export const serviceTypes = [
   "Laptop Repair",
@@ -363,7 +445,8 @@ export const problemsByDevice: Record<string, string[]> = {
     "Other",
   ],
 }
-export const problemsFor = (device: string) => problemsByDevice[device] || problems
+export const problemsFor = (device: string) =>
+  problemsByDevice[device] || problems
 export const orderStatuses = [
   "Order placed",
   "Confirmed",
@@ -432,12 +515,48 @@ export const componentOptions: Record<string, ComponentOption[]> = {
       socket: "LGA1700",
       watts: 253,
     },
-    { id: "r5-5600", name: "AMD Ryzen 5 5600", price: 10999, socket: "AM4", watts: 65 },
-    { id: "r5-8600g", name: "AMD Ryzen 5 8600G (Radeon graphics)", price: 17999, socket: "AM5", watts: 65 },
-    { id: "r7-9800x3d", name: "AMD Ryzen 7 9800X3D", price: 47999, socket: "AM5", watts: 120 },
-    { id: "r9-9950x", name: "AMD Ryzen 9 9950X", price: 54999, socket: "AM5", watts: 170 },
-    { id: "i5-12400", name: "Intel Core i5-12400 (UHD graphics)", price: 13499, socket: "LGA1700", watts: 65 },
-    { id: "i5-12400f", name: "Intel Core i5-12400F", price: 11999, socket: "LGA1700", watts: 65 },
+    {
+      id: "r5-5600",
+      name: "AMD Ryzen 5 5600",
+      price: 10999,
+      socket: "AM4",
+      watts: 65,
+    },
+    {
+      id: "r5-8600g",
+      name: "AMD Ryzen 5 8600G (Radeon graphics)",
+      price: 17999,
+      socket: "AM5",
+      watts: 65,
+    },
+    {
+      id: "r7-9800x3d",
+      name: "AMD Ryzen 7 9800X3D",
+      price: 47999,
+      socket: "AM5",
+      watts: 120,
+    },
+    {
+      id: "r9-9950x",
+      name: "AMD Ryzen 9 9950X",
+      price: 54999,
+      socket: "AM5",
+      watts: 170,
+    },
+    {
+      id: "i5-12400",
+      name: "Intel Core i5-12400 (UHD graphics)",
+      price: 13499,
+      socket: "LGA1700",
+      watts: 65,
+    },
+    {
+      id: "i5-12400f",
+      name: "Intel Core i5-12400F",
+      price: 11999,
+      socket: "LGA1700",
+      watts: 65,
+    },
   ],
   Motherboard: [
     {
@@ -473,9 +592,32 @@ export const componentOptions: Record<string, ComponentOption[]> = {
       ram: "DDR4",
       interface: "NVMe",
     },
-    { id: "b550", name: "MSI B550M PRO-VDH", price: 9999, socket: "AM4", ram: "DDR4", interface: "NVMe" },
-    { id: "b650wifi", name: "MSI B650 Gaming Plus WiFi", price: 18999, socket: "AM5", ram: "DDR5", interface: "NVMe", wifi: true },
-    { id: "b760wifi", name: "ASUS PRIME B760M-A WiFi D4", price: 14999, socket: "LGA1700", ram: "DDR4", interface: "NVMe", wifi: true },
+    {
+      id: "b550",
+      name: "MSI B550M PRO-VDH",
+      price: 9999,
+      socket: "AM4",
+      ram: "DDR4",
+      interface: "NVMe",
+    },
+    {
+      id: "b650wifi",
+      name: "MSI B650 Gaming Plus WiFi",
+      price: 18999,
+      socket: "AM5",
+      ram: "DDR5",
+      interface: "NVMe",
+      wifi: true,
+    },
+    {
+      id: "b760wifi",
+      name: "ASUS PRIME B760M-A WiFi D4",
+      price: 14999,
+      socket: "LGA1700",
+      ram: "DDR4",
+      interface: "NVMe",
+      wifi: true,
+    },
   ],
   RAM: [
     { id: "16d5", name: "16GB DDR5 · 5200MHz", price: 4999, ram: "DDR5" },
@@ -513,10 +655,35 @@ export const componentOptions: Record<string, ComponentOption[]> = {
       watts: 263,
       length: 330,
     },
-    { id: "rx6600", name: "AMD RX 6600 8GB", price: 19999, watts: 132, length: 190 },
-    { id: "rx7600", name: "AMD RX 7600 8GB", price: 25999, watts: 165, length: 205 },
-    { id: "4060ti", name: "NVIDIA RTX 4060 Ti 16GB", price: 44999, watts: 165, length: 245, stock: 0 },
-    { id: "4080s", name: "NVIDIA RTX 4080 Super", price: 99999, watts: 320, length: 310 },
+    {
+      id: "rx6600",
+      name: "AMD RX 6600 8GB",
+      price: 19999,
+      watts: 132,
+      length: 190,
+    },
+    {
+      id: "rx7600",
+      name: "AMD RX 7600 8GB",
+      price: 25999,
+      watts: 165,
+      length: 205,
+    },
+    {
+      id: "4060ti",
+      name: "NVIDIA RTX 4060 Ti 16GB",
+      price: 44999,
+      watts: 165,
+      length: 245,
+      stock: 0,
+    },
+    {
+      id: "4080s",
+      name: "NVIDIA RTX 4080 Super",
+      price: 99999,
+      watts: 320,
+      length: 310,
+    },
   ],
   Storage: [
     { id: "1tb", name: "1TB NVMe SSD", price: 6999, interface: "NVMe" },
@@ -546,7 +713,12 @@ export const componentOptions: Record<string, ComponentOption[]> = {
     { id: "ak400", name: "DeepCool AK400", price: 2499, capacity: 220 },
     { id: "h100", name: "Corsair H100 240mm AIO", price: 9999, capacity: 300 },
     { id: "ag400", name: "DeepCool AG400", price: 1499, capacity: 220 },
-    { id: "aio360", name: "Lian Li Galahad II 360mm AIO", price: 13999, capacity: 350 },
+    {
+      id: "aio360",
+      name: "Lian Li Galahad II 360mm AIO",
+      price: 13999,
+      capacity: 350,
+    },
   ],
 }
 export type Build = {
@@ -613,7 +785,7 @@ export const offerTypes = [
   "Seasonal Offer",
   "Flash Sale",
 ] as const
-export type OfferType = (typeof offerTypes)[number]
+export type OfferType = typeof offerTypes[number]
 export type Offer = {
   id: string
   name: string
@@ -683,11 +855,15 @@ export const initialOffers: Offer[] = [
 export type OfferStatus = "Active" | "Scheduled" | "Expired" | "Inactive"
 export const offerStatus = (offer: Offer, now = Date.now()): OfferStatus => {
   if (!offer.active) return "Inactive"
-  if (offer.startsAt && new Date(offer.startsAt).getTime() > now) return "Scheduled"
+  if (offer.startsAt && new Date(offer.startsAt).getTime() > now)
+    return "Scheduled"
   if (offer.endsAt && new Date(offer.endsAt).getTime() < now) return "Expired"
   return "Active"
 }
-export const offerApplies = (offer: Offer, product: Pick<Product, "id" | "brand" | "category">) =>
+export const offerApplies = (
+  offer: Offer,
+  product: Pick<Product, "id" | "brand" | "category">,
+) =>
   offer.products.includes(product.id) ||
   offer.categories.includes(product.category) ||
   offer.brands.includes(product.brand)
@@ -700,12 +876,15 @@ export const bestOffer = (
   offers: Offer[],
   product: Pick<Product, "id" | "brand" | "category" | "price">,
 ) => {
-  let best: { offer: Offer; price: number; saving: number } | null = null
+  let best: { offer: Offer price: number saving: number } | null = null
   for (const offer of offers) {
-    if (offerStatus(offer) !== "Active" || !offerApplies(offer, product)) continue
+    if (offerStatus(offer) !== "Active" || !offerApplies(offer, product))
+      continue
     const saving = Math.min(
       product.price,
-      offer.discount > 0 ? Math.round((product.price * offer.discount) / 100) : offer.amount,
+      offer.discount > 0
+        ? Math.round((product.price * offer.discount) / 100)
+        : offer.amount,
     )
     if (!best || saving > best.saving)
       best = { offer, price: product.price - saving, saving }
@@ -749,29 +928,70 @@ export const initialLocations: ItHubLocation[] = [
  * distance derived from them is labelled approximate in the UI.
  * (Supabase: `pincode_areas` lookup table.)
  */
-export const pincodeDirectory: Record<string, { area: string; latitude: number; longitude: number }> = {
+export const pincodeDirectory: Record<string, {
+  area: string
+  latitude: number
+  longitude: number
+}> = {
   "686691": { area: "Kothamangalam", latitude: 10.0602, longitude: 76.6351 },
-  "686692": { area: "Kothamangalam (Cheruvattoor)", latitude: 10.0805, longitude: 76.6102 },
-  "686693": { area: "Nellikuzhi / Iramalloor", latitude: 10.0425, longitude: 76.6045 },
+  "686692": {
+    area: "Kothamangalam (Cheruvattoor)",
+    latitude: 10.0805,
+    longitude: 76.6102,
+  },
+  "686693": {
+    area: "Nellikuzhi / Iramalloor",
+    latitude: 10.0425,
+    longitude: 76.6045,
+  },
   "686681": { area: "Keerampara", latitude: 10.0798, longitude: 76.6889 },
-  "686671": { area: "Kuttamangalam / Pindimana", latitude: 10.0421, longitude: 76.6702 },
-  "686661": { area: "Muvattupuzha", latitude: 9.9894, longitude: 76.5790 },
-  "686673": { area: "Muvattupuzha (Marady)", latitude: 9.9660, longitude: 76.5760 },
-  "683544": { area: "Kothamangalam (Kuttampuzha)", latitude: 10.1530, longitude: 76.7380 },
-  "683556": { area: "Perumbavoor (Odakkali)", latitude: 10.0790, longitude: 76.5320 },
-  "686670": { area: "Pothanicad", latitude: 10.0010, longitude: 76.6800 },
-  "683542": { area: "Perumbavoor", latitude: 10.1157, longitude: 76.4780 },
-  "685608": { area: "Thodupuzha (Kaliyar)", latitude: 9.9490, longitude: 76.7380 },
-  "685584": { area: "Thodupuzha", latitude: 9.8960, longitude: 76.7137 },
+  "686671": {
+    area: "Kuttamangalam / Pindimana",
+    latitude: 10.0421,
+    longitude: 76.6702,
+  },
+  "686661": { area: "Muvattupuzha", latitude: 9.9894, longitude: 76.579 },
+  "686673": {
+    area: "Muvattupuzha (Marady)",
+    latitude: 9.966,
+    longitude: 76.576,
+  },
+  "683544": {
+    area: "Kothamangalam (Kuttampuzha)",
+    latitude: 10.153,
+    longitude: 76.738,
+  },
+  "683556": {
+    area: "Perumbavoor (Odakkali)",
+    latitude: 10.079,
+    longitude: 76.532,
+  },
+  "686670": { area: "Pothanicad", latitude: 10.001, longitude: 76.68 },
+  "683542": { area: "Perumbavoor", latitude: 10.1157, longitude: 76.478 },
+  "685608": {
+    area: "Thodupuzha (Kaliyar)",
+    latitude: 9.949,
+    longitude: 76.738,
+  },
+  "685584": { area: "Thodupuzha", latitude: 9.896, longitude: 76.7137 },
   "682030": { area: "Kakkanad", latitude: 10.0159, longitude: 76.3419 },
   "682011": { area: "Ernakulam", latitude: 9.9816, longitude: 76.2999 },
   "683101": { area: "Aluva", latitude: 10.1076, longitude: 76.3516 },
   "686001": { area: "Kottayam", latitude: 9.5916, longitude: 76.5222 },
   "680001": { area: "Thrissur", latitude: 10.5276, longitude: 76.2144 },
-  "695001": { area: "Thiruvananthapuram", latitude: 8.5241, longitude: 76.9366 },
+  "695001": {
+    area: "Thiruvananthapuram",
+    latitude: 8.5241,
+    longitude: 76.9366,
+  },
 }
 const toRad = (deg: number) => (deg * Math.PI) / 180
-export const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+export const distanceKm = (
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+) => {
   const dLat = toRad(bLat - aLat)
   const dLng = toRad(bLng - aLng)
   const h =
@@ -779,18 +999,21 @@ export const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: numbe
     Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2
   return 6371 * 2 * Math.asin(Math.sqrt(h))
 }
-export type WarrantyResult =
-  | { status: "invalid" }
-  | { status: "unknown"; pincode: string }
-  | {
-      status: "eligible" | "ineligible"
-      pincode: string
-      area: string
-      location: ItHubLocation
-      distanceKm: number
-    }
+export type WarrantyResult = { status: "invalid" } | {
+  status: "unknown"
+  pincode: string
+} | {
+  status: "eligible" | "ineligible"
+  pincode: string
+  area: string
+  location: ItHubLocation
+  distanceKm: number
+}
 /** Straight-line distance from the PIN centroid to the nearest active IT HUB location. */
-export const checkWarranty = (pincode: string, locations: ItHubLocation[]): WarrantyResult => {
+export const checkWarranty = (
+  pincode: string,
+  locations: ItHubLocation[],
+): WarrantyResult => {
   const pin = pincode.trim()
   if (!/^[1-9]\d{5}$/.test(pin)) return { status: "invalid" }
   const centroid = pincodeDirectory[pin]
@@ -799,11 +1022,19 @@ export const checkWarranty = (pincode: string, locations: ItHubLocation[]): Warr
   const nearest = active
     .map((location) => ({
       location,
-      km: distanceKm(centroid.latitude, centroid.longitude, location.latitude, location.longitude),
+      km: distanceKm(
+        centroid.latitude,
+        centroid.longitude,
+        location.latitude,
+        location.longitude,
+      ),
     }))
     .sort((a, b) => a.km - b.km)[0]
   return {
-    status: nearest.km <= nearest.location.serviceRadiusKm ? "eligible" : "ineligible",
+    status:
+      nearest.km <= nearest.location.serviceRadiusKm
+        ? "eligible"
+        : "ineligible",
     pincode: pin,
     area: centroid.area,
     location: nearest.location,
@@ -824,7 +1055,7 @@ export type WarrantyCheck = {
 export type PcEnquiry = {
   id: string
   summary: string
-  parts: { type: string; name: string; price: number }[]
+  parts: { type: string name: string price: number }[]
   estimate: number
   date: string
   status: "New" | "Contacted" | "Quoted" | "Closed"
@@ -843,7 +1074,7 @@ export type ImportRecord = {
 }
 
 /** Admin navigation tree. Sub-items map to `/admin/:section?view=<view>`. */
-export type AdminNavItem = { label: string; view: string }
+export type AdminNavItem = { label: string view: string }
 export type AdminNavGroup = {
   name: string
   section: string
@@ -971,6 +1202,7 @@ export const adminGroups: AdminNavGroup[] = [
       { label: "On-Site Service Radius", view: "radius" },
       { label: "WhatsApp Number", view: "whatsapp" },
       { label: "Privacy & Visitor Data", view: "privacy" },
+      { label: "Database Connection", view: "database" },
     ],
   },
   {
@@ -1000,9 +1232,27 @@ export type SupportCategory = {
   active: boolean
 }
 export const initialSupportCategories: SupportCategory[] = [
-  { id: "laptop", name: "Laptop", icon: "laptop", catalogCategories: ["Laptops"], active: true },
-  { id: "mobile", name: "Mobile", icon: "smartphone", catalogCategories: ["Mobiles"], active: true },
-  { id: "printer", name: "Printer", icon: "printer", catalogCategories: ["Printers"], active: true },
+  {
+    id: "laptop",
+    name: "Laptop",
+    icon: "laptop",
+    catalogCategories: ["Laptops"],
+    active: true,
+  },
+  {
+    id: "mobile",
+    name: "Mobile",
+    icon: "smartphone",
+    catalogCategories: ["Mobiles"],
+    active: true,
+  },
+  {
+    id: "printer",
+    name: "Printer",
+    icon: "printer",
+    catalogCategories: ["Printers"],
+    active: true,
+  },
 ]
 export type BrandSupport = {
   id: string
@@ -1125,23 +1375,23 @@ export const warrantyUntil = (purchaseIso: string, months: number) => {
 }
 
 // ── Coupons ──
-export type CouponType = 'percentage' | 'fixed'
-export type CouponUsageType = 'one_time'
+export type CouponType = "percentage" | "fixed"
+export type CouponUsageType = "one_time"
 
 export type Coupon = {
   id: string
-  code: string                    // stored uppercase, compared case-insensitive
+  code: string // stored uppercase, compared case-insensitive
   description: string
   type: CouponType
-  value: number                   // percent (0-90) or fixed INR amount
-  minOrderValue: number           // 0 = no minimum
-  maxDiscount: number             // 0 = no cap (only for percentage type)
-  usageType?: CouponUsageType     // All coupons are strictly one-time per customer
-  totalUsageLimit: number         // 0 = unlimited across all customers
+  value: number // percent (0-90) or fixed INR amount
+  minOrderValue: number // 0 = no minimum
+  maxDiscount: number // 0 = no cap (only for percentage type)
+  usageType?: CouponUsageType // All coupons are strictly one-time per customer
+  totalUsageLimit: number // 0 = unlimited across all customers
   timesUsed: number
   active: boolean
-  startsAt: string                // ISO datetime
-  endsAt: string                  // ISO datetime
+  startsAt: string // ISO datetime
+  endsAt: string // ISO datetime
   createdAt: string
 }
 
@@ -1149,8 +1399,8 @@ export type CouponUsage = {
   id: string
   couponId: string
   couponCode: string
-  customerId: string              // unique customer phone, email or profile id
-  userId?: string                 // backwards-compatible alias
+  customerId: string // unique customer phone, email or profile id
+  userId?: string // backwards-compatible alias
   orderId: string
   discount: number
   usedAt: string
@@ -1176,7 +1426,8 @@ export const initialCoupons: Coupon[] = [
   {
     id: "CPN-ITHUB500",
     code: "ITHUB500",
-    description: "Flat ₹500 discount on orders above ₹5,000 (1-time per customer)",
+    description:
+      "Flat ₹500 discount on orders above ₹5,000 (1-time per customer)",
     type: "fixed",
     value: 500,
     minOrderValue: 5000,
@@ -1203,66 +1454,73 @@ export const validateCoupon = (
   customerId: string,
   coupons: Coupon[],
   usages: CouponUsage[],
-): { valid: true; coupon: Coupon; discount: number } | { valid: false; error: string } => {
+): { valid: true coupon: Coupon discount: number } | {
+  valid: false
+  error: string
+} => {
   const upper = code.trim().toUpperCase()
-  if (!upper) return { valid: false, error: 'Enter a coupon code.' }
+  if (!upper) return { valid: false, error: "Enter a coupon code." }
   const coupon = coupons.find((c) => c.code.toUpperCase() === upper)
-  if (!coupon) return { valid: false, error: 'Invalid coupon code.' }
-  if (!coupon.active) return { valid: false, error: 'This coupon is no longer active.' }
+  if (!coupon) return { valid: false, error: "Invalid coupon code." }
+  if (!coupon.active)
+    return { valid: false, error: "This coupon is no longer active." }
   const now = Date.now()
   if (coupon.startsAt && new Date(coupon.startsAt).getTime() > now)
-    return { valid: false, error: 'This coupon is not yet valid.' }
+    return { valid: false, error: "This coupon is not yet valid." }
   if (coupon.endsAt && new Date(coupon.endsAt).getTime() < now)
-    return { valid: false, error: 'This coupon has expired.' }
+    return { valid: false, error: "This coupon has expired." }
   if (coupon.totalUsageLimit > 0 && coupon.timesUsed >= coupon.totalUsageLimit)
-    return { valid: false, error: 'This coupon has reached its usage limit.' }
+    return { valid: false, error: "This coupon has reached its usage limit." }
   // Every coupon can only be used once per customer
   const alreadyUsed = usages.some(
-    (u) => u.couponId === coupon.id && (u.customerId === customerId || u.userId === customerId),
+    (u) =>
+      u.couponId === coupon.id &&
+      (u.customerId === customerId || u.userId === customerId),
   )
-  if (alreadyUsed) return { valid: false, error: 'You have already used this coupon.' }
+  if (alreadyUsed)
+    return { valid: false, error: "You have already used this coupon." }
   if (coupon.minOrderValue > 0 && cartTotal < coupon.minOrderValue)
     return {
       valid: false,
-      error: `Minimum order value of ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(coupon.minOrderValue)} required.`,
+      error: `Minimum order value of ${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(coupon.minOrderValue)} required.`,
     }
-  let discount = coupon.type === 'percentage'
-    ? Math.round((cartTotal * coupon.value) / 100)
-    : coupon.value
-  if (coupon.type === 'percentage' && coupon.maxDiscount > 0)
+  let discount =
+    coupon.type === "percentage"
+      ? Math.round((cartTotal * coupon.value) / 100)
+      : coupon.value
+  if (coupon.type === "percentage" && coupon.maxDiscount > 0)
     discount = Math.min(discount, coupon.maxDiscount)
   discount = Math.min(discount, cartTotal)
   return { valid: true, coupon, discount }
 }
 
 // ── Sell Your Item (customer submission flow) ──
-export type SellRequestStatus =
-  | 'Pending'
-  | 'Under Review'
-  | 'Contacted'
-  | 'Approved'
-  | 'Rejected'
-  | 'Completed'
+export type SellRequestStatus = "Pending" | "Under Review" | "Contacted" | "Approved" | "Rejected" | "Completed"
 
 export const sellRequestStatuses: SellRequestStatus[] = [
-  'Pending', 'Under Review', 'Contacted', 'Approved', 'Rejected', 'Completed',
+  "Pending",
+  "Under Review",
+  "Contacted",
+  "Approved",
+  "Rejected",
+  "Completed",
 ]
 
 export const sellCategories = [
-  'Phone',
-  'Laptop',
-  'Desktop / PC',
-  'Monitor',
-  'Printer',
-  'Tablet',
-  'Accessories',
-  'Other Electronics',
+  "Phone",
+  "Laptop",
+  "Desktop / PC",
+  "Monitor",
+  "Printer",
+  "Tablet",
+  "Accessories",
+  "Other Electronics",
 ] as const
 export type SellCategory = typeof sellCategories[number]
 
 export type SellRequest = {
-  id: string                      // e.g. SELL-XXXXXXX
-  userId: string                  // store.profile.phone
+  id: string // e.g. SELL-XXXXXXX
+  userId: string // store.profile.phone
   customerName: string
   customerEmail: string
   customerPhone: string
@@ -1274,7 +1532,7 @@ export type SellRequest = {
   description: string
   hasWarranty: boolean
   warrantyProvider: string
-  warrantyRemaining: string       // e.g. '6 months', '1 year'
+  warrantyRemaining: string // e.g. '6 months', '1 year'
   warrantyDetails: string
   /** Simulated storage paths for product images (in prototype: data URIs or filenames) */
   imagePaths: string[]
@@ -1298,7 +1556,8 @@ export const initialSellRequests: SellRequest[] = [
     brand: "HP",
     model: "ec2075AX (Ryzen 5 / GTX 1650)",
     condition: "Good",
-    description: "Purchased in 2023. Minor scratches on lid, screen and keyboard in mint condition. Original charger included.",
+    description:
+      "Purchased in 2023. Minor scratches on lid, screen and keyboard in mint condition. Original charger included.",
     hasWarranty: true,
     warrantyProvider: "HP India",
     warrantyRemaining: "4 months",
@@ -1306,7 +1565,8 @@ export const initialSellRequests: SellRequest[] = [
     imagePaths: ["/images/laptop.jpg"],
     invoicePath: "/invoices/hp-pavilion-invoice.pdf",
     status: "Under Review",
-    adminNotes: "Customer sent clear photos of invoice. Checking serial number against HP support portal.",
+    adminNotes:
+      "Customer sent clear photos of invoice. Checking serial number against HP support portal.",
     submittedAt: "2026-10-05T10:30:00.000Z",
     updatedAt: "2026-10-06T14:15:00.000Z",
   },
@@ -1321,7 +1581,8 @@ export const initialSellRequests: SellRequest[] = [
     brand: "Samsung",
     model: "SM-S901E 128GB Phantom Black",
     condition: "Like New",
-    description: "Used as a secondary device with case and glass protector from day one. Battery health excellent.",
+    description:
+      "Used as a secondary device with case and glass protector from day one. Battery health excellent.",
     hasWarranty: false,
     warrantyProvider: "",
     warrantyRemaining: "",

@@ -48,7 +48,7 @@ import {
   SpotlightCard,
 } from "../components/reactbits"
 
-const homeCategories: { name: string; label?: string; Icon: typeof Laptop }[] = [
+const homeCategories: { name: string label?: string Icon: typeof Laptop }[] = [
   { name: "Laptops", Icon: Laptop },
   { name: "Mobiles", Icon: Smartphone },
   { name: "PC Components", Icon: Cpu },
@@ -61,11 +61,36 @@ const homeCategories: { name: string; label?: string; Icon: typeof Laptop }[] = 
   { name: "Gaming", Icon: Gamepad2 },
 ]
 const homeServices = [
-  { name: "Laptop Services", Icon: Laptop, text: "Repair, upgrades, software support and diagnostics.", service: "Laptop Repair" },
-  { name: "Mobile Services", Icon: Smartphone, text: "Device diagnostics, repair and technical assistance.", service: "Mobile Repair" },
-  { name: "PC Services", Icon: Monitor, text: "PC repair, upgrades and maintenance.", service: "PC Repair" },
-  { name: "Printer Services", Icon: Printer, text: "Installation, maintenance and troubleshooting.", service: "Printer Service" },
-  { name: "Web & Software Development", Icon: Code2, text: "Websites, web apps and custom software for businesses.", service: "Website Development" },
+  {
+    name: "Laptop Services",
+    Icon: Laptop,
+    text: "Repair, upgrades, software support and diagnostics.",
+    service: "Laptop Repair",
+  },
+  {
+    name: "Mobile Services",
+    Icon: Smartphone,
+    text: "Device diagnostics, repair and technical assistance.",
+    service: "Mobile Repair",
+  },
+  {
+    name: "PC Services",
+    Icon: Monitor,
+    text: "PC repair, upgrades and maintenance.",
+    service: "PC Repair",
+  },
+  {
+    name: "Printer Services",
+    Icon: Printer,
+    text: "Installation, maintenance and troubleshooting.",
+    service: "Printer Service",
+  },
+  {
+    name: "Web & Software Development",
+    Icon: Code2,
+    text: "Websites, web apps and custom software for businesses.",
+    service: "Website Development",
+  },
 ]
 export default function Home() {
   const store = useStore()
@@ -79,14 +104,16 @@ export default function Home() {
       : {
           initial: { opacity: 0, y: 14, filter: "blur(6px)" },
           animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-          transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] as const },
+          transition: {
+            duration: 0.6,
+            delay,
+            ease: [0.22, 1, 0.36, 1] as const,
+          },
         }
   return (
     <>
       <div className={`${containerClass} pt-7 md:pt-9`}>
-        <div
-          className="relative isolate -mt-7 ml-[calc(50%-50vw)] flex min-h-[min(680px,90svh)] w-screen flex-col justify-center overflow-hidden bg-[#e8f1fd] md:-mt-9"
-        >
+        <div className="relative isolate -mt-7 ml-[calc(50%-50vw)] flex min-h-[min(680px,90svh)] w-screen flex-col justify-center overflow-hidden bg-[#e8f1fd] md:-mt-9">
           <img
             src={heroBanner}
             alt=""
@@ -107,7 +134,10 @@ export default function Home() {
                 {...enter(0)}
                 className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-xs backdrop-blur"
               >
-                <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-primary" />
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 animate-pulse rounded-full bg-primary"
+                />
                 <ShinyText
                   text="Your Trusted Tech Hub · Since 2011"
                   color="var(--muted-foreground)"
@@ -120,7 +150,8 @@ export default function Home() {
                 {...enter(0.08)}
                 className="text-balance font-display text-5xl font-bold tracking-[-.04em] text-foreground sm:text-6xl md:text-7xl"
               >
-                Everything Tech. <GradientText>Sales, Service & Support.</GradientText>
+                Everything Tech.{" "}
+                <GradientText>Sales, Service & Support.</GradientText>
               </motion.h1>
               <motion.p
                 {...enter(0.16)}
@@ -136,9 +167,16 @@ export default function Home() {
               >
                 <ActionLink to="/products" className="group h-11">
                   Shop Products
-                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight
+                    size={16}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
                 </ActionLink>
-                <ActionLink secondary to="/services" className="h-11 bg-white/80 backdrop-blur hover:bg-white">
+                <ActionLink
+                  secondary
+                  to="/services"
+                  className="h-11 bg-white/80 backdrop-blur hover:bg-white"
+                >
                   <Wrench size={16} /> Explore Services
                 </ActionLink>
               </motion.div>
@@ -147,7 +185,16 @@ export default function Home() {
         </div>
         <ScrollVelocity
           className="ml-[calc(50%-50vw)] mt-6 w-screen py-4 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)] font-display text-2xl font-extrabold tracking-[-.03em] text-[#0c2f8a]/80 md:text-4xl"
-          items={["Laptops", "Mobiles", "Printers", "Laptop Repair", "Monitors", "On-Site Service", "Accessories", "Warranty Support"]}
+          items={[
+            "Laptops",
+            "Mobiles",
+            "Printers",
+            "Laptop Repair",
+            "Monitors",
+            "On-Site Service",
+            "Accessories",
+            "Warranty Support",
+          ]}
         />
         <div className="grid grid-cols-2 gap-5 border-b border-border py-7 md:grid-cols-4">
           <div className="flex items-center gap-3">
@@ -210,7 +257,9 @@ export default function Home() {
         />
         <ul className="grid border-t border-border md:grid-cols-2 md:gap-x-10">
           {homeCategories.map(({ name, label, Icon }, index) => {
-            const count = store.products.filter((product) => product.category === name).length
+            const count = store.products.filter(
+              (product) => product.category === name,
+            ).length
             return (
               <li key={name} className="border-b border-border">
                 <Link
@@ -261,7 +310,9 @@ export default function Home() {
       <section className={`${containerClass} py-14`}>
         <div className="grid gap-8 rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[.15em] text-primary">ON-SITE SERVICE</p>
+            <p className="text-[10px] font-bold tracking-[.15em] text-primary">
+              ON-SITE SERVICE
+            </p>
             <h2 className="mt-3 text-2xl font-bold tracking-[-.02em] md:text-3xl">
               IT Support at Your Location
             </h2>
@@ -270,8 +321,16 @@ export default function Home() {
               device to the store. Available within about 15 km of IT HUB.
             </p>
             <ol className="mt-6 grid gap-2 text-xs sm:grid-cols-2">
-              {["Request Service", "Enter PIN", "Check availability", "Schedule / contact IT HUB"].map((step, index) => (
-                <li key={step} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5">
+              {[
+                "Request Service",
+                "Enter PIN",
+                "Check availability",
+                "Schedule / contact IT HUB",
+              ].map((step, index) => (
+                <li
+                  key={step}
+                  className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5"
+                >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
                     {index + 1}
                   </span>
@@ -279,7 +338,10 @@ export default function Home() {
                 </li>
               ))}
             </ol>
-            <ActionLink to="/services/book?method=On-site%20service" className="mt-6">
+            <ActionLink
+              to="/services/book?method=On-site%20service"
+              className="mt-6"
+            >
               Request On-Site Service <ArrowRight size={15} />
             </ActionLink>
           </div>
@@ -299,7 +361,8 @@ export default function Home() {
             <ShieldCheck size={26} className="text-blue-200" />
             <h3 className="mt-4 text-2xl font-bold">Need Warranty Help?</h3>
             <p className="mt-2 max-w-sm text-sm leading-6 text-blue-100">
-              Find official warranty and customer-care information for your device.
+              Find official warranty and customer-care information for your
+              device.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               {[
@@ -316,21 +379,50 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-            <Link to="/services#on-site" className="mt-5 inline-flex items-center gap-1 text-xs font-semibold text-blue-200">
+            <Link
+              to="/services#on-site"
+              className="mt-5 inline-flex items-center gap-1 text-xs font-semibold text-blue-200"
+            >
               Check On-Site Warranty Eligibility <ArrowRight size={13} />
             </Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              { Icon: Headset, title: "Brand Customer Care", text: "Official contacts for your device brand.", to: "/support?view=warranty" },
-              { Icon: Wrench, title: "IT HUB Service", text: "Repairs and upgrades at our service centre.", to: "/services" },
-              { Icon: MapPin, title: "On-Site Support", text: "Assistance at your home or office.", to: "/services#on-site" },
-              { Icon: RefreshCcw, title: "Service Requests", text: "Raise or track a request from your account.", to: "/account/support" },
+              {
+                Icon: Headset,
+                title: "Brand Customer Care",
+                text: "Official contacts for your device brand.",
+                to: "/support?view=warranty",
+              },
+              {
+                Icon: Wrench,
+                title: "IT HUB Service",
+                text: "Repairs and upgrades at our service centre.",
+                to: "/services",
+              },
+              {
+                Icon: MapPin,
+                title: "On-Site Support",
+                text: "Assistance at your home or office.",
+                to: "/services#on-site",
+              },
+              {
+                Icon: RefreshCcw,
+                title: "Service Requests",
+                text: "Raise or track a request from your account.",
+                to: "/account/support",
+              },
             ].map(({ Icon, title, text, to }) => (
-              <Link key={title} to={to} className="rounded-2xl border border-border bg-card p-5 transition hover:border-primary/40">
+              <Link
+                key={title}
+                to={to}
+                className="rounded-2xl border border-border bg-card p-5 transition hover:border-primary/40"
+              >
                 <Icon size={20} className="text-primary" />
                 <h3 className="mt-3 text-sm font-semibold">{title}</h3>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {text}
+                </p>
               </Link>
             ))}
           </div>
@@ -345,8 +437,12 @@ export default function Home() {
             loading="lazy"
           />
           <div className="flex-1">
-            <p className="text-[10px] font-bold tracking-[.14em] text-primary">PC SERVICES</p>
-            <h2 className="mt-1 text-lg font-bold">Build Your PC With IT HUB</h2>
+            <p className="text-[10px] font-bold tracking-[.14em] text-primary">
+              PC SERVICES
+            </p>
+            <h2 className="mt-1 text-lg font-bold">
+              Build Your PC With IT HUB
+            </h2>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
               Choose your components and get an estimated configuration price.
               Our team can help finalize your build.
@@ -365,7 +461,10 @@ export default function Home() {
         />
         {store.showcase.length > 0 && (
           <FadeContent className="columns-2 gap-3 md:columns-4 md:gap-4">
-            {(showAll ? store.showcase : store.showcase.slice(0, SHOWCASE_LIMIT)).map((item, index) => (
+            {(showAll
+              ? store.showcase
+              : store.showcase.slice(0, SHOWCASE_LIMIT)
+            ).map((item, index) => (
               <button
                 key={item.id}
                 onClick={() => setViewer(index)}
@@ -394,7 +493,10 @@ export default function Home() {
               {showAll
                 ? "Show less"
                 : `Show more (${store.showcase.length - SHOWCASE_LIMIT} more)`}
-              <ChevronRight size={16} className={`transition ${showAll ? "-rotate-90" : "rotate-90"}`} />
+              <ChevronRight
+                size={16}
+                className={`transition ${showAll ? "-rotate-90" : "rotate-90"}`}
+              />
             </button>
           </div>
         )}
@@ -403,7 +505,9 @@ export default function Home() {
           open={viewer !== null}
           onOpenChange={(open) => !open && setViewer(null)}
           title="Happy customers"
-          description={viewer !== null ? store.showcase[viewer]?.caption : undefined}
+          description={
+            viewer !== null ? store.showcase[viewer]?.caption : undefined
+          }
         >
           {viewer !== null && store.showcase[viewer] && (
             <div>
@@ -414,7 +518,12 @@ export default function Home() {
               />
               <div className="mt-5 flex items-center justify-between">
                 <button
-                  onClick={() => setViewer((viewer - 1 + store.showcase.length) % store.showcase.length)}
+                  onClick={() =>
+                    setViewer(
+                      (viewer - 1 + store.showcase.length) %
+                        store.showcase.length,
+                    )
+                  }
                   className="rounded-full border border-border px-4 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
                 >
                   ← Previous
@@ -423,7 +532,9 @@ export default function Home() {
                   {viewer + 1} / {store.showcase.length}
                 </span>
                 <button
-                  onClick={() => setViewer((viewer + 1) % store.showcase.length)}
+                  onClick={() =>
+                    setViewer((viewer + 1) % store.showcase.length)
+                  }
                   className="rounded-full border border-border px-4 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
                 >
                   Next →
@@ -444,8 +555,8 @@ export default function Home() {
             </h2>
             <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">
               Since 2011, IT HUB brings technology products, IT services,
-              mobiles, software and after-sales support together under one roof. A technology store
-              you can actually visit and trust.
+              mobiles, software and after-sales support together under one roof.
+              A technology store you can actually visit and trust.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-4">
               <a
@@ -483,7 +594,9 @@ export default function Home() {
                 <MapPin size={17} />
               </span>
               <span>
-                <span className="block text-sm font-bold">IT HUB, Kothamangalam</span>
+                <span className="block text-sm font-bold">
+                  IT HUB, Kothamangalam
+                </span>
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
                   Get directions <ArrowUpRight size={12} />
                 </span>

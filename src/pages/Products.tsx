@@ -52,7 +52,8 @@ export function Products() {
       return next
     })
   }
-  const section = (params.get("section") || "fresh") as "fresh" | "secondhand" | "sell"
+  const section = (params.get("section") ||
+    "fresh") as "fresh" | "secondhand" | "sell"
 
   const filtered = useMemo(
     () =>
@@ -202,7 +203,9 @@ export function Products() {
             {section === "sell" && <Badge tone="green">ACTIVE</Badge>}
           </div>
           <div className="mt-4">
-            <h3 className="text-base font-bold text-foreground">SELL YOUR ITEM</h3>
+            <h3 className="text-base font-bold text-foreground">
+              SELL YOUR ITEM
+            </h3>
             <p className="mt-1 text-xs text-muted-foreground">
               Sell your device · Get an evaluation and instant deal from IT HUB
             </p>
@@ -220,7 +223,9 @@ export function Products() {
               <div className="flex items-center gap-2">
                 <RefreshCw size={15} className="text-amber-800 shrink-0" />
                 <span>
-                  <strong>IT HUB Verified Pre-Owned Collection:</strong> Every second-hand device undergoes multi-point hardware diagnostics and includes testing certification.
+                  <strong>IT HUB Verified Pre-Owned Collection:</strong> Every
+                  second-hand device undergoes multi-point hardware diagnostics
+                  and includes testing certification.
                 </span>
               </div>
               <button
@@ -232,173 +237,183 @@ export function Products() {
               </button>
             </div>
           )}
-      <div className="mb-7 flex flex-wrap gap-3">
-        <div className="relative min-w-48 flex-1">
-          <Search
-            size={17}
-            className="absolute left-3 top-3.5 text-muted-foreground"
-          />
-          <input
-            aria-label="Search products"
-            value={query}
-            onChange={(event) => update("q", event.target.value)}
-            className={`${fieldClass} pl-10`}
-            placeholder="Search products, brands, specifications…"
-          />
-        </div>
-        <button
-          className="flex items-center gap-2 rounded-md border border-border px-4 lg:hidden"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <SlidersHorizontal size={16} /> Filters
-        </button>
-        <Select
-          label="Sort products"
-          align="right"
-          className="w-52 shrink-0"
-          value={sort}
-          onChange={setSort}
-          options={[
-            "Relevance",
-            "Price: Low to High",
-            "Price: High to Low",
-            "Newest",
-            "Rating",
-          ].map((value) => ({ value, label: value }))}
-        />
-      </div>
-      <div className="grid gap-8 lg:grid-cols-[210px_1fr]">
-        <aside
-          className={`${
-            showFilters ? "block" : "hidden"
-          } space-y-6 rounded-lg border border-border p-5 lg:block lg:self-start`}
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold">Filters</h2>
+          <div className="mb-7 flex flex-wrap gap-3">
+            <div className="relative min-w-48 flex-1">
+              <Search
+                size={17}
+                className="absolute left-3 top-3.5 text-muted-foreground"
+              />
+              <input
+                aria-label="Search products"
+                value={query}
+                onChange={(event) => update("q", event.target.value)}
+                className={`${fieldClass} pl-10`}
+                placeholder="Search products, brands, specifications…"
+              />
+            </div>
             <button
-              onClick={() => {
-                setParams({})
-                setBrand("")
-                setMax(150000)
-                setAvailable(false)
-                setRating(0)
-                setSpecs({})
-              }}
-              className="text-[11px] text-primary"
+              className="flex items-center gap-2 rounded-md border border-border px-4 lg:hidden"
+              onClick={() => setShowFilters(!showFilters)}
             >
-              Clear all
+              <SlidersHorizontal size={16} /> Filters
             </button>
+            <Select
+              label="Sort products"
+              align="right"
+              className="w-52 shrink-0"
+              value={sort}
+              onChange={setSort}
+              options={[
+                "Relevance",
+                "Price: Low to High",
+                "Price: High to Low",
+                "Newest",
+                "Rating",
+              ].map((value) => ({ value, label: value }))}
+            />
           </div>
-          <Field label="Category">
-            <Select
-              label="Category"
-              value={category}
-              onChange={(value) => {
-                update("category", value)
-                setSpecs({})
-              }}
-              options={[
-                { value: "", label: "All categories" },
-                ...store.catalogCategories.map((value) => ({ value, label: value })),
-              ]}
-            />
-          </Field>
-          <Field label="Brand">
-            <Select
-              label="Brand"
-              value={brand}
-              onChange={setBrand}
-              options={[
-                { value: "", label: "All brands" },
-                ...[...new Set(store.products.map((product) => product.brand))].map(
-                  (value) => ({ value, label: value }),
-                ),
-              ]}
-            />
-          </Field>
-          <Field label={`Budget: up to ${money(max)}`}>
-            <input
-              aria-label="Maximum price"
-              type="range"
-              min={1000}
-              max={150000}
-              step={500}
-              value={max}
-              onChange={(event) => setMax(Number(event.target.value))}
-              className="w-full accent-primary"
-            />
-            <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-              <span>₹1,000</span>
-              <span>₹1,50,000</span>
+          <div className="grid gap-8 lg:grid-cols-[210px_1fr]">
+            <aside
+              className={`${
+                showFilters ? "block" : "hidden"
+              } space-y-6 rounded-lg border border-border p-5 lg:block lg:self-start`}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold">Filters</h2>
+                <button
+                  onClick={() => {
+                    setParams({})
+                    setBrand("")
+                    setMax(150000)
+                    setAvailable(false)
+                    setRating(0)
+                    setSpecs({})
+                  }}
+                  className="text-[11px] text-primary"
+                >
+                  Clear all
+                </button>
+              </div>
+              <Field label="Category">
+                <Select
+                  label="Category"
+                  value={category}
+                  onChange={(value) => {
+                    update("category", value)
+                    setSpecs({})
+                  }}
+                  options={[
+                    { value: "", label: "All categories" },
+                    ...store.catalogCategories.map((value) => ({
+                      value,
+                      label: value,
+                    })),
+                  ]}
+                />
+              </Field>
+              <Field label="Brand">
+                <Select
+                  label="Brand"
+                  value={brand}
+                  onChange={setBrand}
+                  options={[
+                    { value: "", label: "All brands" },
+                    ...[
+                      ...new Set(
+                        store.products.map((product) => product.brand),
+                      ),
+                    ].map((value) => ({ value, label: value })),
+                  ]}
+                />
+              </Field>
+              <Field label={`Budget: up to ${money(max)}`}>
+                <input
+                  aria-label="Maximum price"
+                  type="range"
+                  min={1000}
+                  max={150000}
+                  step={500}
+                  value={max}
+                  onChange={(event) => setMax(Number(event.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+                  <span>₹1,000</span>
+                  <span>₹1,50,000</span>
+                </div>
+              </Field>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={available}
+                  onChange={(event) => setAvailable(event.target.checked)}
+                  className="accent-primary"
+                />{" "}
+                In stock only
+              </label>
+              <Field label="Customer rating (demo)">
+                <Select
+                  label="Customer rating"
+                  value={String(rating)}
+                  onChange={(value) => setRating(Number(value))}
+                  options={[
+                    { value: "0", label: "All ratings" },
+                    { value: "4", label: "4 stars & above" },
+                    { value: "4.8", label: "4.8 & above" },
+                    { value: "5", label: "5 stars" },
+                  ]}
+                />
+              </Field>
+              {category &&
+                specificKeys.map((key) => {
+                  const values = [
+                    ...new Set(
+                      store.products
+                        .filter((product) => product.category === category)
+                        .map((product) => product.specs[key])
+                        .filter(Boolean),
+                    ),
+                  ]
+                  return values.length ? (
+                    <Field key={key} label={key}>
+                      <Select
+                        label={key}
+                        value={specs[key] || ""}
+                        onChange={(value) =>
+                          setSpecs({ ...specs, [key]: value })
+                        }
+                        options={[
+                          { value: "", label: `All ${key.toLowerCase()}` },
+                          ...values.map((value) => ({
+                            value: String(value),
+                            label: String(value),
+                          })),
+                        ]}
+                      />
+                    </Field>
+                  ) : null
+                })}
+            </aside>
+            <div>
+              <p className="mb-5 text-xs text-muted-foreground">
+                Showing{" "}
+                <strong className="text-foreground">{filtered.length}</strong>{" "}
+                products · Static prototype catalog
+              </p>
+              {filtered.length ? (
+                <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
+                  {filtered.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <Empty
+                  title="No products found"
+                  description="Try another search or clear your filters."
+                />
+              )}
             </div>
-          </Field>
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={available}
-              onChange={(event) => setAvailable(event.target.checked)}
-              className="accent-primary"
-            />{" "}
-            In stock only
-          </label>
-          <Field label="Customer rating (demo)">
-            <Select
-              label="Customer rating"
-              value={String(rating)}
-              onChange={(value) => setRating(Number(value))}
-              options={[
-                { value: "0", label: "All ratings" },
-                { value: "4", label: "4 stars & above" },
-                { value: "4.8", label: "4.8 & above" },
-                { value: "5", label: "5 stars" },
-              ]}
-            />
-          </Field>
-          {category &&
-            specificKeys.map((key) => {
-              const values = [
-                ...new Set(
-                  store.products
-                    .filter((product) => product.category === category)
-                    .map((product) => product.specs[key])
-                    .filter(Boolean),
-                ),
-              ]
-              return values.length ? (
-                <Field key={key} label={key}>
-                  <Select
-                    label={key}
-                    value={specs[key] || ""}
-                    onChange={(value) => setSpecs({ ...specs, [key]: value })}
-                    options={[
-                      { value: "", label: `All ${key.toLowerCase()}` },
-                      ...values.map((value) => ({ value: String(value), label: String(value) })),
-                    ]}
-                  />
-                </Field>
-              ) : null
-            })}
-        </aside>
-        <div>
-          <p className="mb-5 text-xs text-muted-foreground">
-            Showing{" "}
-            <strong className="text-foreground">{filtered.length}</strong>{" "}
-            products · Static prototype catalog
-          </p>
-          {filtered.length ? (
-            <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
-              {filtered.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <Empty
-              title="No products found"
-              description="Try another search or clear your filters."
-            />
-          )}
-        </div>
-      </div>
+          </div>
         </>
       )}
     </Page>
@@ -410,7 +425,12 @@ export function ProductDetail() {
   const navigate = useNavigate()
   const product = store.products.find((item) => item.id === id)
   useEffect(() => {
-    if (product) track("Product Viewed", { product: product.name, productId: product.id, category: product.category })
+    if (product)
+      track("Product Viewed", {
+        product: product.name,
+        productId: product.id,
+        category: product.category,
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id])
   const [quantity, setQuantity] = useState(1)
@@ -462,11 +482,17 @@ export function ProductDetail() {
               <span className="absolute left-5 top-5 flex flex-col gap-1.5">
                 {product.secondHand && (
                   <Badge tone="amber">
-                    <RefreshCw size={10} className="mr-1 inline text-amber-700" />
-                    PRE-OWNED{product.condition ? ` · ${product.condition}` : ""}
+                    <RefreshCw
+                      size={10}
+                      className="mr-1 inline text-amber-700"
+                    />
+                    PRE-OWNED
+                    {product.condition ? ` · ${product.condition}` : ""}
                   </Badge>
                 )}
-                {product.tag && !product.secondHand && <Badge>{product.tag}</Badge>}
+                {product.tag && !product.secondHand && (
+                  <Badge>{product.tag}</Badge>
+                )}
               </span>
             )}
           </div>
@@ -509,7 +535,8 @@ export function ProductDetail() {
               <div className="my-6">
                 {deal && (
                   <p className="mb-2 text-xs font-semibold text-primary">
-                    {deal.offer.name} · {offerHeadline(deal.offer)} · applied automatically
+                    {deal.offer.name} · {offerHeadline(deal.offer)} · applied
+                    automatically
                   </p>
                 )}
                 <div className="inline-grid gap-1 rounded-2xl border border-border bg-secondary/50 px-5 py-4">
@@ -526,13 +553,18 @@ export function ProductDetail() {
                   </div>
                   {product.original > shown && (
                     <p className="text-sm text-muted-foreground">
-                      MRP <span className="line-through">{money(product.original)}</span>
+                      MRP{" "}
+                      <span className="line-through">
+                        {money(product.original)}
+                      </span>
                       <span className="ml-2 font-semibold text-emerald-700">
                         You save {money(product.original - shown)}
                       </span>
                     </p>
                   )}
-                  <p className="text-[11px] text-muted-foreground">Inclusive of all taxes</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Inclusive of all taxes
+                  </p>
                 </div>
               </div>
             )
@@ -602,7 +634,8 @@ export function ProductDetail() {
           </Button>
           <div className="mt-6 space-y-3 text-xs text-muted-foreground">
             <p className="flex gap-2">
-              <Truck size={15} className="text-primary" /> All Kerala delivery available
+              <Truck size={15} className="text-primary" /> All Kerala delivery
+              available
             </p>
             <p className="flex gap-2">
               <ShieldCheck size={15} className="text-primary" /> Warranty:{" "}
@@ -745,19 +778,33 @@ export function ProductDetail() {
               text: "Diagnostics, repair and upgrades by IT HUB technicians.",
               to: "",
             },
-            { name: "Software Installation", text: "OS, drivers, software and data transfer.", to: "" },
-            { name: "Help & Support", text: "Official brand support and on-site warranty eligibility.", to: "/support?view=warranty" },
+            {
+              name: "Software Installation",
+              text: "OS, drivers, software and data transfer.",
+              to: "",
+            },
+            {
+              name: "Help & Support",
+              text: "Official brand support and on-site warranty eligibility.",
+              to: "/support?view=warranty",
+            },
           ].map((service) => (
             <Link
               key={service.name}
-              to={service.to || `/services/book?service=${encodeURIComponent(service.name)}`}
+              to={
+                service.to ||
+                `/services/book?service=${encodeURIComponent(service.name)}`
+              }
               className="group rounded-2xl border border-border bg-card p-5 transition hover:border-primary/40"
             >
               <ShieldCheck size={20} className="text-primary" />
               <h3 className="mt-4 text-sm font-semibold">{service.name}</h3>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{service.text}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {service.text}
+              </p>
               <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                {service.to ? "Get help" : "Request Service"} <ArrowRight size={13} />
+                {service.to ? "Get help" : "Request Service"}{" "}
+                <ArrowRight size={13} />
               </span>
             </Link>
           ))}

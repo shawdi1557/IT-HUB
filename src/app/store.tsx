@@ -36,7 +36,10 @@ import {
   initialCouponUsages,
   initialSellRequests,
 } from "../data/catalog"
-import { initialBuildTemplates, type BuildTemplate } from "../data/buildTemplates"
+import {
+  initialBuildTemplates,
+  type BuildTemplate,
+} from "../data/buildTemplates"
 import { resourceDefinitions, type AdminRecord } from "../data/admin"
 
 type Profile = {
@@ -50,7 +53,7 @@ type Audit = {
   action: string
   date: string
 }
-export type ShowcaseImage = { id: string; src: string; caption: string }
+export type ShowcaseImage = { id: string src: string caption: string }
 type State = {
   products: Product[]
   cart: CartItem[]
@@ -145,10 +148,10 @@ const initial: State = {
     storeName: "IT HUB",
     delivery: "Kerala",
     emailNotifications: true,
-    whatsapp: "919999999999",
-    address: "Kothamangalam, Ernakulam, Kerala",
-    phone: "",
-    email: "",
+    whatsapp: "919847223886",
+    address: "Molathu Building, College Jn., Kothamangalam, Kerala - 686691",
+    phone: "+91-9847223886",
+    email: "ithubkmgm@gmail.com",
   },
   tickets: [],
 }
@@ -164,8 +167,11 @@ type Store = State & {
 }
 // Keep one context instance across hot updates; otherwise an edited store
 // module creates a new context that the already-mounted provider doesn't supply.
-const globalStore = globalThis as { __ithubStoreContext?: ReturnType<typeof createContext<Store | null>> }
-const Context = (globalStore.__ithubStoreContext ??= createContext<Store | null>(null))
+const globalStore = globalThis as {
+  __ithubStoreContext?: ReturnType<typeof createContext<Store | null>>
+}
+const Context = (globalStore.__ithubStoreContext ??=
+  createContext<Store | null>(null))
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => {
     try {
@@ -224,7 +230,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   const notify = (message: string) => setToast(message)
   const log = (action: string) => {
-    if (location.pathname.startsWith("/admin")) track("Admin Data Change", { action })
+    if (location.pathname.startsWith("/admin"))
+      track("Admin Data Change", { action })
     set((previous) => ({
       audit: [
         { id: crypto.randomUUID(), action, date: new Date().toLocaleString() },
@@ -235,7 +242,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const addCart = (item: Omit<CartItem, "quantity">, quantity = 1) => {
     if (!state.loggedIn) {
       setAuthOpen(true)
-      notify("Please sign in with your mobile number to add items to your cart.")
+      notify(
+        "Please sign in with your mobile number to add items to your cart.",
+      )
       return
     }
     const existingQuantity =
@@ -263,12 +272,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     })
     notify("Added to cart")
-    track("Product Added to Cart", { product: item.name ?? item.id, productId: item.productId ?? item.id })
+    track("Product Added to Cart", {
+      product: item.name ?? item.id,
+      productId: item.productId ?? item.id,
+    })
   }
   const toggleWish = (id: string) => {
     if (!state.loggedIn) {
       setAuthOpen(true)
-      notify("Please sign in with your mobile number to save items to your wishlist.")
+      notify(
+        "Please sign in with your mobile number to save items to your wishlist.",
+      )
       return
     }
     const exists = state.wishlist.includes(id)
@@ -281,7 +295,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   return (
     <Context.Provider
-      value={{ ...state, set, notify, toast, authOpen, setAuthOpen, addCart, toggleWish, log }}
+      value={{
+        ...state,
+        set,
+        notify,
+        toast,
+        authOpen,
+        setAuthOpen,
+        addCart,
+        toggleWish,
+        log,
+      }}
     >
       {children}
     </Context.Provider>

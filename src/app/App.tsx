@@ -12,7 +12,9 @@ import { Empty, Loading, Page } from "../components/ui"
 
 // A stale module URL (after a hot update) makes dynamic imports fail;
 // reload the page once to fetch fresh modules instead of crashing.
-const lazy = <T extends ComponentType<any>>(load: () => Promise<{ default: T }>) =>
+const lazy = <T extends ComponentType<any>,>(
+  load: () => Promise<{ default: T }>,
+) =>
   reactLazy(() =>
     load().then(
       (module) => {

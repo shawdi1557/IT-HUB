@@ -1,7 +1,21 @@
-import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type ButtonHTMLAttributes,
+} from "react"
 import { Link } from "react-router"
 import * as Dialog from "@radix-ui/react-dialog"
-import { ArrowRight, X, PackageOpen, Check, ChevronDown, LoaderCircle, Star } from "lucide-react"
+import {
+  ArrowRight,
+  X,
+  PackageOpen,
+  Check,
+  ChevronDown,
+  LoaderCircle,
+  Star,
+} from "lucide-react"
 import { SplitText } from "./reactbits"
 import ShinyText from "./ShinyText"
 import logo from "../imports/ITHUBLOGO-1.jpeg"
@@ -81,7 +95,13 @@ export function SectionHeading({
       <div>
         {eyebrow && (
           <p className="mb-3 text-[10px] font-bold tracking-[.18em]">
-            <ShinyText text={eyebrow} color="var(--primary)" shineColor="#8fa9ef" speed={2.4} delay={1.2} />
+            <ShinyText
+              text={eyebrow}
+              color="var(--primary)"
+              shineColor="#8fa9ef"
+              speed={2.4}
+              delay={1.2}
+            />
           </p>
         )}
         <h2 className="text-3xl font-extrabold tracking-[-.03em] md:text-[44px] md:leading-[1.05]">
@@ -183,7 +203,9 @@ export function Modal({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-slate-900/40" />
-        <Dialog.Content className={`fixed left-1/2 top-1/2 z-[81] max-h-[90dvh] w-[calc(100%-32px)] ${size} -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-6 shadow-md md:p-8`}>
+        <Dialog.Content
+          className={`fixed left-1/2 top-1/2 z-[81] max-h-[90dvh] w-[calc(100%-32px)] ${size} -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-6 shadow-md md:p-8`}
+        >
           <Dialog.Title className="pr-8 font-display text-2xl font-bold">
             {title}
           </Dialog.Title>
@@ -306,9 +328,19 @@ export function Loading() {
   )
 }
 
-export function Stars({ size = 16, className = "" }: { size?: number; className?: string }) {
+export function Stars({
+  size = 16,
+  className = "",
+}: {
+  size?: number
+  className?: string
+}) {
   return (
-    <span className={`inline-flex items-center gap-0.5 align-middle ${className}`} role="img" aria-label="5 out of 5 stars">
+    <span
+      className={`inline-flex items-center gap-0.5 align-middle ${className}`}
+      role="img"
+      aria-label="5 out of 5 stars"
+    >
       {[0, 1, 2, 3, 4].map((i) => (
         <Star key={i} size={size} fill="currentColor" strokeWidth={0} />
       ))}
@@ -316,7 +348,7 @@ export function Stars({ size = 16, className = "" }: { size?: number; className?
   )
 }
 
-export type SelectOption = { value: string; label: string }
+export type SelectOption = { value: string label: string }
 
 /** Styled dropdown — replaces native <select> so the list always opens below, in theme. */
 export function Select({
@@ -342,7 +374,8 @@ export function Select({
     const close = (event: PointerEvent) => {
       if (!ref.current?.contains(event.target as Node)) setOpen(false)
     }
-    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false)
+    const escape = (event: KeyboardEvent) =>
+      event.key === "Escape" && setOpen(false)
     document.addEventListener("pointerdown", close)
     document.addEventListener("keydown", escape)
     return () => {
@@ -358,16 +391,25 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`${fieldClass} flex items-center justify-between gap-3 text-left ${open ? "border-primary ring-4 ring-primary/10" : ""}`}
+        className={`${fieldClass} flex items-center justify-between gap-3 text-left ${
+          open ? "border-primary ring-4 ring-primary/10" : ""
+        }`}
       >
         <span className="truncate">{current?.label}</span>
-        <ChevronDown size={16} className={`shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-muted-foreground transition ${
+            open ? "rotate-180" : ""
+          }`}
+        />
       </button>
       {open && (
         <ul
           role="listbox"
           data-lenis-prevent
-          className={`absolute top-[calc(100%+6px)] z-40 max-h-72 min-w-full overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-xl  ${align === "right" ? "right-0" : "left-0"}`}
+          className={`absolute top-[calc(100%+6px)] z-40 max-h-72 min-w-full overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-1.5 shadow-xl  ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
         >
           {options.map((option) => {
             const selected = option.value === current?.value
@@ -381,7 +423,11 @@ export function Select({
                     onChange(option.value)
                     setOpen(false)
                   }}
-                  className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${selected ? "bg-secondary font-semibold text-primary" : "hover:bg-muted"}`}
+                  className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
+                    selected
+                      ? "bg-secondary font-semibold text-primary"
+                      : "hover:bg-muted"
+                  }`}
                 >
                   {option.label}
                   {selected && <Check size={14} />}

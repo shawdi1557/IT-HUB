@@ -15,7 +15,14 @@ import {
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
-import { bestOffer, money, orderStatuses, validateCoupon, type CartItem, type Coupon } from "../data/catalog"
+import {
+  bestOffer,
+  money,
+  orderStatuses,
+  validateCoupon,
+  type CartItem,
+  type Coupon,
+} from "../data/catalog"
 import WarrantyCheck from "../components/WarrantyCheck"
 import {
   ActionLink,
@@ -33,10 +40,13 @@ function offerTotals(store: ReturnType<typeof useStore>) {
   let discount = 0
   const applied = new Set<string>()
   const subtotal = store.cart.reduce((sum, item) => {
-    const product = item.productId && !item.build
-      ? store.products.find((row) => row.id === item.productId)
-      : undefined
-    const best = product ? bestOffer(store.offers, { ...product, price: item.price }) : null
+    const product =
+      item.productId && !item.build
+        ? store.products.find((row) => row.id === item.productId)
+        : undefined
+    const best = product
+      ? bestOffer(store.offers, { ...product, price: item.price })
+      : null
     if (best) {
       discount += best.saving * item.quantity
       applied.add(best.offer.name)
@@ -219,7 +229,10 @@ export function Checkout() {
   const store = useStore()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  useEffect(() => track("Checkout Started", { items: String(store.cart.length) }), [])
+  useEffect(
+    () => track("Checkout Started", { items: String(store.cart.length) }),
+    [],
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [details, setDetails] = useState({
@@ -233,7 +246,10 @@ export function Checkout() {
     payment: "UPI (demo)",
   })
   const [couponInput, setCouponInput] = useState("")
-  const [appliedCoupon, setAppliedCoupon] = useState<{ coupon: Coupon; discount: number } | null>(null)
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    coupon: Coupon
+    discount: number
+  } | null>(null)
   const [couponError, setCouponError] = useState("")
 
   const { subtotal, discount, applied } = offerTotals(store)
@@ -242,7 +258,12 @@ export function Checkout() {
   const shipping = details.delivery === "Store pickup" ? 0 : 99
   const total = Math.max(0, cartNet - couponDiscount + shipping)
 
-  const customerId = store.profile.phone || details.phone || store.profile.email || details.email || "customer"
+  const customerId =
+    store.profile.phone ||
+    details.phone ||
+    store.profile.email ||
+    details.email ||
+    "customer"
 
   const handleApplyCoupon = () => {
     setCouponError("")
@@ -258,7 +279,9 @@ export function Checkout() {
       return
     }
     setAppliedCoupon({ coupon: res.coupon, discount: res.discount })
-    store.notify(`Coupon ${res.coupon.code} applied! Saved ${money(res.discount)}.`)
+    store.notify(
+      `Coupon ${res.coupon.code} applied! Saved ${money(res.discount)}.`,
+    )
   }
 
   const handleRemoveCoupon = () => {
@@ -363,7 +386,9 @@ export function Checkout() {
     }))
     store.log(`Order ${id} created`)
     if (appliedCoupon) {
-      store.log(`Coupon Used: ${appliedCoupon.coupon.code} on Order ${id} (-₹${appliedCoupon.discount})`)
+      store.log(
+        `Coupon Used: ${appliedCoupon.coupon.code} on Order ${id} (-₹${appliedCoupon.discount})`,
+      )
     }
     store.notify("Order placed successfully — demo transaction")
     navigate(`/order-success/${id}`)
@@ -381,7 +406,10 @@ export function Checkout() {
   if (!store.loggedIn)
     return (
       <Page>
-        <LoginGate title="Login to place your order" text="Your cart is saved. Sign in with your mobile number to continue to checkout and track your order." />
+        <LoginGate
+          title="Login to place your order"
+          text="Your cart is saved. Sign in with your mobile number to continue to checkout and track your order."
+        />
       </Page>
     )
   return (
@@ -482,12 +510,19 @@ export function Checkout() {
                     inputMode="numeric"
                     maxLength={6}
                     value={details.pin}
-                    onChange={(event) => update("pin", event.target.value.replace(/\D/g, ""))}
+                    onChange={(event) =>
+                      update("pin", event.target.value.replace(/\D/g, ""))
+                    }
                     className={fieldClass}
                   />
                 </Field>
               </div>
-              <WarrantyCheck compact source="Checkout" pincode={details.pin} className="mt-5" />
+              <WarrantyCheck
+                compact
+                source="Checkout"
+                pincode={details.pin}
+                className="mt-5"
+              />
             </>
           )}
           {step === 1 && (
@@ -658,7 +693,9 @@ export function Checkout() {
 
           {/* Have a Coupon? */}
           <div className="mt-6 border-t border-border pt-5">
-            <p className="mb-2.5 text-xs font-semibold text-foreground">Have a Coupon?</p>
+            <p className="mb-2.5 text-xs font-semibold text-foreground">
+              Have a Coupon?
+            </p>
             {appliedCoupon ? (
               <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-900">
                 <div>
@@ -666,7 +703,9 @@ export function Checkout() {
                     <Tag size={13} className="text-emerald-600" />
                     {appliedCoupon.coupon.code}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-emerald-700">{appliedCoupon.coupon.description}</p>
+                  <p className="mt-0.5 text-[11px] text-emerald-700">
+                    {appliedCoupon.coupon.description}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -805,7 +844,9 @@ export function OrderTracking() {
           <div className="rounded-lg border border-border p-7">
             <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{order.id}</h2>
-              <Badge>{order.status < 0 ? "Cancelled" : orderStatuses[order.status]}</Badge>
+              <Badge>
+                {order.status < 0 ? "Cancelled" : orderStatuses[order.status]}
+              </Badge>
             </div>
             <Timeline steps={orderStatuses} current={order.status} />
           </div>

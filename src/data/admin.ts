@@ -127,14 +127,15 @@ export const importTemplateRows = [
     Status: "Active",
   },
 ]
-export type ImportIssue = { level: "error" | "warning"; message: string }
+export type ImportIssue = { level: "error" | "warning" message: string }
 export type ImportRow = {
   row: number
   data: Record<string, string>
   issues: ImportIssue[]
   valid: boolean
 }
-const cell = (value: unknown) => (value === undefined || value === null ? "" : String(value).trim())
+const cell = (value: unknown) =>
+  value === undefined || value === null ? "" : String(value).trim()
 /** Validate parsed sheet rows. Row numbers are spreadsheet rows (header = row 1). */
 export const validateImportRows = (
   raw: Record<string, unknown>[],
@@ -149,11 +150,14 @@ export const validateImportRows = (
   const lowerCategories = categories.map((name) => name.toLowerCase())
   const lowerBrands = brands.map((name) => name.toLowerCase())
   return raw.map((item, index) => {
-    const data = Object.fromEntries(importColumns.map((key) => [key, cell(item[key])]))
+    const data = Object.fromEntries(
+      importColumns.map((key) => [key, cell(item[key])]),
+    )
     const issues: ImportIssue[] = []
     const error = (message: string) => issues.push({ level: "error", message })
     const warn = (message: string) => issues.push({ level: "warning", message })
-    for (const key of requiredImportColumns) if (!data[key]) error(`Missing ${key}`)
+    for (const key of requiredImportColumns)
+      if (!data[key]) error(`Missing ${key}`)
     const numeric = (key: string) => {
       if (!data[key]) return null
       const value = Number(data[key].replace(/[,₹\s]/g, ""))
@@ -164,24 +168,32 @@ export const validateImportRows = (
       return value
     }
     const price = numeric("Price")
-    if (price !== null && price <= 0) error("Invalid price (must be greater than 0)")
+    if (price !== null && price <= 0)
+      error("Invalid price (must be greater than 0)")
     const sale = numeric("Sale Price")
-    if (sale !== null && sale <= 0) error("Invalid sale price (must be greater than 0)")
-    if (sale !== null && price !== null && sale > price) error("Sale price is higher than price")
+    if (sale !== null && sale <= 0)
+      error("Invalid sale price (must be greater than 0)")
+    if (sale !== null && price !== null && sale > price)
+      error("Sale price is higher than price")
     const cost = numeric("Cost Price")
     if (cost !== null && cost < 0) error("Invalid cost price (negative)")
     const stock = numeric("Stock")
     if (stock !== null && stock < 0) error("Invalid stock (negative)")
-    else if (stock !== null && !Number.isInteger(stock)) error("Invalid stock (must be a whole number)")
+    else if (stock !== null && !Number.isInteger(stock))
+      error("Invalid stock (must be a whole number)")
     const threshold = numeric("Low Stock Threshold")
     if (threshold !== null && (threshold < 0 || !Number.isInteger(threshold)))
       error("Invalid low stock threshold (whole number ≥ 0)")
-    if (data.SKU && (skuCount.get(data.SKU.toLowerCase()) || 0) > 1) error(`Duplicate SKU in file (${data.SKU})`)
+    if (data.SKU && (skuCount.get(data.SKU.toLowerCase()) || 0) > 1)
+      error(`Duplicate SKU in file (${data.SKU})`)
     if (data.Category && !lowerCategories.includes(data.Category.toLowerCase()))
       error(`Unknown category "${data.Category}"`)
     if (data.Brand && !lowerBrands.includes(data.Brand.toLowerCase()))
       warn(`Unknown brand "${data.Brand}" — will be added`)
-    if (data.Status && !["active", "draft", "archived"].includes(data.Status.toLowerCase()))
+    if (
+      data.Status &&
+      !["active", "draft", "archived"].includes(data.Status.toLowerCase())
+    )
       error(`Invalid status "${data.Status}" (use Active, Draft or Archived)`)
     return {
       row: index + 2,
