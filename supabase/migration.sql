@@ -533,7 +533,7 @@ begin
   -- 5. Upsert visitor session
   insert into visitor_sessions as vs (
     id, visitor_id, user_id, ip, country, region, city, isp, location_confidence,
-    device, os, browser, referrer, landing_page, returning, page_views
+    device, os, browser, referrer, landing_page, is_returning, page_views
   ) values (
     p_session_id,
     left(trim(p_visitor_id), 64),
