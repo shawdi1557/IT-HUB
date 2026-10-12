@@ -19,6 +19,8 @@ import {
   Package,
   Headset,
   RefreshCcw,
+  RefreshCw,
+  BadgeIndianRupee,
   Printer,
   Wifi,
   Gamepad2,
@@ -306,6 +308,48 @@ export default function Home() {
       </section>
       <section className={`${containerClass}`}>
         <OurServices compact />
+      </section>
+      {/* ── CERTIFIED PRE-OWNED & HARDWARE BUYBACK ── */}
+      <section className={`${containerClass} py-8`}>
+        <div className="rounded-[2.5rem] border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-orange-50/20 to-background p-7 md:p-12 shadow-sm">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100/80 px-3.5 py-1 text-[11px] font-bold text-amber-900">
+                <RefreshCw size={12} className="text-amber-800" />
+                VERIFIED SECOND-HAND & TRADE-IN
+              </div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                Certified Pre-Owned & Gadget Buyback
+              </h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                Save up to 50% on thoroughly inspected, stress-tested pre-owned laptops, MacBooks, GPUs, and smartphones — or trade in your old devices for an instant evaluation and fair cash payout.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/second-hand"
+                className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700"
+              >
+                Browse Pre-Owned <ArrowRight size={14} />
+              </Link>
+              <Link
+                to="/sell"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-xs font-semibold text-foreground transition hover:border-emerald-600 hover:text-emerald-700"
+              >
+                <BadgeIndianRupee size={15} className="text-emerald-600" /> Sell Your Device
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-4">
+            {store.products
+              .filter((p) => p.secondHand)
+              .slice(0, 4)
+              .map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+          </div>
+        </div>
       </section>
       <section className={`${containerClass} py-14`}>
         <div className="grid gap-8 rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10">

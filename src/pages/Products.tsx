@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
 import {
   Search,
   SlidersHorizontal,
@@ -35,6 +35,8 @@ import {
 
 export function Products() {
   const store = useStore()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [brand, setBrand] = useState(params.get("brand") || "")
   const [max, setMax] = useState(150000)
@@ -46,14 +48,26 @@ export function Products() {
   const category = params.get("category") || ""
   const query = params.get("q") || ""
   const update = (key: string, value: string) => {
+    if (key === "section" && location.pathname !== "/products") {
+      navigate(value === "fresh" ? "/products" : `/products?section=${value}`)
+      return
+    }
     setParams((previous) => {
       const next = new URLSearchParams(previous)
       value ? next.set(key, value) : next.delete(key)
       return next
     })
   }
+
+  const defaultSection =
+    location.pathname === "/second-hand"
+      ? "secondhand"
+      : location.pathname === "/sell" || location.pathname === "/sell-your-item"
+        ? "sell"
+        : "fresh"
+
   const section = (params.get("section") ||
-    "fresh") as "fresh" | "secondhand" | "sell"
+    defaultSection) as "fresh" | "secondhand" | "sell"
 
   const filtered = useMemo(
     () =>
@@ -574,6 +588,17 @@ export function ProductDetail() {
               ? `In stock · ${product.stock} available`
               : "Out of stock"}
           </Badge>
+          {product.secondHand && (
+            <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
+              <div className="flex items-center gap-2 font-bold text-amber-800">
+                <RefreshCw size={15} />
+                <span>IT HUB Certified Pre-Owned Assurance</span>
+              </div>
+              <p className="mt-1.5 leading-5 text-amber-950/80">
+                Condition: <strong className="text-amber-950">{product.condition || "Inspected"}</strong> · Multi-point diagnostics passed · Serviced & tested · Covered by {product.specs.Warranty || "IT HUB Warranty"}.
+              </p>
+            </div>
+          )}
           <div className="my-6 grid grid-cols-2 gap-4 border-y border-border py-5">
             {Object.entries(product.specs)
               .slice(0, 4)

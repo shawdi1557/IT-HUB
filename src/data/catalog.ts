@@ -299,6 +299,91 @@ export const initialProducts: Product[] = [
     secondHand: true,
     condition: "Like New" as const,
   },
+  {
+    ...p(
+      "macbook-air-m1-preowned",
+      "Apple MacBook Air M1 256GB (Pre-Owned)",
+      "Apple",
+      "Laptops & MacBooks",
+      52999,
+      images.laptop,
+      {
+        Processor: "Apple M1 8-Core",
+        RAM: "8GB Unified",
+        Storage: "256GB SSD",
+        BatteryHealth: "91%",
+        Display: "13.3-inch Retina True Tone",
+        Condition: "Like New",
+        Warranty: "6 Months IT HUB Warranty",
+      },
+      2,
+      "VERIFIED PRE-OWNED",
+    ),
+    secondHand: true,
+    condition: "Like New" as const,
+  },
+  {
+    ...p(
+      "thinkpad-t14-g2-preowned",
+      "Lenovo ThinkPad T14 Gen 2 (Pre-Owned)",
+      "Lenovo",
+      "Laptops & MacBooks",
+      38500,
+      images.laptop,
+      {
+        Processor: "Intel Core i5-1135G7",
+        RAM: "16GB DDR4",
+        Storage: "512GB NVMe SSD",
+        Display: "14-inch FHD IPS",
+        Condition: "Good",
+        Warranty: "6 Months IT HUB Warranty",
+      },
+      3,
+      "VERIFIED PRE-OWNED",
+    ),
+    secondHand: true,
+    condition: "Good" as const,
+  },
+  {
+    ...p(
+      "rtx-3070-preowned",
+      "Zotac Gaming GeForce RTX 3070 8GB (Pre-Owned)",
+      "Zotac",
+      "PC Components",
+      26500,
+      images.gpu,
+      {
+        VRAM: "8GB GDDR6",
+        Interface: "PCIe 4.0 16x",
+        Condition: "Good",
+        Warranty: "3 Months IT HUB Testing Warranty",
+      },
+      1,
+      "VERIFIED PRE-OWNED",
+    ),
+    secondHand: true,
+    condition: "Good" as const,
+  },
+  {
+    ...p(
+      "samsung-odyssey-g5-preowned",
+      "Samsung Odyssey G5 27-inch 144Hz (Pre-Owned)",
+      "Samsung",
+      "Monitors",
+      13999,
+      images.monitor,
+      {
+        Resolution: "2560x1440 WQHD",
+        RefreshRate: "144Hz 1ms",
+        Condition: "Good",
+        Warranty: "3 Months IT HUB Warranty",
+      },
+      1,
+      "VERIFIED PRE-OWNED",
+    ),
+    secondHand: true,
+    condition: "Good" as const,
+  },
 ]
 export const categories = [
   "Laptops & MacBooks",
@@ -914,12 +999,12 @@ export type ItHubLocation = {
 export const initialLocations: ItHubLocation[] = [
   {
     id: "kothamangalam",
-    name: "IT HUB Kothamangalam",
-    address: "Kothamangalam, Ernakulam, Kerala",
+    name: "IT HUB Kothamangalam (Headquarters)",
+    address: "Molathu Building, College Jn., Kothamangalam, Kerala",
     pincode: "686691",
-    latitude: 10.0602,
-    longitude: 76.6351,
-    serviceRadiusKm: 15,
+    latitude: 10.0601,
+    longitude: 76.6277,
+    serviceRadiusKm: 30,
     active: true,
   },
 ]
@@ -933,57 +1018,107 @@ export const pincodeDirectory: Record<string, {
   latitude: number
   longitude: number
 }> = {
-  "686691": { area: "Kothamangalam", latitude: 10.0602, longitude: 76.6351 },
+  // ── Kothamangalam Administrative Division ──
+  "686691": {
+    area: "Kothamangalam Town (Bazar, Nellikuzhy, Varapetty, Karukadom, Cheruvattoor, Iramalloor, Kozhipilly, Nadukani)",
+    latitude: 10.0601,
+    longitude: 76.6277,
+  },
+  "686666": {
+    area: "Kothamangalam College (M.A. College Campus Area)",
+    latitude: 10.0545,
+    longitude: 76.6435,
+  },
   "686692": {
-    area: "Kothamangalam (Cheruvattoor)",
-    latitude: 10.0805,
-    longitude: 76.6102,
+    area: "Kottappady & Adjacent Limits",
+    latitude: 10.1132,
+    longitude: 76.5925,
+  },
+  "686681": {
+    area: "Keerampara / Bhoothathankettu / Thattekkad (Forest & Eco-Tourism Range)",
+    latitude: 10.1180,
+    longitude: 76.6850,
   },
   "686693": {
-    area: "Nellikuzhi / Iramalloor",
-    latitude: 10.0425,
-    longitude: 76.6045,
+    area: "Manikinar, Neendapara & Forest Boundaries",
+    latitude: 10.0380,
+    longitude: 76.7150,
   },
-  "686681": { area: "Keerampara", latitude: 10.0798, longitude: 76.6889 },
   "686671": {
-    area: "Kuttamangalam / Pindimana",
-    latitude: 10.0421,
-    longitude: 76.6702,
+    area: "Chathamattam, Koovalloor & Limits",
+    latitude: 10.0240,
+    longitude: 76.6710,
   },
-  "686661": { area: "Muvattupuzha", latitude: 9.9894, longitude: 76.579 },
-  "686673": {
-    area: "Muvattupuzha (Marady)",
-    latitude: 9.966,
-    longitude: 76.576,
+  "685514": {
+    area: "Eastern High-Range / Pindimana Boundary",
+    latitude: 10.0540,
+    longitude: 76.7850,
+  },
+  "685612": {
+    area: "Eastern High-Range / Oonnukal Range",
+    latitude: 10.0330,
+    longitude: 76.7550,
   },
   "683544": {
-    area: "Kothamangalam (Kuttampuzha)",
-    latitude: 10.153,
-    longitude: 76.738,
+    area: "Kuttampuzha (Kothamangalam Forest Range)",
+    latitude: 10.1530,
+    longitude: 76.7380,
+  },
+
+  // ── Muvattupuzha Region ──
+  "686661": {
+    area: "Muvattupuzha Town & HPO (Bazar, Kizhakkekara, Peringuzha, Thottumkalpeedika)",
+    latitude: 9.9894,
+    longitude: 76.5790,
+  },
+  "686673": {
+    area: "Muvattupuzha Market & Suburbs (Kadathy, Kakkadasseri, Perumattom, Randar, Vazhappily, Mulavoor, Enanalloor)",
+    latitude: 9.9750,
+    longitude: 76.5820,
+  },
+
+  // ── Nearby Localities ──
+  "686670": {
+    area: "Pothanicad",
+    latitude: 10.0010,
+    longitude: 76.6800,
   },
   "683556": {
-    area: "Perumbavoor (Odakkali)",
-    latitude: 10.079,
-    longitude: 76.532,
+    area: "Perumbavoor (Odakkali / Asamannoor)",
+    latitude: 10.0790,
+    longitude: 76.5320,
   },
-  "686670": { area: "Pothanicad", latitude: 10.001, longitude: 76.68 },
-  "683542": { area: "Perumbavoor", latitude: 10.1157, longitude: 76.478 },
+  "683542": {
+    area: "Perumbavoor Town",
+    latitude: 10.1157,
+    longitude: 76.4780,
+  },
   "685608": {
-    area: "Thodupuzha (Kaliyar)",
-    latitude: 9.949,
-    longitude: 76.738,
+    area: "Thodupuzha (Kaliyar / Vannappuram)",
+    latitude: 9.9490,
+    longitude: 76.7380,
   },
-  "685584": { area: "Thodupuzha", latitude: 9.896, longitude: 76.7137 },
-  "682030": { area: "Kakkanad", latitude: 10.0159, longitude: 76.3419 },
-  "682011": { area: "Ernakulam", latitude: 9.9816, longitude: 76.2999 },
+  "685584": {
+    area: "Thodupuzha Town",
+    latitude: 9.8960,
+    longitude: 76.7137,
+  },
+
+  // ── Key Central Kerala Hubs ──
+  "682030": { area: "Kakkanad / Infopark", latitude: 10.0159, longitude: 76.3419 },
+  "682016": { area: "Ernakulam M.G. Road", latitude: 9.9816, longitude: 76.2799 },
+  "682011": { area: "Ernakulam City", latitude: 9.9816, longitude: 76.2999 },
+  "682001": { area: "Kochi Fort Kochi", latitude: 9.9658, longitude: 76.2421 },
+  "682024": { area: "Kalamassery / CUSAT", latitude: 10.0469, longitude: 76.3267 },
+  "682020": { area: "Kadavanthra", latitude: 9.9678, longitude: 76.2996 },
   "683101": { area: "Aluva", latitude: 10.1076, longitude: 76.3516 },
-  "686001": { area: "Kottayam", latitude: 9.5916, longitude: 76.5222 },
-  "680001": { area: "Thrissur", latitude: 10.5276, longitude: 76.2144 },
-  "695001": {
-    area: "Thiruvananthapuram",
-    latitude: 8.5241,
-    longitude: 76.9366,
-  },
+  "686001": { area: "Kottayam Town", latitude: 9.5916, longitude: 76.5222 },
+  "680001": { area: "Thrissur Town", latitude: 10.5276, longitude: 76.2144 },
+  "673001": { area: "Kozhikode Town", latitude: 11.2480, longitude: 75.7760 },
+  "673004": { area: "Kozhikode Mavoor Road", latitude: 11.2588, longitude: 75.7804 },
+  "695001": { area: "Thiruvananthapuram Statue / City", latitude: 8.4904, longitude: 76.9530 },
+  "695033": { area: "Pattom, Trivandrum", latitude: 8.5241, longitude: 76.9407 },
+  "695581": { area: "Kazhakkoottam / Technopark", latitude: 8.5686, longitude: 76.8731 },
 }
 const toRad = (deg: number) => (deg * Math.PI) / 180
 export const distanceKm = (
@@ -1538,6 +1673,8 @@ export type SellRequest = {
   imagePaths: string[]
   /** Simulated storage path for invoice document */
   invoicePath: string
+  expectedPrice?: number
+  offeredPrice?: number
   status: SellRequestStatus
   adminNotes: string
   submittedAt: string

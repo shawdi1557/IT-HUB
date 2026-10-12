@@ -189,6 +189,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         buildTemplates: parsed.buildTemplates?.length
           ? parsed.buildTemplates
           : initial.buildTemplates,
+        locations:
+          parsed.locations && parsed.locations.length > 0
+            ? parsed.locations.map((loc) =>
+                loc.id === "kothamangalam"
+                  ? {
+                      ...loc,
+                      name: "IT HUB Kothamangalam (Headquarters)",
+                      address: "Molathu Building, College Jn., Kothamangalam, Kerala",
+                      pincode: "686691",
+                      latitude: 10.0601,
+                      longitude: 76.6277,
+                    }
+                  : loc,
+              )
+            : initial.locations,
         // Append newly added catalog options missing from older saves.
         componentCatalog: Object.fromEntries(
           Object.entries(initial.componentCatalog).map(([type, options]) => {

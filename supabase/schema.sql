@@ -331,7 +331,8 @@ create table import_runs (
 -- ────────────────────────────────────────────────────────────────────────────
 
 create table offers (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary 
+  key default gen_random_uuid(),
   name text not null,
   description text,
   type offer_type not null,
@@ -1163,6 +1164,8 @@ create table sell_requests (
   warranty_provider text,
   warranty_remaining text,
   warranty_details text,
+  expected_price numeric(12, 2) check (expected_price is null or expected_price >= 0),
+  offered_price numeric(12, 2) check (offered_price is null or offered_price >= 0),
   status text not null default 'Pending'
     check (status in ('Pending', 'Under Review', 'Contacted', 'Approved', 'Rejected', 'Completed')),
   admin_notes text,
@@ -1189,12 +1192,18 @@ begin
       if new.admin_notes is not null then
         raise exception 'Unauthorized: Administrative notes cannot be set on creation';
       end if;
+      if new.offered_price is not null then
+        raise exception 'Unauthorized: Offered price cannot be set on creation';
+      end if;
     elsif tg_op = 'UPDATE' then
       if new.status <> old.status then
         raise exception 'Unauthorized: Only administrators can update sell request status';
       end if;
       if new.admin_notes is distinct from old.admin_notes then
         raise exception 'Unauthorized: Only administrators can modify admin notes';
+      end if;
+      if new.offered_price is distinct from old.offered_price then
+        raise exception 'Unauthorized: Only administrators can modify offered price';
       end if;
       if new.customer_id <> old.customer_id then
         raise exception 'Unauthorized: Cannot change sell request customer';

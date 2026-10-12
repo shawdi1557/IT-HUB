@@ -118,6 +118,8 @@ alter table pc_builds add column if not exists updated_at timestamptz not null d
 alter table store_settings add column if not exists updated_at timestamptz not null default now();
 alter table brand_support add column if not exists updated_at timestamptz not null default now();
 alter table sell_requests add column if not exists updated_at timestamptz not null default now();
+alter table sell_requests add column if not exists expected_price numeric(12, 2) check (expected_price is null or expected_price >= 0);
+alter table sell_requests add column if not exists offered_price numeric(12, 2) check (offered_price is null or offered_price >= 0);
 alter table analytics_settings add column if not exists updated_at timestamptz not null default now();
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -362,17 +364,38 @@ create or replace function protect_sell_request() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
-    if new.status <> old.status then
-      raise exception 'Unauthorized: Only administrators can update sell request status';
-    end if;
-    if new.admin_notes is distinct from old.admin_notes then
-      raise exception 'Unauthorized: Only administrators can modify admin notes';
-    end if;
-    if new.customer_id <> old.customer_id then
-      raise exception 'Unauthorized: Cannot change sell request customer';
-    end if;
-    if new.id <> old.id then
-      raise exception 'Unauthorized: Cannot change sell request ID';
+    if tg_op = 'INSERT' then
+      if new.customer_id is distinct from auth.uid() then
+        raise exception 'Unauthorized: Customer ID must match authenticated user';
+      end if;
+      if new.status is distinct from 'Pending' then
+        raise exception 'Unauthorized: New sell requests must start in Pending status';
+      end if;
+      if new.admin_notes is not null then
+        raise exception 'Unauthorized: Administrative notes cannot be set on creation';
+      end if;
+      if new.offered_price is not null then
+        raise exception 'Unauthorized: Offered price cannot be set on creation';
+      end if;
+    elsif tg_op = 'UPDATE' then
+      if new.status <> old.status then
+        raise exception 'Unauthorized: Only administrators can update sell request status';
+      end if;
+      if new.admin_notes is distinct from old.admin_notes then
+        raise exception 'Unauthorized: Only administrators can modify admin notes';
+      end if;
+      if new.offered_price is distinct from old.offered_price then
+        raise exception 'Unauthorized: Only administrators can modify offered price';
+      end if;
+      if new.customer_id <> old.customer_id then
+        raise exception 'Unauthorized: Cannot change sell request customer';
+      end if;
+      if new.id <> old.id then
+        raise exception 'Unauthorized: Cannot change sell request ID';
+      end if;
+      if old.status <> 'Pending' then
+        raise exception 'Unauthorized: Sell request details cannot be edited once under review';
+      end if;
     end if;
   end if;
   return new;

@@ -81,29 +81,55 @@ export default function WarrantyCheck({
         On-Site Warranty Eligibility
       </p>
       {pincode === undefined && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            run(pin)
-          }}
-          className="mt-4 flex flex-wrap gap-2"
-        >
-          <input
-            aria-label="PIN code"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="Enter 6-digit PIN code"
-            value={pin}
-            onChange={(event) => {
-              setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
-              setResult(null)
+        <>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              run(pin)
             }}
-            className={`${fieldClass} max-w-56`}
-          />
-          <Button type="submit" variant="secondary">
-            <MapPin size={15} /> Check eligibility
-          </Button>
-        </form>
+            className="mt-4 flex flex-wrap gap-2"
+          >
+            <input
+              aria-label="PIN code"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Enter 6-digit PIN code"
+              value={pin}
+              onChange={(event) => {
+                setPin(event.target.value.replace(/\D/g, "").slice(0, 6))
+                setResult(null)
+              }}
+              className={`${fieldClass} max-w-56`}
+            />
+            <Button type="submit" variant="secondary">
+              <MapPin size={15} /> Check eligibility
+            </Button>
+          </form>
+          {!compact && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span>Quick check:</span>
+              {[
+                { label: "Kothamangalam", pin: "686691" },
+                { label: "M.A. College", pin: "686666" },
+                { label: "Kottappady", pin: "686692" },
+                { label: "Keerampara", pin: "686681" },
+                { label: "Muvattupuzha", pin: "686661" },
+              ].map((quick) => (
+                <button
+                  key={quick.pin}
+                  type="button"
+                  onClick={() => {
+                    setPin(quick.pin)
+                    run(quick.pin)
+                  }}
+                  className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                >
+                  {quick.label} ({quick.pin})
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {pincode !== undefined && !result && (
         <p className="mt-2 text-xs text-muted-foreground">

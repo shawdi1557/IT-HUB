@@ -16,12 +16,14 @@ import {
 import { useStore } from "../app/store"
 import {
   formatDate,
+  money,
   sellCategories,
   sellRequestStatuses,
   type SellRequest,
   type SellRequestStatus,
   type SellCategory,
 } from "../data/catalog"
+import { supabase, supabaseConfig } from "../lib/supabase"
 import { Button, Badge, Modal, Field, fieldClass } from "../components/ui"
 
 const statusTones: Record<SellRequestStatus, "amber" | "blue" | "green" | "red" | "gray"> =
@@ -58,19 +60,27 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
   const [editingStatus, setEditingStatus] =
     useState<SellRequestStatus>("Pending")
   const [internalNotes, setInternalNotes] = useState("")
+  const [offeredPriceInput, setOfferedPriceInput] = useState("")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   const openDetails = (req: SellRequest) => {
     setSelectedRequest(req)
     setEditingStatus(req.status)
     setInternalNotes(req.adminNotes || "")
+    setOfferedPriceInput(
+      req.offeredPrice !== undefined ? String(req.offeredPrice) : "",
+    )
   }
 
-  const handleUpdateStatus = (newStatus: SellRequestStatus) => {
+  const handleUpdateStatus = async (newStatus: SellRequestStatus) => {
     if (!selectedRequest) return
+    const parsedOffered = offeredPriceInput
+      ? Number(offeredPriceInput)
+      : selectedRequest.offeredPrice
     const updated: SellRequest = {
       ...selectedRequest,
       status: newStatus,
+      offeredPrice: parsedOffered,
       adminNotes: internalNotes,
       updatedAt: new Date().toISOString(),
     }
@@ -80,6 +90,22 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
         r.id === updated.id ? updated : r,
       ),
     }))
+
+    if (supabase && supabaseConfig.isConfigured) {
+      try {
+        await supabase
+          .from("sell_requests")
+          .update({
+            status: newStatus,
+            offered_price: parsedOffered,
+            admin_notes: internalNotes,
+            updated_at: updated.updatedAt,
+          })
+          .eq("id", updated.id)
+      } catch (err) {
+        console.warn("[Supabase] Failed to update sell request status:", err)
+      }
+    }
 
     store.log(`Sell Request Status Changed: ${updated.id} -> ${newStatus}`)
     if (newStatus === "Approved")
@@ -91,12 +117,16 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
     setEditingStatus(newStatus)
   }
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (!selectedRequest) return
+    const parsedOffered = offeredPriceInput
+      ? Number(offeredPriceInput)
+      : undefined
     const updated: SellRequest = {
       ...selectedRequest,
       adminNotes: internalNotes,
       status: editingStatus,
+      offeredPrice: parsedOffered,
       updatedAt: new Date().toISOString(),
     }
 
@@ -106,8 +136,24 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
       ),
     }))
 
-    store.log(`Admin Notes Updated: ${updated.id}`)
-    store.notify("Internal notes saved successfully")
+    if (supabase && supabaseConfig.isConfigured) {
+      try {
+        await supabase
+          .from("sell_requests")
+          .update({
+            admin_notes: internalNotes,
+            status: editingStatus,
+            offered_price: parsedOffered,
+            updated_at: updated.updatedAt,
+          })
+          .eq("id", updated.id)
+      } catch (err) {
+        console.warn("[Supabase] Failed to update sell request notes:", err)
+      }
+    }
+
+    store.log(`Admin Notes & Valuation Updated: ${updated.id}`)
+    store.notify("Internal notes and valuation saved successfully")
     setSelectedRequest(updated)
   }
 
@@ -257,6 +303,7 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                 <th className="px-5 py-3.5">Customer</th>
                 <th className="px-5 py-3.5">Device / Brand</th>
                 <th className="px-5 py-3.5">Condition</th>
+                <th className="px-5 py-3.5">Valuation Quote</th>
                 <th className="px-5 py-3.5">Warranty</th>
                 <th className="px-5 py-3.5">Attachments</th>
                 <th className="px-5 py-3.5">Status</th>
@@ -296,6 +343,22 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                     <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium">
                       {req.condition}
                     </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <p className="font-semibold text-foreground">
+                      {req.offeredPrice ? (
+                        <span className="font-bold text-emerald-700">
+                          {money(req.offeredPrice)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-amber-700">
+                          Awaiting Quote
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Exp: {req.expectedPrice ? money(req.expectedPrice) : "Not set"}
+                    </p>
                   </td>
                   <td className="px-5 py-3.5">
                     {req.hasWarranty ? (
@@ -339,7 +402,7 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               {!filteredRequests.length && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="p-8 text-center text-xs text-muted-foreground"
                   >
                     No sell requests match the current filters.
@@ -415,6 +478,26 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                   <span className="text-muted-foreground">Condition:</span>
                   <p className="font-semibold text-foreground">
                     {selectedRequest.condition}
+                  </p>
+                </div>
+              </div>
+
+              {/* Valuation price comparison */}
+              <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl bg-muted/40 p-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Customer Asking Price:</span>
+                  <p className="text-sm font-bold text-foreground">
+                    {selectedRequest.expectedPrice
+                      ? money(selectedRequest.expectedPrice)
+                      : "Not specified"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">IT HUB Offered Valuation:</span>
+                  <p className="text-sm font-bold text-emerald-700">
+                    {selectedRequest.offeredPrice
+                      ? money(selectedRequest.offeredPrice)
+                      : "Pending valuation"}
                   </p>
                 </div>
               </div>
@@ -514,7 +597,7 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                 Administrator Actions & Internal Notes
               </h4>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <Field label="Request Status">
                   <select
                     value={editingStatus}
@@ -531,6 +614,21 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                       </option>
                     ))}
                   </select>
+                </Field>
+
+                <Field label="Offered Valuation Quote (₹)">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs font-semibold text-muted-foreground">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      placeholder="e.g. 35000"
+                      value={offeredPriceInput}
+                      onChange={(e) => setOfferedPriceInput(e.target.value)}
+                      className={`${fieldClass} pl-7 text-xs`}
+                    />
+                  </div>
                 </Field>
 
                 <div>
@@ -581,7 +679,7 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                     onClick={handleSaveNotes}
                     className="px-3 py-1.5 text-xs"
                   >
-                    Save Notes
+                    Save Notes & Offer
                   </Button>
                 </div>
               </div>

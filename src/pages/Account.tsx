@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, NavLink, useParams } from "react-router"
 import {
   LayoutGrid,
@@ -16,6 +16,8 @@ import {
   Tag,
   BadgeCheck,
   Smartphone,
+  BadgeIndianRupee,
+  RefreshCw,
 } from "lucide-react"
 import AuthModal from "../components/AuthModal"
 import WarrantyCheck from "../components/WarrantyCheck"
@@ -26,8 +28,10 @@ import {
   money,
   orderStatuses,
   serviceStatuses,
+  formatDate,
   type Build,
 } from "../data/catalog"
+import { fetchUserSellRequests } from "../lib/sellRequests"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ProductCard from "../components/ProductCard"
 import {
@@ -47,6 +51,7 @@ const sections = [
   { id: "overview", name: "Overview", Icon: LayoutGrid },
   { id: "profile", name: "My Profile", Icon: UserRound },
   { id: "orders", name: "Orders", Icon: ShoppingBag },
+  { id: "sell-requests", name: "Sell & Trade-In", Icon: BadgeIndianRupee },
   { id: "services", name: "Services", Icon: Wrench },
   { id: "builds", name: "PC Builds", Icon: Cpu },
   { id: "wishlist", name: "Wishlist", Icon: Heart },
@@ -57,6 +62,16 @@ const sections = [
   { id: "support", name: "After-sales Support", Icon: LifeBuoy },
   { id: "settings", name: "Settings", Icon: Settings },
 ]
+
+const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> = {
+  Pending: "amber",
+  "Under Review": "blue",
+  Contacted: "blue",
+  Approved: "green",
+  Rejected: "red",
+  Completed: "gray",
+}
+
 export default function Account() {
   const { section = "overview" } = useParams()
   const store = useStore()
@@ -65,6 +80,27 @@ export default function Account() {
   const [warranty, setWarranty] = useState<string | null>(null)
   const [ticket, setTicket] = useState({ subject: "", message: "" })
   const [auth, setAuth] = useState(false)
+
+  useEffect(() => {
+    if (store.loggedIn) {
+      fetchUserSellRequests()
+        .then((supabaseRequests) => {
+          if (supabaseRequests && supabaseRequests.length > 0) {
+            store.set((prev) => {
+              const existingIds = new Set(prev.sellRequests.map((r) => r.id))
+              const newOnes = supabaseRequests.filter((r) => !existingIds.has(r.id))
+              if (newOnes.length > 0) {
+                return { sellRequests: [...newOnes, ...prev.sellRequests] }
+              }
+              return prev
+            })
+          }
+        })
+        .catch(() => {
+          // Gracefully fallback to local store
+        })
+    }
+  }, [store.loggedIn])
   const products = store.wishlist
     .map((id) => store.products.find((item) => item.id === id))
     .filter((item) => !!item)
@@ -193,6 +229,12 @@ export default function Account() {
                     count: store.builds.length,
                     to: "builds",
                     Icon: Cpu,
+                  },
+                  {
+                    name: "Sell requests",
+                    count: store.sellRequests.length,
+                    to: "sell-requests",
+                    Icon: BadgeIndianRupee,
                   },
                   {
                     name: "Warranty items",
@@ -390,6 +432,145 @@ export default function Account() {
                   description="Your technology journey starts here."
                   to="/products"
                   label="Shop products"
+                />
+              )}
+            </>
+          )}
+          {section === "sell-requests" && (
+            <>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">Sell & Trade-In Requests</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Track your gadget buyback evaluations, valuation offers, and trade-in status.
+                  </p>
+                </div>
+                <ActionLink to="/sell" className="shrink-0">
+                  <BadgeIndianRupee size={15} /> Sell Another Device
+                </ActionLink>
+              </div>
+
+              {store.sellRequests.length ? (
+                <div className="space-y-4">
+                  {store.sellRequests.map((req) => {
+                    const waMessage = encodeURIComponent(
+                      `Hello IT HUB, I am inquiring about my device valuation for Sell Request ${req.id} (${req.productName}).`,
+                    )
+                    const waUrl = `https://wa.me/${store.settings.whatsapp || "919876543210"}?text=${waMessage}`
+
+                    return (
+                      <div
+                        key={req.id}
+                        className="rounded-2xl border border-border bg-card p-5 sm:p-6 transition hover:border-primary/30"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                {req.id}
+                              </span>
+                              <Badge tone={sellStatusTones[req.status] || "gray"}>
+                                {req.status}
+                              </Badge>
+                              <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                {req.condition}
+                              </span>
+                              <span className="rounded bg-secondary px-2 py-0.5 text-[11px] font-medium text-primary">
+                                {req.category}
+                              </span>
+                            </div>
+                            <h3 className="text-lg font-bold text-foreground pt-1">
+                              {req.productName}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              Submitted on {formatDate(req.submittedAt)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                            >
+                              <WhatsAppIcon size={14} />
+                              Chat Support
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* Valuation & Pricing Comparison */}
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 rounded-xl bg-muted/40 p-3.5 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Your Asking Price:</span>
+                            <p className="mt-0.5 font-bold text-foreground">
+                              {req.expectedPrice ? money(req.expectedPrice) : "Open for IT HUB quote"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">IT HUB Valuation Offer:</span>
+                            {req.offeredPrice ? (
+                              <p className="mt-0.5 font-bold text-emerald-700 flex items-center gap-1">
+                                <BadgeCheck size={14} className="text-emerald-600" />
+                                {money(req.offeredPrice)}
+                                <span className="text-[10px] font-normal text-emerald-600">
+                                  (Ready for payout)
+                                </span>
+                              </p>
+                            ) : (
+                              <p className="mt-0.5 font-medium text-amber-700 flex items-center gap-1">
+                                <RefreshCw size={12} className="animate-spin text-amber-600" />
+                                Evaluation in progress by IT HUB technician
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Warranty & Extra Details */}
+                        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                          <div className="text-muted-foreground">
+                            Warranty:{" "}
+                            <span className="font-medium text-foreground">
+                              {req.hasWarranty
+                                ? `Active (${req.warrantyRemaining || "Valid warranty"}) · ${req.warrantyProvider || "Brand"}`
+                                : "No warranty / Expired"}
+                            </span>
+                          </div>
+                          {req.imagePaths && req.imagePaths.length > 0 && (
+                            <div className="text-muted-foreground flex items-center gap-1.5">
+                              Attached photos:{" "}
+                              <span className="font-medium text-foreground">
+                                {req.imagePaths.length} photo(s)
+                              </span>
+                              {req.invoicePath && (
+                                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                                  BILL ATTACHED
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Admin Notes / Instructions Callout */}
+                        {req.adminNotes && (
+                          <div className="mt-3.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
+                            <span className="font-semibold text-primary">
+                              IT HUB Note:
+                            </span>{" "}
+                            <span className="text-foreground">{req.adminNotes}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <Empty
+                  title="No sell or trade-in requests"
+                  description="Upgrade your tech with IT HUB! Turn your used laptops, PCs, iPhones, and GPUs into instant cash or store credit."
+                  to="/sell"
+                  label="Sell your device"
                 />
               )}
             </>

@@ -26,6 +26,7 @@ import {
   type ProductCondition,
   type SellRequest,
 } from "../data/catalog"
+import { submitSellRequest } from "../lib/sellRequests"
 import { Button, Badge, fieldClass } from "./ui"
 import { LoginGate } from "./AuthModal"
 
@@ -686,6 +687,7 @@ export default function SellYourItem({
   const [warrantyProvider, setWarrantyProvider] = useState("")
   const [warrantyRemaining, setWarrantyRemaining] = useState("6 months")
   const [warrantyDetails, setWarrantyDetails] = useState("")
+  const [expectedPrice, setExpectedPrice] = useState("")
 
   // Contact info (prefilled from profile)
   const [customerName, setCustomerName] = useState(store.profile.name || "")
@@ -810,45 +812,70 @@ export default function SellYourItem({
     }
 
     setSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    setError("")
 
-    const id = `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
-    const newRequest: SellRequest = {
-      id,
-      userId: customerPhone,
-      customerName,
-      customerEmail: customerEmail || "unspecified@example.com",
-      customerPhone,
-      category,
-      productName:
-        `${effectiveBrand} ${effectiveModel}`.trim() || `${category} device`,
-      brand: effectiveBrand,
-      model: effectiveModel,
-      condition,
-      description,
-      hasWarranty: Boolean(hasWarranty),
-      warrantyProvider: hasWarranty ? warrantyProvider : "",
-      warrantyRemaining: hasWarranty ? warrantyRemaining : "",
-      warrantyDetails: hasWarranty ? warrantyDetails : "",
-      imagePaths: images.map((img) => img.url),
-      invoicePath: invoice ? invoice.url : "",
-      status: "Under Review",
-      adminNotes: "",
-      submittedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    try {
+      const res = await submitSellRequest({
+        userId: customerPhone,
+        customerName,
+        customerEmail: customerEmail || "unspecified@example.com",
+        customerPhone,
+        category,
+        brand: effectiveBrand,
+        model: effectiveModel,
+        condition,
+        description,
+        hasWarranty: Boolean(hasWarranty),
+        warrantyProvider: hasWarranty ? warrantyProvider : undefined,
+        warrantyRemaining: hasWarranty ? warrantyRemaining : undefined,
+        warrantyDetails: hasWarranty ? warrantyDetails : undefined,
+        expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
+        images: images.map((img) => ({ name: img.name, dataUrl: img.url })),
+        invoice: invoice ? { name: invoice.name, dataUrl: invoice.url } : null,
+      })
+
+      const finalId = res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+      const newRequest: SellRequest = {
+        id: finalId,
+        userId: customerPhone,
+        customerName,
+        customerEmail: customerEmail || "unspecified@example.com",
+        customerPhone,
+        category,
+        productName:
+          `${effectiveBrand} ${effectiveModel}`.trim() || `${category} device`,
+        brand: effectiveBrand,
+        model: effectiveModel,
+        condition,
+        description,
+        hasWarranty: Boolean(hasWarranty),
+        warrantyProvider: hasWarranty ? warrantyProvider : "",
+        warrantyRemaining: hasWarranty ? warrantyRemaining : "",
+        warrantyDetails: hasWarranty ? warrantyDetails : "",
+        expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
+        imagePaths: res.storageImages?.length ? res.storageImages : images.map((img) => img.url),
+        invoicePath: res.storageInvoice || (invoice ? invoice.url : ""),
+        status: "Pending",
+        adminNotes: "",
+        submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      store.set((prev) => ({
+        sellRequests: [newRequest, ...prev.sellRequests],
+        notifications: [`Sell request ${finalId} submitted`, ...prev.notifications],
+      }))
+
+      store.log(
+        `Sell Request Submitted: ${finalId} (${category} - ${newRequest.productName})`,
+      )
+      store.notify(`Sell request ${finalId} submitted for review!`)
+      setSubmittedRequest(newRequest)
+    } catch (err: any) {
+      setError(err?.message || "Failed to submit sell request. Please try again.")
+    } finally {
+      setSubmitting(false)
     }
-
-    store.set((prev) => ({
-      sellRequests: [newRequest, ...prev.sellRequests],
-      notifications: [`Sell request ${id} submitted`, ...prev.notifications],
-    }))
-
-    store.log(
-      `Sell Request Submitted: ${id} (${category} - ${newRequest.productName})`,
-    )
-    store.notify(`Sell request ${id} submitted for review!`)
-    setSubmittedRequest(newRequest)
-    setSubmitting(false)
   }
 
   // Confirmation screen
@@ -1236,6 +1263,28 @@ export default function SellYourItem({
             )}
           </div>
 
+          {/* Expected Price / Asking Price */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <label className="mb-1.5 block text-xs font-semibold text-foreground">
+              Your Expected Asking Price (₹) <span className="font-normal text-muted-foreground">(Optional)</span>
+            </label>
+            <div className="relative max-w-sm">
+              <span className="absolute left-3 top-2 text-xs font-bold text-muted-foreground">₹</span>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                placeholder="e.g. 25000"
+                value={expectedPrice}
+                onChange={(e) => setExpectedPrice(e.target.value)}
+                className={`${fieldClass} pl-7`}
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              What do you hope to get for this device? IT HUB will evaluate condition and give you a fair market quote.
+            </p>
+          </div>
+
           <div className="flex justify-between pt-4">
             <Button variant="secondary" onClick={() => setStep(0)}>
               <ArrowLeft size={16} /> Back
@@ -1534,6 +1583,12 @@ export default function SellYourItem({
                     : "No Warranty"}
                 </p>
               </div>
+              {expectedPrice && (
+                <div>
+                  <span className="text-muted-foreground">Expected Price</span>
+                  <p className="font-semibold text-emerald-700">₹{Number(expectedPrice).toLocaleString("en-IN")}</p>
+                </div>
+              )}
             </div>
             {description && (
               <div className="mt-3 border-t border-border pt-3 text-xs">

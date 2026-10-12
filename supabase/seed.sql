@@ -155,8 +155,10 @@ on conflict (id) do update set
   icon = excluded.icon,
   active = excluded.active;
 
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 5. IT HUB SERVICE HUBS & HUBS IN KERALA
+-- 5. IT HUB PHYSICAL SHOP & SERVICE HUB IN KERALA
+-- Physical shop: IT HUB Kothamangalam (Headquarters)
 -- ────────────────────────────────────────────────────────────────────────────
 
 insert into public.it_hub_locations (id, name, address, pincode, latitude, longitude, service_radius_km, active)
@@ -170,64 +172,60 @@ values
     76.6277,
     30.0,
     true
-  ),
-  (
-    '30000000-0000-0000-0000-000000000001',
-    'IT HUB Kochi Central',
-    'Shop 14, Central Plaza, M.G. Road, Ernakulam, Kochi',
-    '682016',
-    9.9816,
-    76.2799,
-    20.0,
-    true
-  ),
-  (
-    '30000000-0000-0000-0000-000000000002',
-    'IT HUB Trivandrum Hub',
-    'TC 25/1420, M.G. Road, Statue Junction, Thiruvananthapuram',
-    '695001',
-    8.4904,
-    76.9530,
-    20.0,
-    true
-  ),
-  (
-    '30000000-0000-0000-0000-000000000003',
-    'IT HUB Calicut Branch',
-    'Mavoor Road Junction, Kozhikode',
-    '673004',
-    11.2588,
-    75.7804,
-    20.0,
-    true
-  ),
-  (
-    '30000000-0000-0000-0000-000000000004',
-    'IT HUB Thrissur Centre',
-    'Swaraj Round North, Thrissur',
-    '680001',
-    10.5276,
-    76.2144,
-    18.0,
-    true
   )
-on conflict (id) do nothing;
+on conflict (id) do update set
+  name = excluded.name,
+  address = excluded.address,
+  pincode = excluded.pincode,
+  latitude = excluded.latitude,
+  longitude = excluded.longitude,
+  service_radius_km = excluded.service_radius_km,
+  active = excluded.active;
 
--- Key Kerala district postal centroids for on-site eligibility haversine checks
+-- Key Kerala postal centroids for on-site eligibility haversine checks
 insert into public.pincode_areas (pincode, area, latitude, longitude)
 values
+  -- Kothamangalam Administrative Division
+  ('686691', 'Kothamangalam Town (Bazar, Nellikuzhy, Varapetty, Karukadom, Cheruvattoor, Iramalloor, Kozhipilly, Nadukani)', 10.0601, 76.6277),
+  ('686666', 'Kothamangalam College (M.A. College Campus Area)', 10.0545, 76.6435),
+  ('686692', 'Kottappady & Adjacent Limits', 10.1132, 76.5925),
+  ('686681', 'Keerampara / Bhoothathankettu / Thattekkad (Forest & Eco-Tourism Range)', 10.1180, 76.6850),
+  ('686693', 'Manikinar, Neendapara & Forest Boundaries', 10.0380, 76.7150),
+  ('686671', 'Chathamattam, Koovalloor & Limits', 10.0240, 76.6710),
+  ('685514', 'Eastern High-Range / Pindimana Boundary', 10.0540, 76.7850),
+  ('685612', 'Eastern High-Range / Oonnukal Range', 10.0330, 76.7550),
+  ('683544', 'Kuttampuzha (Kothamangalam Forest Range)', 10.1530, 76.7380),
+
+  -- Muvattupuzha Region
+  ('686661', 'Muvattupuzha Town & HPO (Bazar, Kizhakkekara, Peringuzha, Thottumkalpeedika)', 9.9894, 76.5790),
+  ('686673', 'Muvattupuzha Market & Suburbs (Kadathy, Kakkadasseri, Perumattom, Randar, Vazhappily, Mulavoor, Enanalloor)', 9.9750, 76.5820),
+
+  -- Nearby Localities
+  ('686670', 'Pothanicad', 10.0010, 76.6800),
+  ('683556', 'Perumbavoor (Odakkali / Asamannoor)', 10.0790, 76.5320),
+  ('683542', 'Perumbavoor Town', 10.1157, 76.4780),
+  ('685608', 'Thodupuzha (Kaliyar / Vannappuram)', 9.9490, 76.7380),
+  ('685584', 'Thodupuzha Town', 9.8960, 76.7137),
+
+  -- Major Kerala Centers
+  ('682030', 'Kakkanad / Infopark', 10.0159, 76.3419),
   ('682016', 'Ernakulam M.G. Road', 9.9816, 76.2799),
+  ('682011', 'Ernakulam City', 9.9816, 76.2999),
   ('682001', 'Kochi Fort Kochi', 9.9658, 76.2421),
   ('682024', 'Kalamassery / CUSAT', 10.0469, 76.3267),
-  ('682030', 'Kakkanad / Infopark', 10.0159, 76.3419),
   ('682020', 'Kadavanthra', 9.9678, 76.2996),
-  ('695001', 'Trivandrum City / Statue', 8.4904, 76.9530),
-  ('695033', 'Pattom, Trivandrum', 8.5241, 76.9407),
-  ('695581', 'Kazhakkoottam / Technopark', 8.5686, 76.8731),
+  ('683101', 'Aluva', 10.1076, 76.3516),
+  ('686001', 'Kottayam Town', 9.5916, 76.5222),
+  ('680001', 'Thrissur Town', 10.5276, 76.2144),
   ('673001', 'Kozhikode Town', 11.2480, 75.7760),
   ('673004', 'Kozhikode Mavoor Road', 11.2588, 75.7804),
-  ('680001', 'Thrissur Town', 10.5276, 76.2144)
-on conflict (pincode) do nothing;
+  ('695001', 'Thiruvananthapuram Statue / City', 8.4904, 76.9530),
+  ('695033', 'Pattom, Trivandrum', 8.5241, 76.9407),
+  ('695581', 'Kazhakkoottam / Technopark', 8.5686, 76.8731)
+on conflict (pincode) do update set
+  area = excluded.area,
+  latitude = excluded.latitude,
+  longitude = excluded.longitude;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 6. PC BUILDER STARTER TEMPLATES
@@ -321,6 +319,225 @@ values
     true
   )
 on conflict (id) do nothing;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 7. INITIAL PRODUCT CATALOG: VERIFIED SECOND-HAND / PRE-OWNED HARDWARE
+-- ────────────────────────────────────────────────────────────────────────────
+
+insert into public.products (
+  id, sku, name, brand_id, category_id, subcategory, description,
+  mrp, price, sale_price, cost_price, warranty, weight, specs,
+  second_hand, condition, status
+)
+values
+  (
+    '50000000-0000-0000-0000-000000000001',
+    'SH-MACBOOK-AIR-M1',
+    'Apple MacBook Air M1 256GB Space Grey (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'MacBooks',
+    'Certified pre-owned MacBook Air with Apple Silicon M1 chip. Fully tested keyboard, trackpad, screen, and battery health at 91%. Comes with original MagSafe/Type-C cable and adapter.',
+    89900.00,
+    52999.00,
+    49999.00,
+    42000.00,
+    '6 Months IT HUB Certified Warranty',
+    '1.29 kg',
+    '{"Processor": "Apple M1 8-Core", "RAM": "8GB Unified", "Storage": "256GB SSD", "BatteryHealth": "91%", "Display": "13.3-inch Retina True Tone", "Condition": "Like New"}'::jsonb,
+    true,
+    'Like New',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000002',
+    'SH-THINKPAD-T14-G2',
+    'Lenovo ThinkPad T14 Gen 2 Core i5 (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000001',
+    'Business Laptops',
+    'Legendary business workhorse. Military-grade durability, spill-resistant keyboard, and fast 11th Gen Core i5 processor. Inspected and sanitized by IT HUB technicians.',
+    98000.00,
+    38500.00,
+    null,
+    29500.00,
+    '6 Months IT HUB Certified Warranty',
+    '1.47 kg',
+    '{"Processor": "Intel Core i5-1135G7", "RAM": "16GB DDR4", "Storage": "512GB NVMe SSD", "Display": "14-inch FHD IPS", "BatteryHealth": "86%", "Condition": "Good"}'::jsonb,
+    true,
+    'Good',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000003',
+    'SH-THINKCENTRE-M720Q',
+    'Lenovo ThinkCentre M720q Tiny Mini PC (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000002',
+    'Mini PCs',
+    'Ultra-compact desktop PC ideal for office work, accounting, billing desks, and student study. Fast dual storage with SSD boot and bulk HDD.',
+    45000.00,
+    18999.00,
+    null,
+    14000.00,
+    '3 Months IT HUB Certified Warranty',
+    '1.32 kg',
+    '{"Processor": "Intel Core i5-8400T 6-Core", "RAM": "16GB DDR4", "Storage": "256GB SSD + 500GB HDD", "OS": "Windows 11 Pro Genuine", "Condition": "Good"}'::jsonb,
+    true,
+    'Good',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000004',
+    'SH-DELL-LATITUDE-7420',
+    'Dell Latitude 7420 Carbon Fiber Ultrabook (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000001',
+    'Ultrabooks',
+    'Premium carbon fiber finish with Intel Core i7 vPro performance. Super-crisp FHD screen, backlit keyboard, and USB-C Thunderbolt 4 ports.',
+    115000.00,
+    42999.00,
+    null,
+    33500.00,
+    '6 Months IT HUB Certified Warranty',
+    '1.31 kg',
+    '{"Processor": "Intel Core i7-1185G7 vPro", "RAM": "16GB LPDDR4x", "Storage": "512GB PCIe NVMe SSD", "Display": "14.0-inch FHD Anti-Glare", "Condition": "Like New"}'::jsonb,
+    true,
+    'Like New',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000005',
+    'SH-GPU-RTX3070-8G',
+    'Zotac Gaming GeForce RTX 3070 Twin Edge 8GB (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000025',
+    '10000000-0000-0000-0000-000000000013',
+    'Graphics Cards',
+    'High-performance 1440p gaming graphics card. Thermal paste freshly renewed with Arctic MX-4. 3DMark and Furmark stress-tested with max temperature 68C.',
+    62000.00,
+    26500.00,
+    null,
+    21000.00,
+    '3 Months IT HUB Testing Warranty',
+    '0.85 kg',
+    '{"VRAM": "8GB GDDR6 256-Bit", "Interface": "PCIe 4.0 16x", "Outputs": "3x DisplayPort 1.4a, 1x HDMI 2.1", "Benchmarked": "100% Stability 68C", "Condition": "Good"}'::jsonb,
+    true,
+    'Good',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000006',
+    'SH-IPHONE-13-128G',
+    'Apple iPhone 13 128GB Midnight (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000008',
+    'Smartphones',
+    'Flawless pre-owned iPhone 13 with 89% battery health. True Tone, Face ID, and dual cameras functioning perfectly. Tested under 32-point inspection.',
+    59900.00,
+    36999.00,
+    null,
+    30000.00,
+    '6 Months IT HUB Warranty',
+    '0.17 kg',
+    '{"Storage": "128GB", "BatteryHealth": "89%", "Color": "Midnight", "Condition": "Like New", "TrueToneFaceID": "100% Working"}'::jsonb,
+    true,
+    'Like New',
+    'Active'
+  ),
+  (
+    '50000000-0000-0000-0000-000000000007',
+    'SH-SAMSUNG-ODYSSEY-G5',
+    'Samsung Odyssey G5 27-inch 144Hz WQHD Curved (Pre-Owned)',
+    '20000000-0000-0000-0000-000000000008',
+    '10000000-0000-0000-0000-000000000004',
+    'Gaming Monitors',
+    '27-inch 1000R curved gaming monitor with 2560x1440 WQHD resolution, 144Hz refresh rate, and AMD FreeSync Premium. Zero dead pixels verified.',
+    24000.00,
+    13999.00,
+    null,
+    10500.00,
+    '3 Months IT HUB Warranty',
+    '4.5 kg',
+    '{"Resolution": "2560x1440 WQHD", "RefreshRate": "144Hz 1ms", "Curve": "1000R", "Condition": "Good", "DeadPixels": "Zero"}'::jsonb,
+    true,
+    'Good',
+    'Active'
+  )
+on conflict (sku) do update set
+  price = excluded.price,
+  sale_price = excluded.sale_price,
+  specs = excluded.specs,
+  condition = excluded.condition,
+  second_hand = excluded.second_hand,
+  warranty = excluded.warranty,
+  status = excluded.status;
+
+-- Initialize inventory stock for seeded pre-owned hardware
+insert into public.inventory (product_id, stock, low_stock_threshold)
+values
+  ('50000000-0000-0000-0000-000000000001', 2, 1),
+  ('50000000-0000-0000-0000-000000000002', 3, 1),
+  ('50000000-0000-0000-0000-000000000003', 4, 1),
+  ('50000000-0000-0000-0000-000000000004', 2, 1),
+  ('50000000-0000-0000-0000-000000000005', 1, 1),
+  ('50000000-0000-0000-0000-000000000006', 2, 1),
+  ('50000000-0000-0000-0000-000000000007', 1, 1)
+on conflict (product_id) do update set
+  stock = excluded.stock,
+  low_stock_threshold = excluded.low_stock_threshold;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 8. SAMPLE SELL / TRADE-IN REQUESTS (DEMONSTRATING WORKFLOW)
+-- ────────────────────────────────────────────────────────────────────────────
+
+insert into public.sell_requests (
+  id, customer_id, category, product_name, brand, model,
+  condition, description, has_warranty, warranty_provider,
+  warranty_remaining, warranty_details, expected_price, offered_price,
+  status, admin_notes
+)
+values
+  (
+    '60000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000002',
+    'Laptop',
+    'HP Pavilion Gaming 15 (Ryzen 5 / GTX 1650)',
+    'HP',
+    'Pavilion Gaming 15-ec1024AX',
+    'Good',
+    'Used for college engineering projects and light esports gaming. Original 150W charger included. Tiny cosmetic scratch on bottom base.',
+    false,
+    null,
+    null,
+    null,
+    28000.00,
+    null,
+    'Pending',
+    null
+  ),
+  (
+    '60000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000002',
+    'Phone',
+    'OnePlus 11R 5G 16GB/256GB Sonic Black',
+    'OnePlus',
+    '11R 5G',
+    'Like New',
+    'Immaculate condition with retail box, 100W SUPERVOOC adapter, and original bill. Screen protector applied since day one.',
+    true,
+    'OnePlus Official',
+    '4 months',
+    'Purchase invoice verified',
+    26000.00,
+    24500.00,
+    'Approved',
+    'Verified original purchase bill. Battery diagnostic passed at 93%. Ready for store drop-off at Kothamangalam or courier pickup.'
+  )
+on conflict (id) do update set
+  status = excluded.status,
+  expected_price = excluded.expected_price,
+  offered_price = excluded.offered_price,
+  admin_notes = excluded.admin_notes;
 
 commit;
 
