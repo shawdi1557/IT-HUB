@@ -48,10 +48,13 @@ create table profiles (
 -- Declared SECURITY DEFINER and fixed search_path to avoid RLS recursion and search_path poisoning.
 create or replace function is_admin() returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
-  select exists (
-    select 1 from profiles
-    where id = auth.uid() and role = 'admin'
-  );
+  select
+    coalesce(current_user in ('postgres', 'supabase_admin'), false)
+    or coalesce(nullif(current_setting('request.jwt.claim.role', true), '') = 'service_role', false)
+    or exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    );
 $$;
 
 -- Global trigger helper for updated_at timestamps
@@ -145,13 +148,26 @@ $$;
 -- Enforces NULL-safe comparisons and restricts non-admin creation strictly to customer role.
 create or replace function protect_role() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_admin_exists boolean;
 begin
   if tg_op = 'UPDATE' then
-    if new.role is distinct from old.role and not is_admin() then
+    if new.role is distinct from old.role then
+      if is_admin() then
+        return new;
+      end if;
+      select exists (select 1 from public.profiles where role = 'admin') into v_admin_exists;
+      if not v_admin_exists and new.role = 'admin' then
+        return new;
+      end if;
       raise exception 'Unauthorized: Only administrators can modify roles';
     end if;
   elsif tg_op = 'INSERT' then
     if new.role is distinct from 'customer' and not is_admin() then
+      select exists (select 1 from public.profiles where role = 'admin') into v_admin_exists;
+      if not v_admin_exists and new.role = 'admin' then
+        return new;
+      end if;
       raise exception 'Unauthorized: Only administrators can create admin accounts';
     end if;
   end if;
@@ -174,7 +190,7 @@ create or replace function bootstrap_first_admin(p_user_id uuid) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_admin_exists boolean;
-  v_target_profile record;
+  v_target_user record;
 begin
   if p_user_id is null then
     raise exception 'Target user ID is required for initial bootstrap';
@@ -185,15 +201,27 @@ begin
     raise exception 'Initial administrator already exists. Further role assignments require an active administrator.';
   end if;
 
-  select * into v_target_profile from profiles where id = p_user_id;
-  if not found then
-    raise exception 'Profile % does not exist. The user must sign up before being promoted.', p_user_id;
+  if not exists (select 1 from profiles where id = p_user_id) then
+    select * into v_target_user from auth.users where id = p_user_id;
+    if not found then
+      raise exception 'User ID % does not exist in Supabase auth.users. Please create the user first.', p_user_id;
+    end if;
+    insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+    values (
+      p_user_id,
+      'admin',
+      coalesce(v_target_user.raw_user_meta_data->>'full_name', v_target_user.raw_user_meta_data->>'name', 'Store Administrator'),
+      v_target_user.phone,
+      v_target_user.email,
+      now(),
+      now()
+    );
+  else
+    update profiles
+    set role = 'admin',
+        updated_at = now()
+    where id = p_user_id;
   end if;
-
-  update profiles
-  set role = 'admin',
-      updated_at = now()
-  where id = p_user_id;
 
   return jsonb_build_object('ok', true, 'user_id', p_user_id, 'role', 'admin');
 end;
