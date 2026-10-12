@@ -2215,10 +2215,37 @@ revoke all on table visitor_events from anon, authenticated, public;
 revoke all on table analytics_settings from anon, authenticated, public;
 revoke all on table coupons from anon, authenticated, public;
 
--- 2. Grant read access to public safe views
+-- 2. Grant read access to public safe views and storefront tables (Protected by RLS)
 grant select on products_public to anon, authenticated;
 grant select on live_offers to anon, authenticated;
 grant select on public_coupons to anon, authenticated;
+grant select on store_settings to anon, authenticated;
+grant select on categories to anon, authenticated;
+grant select on brands to anon, authenticated;
+grant select on it_hub_locations to anon, authenticated;
+grant select on pincode_areas to anon, authenticated;
+grant select on pc_build_templates to anon, authenticated;
+grant select on support_categories to anon, authenticated;
+grant select on brand_support to anon, authenticated;
+grant select on reviews to anon, authenticated;
+grant select on product_images to anon, authenticated;
+grant select on offers to anon, authenticated;
+grant select on offer_products to anon, authenticated;
+grant select on offer_categories to anon, authenticated;
+grant select on offer_brands to anon, authenticated;
+
+-- 2.1 Customer Tables (Access strictly filtered by Row Level Security)
+grant select, update on profiles to authenticated;
+grant select, insert, update, delete on addresses to authenticated;
+grant select, insert, delete on wishlist to authenticated;
+grant select on orders to authenticated;
+grant select on order_items to authenticated;
+grant select, insert, update on service_requests to authenticated;
+grant select, insert, update on sell_requests to authenticated;
+grant select, insert, delete on sell_request_images to authenticated;
+grant select, insert, delete on sell_request_documents to authenticated;
+grant select, insert, update, delete on pc_builds to authenticated;
+grant select, insert on warranty_checks to authenticated;
 
 -- 3. Client & Authenticated RPC Execution Grants (Exact Function Signatures)
 revoke all on function is_admin() from public;
