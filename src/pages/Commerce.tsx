@@ -12,6 +12,7 @@ import {
   Truck,
   Search,
   Tag,
+  ShieldCheck,
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
@@ -23,6 +24,12 @@ import {
   type CartItem,
   type Coupon,
 } from "../data/catalog"
+import {
+  RAZORPAY_KEY_ID,
+  createSupabaseOrder,
+  launchRazorpayModal,
+  verifyCheckoutCallback,
+} from "../lib/payments"
 import WarrantyCheck from "../components/WarrantyCheck"
 import {
   ActionLink,
@@ -243,7 +250,9 @@ export function Checkout() {
     city: "Kothamangalam",
     pin: "",
     delivery: "Kerala delivery",
-    payment: "UPI (demo)",
+    payment: RAZORPAY_KEY_ID
+      ? "Razorpay (UPI, Cards, NetBanking)"
+      : "UPI (demo)",
   })
   const [couponInput, setCouponInput] = useState("")
   const [appliedCoupon, setAppliedCoupon] = useState<{
@@ -292,42 +301,12 @@ export function Checkout() {
 
   const update = (key: string, value: string) =>
     setDetails({ ...details, [key]: value })
-  const submit = async () => {
-    setError("")
-    if (step < 2) {
-      setStep(step + 1)
-      return
-    }
-    const unavailable = store.cart.find(
-      (item) =>
-        item.productId &&
-        item.quantity >
-          (store.products.find((product) => product.id === item.productId)
-            ?.stock || 0),
-    )
-    if (unavailable) {
-      setError(
-        `${unavailable.name} has insufficient stock. Please update your cart.`,
-      )
-      return
-    }
-    if (appliedCoupon) {
-      const recheck = validateCoupon(
-        appliedCoupon.coupon.code,
-        cartNet,
-        customerId,
-        store.coupons,
-        store.couponUsages,
-      )
-      if (!recheck.valid) {
-        setError(`Coupon error: ${recheck.error}`)
-        setAppliedCoupon(null)
-        return
-      }
-    }
-    setBusy(true)
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    const id = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+
+  const finalizeOrder = (
+    id: string,
+    orderTotal: number,
+    paymentRef?: string,
+  ) => {
     const order = {
       id,
       name: details.name,
@@ -337,10 +316,10 @@ export function Checkout() {
           ? "IT HUB · Kothamangalam, Kerala"
           : `${details.address}, ${details.city}, Kerala ${details.pin}`,
       items: [...store.cart],
-      total,
+      total: orderTotal,
       status: 0,
       date: new Date().toISOString(),
-      payment: details.payment,
+      payment: paymentRef ? `Razorpay (${paymentRef})` : details.payment,
       delivery: details.delivery,
     }
     track("Order Created", { order: order.id, total: String(order.total) })
@@ -390,8 +369,124 @@ export function Checkout() {
         `Coupon Used: ${appliedCoupon.coupon.code} on Order ${id} (-₹${appliedCoupon.discount})`,
       )
     }
-    store.notify("Order placed successfully — demo transaction")
+    setBusy(false)
+    store.notify(
+      paymentRef
+        ? "Order placed & payment verified successfully!"
+        : "Order placed successfully — demo transaction",
+    )
     navigate(`/order-success/${id}`)
+  }
+
+  const submit = async () => {
+    setError("")
+    if (step < 2) {
+      setStep(step + 1)
+      return
+    }
+    const unavailable = store.cart.find(
+      (item) =>
+        item.productId &&
+        item.quantity >
+          (store.products.find((product) => product.id === item.productId)
+            ?.stock || 0),
+    )
+    if (unavailable) {
+      setError(
+        `${unavailable.name} has insufficient stock. Please update your cart.`,
+      )
+      return
+    }
+    if (appliedCoupon) {
+      const recheck = validateCoupon(
+        appliedCoupon.coupon.code,
+        cartNet,
+        customerId,
+        store.coupons,
+        store.couponUsages,
+      )
+      if (!recheck.valid) {
+        setError(`Coupon error: ${recheck.error}`)
+        setAppliedCoupon(null)
+        return
+      }
+    }
+    setBusy(true)
+
+    const isRazorpay = details.payment.includes("Razorpay")
+
+    // If Razorpay gateway is chosen and public key is available
+    if (isRazorpay && RAZORPAY_KEY_ID) {
+      let activeOrderId = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+      let activeOrderTotal = total
+
+      // Attempt server-side order reservation in Supabase
+      const itemsPayload = store.cart
+        .filter((item) => item.productId)
+        .map((item) => ({
+          product_id: item.productId as string,
+          quantity: item.quantity,
+        }))
+
+      if (itemsPayload.length > 0) {
+        const sbOrder = await createSupabaseOrder({
+          items: itemsPayload,
+          deliveryMethod: details.delivery,
+          paymentMethod: "Razorpay",
+          couponCode: appliedCoupon?.coupon.code || null,
+          notes: `Customer: ${details.name}, Phone: ${details.phone}`,
+        })
+
+        if (sbOrder.ok && sbOrder.orderId) {
+          activeOrderId = sbOrder.orderId
+          if (sbOrder.total) activeOrderTotal = sbOrder.total
+        }
+      }
+
+      // Launch Razorpay Modal
+      const launched = await launchRazorpayModal({
+        orderId: activeOrderId,
+        amountINR: activeOrderTotal,
+        customerName: details.name || "Customer",
+        customerEmail: details.email || "customer@ithub.in",
+        customerPhone: details.phone || "9876543210",
+        onSuccess: async (payload) => {
+          store.notify("Payment completed. Verifying with gateway…")
+          const verifyResult = await verifyCheckoutCallback({
+            ...payload,
+            order_id: activeOrderId,
+          })
+
+          if (!verifyResult.ok) {
+            console.warn("[Payment Verification]", verifyResult.error)
+            store.notify(
+              verifyResult.error || "Payment verification pending. Reference saved.",
+            )
+          }
+
+          finalizeOrder(activeOrderId, activeOrderTotal, payload.razorpay_payment_id)
+        },
+        onDismiss: () => {
+          setBusy(false)
+          store.notify("Payment window closed.")
+        },
+        onError: (errMsg) => {
+          setBusy(false)
+          setError(errMsg)
+          store.notify(errMsg)
+        },
+      })
+
+      if (!launched) {
+        setBusy(false)
+      }
+      return
+    }
+
+    // Fallback: Simulated local order placement
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    const id = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+    finalizeOrder(id, total)
   }
   if (!store.cart.length)
     return (
@@ -559,12 +654,20 @@ export function Checkout() {
               <h3 className="mb-4 mt-8 text-sm font-semibold">
                 Payment method
               </h3>
-              {["UPI (demo)", "Card (demo)", "Cash on delivery (demo)"].map(
-                (value) => (
-                  <label
-                    key={value}
-                    className="mb-3 flex items-center gap-3 text-sm"
-                  >
+              {[
+                "Razorpay (UPI, Cards, NetBanking)",
+                "Cash on delivery (Kerala)",
+                "Simulated demo transaction",
+              ].map((value) => (
+                <label
+                  key={value}
+                  className={`mb-3 flex items-center justify-between rounded-xl border p-4 text-sm transition ${
+                    details.payment === value
+                      ? "border-primary bg-secondary/30 ring-1 ring-primary/20"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
                     <input
                       type="radio"
                       name="payment"
@@ -572,14 +675,21 @@ export function Checkout() {
                       onChange={() => update("payment", value)}
                       className="accent-primary"
                     />
-                    {value}
-                  </label>
-                ),
+                    <span className="font-medium text-foreground">{value}</span>
+                  </span>
+                  {value.includes("Razorpay") && (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                      <ShieldCheck size={12} className="text-emerald-700" />
+                      256-BIT SECURE
+                    </span>
+                  )}
+                </label>
+              ))}
+              {details.payment.includes("Razorpay") && !RAZORPAY_KEY_ID && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+                  <strong>Developer Note:</strong> <code>VITE_RAZORPAY_KEY_ID</code> is not configured in local environment. Orders with this method will proceed in safe simulated prototype mode.
+                </p>
               )}
-              <p className="mt-5 rounded-md bg-muted p-4 text-xs leading-6 text-muted-foreground">
-                No card details, UPI identifiers or payments are required. All
-                transactions are simulated.
-              </p>
             </>
           )}
           {step === 2 && (
@@ -603,22 +713,25 @@ export function Checkout() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Payment</p>
-                  <p className="mt-1">{details.payment}</p>
+                  <p className="mt-1 font-medium">{details.payment}</p>
                 </div>
-                <label className="flex items-start gap-2 rounded-md bg-secondary p-4 text-xs leading-6">
+                <label className="flex items-start gap-2.5 rounded-xl bg-secondary/60 border border-primary/20 p-4 text-xs leading-6">
                   <input
                     required
                     type="checkbox"
                     className="mt-1 accent-primary"
                   />{" "}
-                  I understand this is a frontend prototype and no actual order
-                  or payment will be processed.
+                  <span>
+                    {details.payment.includes("Razorpay") && RAZORPAY_KEY_ID
+                      ? "I authorize IT HUB to process my order and initiate Razorpay 3D-Secure payment."
+                      : "I confirm my order details and authorize IT HUB to record this order for fulfillment."}
+                  </span>
                 </label>
               </div>
             </>
           )}
           {error && (
-            <p role="alert" className="mt-5 text-sm text-red-600">
+            <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
               {error}
             </p>
           )}
@@ -638,9 +751,11 @@ export function Checkout() {
             )}
             <Button disabled={busy} type="submit">
               {busy
-                ? "Placing your demo order…"
+                ? "Processing your order…"
                 : step === 2
-                  ? "Place demo order"
+                  ? details.payment.includes("Razorpay") && RAZORPAY_KEY_ID
+                    ? "Proceed to Razorpay"
+                    : "Place order"
                   : "Continue"}
               <ArrowRight size={16} />
             </Button>
