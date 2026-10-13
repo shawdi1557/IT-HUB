@@ -1,0 +1,51 @@
+name: Phase 3 CI Validation
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Lint, Typecheck, Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check for tracked secret or .env files
+        run: |
+          TRACKED_SECRETS=$(git ls-files ".env*" "*service_role*" "*secret*" || true)
+          if [ -n "$TRACKED_SECRETS" ]; then
+            echo "::error::Found tracked sensitive files in repository:"
+            echo "$TRACKED_SECRETS"
+            exit 1
+          fi
+          echo "No sensitive environment files are tracked."
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify code formatting
+        run: npx oxfmt --check
+
+      - name: Run automated test suite
+        run: deno test --allow-net --allow-env --allow-read supabase/functions/tests/
+
+      - name: Run production build
+        run: npm run build

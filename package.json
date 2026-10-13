@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt",
+    "lint": "oxfmt --check",
+    "typecheck": "tsc --noEmit",
+    "test": "deno test --allow-net --allow-env --allow-read supabase/functions/tests/ || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test --allow-net --allow-env --allow-read supabase/functions/tests/",
     "test:edge": "deno test --allow-net --allow-env --allow-read supabase/functions/tests/ || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test --allow-net --allow-env --allow-read supabase/functions/tests/"
   },
   "dependencies": {

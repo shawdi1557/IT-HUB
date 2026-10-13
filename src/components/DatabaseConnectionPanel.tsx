@@ -51,7 +51,9 @@ export default function DatabaseConnectionPanel() {
 
   const getStatusIcon = () => {
     if (loading) {
-      return <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+      return (
+        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+      )
     }
     if (!result) {
       return <Database className="h-5 w-5 text-muted-foreground" />
@@ -103,9 +105,7 @@ export default function DatabaseConnectionPanel() {
             className="self-start sm:self-auto"
             aria-label="Check database connection"
           >
-            <RefreshCw
-              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Checking..." : "Check Connection"}
           </Button>
         </div>
@@ -117,7 +117,10 @@ export default function DatabaseConnectionPanel() {
               <Server className="h-3.5 w-3.5 text-primary" />
               <span>Configured Endpoint</span>
             </div>
-            <div className="mt-1 truncate font-mono text-xs font-semibold text-foreground" title={config.url || "Not configured"}>
+            <div
+              className="mt-1 truncate font-mono text-xs font-semibold text-foreground"
+              title={config.url || "Not configured"}
+            >
               {config.url ? new URL(config.url).host : "Not configured"}
             </div>
           </div>
@@ -194,15 +197,29 @@ export default function DatabaseConnectionPanel() {
           <span>Security & Diagnostic Scope</span>
         </div>
         <p className="mt-2">
-          This health check executes a minimal, 1-row read query (<code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">store_settings.id</code>) through the Supabase client using your public publishable/anon key.
+          This health check executes a minimal, 1-row read query (
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+            store_settings.id
+          </code>
+          ) through the Supabase client using your public publishable/anon key.
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-4">
-          <li>Never accesses private customer profiles, orders, or payment transactions.</li>
-          <li>Never exposes database passwords, service-role keys, or webhook secrets.</li>
-          <li>A successful check confirms that the configured Supabase endpoint is responding to queries under Row Level Security. It does not independently verify private policies, Edge Functions, or payment gateways.</li>
+          <li>
+            Never accesses private customer profiles, orders, or payment
+            transactions.
+          </li>
+          <li>
+            Never exposes database passwords, service-role keys, or webhook
+            secrets.
+          </li>
+          <li>
+            A successful check confirms that the configured Supabase endpoint is
+            responding to queries under Row Level Security. It does not
+            independently verify private policies, Edge Functions, or payment
+            gateways.
+          </li>
         </ul>
       </div>
     </div>
   )
 }
-

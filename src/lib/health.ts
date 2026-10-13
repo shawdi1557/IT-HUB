@@ -26,7 +26,7 @@ export interface CheckConnectionOptions {
 
 /**
  * Checks connectivity to the Supabase database using a minimal, non-sensitive query.
- * 
+ *
  * Target: `store_settings` table (public read permitted by RLS), selecting only `id` with limit(1).
  * Security:
  *  - Never uses `select('*')`
@@ -54,31 +54,33 @@ export async function checkDatabaseConnection(
   const client =
     options.clientOverride ?? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-  const startTime = typeof performance !== "undefined" ? performance.now() : Date.now()
+  const startTime =
+    typeof performance !== "undefined" ? performance.now() : Date.now()
 
   try {
     // 2. Wrap query in a timeout promise
-    const queryPromise = client
-      .from("store_settings")
-      .select("id")
-      .limit(1)
+    const queryPromise = client.from("store_settings").select("id").limit(1)
 
-    const timeoutPromise = new Promise<{ data: null; error: { message: string; name: string } }>(
-      (_, reject) => {
-        const timer = setTimeout(() => {
-          clearTimeout(timer)
-          reject(new Error(`Database health check timed out after ${timeoutMs}ms`))
-        }, timeoutMs)
-      },
-    )
+    const timeoutPromise = new Promise<{
+      data: null
+      error: { message: string name: string }
+    }>((_, reject) => {
+      const timer = setTimeout(() => {
+        clearTimeout(timer)
+        reject(
+          new Error(`Database health check timed out after ${timeoutMs}ms`),
+        )
+      }, timeoutMs)
+    })
 
-    const response = (await Promise.race([
-      queryPromise,
-      timeoutPromise,
-    ])) as { data: any[] | null; error: any }
+    const response = (await Promise.race([queryPromise, timeoutPromise])) as {
+      data: any[] | null
+      error: any
+    }
 
     const elapsedMs = Math.round(
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime,
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        startTime,
     )
 
     // 3. Handle PostgREST query errors
@@ -98,7 +100,8 @@ export async function checkDatabaseConnection(
         return {
           connected: false,
           status: "configuration_error",
-          message: "Authentication failed. The configured Supabase anon/publishable key is invalid.",
+          message:
+            "Authentication failed. The configured Supabase anon/publishable key is invalid.",
           latencyMs: elapsedMs,
           checkedAt,
         }
@@ -109,13 +112,14 @@ export async function checkDatabaseConnection(
         code === "42P01" || // relation does not exist
         code === "PGRST204" ||
         code === "PGRST205" ||
-        message.includes("relation \"store_settings\" does not exist") ||
+        message.includes('relation "store_settings" does not exist') ||
         message.includes("could not find the table")
       ) {
         return {
           connected: true,
           status: "connected",
-          message: "Connected to Supabase endpoint, but the initial database schema (schema.sql) has not been installed yet.",
+          message:
+            "Connected to Supabase endpoint, but the initial database schema (schema.sql) has not been installed yet.",
           latencyMs: elapsedMs,
           checkedAt,
         }
@@ -125,7 +129,8 @@ export async function checkDatabaseConnection(
       return {
         connected: false,
         status: "disconnected",
-        message: "Database responded with an error. Please verify database availability.",
+        message:
+          "Database responded with an error. Please verify database availability.",
         latencyMs: elapsedMs,
         checkedAt,
       }
@@ -141,7 +146,8 @@ export async function checkDatabaseConnection(
     }
   } catch (error: any) {
     const elapsedMs = Math.round(
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime,
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        startTime,
     )
 
     const errMsg = String(error?.message || "").toLowerCase()
@@ -160,7 +166,8 @@ export async function checkDatabaseConnection(
       return {
         connected: false,
         status: "disconnected",
-        message: "Network error: Unable to reach the Supabase endpoint. Check internet connection and project URL.",
+        message:
+          "Network error: Unable to reach the Supabase endpoint. Check internet connection and project URL.",
         latencyMs: null,
         checkedAt,
       }
@@ -175,4 +182,3 @@ export async function checkDatabaseConnection(
     }
   }
 }
-

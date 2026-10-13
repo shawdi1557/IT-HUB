@@ -460,11 +460,16 @@ export function Checkout() {
           if (!verifyResult.ok) {
             console.warn("[Payment Verification]", verifyResult.error)
             store.notify(
-              verifyResult.error || "Payment verification pending. Reference saved.",
+              verifyResult.error ||
+                "Payment verification pending. Reference saved.",
             )
           }
 
-          finalizeOrder(activeOrderId, activeOrderTotal, payload.razorpay_payment_id)
+          finalizeOrder(
+            activeOrderId,
+            activeOrderTotal,
+            payload.razorpay_payment_id,
+          )
         },
         onDismiss: () => {
           setBusy(false)
@@ -687,7 +692,10 @@ export function Checkout() {
               ))}
               {details.payment.includes("Razorpay") && !RAZORPAY_KEY_ID && (
                 <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
-                  <strong>Developer Note:</strong> <code>VITE_RAZORPAY_KEY_ID</code> is not configured in local environment. Orders with this method will proceed in safe simulated prototype mode.
+                  <strong>Developer Note:</strong>{" "}
+                  <code>VITE_RAZORPAY_KEY_ID</code> is not configured in local
+                  environment. Orders with this method will proceed in safe
+                  simulated prototype mode.
                 </p>
               )}
             </>
@@ -731,7 +739,10 @@ export function Checkout() {
             </>
           )}
           {error && (
-            <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+            <p
+              role="alert"
+              className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600"
+            >
               {error}
             </p>
           )}

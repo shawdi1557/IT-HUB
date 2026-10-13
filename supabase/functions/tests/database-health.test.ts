@@ -20,19 +20,22 @@ function validateConfigHelper(url?: string, key?: string) {
   if (!effectiveUrl && !effectiveKey) {
     return {
       isConfigured: false,
-      error: "Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing from environment configuration.",
+      error:
+        "Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing from environment configuration.",
     }
   }
   if (!effectiveUrl) {
     return {
       isConfigured: false,
-      error: "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
+      error:
+        "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
     }
   }
   if (!effectiveKey) {
     return {
       isConfigured: false,
-      error: "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
+      error:
+        "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
     }
   }
   if (
@@ -41,7 +44,8 @@ function validateConfigHelper(url?: string, key?: string) {
   ) {
     return {
       isConfigured: false,
-      error: "Supabase environment variables contain unconfigured placeholder values.",
+      error:
+        "Supabase environment variables contain unconfigured placeholder values.",
     }
   }
   try {
@@ -110,7 +114,10 @@ Deno.test("H5. Configuration validation rejects invalid URL protocol", () => {
 // 2. QUERY HEALTH CHECK SIMULATION TESTS
 // ────────────────────────────────────────────────────────────────────────────
 
-async function simulateCheckConnection(mockFn: () => Promise<any>, configValid = true) {
+async function simulateCheckConnection(
+  mockFn: () => Promise<any>,
+  configValid = true,
+) {
   const checkedAt = new Date().toISOString()
   if (!configValid) {
     return {
@@ -132,11 +139,16 @@ async function simulateCheckConnection(mockFn: () => Promise<any>, configValid =
       const message = String(err.message || "").toLowerCase()
       const code = String(err.code || "")
 
-      if (code === "401" || code === "PGRST301" || message.includes("api key")) {
+      if (
+        code === "401" ||
+        code === "PGRST301" ||
+        message.includes("api key")
+      ) {
         return {
           connected: false,
           status: "configuration_error",
-          message: "Authentication failed. The configured Supabase anon/publishable key is invalid.",
+          message:
+            "Authentication failed. The configured Supabase anon/publishable key is invalid.",
           latencyMs: elapsed,
           checkedAt,
         }
@@ -146,7 +158,8 @@ async function simulateCheckConnection(mockFn: () => Promise<any>, configValid =
         return {
           connected: true,
           status: "connected",
-          message: "Connected to Supabase endpoint, but the initial database schema (schema.sql) has not been installed yet.",
+          message:
+            "Connected to Supabase endpoint, but the initial database schema (schema.sql) has not been installed yet.",
           latencyMs: elapsed,
           checkedAt,
         }
@@ -201,7 +214,10 @@ Deno.test("H6. Simulated health check returns connected on successful query", as
 })
 
 Deno.test("H7. Simulated health check returns configuration_error when unconfigured", async () => {
-  const res = await simulateCheckConnection(async () => ({ data: [], error: null }), false)
+  const res = await simulateCheckConnection(
+    async () => ({ data: [], error: null }),
+    false,
+  )
   assertEquals(res.connected, false)
   assertEquals(res.status, "configuration_error")
   assertEquals(res.latencyMs, null)
@@ -209,7 +225,13 @@ Deno.test("H7. Simulated health check returns configuration_error when unconfigu
 
 Deno.test("H8. Simulated health check handles uninstalled schema safely as connected", async () => {
   const res = await simulateCheckConnection(async () => {
-    return { data: null, error: { code: "42P01", message: 'relation "store_settings" does not exist' } }
+    return {
+      data: null,
+      error: {
+        code: "42P01",
+        message: 'relation "store_settings" does not exist',
+      },
+    }
   })
   assertEquals(res.connected, true)
   assertEquals(res.status, "connected")
@@ -275,7 +297,8 @@ Deno.test("H15. Edge Function: Successful database query returns 200 connected",
   const mockClient = {
     from: (_table: string) => ({
       select: (_cols: string) => ({
-        limit: (_n: number) => Promise.resolve({ data: [{ id: 1 }], error: null }),
+        limit: (_n: number) =>
+          Promise.resolve({ data: [{ id: 1 }], error: null }),
       }),
     }),
   }
@@ -315,4 +338,3 @@ Deno.test("H16. Edge Function: Database outage returns 503 disconnected", async 
   assertEquals(body.status, "disconnected")
   assertEquals(body.healthy, false)
 })
-

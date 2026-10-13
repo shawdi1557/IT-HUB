@@ -55,7 +55,11 @@ type Audit = {
   action: string
   date: string
 }
-export type ShowcaseImage = { id: string src: string caption: string }
+export type ShowcaseImage = {
+  id: string
+  src: string
+  caption: string
+}
 type State = {
   products: Product[]
   cart: CartItem[]
@@ -198,7 +202,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   ? {
                       ...loc,
                       name: "IT HUB Kothamangalam (Headquarters)",
-                      address: "Molathu Building, College Jn., Kothamangalam, Kerala",
+                      address:
+                        "Molathu Building, College Jn., Kothamangalam, Kerala",
                       pincode: "686691",
                       latitude: 10.0601,
                       longitude: 76.6277,
@@ -254,7 +259,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 ...prev.profile,
                 phone: session.user.phone || prev.profile.phone,
                 name: profile?.full_name || prev.profile.name,
-                email: profile?.email || session.user.email || prev.profile.email,
+                email:
+                  profile?.email || session.user.email || prev.profile.email,
                 address: profile?.address || prev.profile.address,
               },
             }))

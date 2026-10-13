@@ -63,7 +63,9 @@ export default function AuthModal({
     try {
       const res = await sendPhoneOtp(phone, via)
       if (!res.ok) {
-        setError(res.error || "Failed to send verification code. Please try again.")
+        setError(
+          res.error || "Failed to send verification code. Please try again.",
+        )
         setLoading(false)
         return
       }
@@ -76,7 +78,9 @@ export default function AuthModal({
 
       if (res.isSimulated && res.demoCode) {
         setCode(res.demoCode)
-        store.notify(`Demo code: ${res.demoCode} (configure Supabase Auth for real SMS)`)
+        store.notify(
+          `Demo code: ${res.demoCode} (configure Supabase Auth for real SMS)`,
+        )
       } else {
         setCode("")
         store.notify(`Verification code sent via SMS to ${res.formattedPhone}`)
@@ -97,7 +101,11 @@ export default function AuthModal({
     setError("")
 
     try {
-      const res = await verifyPhoneOtp(phone, entered, isSimulated ? code : undefined)
+      const res = await verifyPhoneOtp(
+        phone,
+        entered,
+        isSimulated ? code : undefined,
+      )
       if (!res.ok) {
         setError(res.error || "Incorrect verification code. Please try again.")
         setLoading(false)
@@ -184,10 +192,15 @@ export default function AuthModal({
               Enter a valid Indian mobile number.
             </p>
           )}
-          <Button type="submit" disabled={!valid || loading} className="mt-6 w-full">
+          <Button
+            type="submit"
+            disabled={!valid || loading}
+            className="mt-6 w-full"
+          >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <RefreshCw size={16} className="animate-spin" /> Sending verification code...
+                <RefreshCw size={16} className="animate-spin" /> Sending
+                verification code...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -254,7 +267,8 @@ export default function AuthModal({
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <RefreshCw size={16} className="animate-spin" /> Verifying code...
+                <RefreshCw size={16} className="animate-spin" /> Verifying
+                code...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">

@@ -5,7 +5,8 @@
 import { supabase, supabaseConfig, SUPABASE_URL } from "./supabase"
 
 export const RAZORPAY_KEY_ID = (
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_RAZORPAY_KEY_ID) ||
+  (typeof import.meta !== "undefined" &&
+    import.meta.env?.VITE_RAZORPAY_KEY_ID) ||
   ""
 ).trim()
 
@@ -27,7 +28,7 @@ export interface VerifyPaymentResult {
 }
 
 export interface CreateOrderParams {
-  items: { product_id: string; quantity: number }[]
+  items: { product_id: string quantity: number }[]
   addressId?: string | null
   deliveryMethod?: string
   paymentMethod?: string
@@ -60,7 +61,9 @@ export function loadRazorpayScript(): Promise<boolean> {
     }
 
     // Check if script tag is already being loaded
-    const existing = document.querySelector('script[src*="checkout.razorpay.com"]')
+    const existing = document.querySelector(
+      'script[src*="checkout.razorpay.com"]',
+    )
     if (existing) {
       existing.addEventListener("load", () => resolve(true))
       existing.addEventListener("error", () => resolve(false))
@@ -144,7 +147,8 @@ export async function verifyCheckoutCallback(
   if (!supabase || !supabaseConfig.isConfigured || !SUPABASE_URL) {
     return {
       ok: false,
-      error: "Payment verification service is not reachable (Supabase not configured).",
+      error:
+        "Payment verification service is not reachable (Supabase not configured).",
     }
   }
 
@@ -175,7 +179,9 @@ export async function verifyCheckoutCallback(
       console.warn("[verify-checkout-callback] Verification rejected:", body)
       return {
         ok: false,
-        error: body?.error || `Payment verification failed with status ${res.status}`,
+        error:
+          body?.error ||
+          `Payment verification failed with status ${res.status}`,
       }
     }
 
@@ -192,7 +198,8 @@ export async function verifyCheckoutCallback(
     console.error("[verify-checkout-callback] Fetch exception:", err)
     return {
       ok: false,
-      error: "Network error contacting payment verification endpoint. Your order reference is saved.",
+      error:
+        "Network error contacting payment verification endpoint. Your order reference is saved.",
     }
   }
 }
@@ -212,10 +219,14 @@ export interface LaunchRazorpayOptions {
 /**
  * Initializes and displays the official Razorpay Checkout modal.
  */
-export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promise<boolean> {
+export async function launchRazorpayModal(
+  options: LaunchRazorpayOptions,
+): Promise<boolean> {
   const loaded = await loadRazorpayScript()
   if (!loaded) {
-    options.onError?.("Could not load payment gateway. Please check your internet connection.")
+    options.onError?.(
+      "Could not load payment gateway. Please check your internet connection.",
+    )
     return false
   }
 
@@ -251,17 +262,17 @@ export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promi
       },
     },
     handler: (response: any) => {
-      if (
-        response.razorpay_payment_id &&
-        response.razorpay_signature
-      ) {
+      if (response.razorpay_payment_id && response.razorpay_signature) {
         options.onSuccess({
-          razorpay_order_id: response.razorpay_order_id || options.razorpayOrderId || "",
+          razorpay_order_id:
+            response.razorpay_order_id || options.razorpayOrderId || "",
           razorpay_payment_id: response.razorpay_payment_id,
           razorpay_signature: response.razorpay_signature,
         })
       } else {
-        options.onError?.("Incomplete payment credentials received from gateway.")
+        options.onError?.(
+          "Incomplete payment credentials received from gateway.",
+        )
       }
     },
   }
@@ -274,7 +285,9 @@ export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promi
     const rzp = new (window as any).Razorpay(razorpayOptions)
     rzp.on("payment.failed", (failedRes: any) => {
       console.warn("[Razorpay] Payment failed:", failedRes?.error)
-      options.onError?.(failedRes?.error?.description || "Payment was declined by the bank.")
+      options.onError?.(
+        failedRes?.error?.description || "Payment was declined by the bank.",
+      )
     })
     rzp.open()
     return true
@@ -284,4 +297,3 @@ export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promi
     return false
   }
 }
-

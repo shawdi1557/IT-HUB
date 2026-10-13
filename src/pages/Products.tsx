@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router"
 import {
   Search,
   SlidersHorizontal,
@@ -595,7 +601,12 @@ export function ProductDetail() {
                 <span>IT HUB Certified Pre-Owned Assurance</span>
               </div>
               <p className="mt-1.5 leading-5 text-amber-950/80">
-                Condition: <strong className="text-amber-950">{product.condition || "Inspected"}</strong> · Multi-point diagnostics passed · Serviced & tested · Covered by {product.specs.Warranty || "IT HUB Warranty"}.
+                Condition:{" "}
+                <strong className="text-amber-950">
+                  {product.condition || "Inspected"}
+                </strong>{" "}
+                · Multi-point diagnostics passed · Serviced & tested · Covered
+                by {product.specs.Warranty || "IT HUB Warranty"}.
               </p>
             </div>
           )}

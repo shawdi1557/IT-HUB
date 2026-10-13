@@ -40,7 +40,8 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: "",
       hasAnonKey: false,
-      error: "Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing from environment configuration.",
+      error:
+        "Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing from environment configuration.",
     }
   }
 
@@ -49,7 +50,8 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: "",
       hasAnonKey: Boolean(SUPABASE_ANON_KEY),
-      error: "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
+      error:
+        "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
     }
   }
 
@@ -58,16 +60,21 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: SUPABASE_URL,
       hasAnonKey: false,
-      error: "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
+      error:
+        "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
     }
   }
 
-  if (SUPABASE_URL.includes("your-project-id") || SUPABASE_ANON_KEY.includes("your-supabase-anon-key")) {
+  if (
+    SUPABASE_URL.includes("your-project-id") ||
+    SUPABASE_ANON_KEY.includes("your-supabase-anon-key")
+  ) {
     return {
       isConfigured: false,
       url: SUPABASE_URL,
       hasAnonKey: true,
-      error: "Supabase environment variables contain unconfigured placeholder values.",
+      error:
+        "Supabase environment variables contain unconfigured placeholder values.",
     }
   }
 
@@ -109,7 +116,7 @@ let clientInstance: SupabaseClient | null = null
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseConfig.isConfigured) {
     throw new Error(
-      `Supabase configuration error: ${supabaseConfig.error ?? "Invalid environment configuration"}`
+      `Supabase configuration error: ${supabaseConfig.error ?? "Invalid environment configuration"}`,
     )
   }
 
