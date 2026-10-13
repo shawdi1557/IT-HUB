@@ -5,10 +5,18 @@ import {
   LockKeyhole,
   MessageSquareText,
   Smartphone,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react"
 import WhatsAppIcon from "./WhatsAppIcon"
 import { useStore } from "../app/store"
 import { Button, Modal } from "./ui"
+import {
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  isValidIndianMobile,
+  formatIndianPhoneToE164,
+} from "../lib/auth"
 
 const RESEND_SECONDS = 30
 
@@ -24,8 +32,10 @@ export default function AuthModal({
   const [phone, setPhone] = useState("")
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [code, setCode] = useState("")
+  const [isSimulated, setIsSimulated] = useState(false)
   const [channel, setChannel] = useState<"SMS" | "WhatsApp">("SMS")
   const [timer, setTimer] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const inputs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -34,6 +44,7 @@ export default function AuthModal({
       setStep("phone")
       setOtp(["", "", "", "", "", ""])
       setError("")
+      setLoading(false)
     }
   }, [open])
   useEffect(() => {
@@ -42,34 +53,83 @@ export default function AuthModal({
     return () => clearTimeout(id)
   }, [timer])
 
-  const valid = /^[6-9]\d{9}$/.test(phone)
-  const send = (via: "SMS" | "WhatsApp") => {
-    // Prototype: no SMS gateway connected — the OTP is generated locally.
-    const next = String(Math.floor(100000 + Math.random() * 900000))
-    setCode(next)
-    setChannel(via)
-    setTimer(RESEND_SECONDS)
-    setOtp(["", "", "", "", "", ""])
+  const valid = isValidIndianMobile(phone)
+
+  const send = async (via: "SMS" | "WhatsApp") => {
+    if (!valid || loading) return
+    setLoading(true)
     setError("")
-    setStep("otp")
-    store.notify(`Demo OTP sent via ${via}: ${next}`)
-    setTimeout(() => inputs.current[0]?.focus(), 50)
-  }
-  const verify = () => {
-    if (otp.join("") !== code) {
-      setError("That code doesn't match. Please try again.")
-      return
+
+    try {
+      const res = await sendPhoneOtp(phone, via)
+      if (!res.ok) {
+        setError(res.error || "Failed to send verification code. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      setChannel(via)
+      setTimer(RESEND_SECONDS)
+      setOtp(["", "", "", "", "", ""])
+      setStep("otp")
+      setIsSimulated(Boolean(res.isSimulated))
+
+      if (res.isSimulated && res.demoCode) {
+        setCode(res.demoCode)
+        store.notify(`Demo code: ${res.demoCode} (configure Supabase Auth for real SMS)`)
+      } else {
+        setCode("")
+        store.notify(`Verification code sent via SMS to ${res.formattedPhone}`)
+      }
+
+      setTimeout(() => inputs.current[0]?.focus(), 50)
+    } catch (err: any) {
+      setError(err?.message || "Could not connect to authentication service.")
+    } finally {
+      setLoading(false)
     }
-    const isNew = !store.profile.phone || store.profile.phone !== `+91 ${phone}`
-    store.set((s) => ({
-      loggedIn: true,
-      profile: { ...s.profile, phone: `+91 ${phone}` },
-    }))
-    store.notify(
-      isNew ? "Welcome to IT HUB! Your account is ready." : "Welcome back!",
-    )
-    onOpenChange(false)
   }
+
+  const verify = async () => {
+    const entered = otp.join("")
+    if (entered.length < 6 || loading) return
+    setLoading(true)
+    setError("")
+
+    try {
+      const res = await verifyPhoneOtp(phone, entered, isSimulated ? code : undefined)
+      if (!res.ok) {
+        setError(res.error || "Incorrect verification code. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      const formatted = formatIndianPhoneToE164(phone)
+      const existingPhone = store.profile.phone
+      const isNew = !existingPhone || existingPhone !== formatted
+
+      store.set((s) => ({
+        loggedIn: true,
+        profile: {
+          ...s.profile,
+          phone: formatted,
+          name: res.profile?.full_name || s.profile.name || "",
+          email: res.profile?.email || s.profile.email || "",
+          address: res.profile?.address || s.profile.address || "",
+        },
+      }))
+
+      store.notify(
+        isNew ? "Welcome to IT HUB! Your account is active." : "Welcome back!",
+      )
+      onOpenChange(false)
+    } catch (err: any) {
+      setError(err?.message || "Verification request failed.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const type = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1)
     const next = [...otp]
@@ -124,8 +184,16 @@ export default function AuthModal({
               Enter a valid Indian mobile number.
             </p>
           )}
-          <Button type="submit" disabled={!valid} className="mt-6 w-full">
-            Send OTP <ArrowRight size={16} />
+          <Button type="submit" disabled={!valid || loading} className="mt-6 w-full">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw size={16} className="animate-spin" /> Sending verification code...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                Send OTP <ArrowRight size={16} />
+              </span>
+            )}
           </Button>
           <p className="mt-4 text-center text-[11px] text-muted-foreground">
             By continuing you agree to IT HUB's terms and privacy policy.
@@ -169,16 +237,30 @@ export default function AuthModal({
             ))}
           </div>
           {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-          <p className="mt-3 rounded-lg bg-secondary px-3 py-2 text-[11px] text-secondary-foreground">
-            Prototype: no SMS gateway is connected. Your demo code is{" "}
-            <b>{code}</b>.
-          </p>
+          {isSimulated && code ? (
+            <p className="mt-3 rounded-lg bg-secondary px-3 py-2 text-[11px] text-secondary-foreground">
+              Development fallback mode: your test code is <b>{code}</b>.
+            </p>
+          ) : (
+            <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+              <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
+              Verification code dispatched via Supabase Auth to +91 {phone}.
+            </p>
+          )}
           <Button
             type="submit"
-            disabled={otp.join("").length < 6}
+            disabled={otp.join("").length < 6 || loading}
             className="mt-5 w-full"
           >
-            Verify & continue <ArrowRight size={16} />
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw size={16} className="animate-spin" /> Verifying code...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                Verify & continue <ArrowRight size={16} />
+              </span>
+            )}
           </Button>
           <div className="mt-6 border-t border-border pt-5 text-center">
             <p className="text-xs text-muted-foreground">

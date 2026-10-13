@@ -148,26 +148,13 @@ $$;
 -- Enforces NULL-safe comparisons and restricts non-admin creation strictly to customer role.
 create or replace function protect_role() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare
-  v_admin_exists boolean;
 begin
   if tg_op = 'UPDATE' then
-    if new.role is distinct from old.role then
-      if is_admin() then
-        return new;
-      end if;
-      select exists (select 1 from public.profiles where role = 'admin') into v_admin_exists;
-      if not v_admin_exists and new.role = 'admin' then
-        return new;
-      end if;
+    if new.role is distinct from old.role and not is_admin() then
       raise exception 'Unauthorized: Only administrators can modify roles';
     end if;
   elsif tg_op = 'INSERT' then
     if new.role is distinct from 'customer' and not is_admin() then
-      select exists (select 1 from public.profiles where role = 'admin') into v_admin_exists;
-      if not v_admin_exists and new.role = 'admin' then
-        return new;
-      end if;
       raise exception 'Unauthorized: Only administrators can create admin accounts';
     end if;
   end if;

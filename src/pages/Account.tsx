@@ -32,6 +32,7 @@ import {
   type Build,
 } from "../data/catalog"
 import { fetchUserSellRequests } from "../lib/sellRequests"
+import { updateCustomerProfile } from "../lib/auth"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ProductCard from "../components/ProductCard"
 import {
@@ -937,11 +938,25 @@ export default function Account() {
           <Logo />
         </div>
         <form
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
             store.set({ profile })
             setLogin(false)
-            store.notify("Demo profile saved")
+            try {
+              const res = await updateCustomerProfile({
+                fullName: profile.name,
+                email: profile.email,
+                address: profile.address,
+                phone: profile.phone,
+              })
+              if (res.ok) {
+                store.notify("Profile saved to database")
+              } else {
+                store.notify("Profile saved locally")
+              }
+            } catch {
+              store.notify("Profile saved locally")
+            }
           }}
           className="space-y-5"
         >
@@ -988,7 +1003,7 @@ export default function Account() {
             />
           </Field>
           <Button type="submit" className="w-full">
-            Save demo profile
+            Save profile
           </Button>
         </form>
       </Modal>

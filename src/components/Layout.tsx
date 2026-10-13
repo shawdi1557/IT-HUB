@@ -28,9 +28,10 @@ import {
 import { AnimatePresence, motion } from "motion/react"
 import AuthModal from "./AuthModal"
 import { identify, track } from "../lib/analytics"
-import { categories, serviceTypes, money } from "../data/catalog"
+import { serviceTypes, money } from "../data/catalog"
 import { useStore } from "../app/store"
 import { Logo, Modal, fieldClass, containerClass } from "./ui"
+import { signOutUser } from "../lib/auth"
 
 const nav = [
   { name: "Products", to: "/products" },
@@ -301,7 +302,8 @@ export default function Layout() {
                       </Link>
                     ))}
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await signOutUser()
                         store.set({ loggedIn: false })
                         store.notify("You have been logged out")
                         setMenu(false)

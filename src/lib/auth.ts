@@ -1,0 +1,347 @@
+// src/lib/auth.ts
+// Supabase Phone OTP Authentication & Profile Reconciliation Service
+// IT HUB — Kerala, India
+
+import { type Session, type User } from "@supabase/supabase-js"
+import { supabase, supabaseConfig } from "./supabase"
+
+export interface SendOtpResult {
+  ok: boolean
+  formattedPhone: string
+  isSimulated?: boolean
+  demoCode?: string
+  message?: string
+  error?: string
+}
+
+export interface VerifyOtpResult {
+  ok: boolean
+  user?: User | null
+  session?: Session | null
+  profile?: CustomerProfile | null
+  error?: string
+}
+
+export interface CustomerProfile {
+  id: string
+  role: "customer" | "admin"
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * Normalizes an Indian phone number to E.164 standard (+91XXXXXXXXXX).
+ * Strips spaces, dashes, parentheses, and leading zeros.
+ */
+export function formatIndianPhoneToE164(input: string): string {
+  const digitsOnly = input.replace(/\D/g, "")
+  if (digitsOnly.length === 10) {
+    return `+91${digitsOnly}`
+  }
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+    return `+${digitsOnly}`
+  }
+  if (input.startsWith("+") && digitsOnly.length >= 10) {
+    return `+${digitsOnly}`
+  }
+  return `+91${digitsOnly.slice(-10)}`
+}
+
+/**
+ * Validates whether an input represents a valid 10-digit Indian mobile number.
+ */
+export function isValidIndianMobile(phone: string): boolean {
+  const digits = phone.replace(/\D/g, "")
+  if (digits.length === 10) {
+    return /^[6-9]\d{9}$/.test(digits)
+  }
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return /^[6-9]\d{9}$/.test(digits.slice(2))
+  }
+  return false
+}
+
+/**
+ * Sends a Phone OTP using Supabase Auth (or graceful development fallback).
+ */
+export async function sendPhoneOtp(
+  rawPhone: string,
+  _channel: "SMS" | "WhatsApp" = "SMS",
+): Promise<SendOtpResult> {
+  const formattedPhone = formatIndianPhoneToE164(rawPhone)
+
+  // If Supabase client is not available, provide local simulated demo OTP
+  if (!supabase || !supabaseConfig.isConfigured) {
+    const demoCode = String(Math.floor(100000 + Math.random() * 900000))
+    return {
+      ok: true,
+      formattedPhone,
+      isSimulated: true,
+      demoCode,
+      message: `Demo OTP: ${demoCode}`,
+    }
+  }
+
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: formattedPhone,
+      options: {
+        channel: "sms",
+      },
+    })
+
+    if (error) {
+      const msg = error.message.toLowerCase()
+      // If Phone provider is not yet enabled in Supabase dashboard
+      if (
+        msg.includes("provider is not enabled") ||
+        msg.includes("unsupported phone provider") ||
+        msg.includes("sms_provider_not_configured") ||
+        error.status === 400 && msg.includes("phone")
+      ) {
+        const demoCode = String(Math.floor(100000 + Math.random() * 900000))
+        return {
+          ok: true,
+          formattedPhone,
+          isSimulated: true,
+          demoCode,
+          message:
+            "Phone provider not yet enabled in Supabase Dashboard. Using development demo code.",
+        }
+      }
+
+      // Rate limit or quota error
+      if (msg.includes("rate limit") || msg.includes("too many requests") || error.status === 429) {
+        return {
+          ok: false,
+          formattedPhone,
+          error: "Too many OTP attempts. Please wait 60 seconds before trying again.",
+        }
+      }
+
+      return {
+        ok: false,
+        formattedPhone,
+        error: error.message || "Failed to send OTP. Please check your phone number.",
+      }
+    }
+
+    return {
+      ok: true,
+      formattedPhone,
+      isSimulated: false,
+      message: `OTP sent to ${formattedPhone}`,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      formattedPhone,
+      error: err?.message || "Unexpected error connecting to authentication service.",
+    }
+  }
+}
+
+/**
+ * Verifies a Phone OTP and establishes a Supabase user session.
+ */
+export async function verifyPhoneOtp(
+  rawPhone: string,
+  token: string,
+  fallbackDemoCode?: string,
+): Promise<VerifyOtpResult> {
+  const formattedPhone = formatIndianPhoneToE164(rawPhone)
+
+  // Check fallback simulated code if Supabase isn't active or provider not enabled
+  if (fallbackDemoCode && token === fallbackDemoCode) {
+    return {
+      ok: true,
+      user: null,
+      session: null,
+      profile: {
+        id: "demo-user",
+        role: "customer",
+        full_name: null,
+        email: null,
+        phone: formattedPhone,
+        address: null,
+      },
+    }
+  }
+
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return {
+      ok: false,
+      error: "Authentication service is not configured.",
+    }
+  }
+
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: formattedPhone,
+      token: token.trim(),
+      type: "sms",
+    })
+
+    if (error) {
+      const msg = error.message.toLowerCase()
+      if (msg.includes("token has expired") || msg.includes("expired")) {
+        return { ok: false, error: "The OTP code has expired. Please request a new one." }
+      }
+      if (msg.includes("invalid") || msg.includes("token is invalid")) {
+        return { ok: false, error: "Incorrect verification code. Please check and try again." }
+      }
+      return { ok: false, error: error.message }
+    }
+
+    if (!data.user) {
+      return { ok: false, error: "Authentication failed. No user record returned." }
+    }
+
+    // Reconcile and load profile
+    const profile = await fetchOrCreateProfile(data.user)
+
+    return {
+      ok: true,
+      user: data.user,
+      session: data.session,
+      profile,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: err?.message || "Verification request failed.",
+    }
+  }
+}
+
+/**
+ * Reconciles the customer profile in public.profiles.
+ */
+export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile | null> {
+  if (!supabase) return null
+
+  try {
+    // 1. First attempt to select existing profile
+    const { data: existing, error: selectErr } = await supabase
+      .from("profiles")
+      .select("id, role, full_name, email, phone, address")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    if (existing && !selectErr) {
+      return existing as CustomerProfile
+    }
+
+    // 2. Self-healing reconciliation RPC (ensure_profile)
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("ensure_profile")
+    if (rpcData?.profile && !rpcErr) {
+      return rpcData.profile as CustomerProfile
+    }
+
+    // 3. Fallback direct upsert if permitted
+    const { data: upsertData } = await supabase
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        phone: user.phone || null,
+        email: user.email || null,
+        role: "customer",
+        updated_at: new Date().toISOString(),
+      })
+      .select("id, role, full_name, email, phone, address")
+      .maybeSingle()
+
+    return (upsertData as CustomerProfile) || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Updates customer profile information in PostgreSQL.
+ */
+export async function updateCustomerProfile(updates: {
+  fullName?: string
+  email?: string
+  address?: string
+  phone?: string
+}): Promise<{ ok: boolean; profile?: CustomerProfile | null; error?: string }> {
+  if (!supabase) {
+    return { ok: false, error: "Supabase client not available" }
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return { ok: false, error: "You must be signed in to update your profile" }
+    }
+
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    }
+    if (updates.fullName !== undefined) payload.full_name = updates.fullName.trim() || null
+    if (updates.email !== undefined) payload.email = updates.email.trim() || null
+    if (updates.address !== undefined) payload.address = updates.address.trim() || null
+    if (updates.phone !== undefined) payload.phone = formatIndianPhoneToE164(updates.phone)
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", user.id)
+      .select("id, role, full_name, email, phone, address")
+      .single()
+
+    if (error) {
+      return { ok: false, error: error.message }
+    }
+
+    return { ok: true, profile: data as CustomerProfile }
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Profile update failed" }
+  }
+}
+
+/**
+ * Signs the user out of Supabase Auth.
+ */
+export async function signOutUser(): Promise<{ ok: boolean; error?: string }> {
+  if (!supabase) return { ok: true }
+
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.warn("[Auth] Sign out error:", error.message)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Sign out failed" }
+  }
+}
+
+/**
+ * Subscribes to Supabase Auth state changes.
+ */
+export function subscribeToAuthChanges(
+  callback: (user: User | null, session: Session | null) => void,
+): () => void {
+  if (!supabase) {
+    return () => {}
+  }
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session?.user || null, session)
+  })
+
+  return () => {
+    subscription.unsubscribe()
+  }
+}

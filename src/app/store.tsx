@@ -6,6 +6,8 @@ import {
   type ReactNode,
 } from "react"
 import { track } from "../lib/analytics"
+import { supabase } from "../lib/supabase"
+import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
 import {
   initialProducts,
   initialOffers,
@@ -238,6 +240,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setToast(""), 3500)
     return () => clearTimeout(timer)
   }, [toast])
+
+  // Synchronize store with real Supabase Auth session & PostgreSQL profiles
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          fetchOrCreateProfile(session.user).then((profile) => {
+            setState((prev) => ({
+              ...prev,
+              loggedIn: true,
+              profile: {
+                ...prev.profile,
+                phone: session.user.phone || prev.profile.phone,
+                name: profile?.full_name || prev.profile.name,
+                email: profile?.email || session.user.email || prev.profile.email,
+                address: profile?.address || prev.profile.address,
+              },
+            }))
+          })
+        }
+      })
+    }
+
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      if (!user) {
+        setState((prev) => ({ ...prev, loggedIn: false }))
+      } else {
+        fetchOrCreateProfile(user).then((profile) => {
+          setState((prev) => ({
+            ...prev,
+            loggedIn: true,
+            profile: {
+              ...prev.profile,
+              phone: user.phone || prev.profile.phone,
+              name: profile?.full_name || prev.profile.name,
+              email: profile?.email || user.email || prev.profile.email,
+              address: profile?.address || prev.profile.address,
+            },
+          }))
+        })
+      }
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
   const set = (next: Partial<State> | ((value: State) => Partial<State>)) =>
     setState((previous) => ({
       ...previous,
