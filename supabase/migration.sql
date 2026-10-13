@@ -1379,20 +1379,174 @@ revoke all on table visitor_sessions from anon, authenticated, public;
 revoke all on table visitor_events from anon, authenticated, public;
 revoke all on table analytics_settings from anon, authenticated, public;
 
--- Ensure public read policies exist for base tables behind views
-drop policy if exists public_read on products;
-create policy public_read on products for select using (status = 'Active');
+-- Cleanly reset and consolidate all RLS policies to eliminate multiple_permissive_policies and auth_rls_initplan
+do $$
+declare
+  pol record;
+begin
+  for pol in (
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+  ) loop
+    execute format('drop policy if exists %I on %I.%I', pol.policyname, pol.schemaname, pol.tablename);
+  end loop;
+end $$;
 
-drop policy if exists public_read on inventory;
+-- Admin-Only Tables
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'import_runs','support_verifications',
+    'visitor_sessions','visitor_events','analytics_settings'
+  ] loop
+    execute format(
+      'create policy admin_all on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
+  end loop;
+end $$;
+
+-- Public Storefront Assets: Single SELECT policy + Admin write policies
+create policy public_read on categories for select using (true);
+create policy public_read on brands for select using (true);
+create policy public_read on products for select using (status = 'Active' or is_admin());
 create policy public_read on inventory for select using (true);
-
-drop policy if exists public_read on coupons;
 create policy public_read on coupons for select
-  using (active and (starts_at is null or now() >= starts_at) and (ends_at is null or now() <= ends_at));
+  using ((active and (starts_at is null or now() >= starts_at) and (ends_at is null or now() <= ends_at)) or is_admin());
+create policy public_read on product_images for select
+  using (exists (select 1 from products p where p.id = product_id and (p.status = 'Active' or is_admin())));
+create policy public_read on offers for select
+  using ((active and now() between starts_at and ends_at) or is_admin());
+create policy public_read on offer_products for select
+  using (exists (select 1 from offers o where o.id = offer_id and (o.active and now() between o.starts_at and o.ends_at or is_admin())));
+create policy public_read on offer_categories for select
+  using (exists (select 1 from offers o where o.id = offer_id and (o.active and now() between o.starts_at and o.ends_at or is_admin())));
+create policy public_read on offer_brands for select
+  using (exists (select 1 from offers o where o.id = offer_id and (o.active and now() between o.starts_at and o.ends_at or is_admin())));
+create policy public_read on it_hub_locations for select using (active or is_admin());
+create policy public_read on pincode_areas for select using (true);
+create policy public_read on store_settings for select using (true);
+create policy public_read on pc_build_templates for select using (active or is_admin());
+create policy public_read on support_categories for select using (active or is_admin());
+create policy public_read on brand_support for select using (active or is_admin());
 
-drop policy if exists own_coupon_usages on coupon_usages;
-create policy own_coupon_usages on coupon_usages for select
-  using (customer_id = auth.uid());
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'categories','brands','products','inventory','coupons','product_images',
+    'offers','offer_products','offer_categories','offer_brands',
+    'it_hub_locations','pincode_areas','store_settings','pc_build_templates',
+    'support_categories','brand_support'
+  ] loop
+    execute format('create policy admin_insert on %I for insert to authenticated with check (is_admin())', t);
+    execute format('create policy admin_update on %I for update to authenticated using (is_admin()) with check (is_admin())', t);
+    execute format('create policy admin_delete on %I for delete to authenticated using (is_admin())', t);
+  end loop;
+end $$;
+
+-- Customers: Consolidated policies using (select auth.uid()) InitPlan
+create policy profiles_select on profiles for select to authenticated
+  using (id = (select auth.uid()) or is_admin());
+create policy profiles_update on profiles for update to authenticated
+  using (id = (select auth.uid()) or is_admin())
+  with check (id = (select auth.uid()) or is_admin());
+
+create policy addresses_select on addresses for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy addresses_insert on addresses for insert to authenticated
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy addresses_update on addresses for update to authenticated
+  using (user_id = (select auth.uid()) or is_admin())
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy addresses_delete on addresses for delete to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+
+create policy wishlist_select on wishlist for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy wishlist_insert on wishlist for insert to authenticated
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy wishlist_delete on wishlist for delete to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+
+create policy pc_builds_select on pc_builds for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy pc_builds_insert on pc_builds for insert to authenticated
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy pc_builds_update on pc_builds for update to authenticated
+  using (user_id = (select auth.uid()) or is_admin())
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy pc_builds_delete on pc_builds for delete to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+
+create policy orders_select on orders for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy admin_orders_insert on orders for insert to authenticated with check (is_admin());
+create policy admin_orders_update on orders for update to authenticated using (is_admin()) with check (is_admin());
+create policy admin_orders_delete on orders for delete to authenticated using (is_admin());
+
+create policy order_items_select on order_items for select to authenticated
+  using (exists (select 1 from orders o where o.id = order_id and (o.user_id = (select auth.uid()) or is_admin())));
+create policy admin_order_items_insert on order_items for insert to authenticated with check (is_admin());
+create policy admin_order_items_update on order_items for update to authenticated using (is_admin()) with check (is_admin());
+create policy admin_order_items_delete on order_items for delete to authenticated using (is_admin());
+
+create policy coupon_usages_select on coupon_usages for select to authenticated
+  using (customer_id = (select auth.uid()) or is_admin());
+create policy admin_coupon_usages_insert on coupon_usages for insert to authenticated with check (is_admin());
+create policy admin_coupon_usages_update on coupon_usages for update to authenticated using (is_admin()) with check (is_admin());
+create policy admin_coupon_usages_delete on coupon_usages for delete to authenticated using (is_admin());
+
+create policy reviews_select on reviews for select
+  using (status = 'Published' or user_id = (select auth.uid()) or is_admin());
+create policy reviews_insert on reviews for insert to authenticated
+  with check ((user_id = (select auth.uid()) and status = 'Pending') or is_admin());
+create policy reviews_update on reviews for update to authenticated
+  using (user_id = (select auth.uid()) or is_admin())
+  with check ((user_id = (select auth.uid()) and status = 'Pending') or is_admin());
+create policy reviews_delete on reviews for delete to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+
+create policy service_requests_select on service_requests for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy service_requests_insert on service_requests for insert to authenticated
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy service_requests_update on service_requests for update to authenticated
+  using (user_id = (select auth.uid()) or is_admin())
+  with check (user_id = (select auth.uid()) or is_admin());
+create policy admin_service_requests_delete on service_requests for delete to authenticated
+  using (is_admin());
+
+create policy warranty_checks_select on warranty_checks for select to authenticated
+  using (user_id = (select auth.uid()) or is_admin());
+create policy warranty_checks_insert on warranty_checks for insert
+  with check (user_id is null or user_id = (select auth.uid()) or is_admin());
+create policy admin_warranty_checks_delete on warranty_checks for delete to authenticated
+  using (is_admin());
+
+create policy sell_requests_select on sell_requests for select to authenticated
+  using (customer_id = (select auth.uid()) or is_admin());
+create policy sell_requests_insert on sell_requests for insert to authenticated
+  with check (customer_id = (select auth.uid()) or is_admin());
+create policy sell_requests_update on sell_requests for update to authenticated
+  using (customer_id = (select auth.uid()) or is_admin())
+  with check ((customer_id = (select auth.uid()) and status = 'Pending') or is_admin());
+create policy admin_sell_requests_delete on sell_requests for delete to authenticated
+  using (is_admin());
+
+create policy sell_request_images_select on sell_request_images for select to authenticated
+  using (exists (select 1 from sell_requests sr where sr.id = sell_request_id and (sr.customer_id = (select auth.uid()) or is_admin())));
+create policy sell_request_images_insert on sell_request_images for insert to authenticated
+  with check (exists (select 1 from sell_requests sr where sr.id = sell_request_id and ((sr.customer_id = (select auth.uid()) and sr.status = 'Pending') or is_admin())));
+create policy sell_request_images_delete on sell_request_images for delete to authenticated
+  using (exists (select 1 from sell_requests sr where sr.id = sell_request_id and ((sr.customer_id = (select auth.uid()) and sr.status = 'Pending') or is_admin())));
+
+create policy sell_request_documents_select on sell_request_documents for select to authenticated
+  using (exists (select 1 from sell_requests sr where sr.id = sell_request_id and (sr.customer_id = (select auth.uid()) or is_admin())));
+create policy sell_request_documents_insert on sell_request_documents for insert to authenticated
+  with check (exists (select 1 from sell_requests sr where sr.id = sell_request_id and ((sr.customer_id = (select auth.uid()) and sr.status = 'Pending') or is_admin())));
+create policy admin_sell_docs_delete on sell_request_documents for delete to authenticated
+  using (is_admin());
 
 grant select on products_public to anon, authenticated;
 grant select on live_offers to anon, authenticated;
@@ -1457,6 +1611,26 @@ end $$;
 
 create index if not exists orders_expires_reserved_idx
   on orders (expires_at) where status = 'Pending' and stock_reserved = true;
+
+-- Foreign key indexes (accelerates joins and parent record deletions)
+create index if not exists categories_parent_idx on categories (parent_id);
+create index if not exists orders_address_idx on orders (address_id);
+create index if not exists orders_coupon_idx on orders (coupon_id);
+create index if not exists order_items_offer_idx on order_items (offer_id);
+create index if not exists service_requests_address_idx on service_requests (address_id);
+create index if not exists warranty_checks_location_idx on warranty_checks (location_id);
+create index if not exists offer_products_product_idx on offer_products (product_id);
+create index if not exists offer_categories_category_idx on offer_categories (category_id);
+create index if not exists offer_brands_brand_idx on offer_brands (brand_id);
+create index if not exists wishlist_product_idx on wishlist (product_id);
+create index if not exists coupons_created_by_idx on coupons (created_by);
+create index if not exists import_runs_created_by_idx on import_runs (created_by);
+create index if not exists brand_support_category_fk_idx on brand_support (category);
+create index if not exists brand_support_verified_by_idx on brand_support (verified_by);
+create index if not exists support_verifications_brand_support_idx on support_verifications (brand_support_id);
+create index if not exists support_verifications_verified_by_idx on support_verifications (verified_by);
+create index if not exists visitor_sessions_user_idx on visitor_sessions (user_id);
+create index if not exists visitor_events_user_idx on visitor_events (user_id);
 
 -- Lightweight database health check RPC for connectivity monitoring (security_invoker)
 create or replace function health_check() returns jsonb
