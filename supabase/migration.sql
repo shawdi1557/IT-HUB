@@ -1625,7 +1625,7 @@ create index if not exists offer_brands_brand_idx on offer_brands (brand_id);
 create index if not exists wishlist_product_idx on wishlist (product_id);
 create index if not exists coupons_created_by_idx on coupons (created_by);
 create index if not exists import_runs_created_by_idx on import_runs (created_by);
-create index if not exists brand_support_category_fk_idx on brand_support (category);
+drop index if exists brand_support_category_fk_idx;
 create index if not exists brand_support_verified_by_idx on brand_support (verified_by);
 create index if not exists support_verifications_brand_support_idx on support_verifications (brand_support_id);
 create index if not exists support_verifications_verified_by_idx on support_verifications (verified_by);
