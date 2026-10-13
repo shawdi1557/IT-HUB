@@ -121,8 +121,8 @@ export function Services() {
           </h2>
           <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
             Professional technical assistance without needing to bring your
-            device to the store. Available within our local service radius of
-            IT HUB Kothamangalam — check your PIN code to confirm.
+            device to the store. Available within our local service radius of IT
+            HUB Kothamangalam — check your PIN code to confirm.
           </p>
           <ol className="mt-6 grid gap-2 text-xs sm:grid-cols-2">
             {[

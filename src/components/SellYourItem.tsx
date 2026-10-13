@@ -721,7 +721,12 @@ export default function SellYourItem({
     setError("")
 
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-    const newImages: { name: string url: string size: number }[] = []
+    type ProcessedImageFile = {
+      name: string
+      url: string
+      size: number
+    }
+    const newImages: ProcessedImageFile[] = []
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -834,7 +839,8 @@ export default function SellYourItem({
         invoice: invoice ? { name: invoice.name, dataUrl: invoice.url } : null,
       })
 
-      const finalId = res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+      const finalId =
+        res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
       const newRequest: SellRequest = {
         id: finalId,
         userId: customerPhone,
@@ -853,7 +859,9 @@ export default function SellYourItem({
         warrantyRemaining: hasWarranty ? warrantyRemaining : "",
         warrantyDetails: hasWarranty ? warrantyDetails : "",
         expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
-        imagePaths: res.storageImages?.length ? res.storageImages : images.map((img) => img.url),
+        imagePaths: res.storageImages?.length
+          ? res.storageImages
+          : images.map((img) => img.url),
         invoicePath: res.storageInvoice || (invoice ? invoice.url : ""),
         status: "Pending",
         adminNotes: "",
@@ -863,7 +871,10 @@ export default function SellYourItem({
 
       store.set((prev) => ({
         sellRequests: [newRequest, ...prev.sellRequests],
-        notifications: [`Sell request ${finalId} submitted`, ...prev.notifications],
+        notifications: [
+          `Sell request ${finalId} submitted`,
+          ...prev.notifications,
+        ],
       }))
 
       store.log(
@@ -872,7 +883,9 @@ export default function SellYourItem({
       store.notify(`Sell request ${finalId} submitted for review!`)
       setSubmittedRequest(newRequest)
     } catch (err: any) {
-      setError(err?.message || "Failed to submit sell request. Please try again.")
+      setError(
+        err?.message || "Failed to submit sell request. Please try again.",
+      )
     } finally {
       setSubmitting(false)
     }
@@ -1266,10 +1279,15 @@ export default function SellYourItem({
           {/* Expected Price / Asking Price */}
           <div className="rounded-xl border border-border bg-card p-4">
             <label className="mb-1.5 block text-xs font-semibold text-foreground">
-              Your Expected Asking Price (₹) <span className="font-normal text-muted-foreground">(Optional)</span>
+              Your Expected Asking Price (₹){" "}
+              <span className="font-normal text-muted-foreground">
+                (Optional)
+              </span>
             </label>
             <div className="relative max-w-sm">
-              <span className="absolute left-3 top-2 text-xs font-bold text-muted-foreground">₹</span>
+              <span className="absolute left-3 top-2 text-xs font-bold text-muted-foreground">
+                ₹
+              </span>
               <input
                 type="number"
                 min={0}
@@ -1281,7 +1299,8 @@ export default function SellYourItem({
               />
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              What do you hope to get for this device? IT HUB will evaluate condition and give you a fair market quote.
+              What do you hope to get for this device? IT HUB will evaluate
+              condition and give you a fair market quote.
             </p>
           </div>
 
@@ -1586,7 +1605,9 @@ export default function SellYourItem({
               {expectedPrice && (
                 <div>
                   <span className="text-muted-foreground">Expected Price</span>
-                  <p className="font-semibold text-emerald-700">₹{Number(expectedPrice).toLocaleString("en-IN")}</p>
+                  <p className="font-semibold text-emerald-700">
+                    ₹{Number(expectedPrice).toLocaleString("en-IN")}
+                  </p>
                 </div>
               )}
             </div>

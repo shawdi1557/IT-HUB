@@ -50,7 +50,13 @@ import {
   SpotlightCard,
 } from "../components/reactbits"
 
-const homeCategories: { name: string label?: string Icon: typeof Laptop }[] = [
+interface HomeCategoryEntry {
+  name: string
+  label?: string
+  Icon: typeof Laptop
+}
+
+const homeCategories: HomeCategoryEntry[] = [
   { name: "Laptops", Icon: Laptop },
   { name: "Mobiles", Icon: Smartphone },
   { name: "PC Components", Icon: Cpu },
@@ -322,7 +328,9 @@ export default function Home() {
                 Certified Pre-Owned & Gadget Buyback
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Save up to 50% on thoroughly inspected, stress-tested pre-owned laptops, MacBooks, GPUs, and smartphones — or trade in your old devices for an instant evaluation and fair cash payout.
+                Save up to 50% on thoroughly inspected, stress-tested pre-owned
+                laptops, MacBooks, GPUs, and smartphones — or trade in your old
+                devices for an instant evaluation and fair cash payout.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -336,7 +344,8 @@ export default function Home() {
                 to="/sell"
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-xs font-semibold text-foreground transition hover:border-emerald-600 hover:text-emerald-700"
               >
-                <BadgeIndianRupee size={15} className="text-emerald-600" /> Sell Your Device
+                <BadgeIndianRupee size={15} className="text-emerald-600" /> Sell
+                Your Device
               </Link>
             </div>
           </div>

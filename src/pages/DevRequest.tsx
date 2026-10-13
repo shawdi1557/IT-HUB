@@ -41,7 +41,12 @@ const projectTypes = [
   },
 ]
 
-const purposes: Record<string, { label: string Icon: typeof Code2 }[]> = {
+interface PurposeItem {
+  label: string
+  Icon: typeof Code2
+}
+
+const purposes: Record<string, PurposeItem[]> = {
   Website: [
     { label: "E-commerce / Online Store", Icon: ShoppingCart },
     { label: "Business / Company Website", Icon: Building2 },

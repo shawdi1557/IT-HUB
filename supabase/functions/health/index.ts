@@ -22,7 +22,8 @@ export async function handleHealthCheck(
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+        "Access-Control-Allow-Headers":
+          "authorization, x-client-info, apikey, content-type",
       },
     })
   }
@@ -74,7 +75,12 @@ export async function handleHealthCheck(
 
     const latencyMs = Math.round(performance.now() - startTime)
 
-    if (error && error.code !== "PGRST204" && error.code !== "PGRST205" && error.code !== "42P01") {
+    if (
+      error &&
+      error.code !== "PGRST204" &&
+      error.code !== "PGRST205" &&
+      error.code !== "42P01"
+    ) {
       return new Response(
         JSON.stringify({
           status: "disconnected",
@@ -129,4 +135,3 @@ export async function handleHealthCheck(
 if (import.meta.main) {
   serve((req: Request) => handleHealthCheck(req))
 }
-

@@ -229,15 +229,26 @@ Deno.test("SQL-14. Fix I: Execution revoked from PUBLIC on internal triggers and
 // Section 2: Business Logic Emulation Tests (Pure algorithmic rules)
 // ==============================================================================
 
-// Fix A: Quote State Transition Logic
+interface TransitionOldState {
+  quote: number | null
+  quote_state: string | null
+  isCustomer: boolean
+}
+
+interface TransitionNewState {
+  quote_state: string
+  notes?: string
+}
+
+interface TransitionResult {
+  allowed: boolean
+  reason?: string
+}
+
 function validateServiceRequestTransition(
-  oldState: {
-    quote: number | null
-    quote_state: string | null
-    isCustomer: boolean
-  },
-  newState: { quote_state: string; notes?: string },
-): { allowed: boolean; reason?: string } {
+  oldState: TransitionOldState,
+  newState: TransitionNewState,
+): TransitionResult {
   if (oldState.isCustomer) {
     if (oldState.quote_state !== "pending" || oldState.quote === null) {
       return {
@@ -283,8 +294,13 @@ Deno.test("LOGIC-1. Service request quote approval requires 'pending' state and 
   assertEquals(res4.allowed, false)
 })
 
+interface CartItemEntry {
+  product_id: string
+  quantity: number
+}
+
 // Fix C: Cart Grouping, Sorting, and Deterministic Locking Order
-function sortCartItems(items: Array<{ product_id: string; quantity: number }>) {
+function sortCartItems(items: CartItemEntry[]) {
   return [...items].sort((a, b) => a.product_id.localeCompare(b.product_id))
 }
 
@@ -323,11 +339,16 @@ const ALLOWED_PUBLIC_EVENTS = new Set([
 ])
 const ADMIN_EVENTS = new Set(["Admin Login", "Admin Data Change"])
 
+interface VisitorValidationResult {
+  valid: boolean
+  error?: string
+}
+
 function validateVisitorEvent(
   eventType: string,
   meta: any,
   isAdmin: boolean,
-): { valid: boolean; error?: string } {
+): VisitorValidationResult {
   if (typeof meta !== "object" || meta === null || Array.isArray(meta)) {
     return { valid: false, error: "Metadata must be a JSON object" }
   }
@@ -384,20 +405,29 @@ Deno.test("LOGIC-3. Visitor event validator enforces allowlist and payload limit
   )
 })
 
+interface CouponRuleInput {
+  is_active: boolean
+  start_date?: string
+  end_date?: string
+  min_order_value?: number
+  discount_type: "percent" | "fixed"
+  discount_value: number
+  max_discount?: number | null
+}
+
+interface CouponValidationResult {
+  valid: boolean
+  discount: number
+  finalTotal: number
+  error?: string
+}
+
 // Fix G: Coupon Validation
 function validateCouponRules(
-  coupon: {
-    is_active: boolean
-    start_date?: string
-    end_date?: string
-    min_order_value?: number
-    discount_type: "percent" | "fixed"
-    discount_value: number
-    max_discount?: number | null
-  },
+  coupon: CouponRuleInput,
   cartTotal: number,
   now: Date = new Date(),
-): { valid: boolean; discount: number; finalTotal: number; error?: string } {
+): CouponValidationResult {
   if (cartTotal <= 0) {
     return {
       valid: false,

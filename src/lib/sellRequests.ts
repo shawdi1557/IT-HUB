@@ -3,7 +3,12 @@
 // IT HUB — Kerala, India
 
 import { supabase, supabaseConfig } from "./supabase"
-import type { SellCategory, ProductCondition, SellRequest, SellRequestStatus } from "../data/catalog"
+import type {
+  SellCategory,
+  ProductCondition,
+  SellRequest,
+  SellRequestStatus,
+} from "../data/catalog"
 
 export interface CreateSellRequestInput {
   userId: string
@@ -20,8 +25,14 @@ export interface CreateSellRequestInput {
   warrantyRemaining?: string
   warrantyDetails?: string
   expectedPrice?: number
-  images: { name: string; file?: File; dataUrl?: string }[]
-  invoice?: { name: string; file?: File; dataUrl?: string } | null
+  images: SellRequestFile[]
+  invoice?: SellRequestFile | null
+}
+
+export interface SellRequestFile {
+  name: string
+  file?: File
+  dataUrl?: string
 }
 
 export interface SellRequestResult {
@@ -72,14 +83,20 @@ async function uploadToBucket(
     })
 
     if (error) {
-      console.warn(`[Supabase Storage] Failed upload to ${bucket}/${path}:`, error.message)
+      console.warn(
+        `[Supabase Storage] Failed upload to ${bucket}/${path}:`,
+        error.message,
+      )
       return null
     }
 
     const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(path)
     return pubData?.publicUrl || path
   } catch (err) {
-    console.warn(`[Supabase Storage] Exception uploading to ${bucket}/${path}:`, err)
+    console.warn(
+      `[Supabase Storage] Exception uploading to ${bucket}/${path}:`,
+      err,
+    )
     return null
   }
 }
@@ -93,7 +110,8 @@ export async function submitSellRequest(
   input: CreateSellRequestInput,
 ): Promise<SellRequestResult> {
   const localId = `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
-  const productName = `${input.brand} ${input.model}`.trim() || `${input.category} device`
+  const productName =
+    `${input.brand} ${input.model}`.trim() || `${input.category} device`
 
   // If Supabase is not configured, return safe local ID with existing URLs
   if (!supabase || !supabaseConfig.isConfigured) {
@@ -101,7 +119,8 @@ export async function submitSellRequest(
       ok: true,
       id: localId,
       storageImages: input.images.map((img) => img.dataUrl || img.name),
-      storageInvoice: input.invoice?.dataUrl || input.invoice?.name || undefined,
+      storageInvoice:
+        input.invoice?.dataUrl || input.invoice?.name || undefined,
     }
   }
 
@@ -116,7 +135,8 @@ export async function submitSellRequest(
         ok: true,
         id: localId,
         storageImages: input.images.map((img) => img.dataUrl || img.name),
-        storageInvoice: input.invoice?.dataUrl || input.invoice?.name || undefined,
+        storageInvoice:
+          input.invoice?.dataUrl || input.invoice?.name || undefined,
       }
     }
 
@@ -141,13 +161,17 @@ export async function submitSellRequest(
     })
 
     if (insertError) {
-      console.warn("[Supabase Database] sell_requests insert failed:", insertError.message)
+      console.warn(
+        "[Supabase Database] sell_requests insert failed:",
+        insertError.message,
+      )
       // Fallback cleanly to local ID
       return {
         ok: true,
         id: localId,
         storageImages: input.images.map((img) => img.dataUrl || img.name),
-        storageInvoice: input.invoice?.dataUrl || input.invoice?.name || undefined,
+        storageInvoice:
+          input.invoice?.dataUrl || input.invoice?.name || undefined,
       }
     }
 
@@ -160,7 +184,11 @@ export async function submitSellRequest(
       const targetPayload = img.file || img.dataUrl
 
       if (targetPayload) {
-        const publicUrl = await uploadToBucket("sell-request-photos", storagePath, targetPayload)
+        const publicUrl = await uploadToBucket(
+          "sell-request-photos",
+          storagePath,
+          targetPayload,
+        )
         const finalPath = publicUrl || storagePath
         uploadedImages.push(finalPath)
 
@@ -201,16 +229,22 @@ export async function submitSellRequest(
     return {
       ok: true,
       id: dbRequestId,
-      storageImages: uploadedImages.length ? uploadedImages : input.images.map((img) => img.dataUrl || img.name),
+      storageImages: uploadedImages.length
+        ? uploadedImages
+        : input.images.map((img) => img.dataUrl || img.name),
       storageInvoice: uploadedInvoicePath,
     }
   } catch (err) {
-    console.error("[Supabase Service] Unexpected error in submitSellRequest:", err)
+    console.error(
+      "[Supabase Service] Unexpected error in submitSellRequest:",
+      err,
+    )
     return {
       ok: true,
       id: localId,
       storageImages: input.images.map((img) => img.dataUrl || img.name),
-      storageInvoice: input.invoice?.dataUrl || input.invoice?.name || undefined,
+      storageInvoice:
+        input.invoice?.dataUrl || input.invoice?.name || undefined,
     }
   }
 }
@@ -218,7 +252,9 @@ export async function submitSellRequest(
 /**
  * Fetches the user's submitted sell requests from Supabase.
  */
-export async function fetchUserSellRequests(userId?: string): Promise<SellRequest[]> {
+export async function fetchUserSellRequests(
+  userId?: string,
+): Promise<SellRequest[]> {
   if (!supabase || !supabaseConfig.isConfigured) return []
 
   try {
@@ -278,7 +314,9 @@ export async function fetchUserSellRequests(userId?: string): Promise<SellReques
         warrantyProvider: row.warranty_provider || "",
         warrantyRemaining: row.warranty_remaining || "",
         warrantyDetails: row.warranty_details || "",
-        expectedPrice: row.expected_price ? Number(row.expected_price) : undefined,
+        expectedPrice: row.expected_price
+          ? Number(row.expected_price)
+          : undefined,
         offeredPrice: row.offered_price ? Number(row.offered_price) : undefined,
         imagePaths: images.length ? images : ["/images/laptop.jpg"],
         invoicePath: doc,
@@ -293,4 +331,3 @@ export async function fetchUserSellRequests(userId?: string): Promise<SellReques
     return []
   }
 }
-

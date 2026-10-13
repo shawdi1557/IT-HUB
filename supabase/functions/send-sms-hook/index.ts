@@ -25,22 +25,29 @@ function to10Digits(phone: string): string {
 Deno.serve(async (req: Request) => {
   // 1. Health check or non-POST requests
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ status: "ok", service: "IT HUB SMS Gateway Hook" }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })
+    return new Response(
+      JSON.stringify({ status: "ok", service: "IT HUB SMS Gateway Hook" }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   }
 
   try {
     // 2. Validate optional secret token (if configured in Supabase hook headers)
     const hookSecret = Deno.env.get("SEND_SMS_HOOK_SECRET")
     if (hookSecret) {
-      const authHeader = req.headers.get("x-hook-secret") || req.headers.get("authorization")
+      const authHeader =
+        req.headers.get("x-hook-secret") || req.headers.get("authorization")
       if (authHeader !== hookSecret && authHeader !== `Bearer ${hookSecret}`) {
-        return new Response(JSON.stringify({ error: "Unauthorized hook invocation" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        })
+        return new Response(
+          JSON.stringify({ error: "Unauthorized hook invocation" }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          },
+        )
       }
     }
 
@@ -49,10 +56,13 @@ Deno.serve(async (req: Request) => {
     const { user, sms } = body
 
     if (!user?.phone || !sms?.otp) {
-      return new Response(JSON.stringify({ error: "Missing required phone or OTP in payload" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      })
+      return new Response(
+        JSON.stringify({ error: "Missing required phone or OTP in payload" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     const phoneE164 = user.phone
@@ -60,7 +70,9 @@ Deno.serve(async (req: Request) => {
     const otp = sms.otp
     const storeName = Deno.env.get("STORE_NAME") || "IT HUB"
 
-    console.log(`[send-sms-hook] Dispatching OTP for phone ${phone10} (length: ${otp.length})`)
+    console.log(
+      `[send-sms-hook] Dispatching OTP for phone ${phone10} (length: ${otp.length})`,
+    )
 
     // ────────────────────────────────────────────────────────────────────────────
     // 4. Provider Dispatch
@@ -85,16 +97,22 @@ Deno.serve(async (req: Request) => {
       const resJson = await resp.json()
       if (!resp.ok || resJson.return === false) {
         console.error("[send-sms-hook] Fast2SMS dispatch failed:", resJson)
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via Fast2SMS" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        })
+        return new Response(
+          JSON.stringify({ error: "SMS dispatch failed via Fast2SMS" }),
+          {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          },
+        )
       }
 
-      return new Response(JSON.stringify({ success: true, provider: "fast2sms" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+      return new Response(
+        JSON.stringify({ success: true, provider: "fast2sms" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     // Provider B: 2Factor (Specialized in Indian 2FA / OTP delivery)
@@ -107,16 +125,22 @@ Deno.serve(async (req: Request) => {
 
       if (!resp.ok || resJson.Status !== "Success") {
         console.error("[send-sms-hook] 2Factor dispatch failed:", resJson)
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via 2Factor" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        })
+        return new Response(
+          JSON.stringify({ error: "SMS dispatch failed via 2Factor" }),
+          {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          },
+        )
       }
 
-      return new Response(JSON.stringify({ success: true, provider: "2factor" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+      return new Response(
+        JSON.stringify({ success: true, provider: "2factor" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     // Provider C: MSG91 (DLT-Approved Indian SMS Gateway)
@@ -131,30 +155,47 @@ Deno.serve(async (req: Request) => {
 
       if (!resp.ok || resJson.type === "error") {
         console.error("[send-sms-hook] MSG91 dispatch failed:", resJson)
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via MSG91" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        })
+        return new Response(
+          JSON.stringify({ error: "SMS dispatch failed via MSG91" }),
+          {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          },
+        )
       }
 
-      return new Response(JSON.stringify({ success: true, provider: "msg91" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
+      return new Response(
+        JSON.stringify({ success: true, provider: "msg91" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      )
     }
 
     // Provider D: Generic / Mock Gateway (Log for test environments)
-    console.log(`[send-sms-hook] [DEVELOPMENT MOCK] Sending OTP "${otp}" to +91 ${phone10} for ${storeName}`)
-    return new Response(JSON.stringify({ success: true, provider: "mock_development", phone: phone10 }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })
+    console.log(
+      `[send-sms-hook] [DEVELOPMENT MOCK] Sending OTP "${otp}" to +91 ${phone10} for ${storeName}`,
+    )
+    return new Response(
+      JSON.stringify({
+        success: true,
+        provider: "mock_development",
+        phone: phone10,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   } catch (err: any) {
     console.error("[send-sms-hook] Unhandled exception:", err)
-    return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    })
+    return new Response(
+      JSON.stringify({ error: err?.message || "Internal server error" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    )
   }
 })
-

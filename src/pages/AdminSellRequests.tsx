@@ -357,7 +357,8 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                       )}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Exp: {req.expectedPrice ? money(req.expectedPrice) : "Not set"}
+                      Exp:{" "}
+                      {req.expectedPrice ? money(req.expectedPrice) : "Not set"}
                     </p>
                   </td>
                   <td className="px-5 py-3.5">
@@ -485,7 +486,9 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
               {/* Valuation price comparison */}
               <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl bg-muted/40 p-3 text-xs">
                 <div>
-                  <span className="text-muted-foreground">Customer Asking Price:</span>
+                  <span className="text-muted-foreground">
+                    Customer Asking Price:
+                  </span>
                   <p className="text-sm font-bold text-foreground">
                     {selectedRequest.expectedPrice
                       ? money(selectedRequest.expectedPrice)
@@ -493,7 +496,9 @@ export default function SellRequestsAdmin({ view = "all" }: { view?: string }) {
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">IT HUB Offered Valuation:</span>
+                  <span className="text-muted-foreground">
+                    IT HUB Offered Valuation:
+                  </span>
                   <p className="text-sm font-bold text-emerald-700">
                     {selectedRequest.offeredPrice
                       ? money(selectedRequest.offeredPrice)

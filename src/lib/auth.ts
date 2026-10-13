@@ -101,7 +101,7 @@ export async function sendPhoneOtp(
         msg.includes("provider is not enabled") ||
         msg.includes("unsupported phone provider") ||
         msg.includes("sms_provider_not_configured") ||
-        error.status === 400 && msg.includes("phone")
+        (error.status === 400 && msg.includes("phone"))
       ) {
         const demoCode = String(Math.floor(100000 + Math.random() * 900000))
         return {
@@ -115,18 +115,25 @@ export async function sendPhoneOtp(
       }
 
       // Rate limit or quota error
-      if (msg.includes("rate limit") || msg.includes("too many requests") || error.status === 429) {
+      if (
+        msg.includes("rate limit") ||
+        msg.includes("too many requests") ||
+        error.status === 429
+      ) {
         return {
           ok: false,
           formattedPhone,
-          error: "Too many OTP attempts. Please wait 60 seconds before trying again.",
+          error:
+            "Too many OTP attempts. Please wait 60 seconds before trying again.",
         }
       }
 
       return {
         ok: false,
         formattedPhone,
-        error: error.message || "Failed to send OTP. Please check your phone number.",
+        error:
+          error.message ||
+          "Failed to send OTP. Please check your phone number.",
       }
     }
 
@@ -140,7 +147,9 @@ export async function sendPhoneOtp(
     return {
       ok: false,
       formattedPhone,
-      error: err?.message || "Unexpected error connecting to authentication service.",
+      error:
+        err?.message ||
+        "Unexpected error connecting to authentication service.",
     }
   }
 }
@@ -189,16 +198,25 @@ export async function verifyPhoneOtp(
     if (error) {
       const msg = error.message.toLowerCase()
       if (msg.includes("token has expired") || msg.includes("expired")) {
-        return { ok: false, error: "The OTP code has expired. Please request a new one." }
+        return {
+          ok: false,
+          error: "The OTP code has expired. Please request a new one.",
+        }
       }
       if (msg.includes("invalid") || msg.includes("token is invalid")) {
-        return { ok: false, error: "Incorrect verification code. Please check and try again." }
+        return {
+          ok: false,
+          error: "Incorrect verification code. Please check and try again.",
+        }
       }
       return { ok: false, error: error.message }
     }
 
     if (!data.user) {
-      return { ok: false, error: "Authentication failed. No user record returned." }
+      return {
+        ok: false,
+        error: "Authentication failed. No user record returned.",
+      }
     }
 
     // Reconcile and load profile
@@ -221,7 +239,9 @@ export async function verifyPhoneOtp(
 /**
  * Reconciles the customer profile in public.profiles.
  */
-export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile | null> {
+export async function fetchOrCreateProfile(
+  user: User,
+): Promise<CustomerProfile | null> {
   if (!supabase) return null
 
   try {
@@ -237,7 +257,8 @@ export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile 
     }
 
     // 2. Self-healing reconciliation RPC (ensure_profile)
-    const { data: rpcData, error: rpcErr } = await supabase.rpc("ensure_profile")
+    const { data: rpcData, error: rpcErr } =
+      await supabase.rpc("ensure_profile")
     if (rpcData?.profile && !rpcErr) {
       return rpcData.profile as CustomerProfile
     }
@@ -255,7 +276,7 @@ export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile 
       .select("id, role, full_name, email, phone, address")
       .maybeSingle()
 
-    return (upsertData as CustomerProfile) || null
+    return upsertData as CustomerProfile || null
   } catch {
     return null
   }
@@ -264,12 +285,18 @@ export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile 
 /**
  * Updates customer profile information in PostgreSQL.
  */
+export interface UpdateProfileResult {
+  ok: boolean
+  profile?: CustomerProfile | null
+  error?: string
+}
+
 export async function updateCustomerProfile(updates: {
   fullName?: string
   email?: string
   address?: string
   phone?: string
-}): Promise<{ ok: boolean; profile?: CustomerProfile | null; error?: string }> {
+}): Promise<UpdateProfileResult> {
   if (!supabase) {
     return { ok: false, error: "Supabase client not available" }
   }
@@ -279,16 +306,23 @@ export async function updateCustomerProfile(updates: {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) {
-      return { ok: false, error: "You must be signed in to update your profile" }
+      return {
+        ok: false,
+        error: "You must be signed in to update your profile",
+      }
     }
 
     const payload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     }
-    if (updates.fullName !== undefined) payload.full_name = updates.fullName.trim() || null
-    if (updates.email !== undefined) payload.email = updates.email.trim() || null
-    if (updates.address !== undefined) payload.address = updates.address.trim() || null
-    if (updates.phone !== undefined) payload.phone = formatIndianPhoneToE164(updates.phone)
+    if (updates.fullName !== undefined)
+      payload.full_name = updates.fullName.trim() || null
+    if (updates.email !== undefined)
+      payload.email = updates.email.trim() || null
+    if (updates.address !== undefined)
+      payload.address = updates.address.trim() || null
+    if (updates.phone !== undefined)
+      payload.phone = formatIndianPhoneToE164(updates.phone)
 
     const { data, error } = await supabase
       .from("profiles")
@@ -310,7 +344,12 @@ export async function updateCustomerProfile(updates: {
 /**
  * Signs the user out of Supabase Auth.
  */
-export async function signOutUser(): Promise<{ ok: boolean; error?: string }> {
+export interface SignOutResult {
+  ok: boolean
+  error?: string
+}
+
+export async function signOutUser(): Promise<SignOutResult> {
   if (!supabase) return { ok: true }
 
   try {
@@ -345,4 +384,3 @@ export function subscribeToAuthChanges(
     subscription.unsubscribe()
   }
 }
-

@@ -29,7 +29,6 @@
 // One ring already mid-expansion inside the ping area, so the first paint (and the cover) shows the idea.
 
 // Prop changes while the loop is asleep still repaint immediately.
-
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -55,9 +54,7 @@ interface Ring {
 }
 
 const MAX_DPR = 2
-const TAU =
-  Math.PI *
-  2
+const TAU = Math.PI * 2
 export function SonarGrid({
   spacing = 26,
   dotRadius = 1.4,
@@ -110,11 +107,7 @@ export function SonarGrid({
   const setHost = React.useCallback(
     (node: HTMLDivElement | null) => {
       hostRef.current = node
-      if (
-        typeof ref ===
-        "function"
-      )
-        ref(node)
+      if (typeof ref === "function") ref(node)
       else if (ref) ref.current = node
     },
     [ref],
@@ -145,11 +138,7 @@ export function SonarGrid({
       readColor()
       const rings = ringsRef.current
       rings.push({ x, y, born })
-      while (
-        rings.length >
-        opts.current.maxRings
-      )
-        rings.shift()
+      while (rings.length > opts.current.maxRings) rings.shift()
     }
 
     const draw = (now: number) => {
@@ -160,16 +149,12 @@ export function SonarGrid({
       )
       const live = ringsRef.current.map((r) => {
         const age = (now - r.born) / 1000
-        const radius =
-          age *
-          o.speed
+        const radius = age * o.speed
         return {
           x: r.x,
           y: r.y,
           radius,
-          reach:
-            radius +
-            o.ringWidth,
+          reach: radius + o.ringWidth,
           fade: 1 - age / lifetime,
         }
       })
@@ -177,83 +162,29 @@ export function SonarGrid({
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = stroke
 
-      const cols =
-        Math.ceil(
-          width /
-            o.spacing,
-        ) +
-        1
-      const rows =
-        Math.ceil(
-          height /
-            o.spacing,
-        ) +
-        1
+      const cols = Math.ceil(width / o.spacing) + 1
+      const rows = Math.ceil(height / o.spacing) + 1
       const offsetX = (width - (cols - 1) * o.spacing) / 2
       const offsetY = (height - (rows - 1) * o.spacing) / 2
       const hot: number[] = []
       ctx.globalAlpha = o.baseOpacity
       ctx.beginPath()
-      for (
-        let i = 0;
-        i <
-        cols;
-        i++
-      ) {
+      for (let i = 0; i < cols; i++) {
         const cx = offsetX + i * o.spacing
-        for (
-          let j = 0;
-          j <
-          rows;
-          j++
-        ) {
+        for (let j = 0; j < rows; j++) {
           const cy = offsetY + j * o.spacing
           let energy = 0
           for (const r of live) {
-            if (
-              Math.abs(
-                cx -
-                  r.x,
-              ) >
-                r.reach ||
-              Math.abs(
-                cy -
-                  r.y,
-              ) >
-                r.reach
-            )
+            if (Math.abs(cx - r.x) > r.reach || Math.abs(cy - r.y) > r.reach)
               continue
-            const dist = Math.abs(
-              Math.hypot(
-                cx -
-                  r.x,
-                cy -
-                  r.y,
-              ) -
-                r.radius,
-            )
-            if (
-              dist >=
-              o.ringWidth
-            )
-              continue
+            const dist = Math.abs(Math.hypot(cx - r.x, cy - r.y) - r.radius)
+            if (dist >= o.ringWidth) continue
             const t = 1 - dist / o.ringWidth
             const k = t * t * (3 - 2 * t) * r.fade
-            if (
-              k >
-              energy
-            )
-              energy = k
+            if (k > energy) energy = k
           }
-          if (
-            energy <
-            0.01
-          ) {
-            ctx.moveTo(
-              cx +
-                o.dotRadius,
-              cy,
-            )
+          if (energy < 0.01) {
+            ctx.moveTo(cx + o.dotRadius, cy)
             ctx.arc(cx, cy, o.dotRadius, 0, TAU)
           } else {
             hot.push(cx, cy, energy)
@@ -261,28 +192,13 @@ export function SonarGrid({
         }
       }
       ctx.fill()
-      for (
-        let k = 0;
-        k <
-        hot.length;
-        k += 3
-      ) {
-        const energy =
-          hot[
-            k +
-              2
-          ] ??
-          0
+      for (let k = 0; k < hot.length; k += 3) {
+        const energy = hot[k + 2] ?? 0
         ctx.globalAlpha = o.baseOpacity + (1 - o.baseOpacity) * energy
         ctx.beginPath()
         ctx.arc(
-          hot[k] ??
-            0,
-          hot[
-            k +
-              1
-          ] ??
-            0,
+          hot[k] ?? 0,
+          hot[k + 1] ?? 0,
           o.dotRadius * (1 + o.amplitude * energy),
           0,
           TAU,
@@ -296,19 +212,9 @@ export function SonarGrid({
       const rect = host.getBoundingClientRect()
       width = Math.max(1, Math.round(rect.width))
       height = Math.max(1, Math.round(rect.height))
-      const dpr = Math.min(
-        window.devicePixelRatio ||
-          1,
-        MAX_DPR,
-      )
-      canvas.width = Math.round(
-        width *
-          dpr,
-      )
-      canvas.height = Math.round(
-        height *
-          dpr,
-      )
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
+      canvas.width = Math.round(width * dpr)
+      canvas.height = Math.round(height * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       if (!seeded) {
         seeded = true
@@ -317,8 +223,7 @@ export function SonarGrid({
           addRing(
             width * (x0 + (x1 - x0) * 0.68),
             height * (y0 + (y1 - y0) * 0.34),
-            performance.now() -
-              500,
+            performance.now() - 500,
           )
       }
       draw(performance.now())
@@ -341,12 +246,7 @@ export function SonarGrid({
         return
       }
       const o = opts.current
-      if (
-        o.pingEvery >
-          0 &&
-        now >=
-          nextPing
-      ) {
+      if (o.pingEvery > 0 && now >= nextPing) {
         const [x0, y0, x1, y1] = o.pingArea
         addRing(
           width * (x0 + Math.random() * (x1 - x0)),
@@ -356,19 +256,8 @@ export function SonarGrid({
         nextPing = now + o.pingEvery * 1000
       }
       draw(now)
-      if (
-        ringsRef.current.length >
-        0
-      )
-        raf = requestAnimationFrame(tick)
-      else if (
-        o.pingEvery >
-        0
-      )
-        scheduleIdle(
-          nextPing -
-            now,
-        )
+      if (ringsRef.current.length > 0) raf = requestAnimationFrame(tick)
+      else if (o.pingEvery > 0) scheduleIdle(nextPing - now)
     }
 
     const wake = () => {
@@ -390,13 +279,7 @@ export function SonarGrid({
     const onDown = (e: PointerEvent) => {
       if (!opts.current.interactive || reduceMotion.matches) return
       const rect = host.getBoundingClientRect()
-      addRing(
-        e.clientX -
-          rect.left,
-        e.clientY -
-          rect.top,
-        performance.now(),
-      )
+      addRing(e.clientX - rect.left, e.clientY - rect.top, performance.now())
       wake()
     }
     const onVisibility = () => {
@@ -406,9 +289,7 @@ export function SonarGrid({
     const ro = new ResizeObserver(resize)
     const io = new IntersectionObserver(
       ([entry]) => {
-        visible =
-          entry?.isIntersecting ??
-          true
+        visible = entry?.isIntersecting ?? true
         if (visible) wake()
       },
       { threshold: 0 },

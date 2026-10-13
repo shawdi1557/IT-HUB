@@ -957,11 +957,17 @@ export const offerHeadline = (offer: Offer) =>
     ? `UP TO ${offer.discount}% OFF`
     : `FLAT ${money(offer.amount)} OFF`
 /** Best currently-active offer for a product and its discounted unit price. */
+export interface BestOfferResult {
+  offer: Offer
+  price: number
+  saving: number
+}
+
 export const bestOffer = (
   offers: Offer[],
   product: Pick<Product, "id" | "brand" | "category" | "price">,
 ) => {
-  let best: { offer: Offer price: number saving: number } | null = null
+  let best: BestOfferResult | null = null
   for (const offer of offers) {
     if (offerStatus(offer) !== "Active" || !offerApplies(offer, product))
       continue
@@ -1036,89 +1042,117 @@ export const pincodeDirectory: Record<string, {
   },
   "686681": {
     area: "Keerampara / Bhoothathankettu / Thattekkad (Forest & Eco-Tourism Range)",
-    latitude: 10.1180,
-    longitude: 76.6850,
+    latitude: 10.118,
+    longitude: 76.685,
   },
   "686693": {
     area: "Manikinar, Neendapara & Forest Boundaries",
-    latitude: 10.0380,
-    longitude: 76.7150,
+    latitude: 10.038,
+    longitude: 76.715,
   },
   "686671": {
     area: "Chathamattam, Koovalloor & Limits",
-    latitude: 10.0240,
-    longitude: 76.6710,
+    latitude: 10.024,
+    longitude: 76.671,
   },
   "685514": {
     area: "Eastern High-Range / Pindimana Boundary",
-    latitude: 10.0540,
-    longitude: 76.7850,
+    latitude: 10.054,
+    longitude: 76.785,
   },
   "685612": {
     area: "Eastern High-Range / Oonnukal Range",
-    latitude: 10.0330,
-    longitude: 76.7550,
+    latitude: 10.033,
+    longitude: 76.755,
   },
   "683544": {
     area: "Kuttampuzha (Kothamangalam Forest Range)",
-    latitude: 10.1530,
-    longitude: 76.7380,
+    latitude: 10.153,
+    longitude: 76.738,
   },
 
   // ── Muvattupuzha Region ──
   "686661": {
     area: "Muvattupuzha Town & HPO (Bazar, Kizhakkekara, Peringuzha, Thottumkalpeedika)",
     latitude: 9.9894,
-    longitude: 76.5790,
+    longitude: 76.579,
   },
   "686673": {
     area: "Muvattupuzha Market & Suburbs (Kadathy, Kakkadasseri, Perumattom, Randar, Vazhappily, Mulavoor, Enanalloor)",
-    latitude: 9.9750,
-    longitude: 76.5820,
+    latitude: 9.975,
+    longitude: 76.582,
   },
 
   // ── Nearby Localities ──
   "686670": {
     area: "Pothanicad",
-    latitude: 10.0010,
-    longitude: 76.6800,
+    latitude: 10.001,
+    longitude: 76.68,
   },
   "683556": {
     area: "Perumbavoor (Odakkali / Asamannoor)",
-    latitude: 10.0790,
-    longitude: 76.5320,
+    latitude: 10.079,
+    longitude: 76.532,
   },
   "683542": {
     area: "Perumbavoor Town",
     latitude: 10.1157,
-    longitude: 76.4780,
+    longitude: 76.478,
   },
   "685608": {
     area: "Thodupuzha (Kaliyar / Vannappuram)",
-    latitude: 9.9490,
-    longitude: 76.7380,
+    latitude: 9.949,
+    longitude: 76.738,
   },
   "685584": {
     area: "Thodupuzha Town",
-    latitude: 9.8960,
+    latitude: 9.896,
     longitude: 76.7137,
   },
 
   // ── Key Central Kerala Hubs ──
-  "682030": { area: "Kakkanad / Infopark", latitude: 10.0159, longitude: 76.3419 },
-  "682016": { area: "Ernakulam M.G. Road", latitude: 9.9816, longitude: 76.2799 },
+  "682030": {
+    area: "Kakkanad / Infopark",
+    latitude: 10.0159,
+    longitude: 76.3419,
+  },
+  "682016": {
+    area: "Ernakulam M.G. Road",
+    latitude: 9.9816,
+    longitude: 76.2799,
+  },
   "682011": { area: "Ernakulam City", latitude: 9.9816, longitude: 76.2999 },
   "682001": { area: "Kochi Fort Kochi", latitude: 9.9658, longitude: 76.2421 },
-  "682024": { area: "Kalamassery / CUSAT", latitude: 10.0469, longitude: 76.3267 },
+  "682024": {
+    area: "Kalamassery / CUSAT",
+    latitude: 10.0469,
+    longitude: 76.3267,
+  },
   "682020": { area: "Kadavanthra", latitude: 9.9678, longitude: 76.2996 },
   "683101": { area: "Aluva", latitude: 10.1076, longitude: 76.3516 },
   "686001": { area: "Kottayam Town", latitude: 9.5916, longitude: 76.5222 },
   "680001": { area: "Thrissur Town", latitude: 10.5276, longitude: 76.2144 },
-  "673001": { area: "Kozhikode Town", latitude: 11.2480, longitude: 75.7760 },
-  "673004": { area: "Kozhikode Mavoor Road", latitude: 11.2588, longitude: 75.7804 },
-  "695001": { area: "Thiruvananthapuram Statue / City", latitude: 8.4904, longitude: 76.9530 },
-  "695033": { area: "Pattom, Trivandrum", latitude: 8.5241, longitude: 76.9407 },
-  "695581": { area: "Kazhakkoottam / Technopark", latitude: 8.5686, longitude: 76.8731 },
+  "673001": { area: "Kozhikode Town", latitude: 11.248, longitude: 75.776 },
+  "673004": {
+    area: "Kozhikode Mavoor Road",
+    latitude: 11.2588,
+    longitude: 75.7804,
+  },
+  "695001": {
+    area: "Thiruvananthapuram Statue / City",
+    latitude: 8.4904,
+    longitude: 76.953,
+  },
+  "695033": {
+    area: "Pattom, Trivandrum",
+    latitude: 8.5241,
+    longitude: 76.9407,
+  },
+  "695581": {
+    area: "Kazhakkoottam / Technopark",
+    latitude: 8.5686,
+    longitude: 76.8731,
+  },
 }
 const toRad = (deg: number) => (deg * Math.PI) / 180
 export const distanceKm = (
@@ -1186,11 +1220,17 @@ export type WarrantyCheck = {
   date: string
 }
 
+export interface PcEnquiryPart {
+  type: string
+  name: string
+  price: number
+}
+
 // ── PC Builder enquiries (sent to WhatsApp) ──
 export type PcEnquiry = {
   id: string
   summary: string
-  parts: { type: string name: string price: number }[]
+  parts: PcEnquiryPart[]
   estimate: number
   date: string
   status: "New" | "Contacted" | "Quoted" | "Closed"
@@ -1209,7 +1249,10 @@ export type ImportRecord = {
 }
 
 /** Admin navigation tree. Sub-items map to `/admin/:section?view=<view>`. */
-export type AdminNavItem = { label: string view: string }
+export interface AdminNavItem {
+  label: string
+  view: string
+}
 export type AdminNavGroup = {
   name: string
   section: string
@@ -1583,16 +1626,22 @@ export const initialCouponUsages: CouponUsage[] = []
  * All coupons are strictly one-time per customer: verifies customer has not previously completed an order with this coupon.
  * Returns { valid: true, coupon, discount } or { valid: false, error }
  */
+export type CouponValidationResult = {
+  valid: true
+  coupon: Coupon
+  discount: number
+} | {
+  valid: false
+  error: string
+}
+
 export const validateCoupon = (
   code: string,
   cartTotal: number,
   customerId: string,
   coupons: Coupon[],
   usages: CouponUsage[],
-): { valid: true coupon: Coupon discount: number } | {
-  valid: false
-  error: string
-} => {
+): CouponValidationResult => {
   const upper = code.trim().toUpperCase()
   if (!upper) return { valid: false, error: "Enter a coupon code." }
   const coupon = coupons.find((c) => c.code.toUpperCase() === upper)

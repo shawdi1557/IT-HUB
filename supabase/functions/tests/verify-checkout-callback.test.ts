@@ -94,14 +94,21 @@ function createMockUserClient(opts?: {
   }
 }
 
-function createMockAdminClient(opts?: {
+interface MockAdminClientOpts {
   existingOrder?: any
   paidOrder?: any
   fallbackError?: any
   rpcResult?: any
   rpcError?: any
-}) {
-  const rpcCalls: Array<{ fnName: string; args: any }> = []
+}
+
+interface MockRpcRecord {
+  fnName: string
+  args: any
+}
+
+function createMockAdminClient(opts?: MockAdminClientOpts) {
+  const rpcCalls: MockRpcRecord[] = []
 
   return {
     rpcCalls,

@@ -43,7 +43,12 @@ interface MockRpcCall {
   args: any
 }
 
-function createMockAdminClient(opts?: { rpcResult?: any; rpcError?: any }) {
+interface MockAdminOpts {
+  rpcResult?: any
+  rpcError?: any
+}
+
+function createMockAdminClient(opts?: MockAdminOpts) {
   const calls: MockRpcCall[] = []
   return {
     calls,

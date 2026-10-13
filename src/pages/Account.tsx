@@ -64,14 +64,15 @@ const sections = [
   { id: "settings", name: "Settings", Icon: Settings },
 ]
 
-const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> = {
-  Pending: "amber",
-  "Under Review": "blue",
-  Contacted: "blue",
-  Approved: "green",
-  Rejected: "red",
-  Completed: "gray",
-}
+const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> =
+  {
+    Pending: "amber",
+    "Under Review": "blue",
+    Contacted: "blue",
+    Approved: "green",
+    Rejected: "red",
+    Completed: "gray",
+  }
 
 export default function Account() {
   const { section = "overview" } = useParams()
@@ -89,7 +90,9 @@ export default function Account() {
           if (supabaseRequests && supabaseRequests.length > 0) {
             store.set((prev) => {
               const existingIds = new Set(prev.sellRequests.map((r) => r.id))
-              const newOnes = supabaseRequests.filter((r) => !existingIds.has(r.id))
+              const newOnes = supabaseRequests.filter(
+                (r) => !existingIds.has(r.id),
+              )
               if (newOnes.length > 0) {
                 return { sellRequests: [...newOnes, ...prev.sellRequests] }
               }
@@ -441,9 +444,12 @@ export default function Account() {
             <>
               <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Sell & Trade-In Requests</h2>
+                  <h2 className="text-2xl font-bold">
+                    Sell & Trade-In Requests
+                  </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Track your gadget buyback evaluations, valuation offers, and trade-in status.
+                    Track your gadget buyback evaluations, valuation offers, and
+                    trade-in status.
                   </p>
                 </div>
                 <ActionLink to="/sell" className="shrink-0">
@@ -470,7 +476,9 @@ export default function Account() {
                               <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
                                 {req.id}
                               </span>
-                              <Badge tone={sellStatusTones[req.status] || "gray"}>
+                              <Badge
+                                tone={sellStatusTones[req.status] || "gray"}
+                              >
                                 {req.status}
                               </Badge>
                               <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
@@ -504,16 +512,25 @@ export default function Account() {
                         {/* Valuation & Pricing Comparison */}
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 rounded-xl bg-muted/40 p-3.5 text-xs">
                           <div>
-                            <span className="text-muted-foreground">Your Asking Price:</span>
+                            <span className="text-muted-foreground">
+                              Your Asking Price:
+                            </span>
                             <p className="mt-0.5 font-bold text-foreground">
-                              {req.expectedPrice ? money(req.expectedPrice) : "Open for IT HUB quote"}
+                              {req.expectedPrice
+                                ? money(req.expectedPrice)
+                                : "Open for IT HUB quote"}
                             </p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">IT HUB Valuation Offer:</span>
+                            <span className="text-muted-foreground">
+                              IT HUB Valuation Offer:
+                            </span>
                             {req.offeredPrice ? (
                               <p className="mt-0.5 font-bold text-emerald-700 flex items-center gap-1">
-                                <BadgeCheck size={14} className="text-emerald-600" />
+                                <BadgeCheck
+                                  size={14}
+                                  className="text-emerald-600"
+                                />
                                 {money(req.offeredPrice)}
                                 <span className="text-[10px] font-normal text-emerald-600">
                                   (Ready for payout)
@@ -521,7 +538,10 @@ export default function Account() {
                               </p>
                             ) : (
                               <p className="mt-0.5 font-medium text-amber-700 flex items-center gap-1">
-                                <RefreshCw size={12} className="animate-spin text-amber-600" />
+                                <RefreshCw
+                                  size={12}
+                                  className="animate-spin text-amber-600"
+                                />
                                 Evaluation in progress by IT HUB technician
                               </p>
                             )}
@@ -559,7 +579,9 @@ export default function Account() {
                             <span className="font-semibold text-primary">
                               IT HUB Note:
                             </span>{" "}
-                            <span className="text-foreground">{req.adminNotes}</span>
+                            <span className="text-foreground">
+                              {req.adminNotes}
+                            </span>
                           </div>
                         )}
                       </div>
