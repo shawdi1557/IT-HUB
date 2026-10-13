@@ -299,9 +299,9 @@ create trigger on_product_created_init_inventory
 
 -- Safe public storefront catalog view.
 -- Exposes active fresh and second-hand items with live stock and MRP while completely shielding cost_price.
--- Runs with security_barrier and view owner privileges (security_invoker = false) so public
--- clients never need direct SELECT permissions on the raw products table.
-create or replace view products_public as
+-- Runs with security_barrier and security_invoker = on to satisfy Supabase security linter.
+-- Base table RLS and column-level SELECT grants enforce cost_price shielding.
+create or replace view products_public with (security_invoker = on, security_barrier = true) as
   select
     p.id,
     p.sku,
@@ -326,7 +326,7 @@ create or replace view products_public as
   left join inventory i on i.product_id = p.id
   where p.status = 'Active';
 
-alter view products_public set (security_barrier = true);
+alter view products_public set (security_invoker = on, security_barrier = true);
 
 create table import_runs (
   id uuid primary key default gen_random_uuid(),
@@ -384,8 +384,8 @@ create table offer_brands (
   primary key (offer_id, brand_id)
 );
 
--- Public view for active offers currently within their validity window
-create or replace view live_offers as
+-- Public view for active offers currently within their validity window (security_invoker enabled)
+create or replace view live_offers with (security_invoker = on, security_barrier = true) as
   select
     id,
     name,
@@ -401,7 +401,7 @@ create or replace view live_offers as
   from offers
   where active and now() between starts_at and ends_at;
 
-alter view live_offers set (security_barrier = true);
+alter view live_offers set (security_invoker = on, security_barrier = true);
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 5. CUSTOMER ADDRESSES & WISHLISTS
@@ -475,7 +475,7 @@ create trigger coupons_set_updated_at
 create unique index coupons_code_upper_idx on coupons (upper(code));
 
 -- Public safe view for active storefront promotional coupons (masks internal administrative columns)
-create or replace view public_coupons as
+create or replace view public_coupons with (security_invoker = on, security_barrier = true) as
   select
     id,
     code,
@@ -489,7 +489,7 @@ create or replace view public_coupons as
   from coupons
   where active and now() between starts_at and ends_at;
 
-alter view public_coupons set (security_barrier = true);
+alter view public_coupons set (security_invoker = on, security_barrier = true);
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 7. ORDERS, ORDER ITEMS & SECURE SETTLEMENT FIELDS
@@ -776,7 +776,7 @@ create table warranty_checks (
 -- Server-side eligibility check (haversine from PIN centroid to nearest active location)
 create or replace function check_onsite_warranty(p_pincode text)
 returns table (eligible boolean, location_id uuid, area text, approx_distance_km numeric)
-language sql stable security definer set search_path = public, pg_temp as $$
+language sql stable security invoker set search_path = public, pg_temp as $$
   select d.km <= l.service_radius_km, l.id, a.area, round(d.km::numeric, 1)
   from pincode_areas a
   cross join lateral (
@@ -1266,7 +1266,7 @@ create or replace function validate_coupon(
   p_code text,
   p_cart_total numeric
 ) returns jsonb
-language plpgsql security definer set search_path = public, pg_temp as $$
+language plpgsql security invoker set search_path = public, pg_temp as $$
 declare
   c coupons;
   v_discount numeric := 0;
@@ -1991,7 +1991,7 @@ $$;
 -- Lightweight database health check RPC for connectivity monitoring.
 -- Returns minimal timestamp and healthy status without exposing schema, config, or metrics.
 create or replace function health_check() returns jsonb
-language sql security definer set search_path = public, pg_temp as $$
+language sql stable security invoker set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'status', 'ok',
     'timestamp', extract(epoch from now())::bigint
@@ -2097,6 +2097,20 @@ end $$;
 create policy public_read on categories for select using (true);
 create policy public_read on brands for select using (true);
 
+-- Products: Read policy for active storefront catalog (Shields Draft/Archived items)
+create policy public_read on products for select using (status = 'Active');
+
+-- Inventory: Read policy for live stock counts
+create policy public_read on inventory for select using (true);
+
+-- Coupons: Read policy for active storefront promotional coupons
+create policy public_read on coupons for select
+  using (active and (starts_at is null or now() >= starts_at) and (ends_at is null or now() <= ends_at));
+
+-- Coupon usages: Allow customers to read their own usage history to enforce one-time usage limits
+create policy own_coupon_usages on coupon_usages for select
+  using (customer_id = auth.uid());
+
 -- Product images visible only for Active products to shield draft/archived media
 create policy public_read on product_images for select
   using (exists (select 1 from products p where p.id = product_id and p.status = 'Active'));
@@ -2193,14 +2207,29 @@ create policy own_sell_docs_insert on sell_request_documents for insert
 -- 17. PRIVILEGES & SECURITY GRANTS (EXPLICIT FUNCTION SIGNATURES)
 -- ────────────────────────────────────────────────────────────────────────────
 
--- 1. Revoke direct public/client access to raw products and inventory to shield cost_price
+-- 1. Shield confidential cost_price: Grant column-level SELECT omitting cost_price
 revoke all on table products from anon, authenticated, public;
+grant select (
+  id, sku, name, brand_id, category_id, subcategory, description,
+  mrp, price, sale_price, warranty, weight, specs,
+  second_hand, condition, status, created_at
+) on table products to anon, authenticated;
+
 revoke all on table inventory from anon, authenticated, public;
+grant select (product_id, stock) on table inventory to anon, authenticated;
+
+revoke all on table coupons from anon, authenticated, public;
+grant select (
+  id, code, description, type, value, min_order_value, max_discount,
+  total_usage_limit, times_used, active, starts_at, ends_at
+) on table coupons to anon, authenticated;
+
+grant select on table coupon_usages to authenticated;
+
 revoke all on table import_runs from anon, authenticated, public;
 revoke all on table visitor_sessions from anon, authenticated, public;
 revoke all on table visitor_events from anon, authenticated, public;
 revoke all on table analytics_settings from anon, authenticated, public;
-revoke all on table coupons from anon, authenticated, public;
 
 -- 2. Grant read access to public safe views and storefront tables (Protected by RLS)
 grant select on products_public to anon, authenticated;
@@ -2235,8 +2264,9 @@ grant select, insert, update, delete on pc_builds to authenticated;
 grant select, insert on warranty_checks to authenticated;
 
 -- 3. Client & Authenticated RPC Execution Grants (Exact Function Signatures)
-revoke all on function is_admin() from public;
-grant execute on function is_admin() to anon, authenticated;
+-- is_admin only needed by authenticated users (anon can never be admin)
+revoke all on function is_admin() from public, anon;
+grant execute on function is_admin() to authenticated;
 
 revoke all on function check_onsite_warranty(text) from public;
 grant execute on function check_onsite_warranty(text) to anon, authenticated;
@@ -2289,3 +2319,11 @@ revoke all on function protect_sell_request() from public, anon, authenticated;
 revoke all on function protect_review() from public, anon, authenticated;
 revoke all on function protect_pc_build() from public, anon, authenticated;
 revoke all on function sync_product_inventory() from public, anon, authenticated;
+
+-- Revoke rogue or legacy utility functions flagged by database linter
+do $$
+begin
+  if exists (select 1 from pg_proc where proname = 'rls_auto_enable') then
+    execute 'revoke all on function rls_auto_enable() from public, anon, authenticated';
+  end if;
+end $$;

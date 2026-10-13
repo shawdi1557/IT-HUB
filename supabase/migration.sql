@@ -129,7 +129,7 @@ alter table analytics_settings add column if not exists updated_at timestamptz n
 -- Drop views cleanly without CASCADE to protect any dependent references
 drop view if exists products_public;
 
-create view products_public as
+create view products_public with (security_invoker = on, security_barrier = true) as
   select
     p.id,
     p.sku,
@@ -154,11 +154,11 @@ create view products_public as
   left join inventory i on i.product_id = p.id
   where p.status = 'Active';
 
-alter view products_public set (security_barrier = true);
+alter view products_public set (security_invoker = on, security_barrier = true);
 
 drop view if exists live_offers;
 
-create view live_offers as
+create view live_offers with (security_invoker = on, security_barrier = true) as
   select
     id,
     name,
@@ -174,7 +174,25 @@ create view live_offers as
   from offers
   where active and now() between starts_at and ends_at;
 
-alter view live_offers set (security_barrier = true);
+alter view live_offers set (security_invoker = on, security_barrier = true);
+
+drop view if exists public_coupons;
+
+create view public_coupons with (security_invoker = on, security_barrier = true) as
+  select
+    id,
+    code,
+    description,
+    type,
+    value,
+    min_order_value,
+    max_discount,
+    starts_at,
+    ends_at
+  from coupons
+  where active and now() between starts_at and ends_at;
+
+alter view public_coupons set (security_invoker = on, security_barrier = true);
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 4. FUNCTION & TRIGGER UPDATES
@@ -189,6 +207,21 @@ language sql stable security definer set search_path = public, pg_temp as $$
       select 1 from public.profiles
       where id = auth.uid() and role = 'admin'
     );
+create or replace function check_onsite_warranty(p_pincode text)
+returns table (eligible boolean, location_id uuid, area text, approx_distance_km numeric)
+language sql stable security invoker set search_path = public, pg_temp as $$
+  select d.km <= l.service_radius_km, l.id, a.area, round(d.km::numeric, 1)
+  from pincode_areas a
+  cross join lateral (
+    select l.*, 6371 * 2 * asin(sqrt(
+      power(sin(radians(l.latitude - a.latitude) / 2), 2) +
+      cos(radians(a.latitude)) * cos(radians(l.latitude)) *
+      power(sin(radians(l.longitude - a.longitude) / 2), 2))) as km
+    from it_hub_locations l where l.active
+    order by km limit 1
+  ) l
+  cross join lateral (select l.km) d
+  where a.pincode = p_pincode;
 $$;
 
 create or replace function handle_updated_at() returns trigger
@@ -595,7 +628,7 @@ create or replace function validate_coupon(
   p_code text,
   p_cart_total numeric
 ) returns jsonb
-language plpgsql security definer set search_path = public, pg_temp as $$
+language plpgsql security invoker set search_path = public, pg_temp as $$
 declare
   c coupons;
   v_discount numeric := 0;
@@ -1323,17 +1356,54 @@ create trigger sell_requests_protect
 -- 6. PRIVILEGES & SECURITY GRANTS
 -- ────────────────────────────────────────────────────────────────────────────
 
+-- 1. Shield confidential cost_price: Grant column-level SELECT omitting cost_price
 revoke all on table products from anon, authenticated, public;
+grant select (
+  id, sku, name, brand_id, category_id, subcategory, description,
+  mrp, price, sale_price, warranty, weight, specs,
+  second_hand, condition, status, created_at
+) on table products to anon, authenticated;
+
 revoke all on table inventory from anon, authenticated, public;
+grant select (product_id, stock) on table inventory to anon, authenticated;
+
+revoke all on table coupons from anon, authenticated, public;
+grant select (
+  id, code, description, type, value, min_order_value, max_discount,
+  total_usage_limit, times_used, active, starts_at, ends_at
+) on table coupons to anon, authenticated;
+
+grant select on table coupon_usages to authenticated;
+
 revoke all on table visitor_sessions from anon, authenticated, public;
 revoke all on table visitor_events from anon, authenticated, public;
 revoke all on table analytics_settings from anon, authenticated, public;
 
+-- Ensure public read policies exist for base tables behind views
+drop policy if exists public_read on products;
+create policy public_read on products for select using (status = 'Active');
+
+drop policy if exists public_read on inventory;
+create policy public_read on inventory for select using (true);
+
+drop policy if exists public_read on coupons;
+create policy public_read on coupons for select
+  using (active and (starts_at is null or now() >= starts_at) and (ends_at is null or now() <= ends_at));
+
+drop policy if exists own_coupon_usages on coupon_usages;
+create policy own_coupon_usages on coupon_usages for select
+  using (customer_id = auth.uid());
+
 grant select on products_public to anon, authenticated;
 grant select on live_offers to anon, authenticated;
+grant select on public_coupons to anon, authenticated;
 
-revoke all on function is_admin from public;
-grant execute on function is_admin to anon, authenticated;
+-- is_admin only needed by authenticated users (anon can never be admin)
+revoke all on function is_admin from public, anon;
+grant execute on function is_admin to authenticated;
+
+revoke all on function check_onsite_warranty from public;
+grant execute on function check_onsite_warranty to anon, authenticated;
 
 revoke all on function validate_coupon from public;
 grant execute on function validate_coupon to anon, authenticated;
@@ -1373,6 +1443,14 @@ revoke all on function protect_role from public, anon, authenticated;
 revoke all on function protect_service_request from public, anon, authenticated;
 revoke all on function protect_sell_request from public, anon, authenticated;
 
+-- Revoke rogue or legacy utility functions flagged by database linter
+do $$
+begin
+  if exists (select 1 from pg_proc where proname = 'rls_auto_enable') then
+    execute 'revoke all on function rls_auto_enable() from public, anon, authenticated';
+  end if;
+end $$;
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- 7. PERFORMANCE INDEXES
 -- ────────────────────────────────────────────────────────────────────────────
@@ -1380,9 +1458,9 @@ revoke all on function protect_sell_request from public, anon, authenticated;
 create index if not exists orders_expires_reserved_idx
   on orders (expires_at) where status = 'Pending' and stock_reserved = true;
 
--- Lightweight database health check RPC for connectivity monitoring
+-- Lightweight database health check RPC for connectivity monitoring (security_invoker)
 create or replace function health_check() returns jsonb
-language sql security definer set search_path = public, pg_temp as $$
+language sql stable security invoker set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'status', 'ok',
     'timestamp', extract(epoch from now())::bigint
