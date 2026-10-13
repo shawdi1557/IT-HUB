@@ -1,322 +1,394 @@
 # IT HUB — Technology Store, IT Services & Support
 
-A modern e-commerce and service platform prototype for **IT HUB, Kothamangalam, Kerala** (est. 2011).
+A modern e-commerce, on-site service, and custom PC building platform designed for **IT HUB, Kothamangalam, Kerala** (est. 2011).
 
-The site is built around three pillars:
-
-> **SHOP → SERVICE → SUPPORT**, with the **PC Builder** as a supporting tool.
-
-Customers can buy technology products, book IT services, get after-sales and warranty help, and get a guided PC build recommendation. An admin dashboard manages all of it.
-
-> **Prototype status:** everything runs in the browser.
-> - **Data storage:** data is kept in `localStorage`. No server is required.
-> - **Supabase:** a production-ready schema is provided in `supabase/schema.sql`.
-> - **Simulated:** payments, SMS OTP and notifications.
+The platform is structured around three foundational pillars:
+> **SHOP → SERVICE → SUPPORT**, with the **PC Builder** as a guided recommendation engine.
 
 ---
 
-## 1. Tech stack
+## 1. System Overview & Tech Stack
 
-| Area | Technology |
-| --- | --- |
-| Framework | React 19 + TypeScript, Vite 8 |
-| Routing | React Router (data router) with lazy-loaded pages |
-| Styling | Tailwind CSS v4 (`src/index.css`, `src/styles/theme.css`) |
-| Motion | `motion`, `lenis` smooth scroll, React Bits effects (ShinyText, GlareHover, SonarGrid) |
-| UI | Radix Dialog, lucide-react icons, custom components in `src/components/ui.tsx` |
-| Data | React context store persisted to `localStorage` (`ithub-prototype-v1`) |
-| Import | SheetJS (`xlsx`) for bulk CSV/XLSX product import |
-| Charts | Recharts (admin analytics) |
-| Backend (planned) | Supabase — Postgres schema with row-level security (`supabase/schema.sql`) |
-
-Theme: **light only**, derived from the IT HUB logo.
-
-| Token | Colour |
-| --- | --- |
-| Primary | `#1a4fd6` |
-| Secondary | `#ecf1ff` |
-| Deep | `#0c2f8a` |
-| WhatsApp green | `#25D366`, used only on WhatsApp actions |
+| Domain | Technology / Service | Details & Role |
+| :--- | :--- | :--- |
+| **Frontend Framework** | React 19 + TypeScript, Vite 8 | High-performance SPA with client-side data routing and lazy-loaded modules |
+| **Styling & Design System** | Tailwind CSS v4, Motion, Lenis | Light-mode palette derived from IT HUB brand tokens (`#1a4fd6`, `#ecf1ff`, `#0c2f8a`, `#25D366`) |
+| **Backend & Database** | Supabase (PostgreSQL 15+) | Cloud PostgreSQL with Row Level Security (RLS), custom RPCs, and database extensions |
+| **Authentication** | Supabase Auth (GoTrue) + SMS Hook | Passwordless mobile OTP authentication (+91 Indian format) with profile reconciliation |
+| **SMS Gateway Integration** | Supabase Edge Functions (Deno) | Unified webhook supporting Fast2SMS (DLT/Quick OTP), 2Factor, MSG91, and test numbers |
+| **Payment Gateway** | Razorpay (planned/configured) | Indian UPI, debit/credit cards, and net banking with cryptographic webhook verification |
+| **Analytics Engine** | Custom privacy-first analytics | In-browser session tracking with server-side ingestion via `log_visitor_event` RPC |
 
 ---
 
-## 2. Getting started
+## 2. Supabase Implementation & Hardening (Completed & Fixed)
 
-```bash
-pnpm install
-pnpm dev       # start the dev server
-pnpm build     # production build
-pnpm preview   # preview the build
+The database schema, security posture, and serverless functions have been hardened according to production standards.
+
+### 2.1. Database Schema & Foreign Key Resolution
+- **Canonical Schema**: Defined in [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) and [`supabase/migration.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/migration.sql).
+- **Relational Integrity**: Complete normalization across 18 core tables (`profiles`, `categories`, `brands`, `products`, `product_specifications`, `inventory`, `offers`, `customer_addresses`, `orders`, `order_items`, `service_requests`, `brand_support`, `pc_builds`, etc.).
+- **UUID & Type Alignment**: Resolved historical seed foreign key mismatches by generating consistent, deterministic UUIDs for categories, brands, products, and admin settings.
+
+### 2.2. Critical Security Definer View Remediation
+- **The Issue**: Postgres views defined with default `SECURITY DEFINER` semantics bypass Row Level Security (RLS) policies of underlying tables, potentially exposing confidential data to unauthenticated (`anon`) callers.
+- **The Fix**:
+  - Converted `products_public`, `live_offers`, and `public_coupons` views to:
+    ```sql
+    WITH (security_invoker = on, security_barrier = true)
+    ```
+  - **Wholesale Price Protection**: Confidential margin data (`products.cost_price`) is strictly protected. Column-level permissions on `products` explicitly exclude `cost_price` for both `anon` and `authenticated` roles:
+    ```sql
+    REVOKE ALL ON public.products FROM anon, authenticated;
+    GRANT SELECT (id, category_id, brand_id, name, slug, description, short_specs,
+                  mrp, our_price, discount_percent, sku, barcode, stock_quantity,
+                  low_stock_threshold, is_active, is_featured, is_new, warranty_summary,
+                  rating, review_count, primary_image_url, gallery_urls, created_at, updated_at)
+    ON public.products TO anon, authenticated;
+    ```
+
+### 2.3. RPC Function Hardening & Privilege Separation
+- **Read-Only Functions Converted to `SECURITY INVOKER`**:
+  - `health_check()`: Verifies database liveness using caller permissions.
+  - `check_onsite_warranty(p_pincode, p_location_id)`: Calculates distance against service radius.
+  - `validate_coupon(p_code, p_cart_subtotal)`: Evaluates coupon rules without privilege escalation.
+- **Administrative Functions Protected**:
+  - `is_admin()`: Revoked `EXECUTE` privilege from `anon`. Returns `true` only for authenticated users with role `admin` in `profiles`.
+  - `rls_auto_enable()`: Revoked from `anon` and `authenticated`.
+- **Hardened Transactional Procedures (`SECURITY DEFINER`)**:
+  - `create_order(...)`: Validates `auth.uid()`, enforces atomic inventory checks, reserves stock, creates order records, and returns the generated order UUID.
+  - `cancel_order(...)`: Restricts cancellation to the order owner or administrator, reverting reserved inventory.
+  - `ensure_profile()`: Safely provisions or updates customer profile rows on first authentication.
+  - `log_visitor_event(...)`: Allows client analytics ingestion while restricting direct table write access.
+  - **Search Path Protection**: All `SECURITY DEFINER` functions explicitly set `SET search_path = public, pg_temp` to prevent search path hijacking.
+
+### 2.4. Performance & Database Linter Optimizations
+- **Fixed 34 `auth_rls_initplan` Warnings**:
+  - Standard `auth.uid()` calls in RLS policies cause Postgres to re-evaluate user identity once per row during table scans.
+  - Wrapped all occurrences with `(select auth.uid())`, enabling Postgres to evaluate user identity once per query as a cached `InitPlan` (5x–10x scan speedup at scale).
+- **Fixed 100+ `multiple_permissive_policies` Warnings**:
+  - Eliminated policy expression duplication. Policies without explicit `TO role` clauses defaulted to `TO public`, executing redundant `OR` conditions.
+  - Separated public storefront reads (`FOR SELECT TO public`) from admin modifications (`FOR INSERT/UPDATE/DELETE TO authenticated USING (is_admin())`). Customer write policies now cleanly unify owner checks and administrative overrides.
+- **Index Cleanup & Optimization**:
+  - **Dropped Duplicate Index**: Removed redundant `brand_support_category_fk_idx` on `public.brand_support(category)`.
+  - **Added 18 Missing Foreign Key Covering Indexes**: Created indexes on unindexed foreign keys (`parent_id`, `address_id`, `coupon_id`, `offer_id`, `location_id`, etc.) to eliminate sequential table scans during relational joins and cascade deletes.
+
+### 2.5. SMS OTP Authentication & Indian Gateway Hook (Phase 2)
+- **Client Auth Library**: [`src/lib/auth.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/auth.ts) handles Indian mobile numbers with automatic E.164 formatting (`+91`), OTP transmission, code verification, session persistence, and profile reconciliation.
+- **Edge Function Hook**: [`supabase/functions/send-sms-hook/index.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/functions/send-sms-hook/index.ts) serves as Supabase Auth's SMS Provider Webhook.
+  - Native multi-provider support: **Fast2SMS** (DLT Template & Quick OTP), **2Factor**, and **MSG91**.
+  - Integrated support for Supabase Test Phone Numbers during development.
+  - Verified with 96/96 edge function unit and security tests.
+
+---
+
+## 3. System Architectures
+
+### 3.1. Overall System Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["Frontend Client (Browser)"]
+        UI["React 19 + Tailwind CSS v4"]
+        Store["State & Cache Layer (Zustand / Context)"]
+        AuthLib["Auth Client (src/lib/auth.ts)"]
+        AnalyticsLib["Analytics Client (src/lib/analytics.ts)"]
+    end
+
+    subgraph SupabasePlatform["Supabase Cloud Platform"]
+        Gateway["Kong API Gateway"]
+        GoTrue["Supabase Auth (GoTrue)"]
+        PostgREST["PostgREST API Engine"]
+        EdgeFunctions["Edge Functions (Deno Runtime)"]
+        
+        subgraph PostgresDB["PostgreSQL 15 Database Engine"]
+            RLS["Row Level Security (RLS) Engine"]
+            Tables["Application Tables"]
+            Views["Security Invoker Views (products_public, live_offers)"]
+            RPCs["Hardened Procedures (create_order, log_visitor_event)"]
+        end
+    end
+
+    subgraph ExternalServices["External Infrastructure"]
+        SMS["Indian SMS Gateway (Fast2SMS / 2Factor / MSG91)"]
+        Razorpay["Razorpay Payment Gateway"]
+        IPGeo["IP Geolocation Service (ipapi.co)"]
+    end
+
+    UI --> Store
+    UI --> AuthLib
+    UI --> AnalyticsLib
+
+    AuthLib -->|HTTPS / E.164 OTP| GoTrue
+    GoTrue -->|Send SMS Webhook| EdgeFunctions
+    EdgeFunctions -->|DLT SMS API| SMS
+
+    Store -->|REST Queries / Realtime| Gateway
+    AnalyticsLib -->|log_visitor_event RPC| Gateway
+    Gateway --> PostgREST
+    PostgREST --> RLS
+    RLS --> Views
+    RLS --> Tables
+    PostgREST --> RPCs
+    RPCs --> Tables
+
+    UI -.->|Checkout Modal| Razorpay
 ```
 
-To reset the demo data, clear the `ithub-prototype-v1` (store) and `ithub-analytics-v1` (visitor analytics) keys in the browser's localStorage. You can also use the admin sample-data and *Clear demo data* tools.
+---
+
+### 3.2. Database Security & Access Architecture
+
+```mermaid
+flowchart LR
+    subgraph Roles["Postgres Caller Roles"]
+        Anon["anon (Guest Visitor)"]
+        Auth["authenticated (Logged-in Customer)"]
+        AdminRole["authenticated (Admin User)"]
+    end
+
+    subgraph PresentationLayer["Public Presentation Layer"]
+        PubViews["Views with security_invoker = on\n(products_public, live_offers, public_coupons)"]
+        ColMask["Column Grants on products\n(cost_price EXCLUDED)"]
+    end
+
+    subgraph RLSBoundary["Row Level Security Boundary"]
+        InitPlan["InitPlan Cache: (select auth.uid())"]
+        CustTables["Customer Tables\n(orders, customer_addresses, pc_builds)"]
+        AdminTables["Admin & Setting Tables\n(store_settings, visitor_sessions)"]
+    end
+
+    subgraph ExecutionLayer["Privileged Execution Layer"]
+        RPCDefiner["SECURITY DEFINER RPCs\n(create_order, cancel_order, log_visitor_event)\nsearch_path = public, pg_temp"]
+        RawMutations["Direct Table INSERT/UPDATE/DELETE"]
+    end
+
+    Anon -->|Read Catalog| PubViews
+    PubViews --> ColMask
+    Auth -->|Read Catalog| PubViews
+    Auth -->|Read Own Records| InitPlan
+    InitPlan --> CustTables
+    AdminRole -->|Full Read/Write via is_admin()| CustTables
+    AdminRole -->|Full Read/Write via is_admin()| AdminTables
+
+    Auth -->|Place Orders| RPCDefiner
+    Anon -->|Log Analytics| RPCDefiner
+    RPCDefiner --> RawMutations
+```
 
 ---
 
-## 3. Project structure
+### 3.3. Authentication & SMS OTP Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer as Customer
+    participant UI as AuthModal.tsx
+    participant AuthClient as src/lib/auth.ts
+    participant SupabaseAuth as Supabase Auth (GoTrue)
+    participant EdgeHook as send-sms-hook (Deno)
+    participant Gateway as SMS Gateway (Fast2SMS / 2Factor)
+    participant DB as Postgres (profiles)
+
+    Customer->>UI: Enters Mobile Number (e.g. 98470 12345)
+    UI->>AuthClient: normalizePhone("9847012345")
+    AuthClient-->>UI: Normalized "+919847012345"
+    UI->>AuthClient: sendPhoneOtp("+919847012345")
+    AuthClient->>SupabaseAuth: signInWithOtp(phone)
+    SupabaseAuth->>EdgeHook: POST /send-sms-hook (Webhook Payload)
+    
+    alt Test Phone Number Configured
+        EdgeHook-->>SupabaseAuth: 200 OK (Simulated OTP delivered)
+    else Live Indian Mobile
+        EdgeHook->>Gateway: POST /sms (DLT Template + OTP)
+        Gateway-->>Customer: Transactional SMS with 6-digit OTP
+        Gateway-->>EdgeHook: 200 OK
+        EdgeHook-->>SupabaseAuth: 200 OK
+    end
+
+    SupabaseAuth-->>UI: OTP Dispatched
+    Customer->>UI: Enters 6-digit OTP
+    UI->>AuthClient: verifyPhoneOtp("+919847012345", "123456")
+    AuthClient->>SupabaseAuth: verifyOtp(type: 'sms')
+    SupabaseAuth-->>AuthClient: Returns Session & JWT
+    AuthClient->>DB: RPC ensure_profile()
+    DB-->>AuthClient: Profile Synchronized
+    AuthClient-->>UI: Auth Success & State Updated
+```
+
+---
+
+### 3.4. Order Creation & Razorpay Settlement Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer as Customer
+    participant Checkout as Commerce.tsx
+    participant PostgREST as Supabase API
+    participant RPC as create_order() RPC
+    participant DB as Postgres Tables
+    participant Razorpay as Razorpay API
+    participant VerifyHook as verify-payment (Edge Function)
+
+    Customer->>Checkout: Clicks "Proceed to Payment"
+    Checkout->>PostgREST: POST /rpc/create_order (cart_items, address_id, method)
+    PostgREST->>RPC: Execute in Transaction Block
+    RPC->>DB: Check stock_quantity in inventory
+    alt Insufficient Inventory
+        RPC-->>Checkout: Error: Out of Stock
+    else Stock Available
+        RPC->>DB: Insert into orders (status: 'pending')
+        RPC->>DB: Insert into order_items
+        RPC->>DB: Decrement inventory stock
+        RPC-->>Checkout: Returns order_id & total_amount
+    end
+
+    Checkout->>Razorpay: Open Razorpay Modal (amount, order_id)
+    Customer->>Razorpay: Completes Payment (UPI / Card / NetBanking)
+    Razorpay-->>Checkout: Returns payment_id & razorpay_signature
+
+    Checkout->>VerifyHook: POST /verify-payment (order_id, payment_id, signature)
+    VerifyHook->>VerifyHook: Verify HMAC-SHA256 Signature
+    alt Signature Valid
+        VerifyHook->>DB: UPDATE orders SET status = 'confirmed', payment_status = 'paid'
+        VerifyHook-->>Checkout: Payment Confirmed (Redirect to /track-order/:id)
+    else Signature Invalid
+        VerifyHook->>DB: UPDATE orders SET payment_status = 'failed'
+        VerifyHook-->>Checkout: Payment Verification Failed
+    end
+```
+
+---
+
+## 4. Implementation Roadmap (Phases 3 through 7)
+
+```mermaid
+flowchart LR
+    P1["Phase 1: DB & Security (Done)"] --> P2["Phase 2: SMS OTP (Done)"]
+    P2 --> P3["Phase 3: Live Catalog Sync"]
+    P3 --> P4["Phase 4: Checkout & Razorpay"]
+    P4 --> P5["Phase 5: Customer Accounts"]
+    P5 --> P6["Phase 6: Live Analytics"]
+    P6 --> P7["Phase 7: Admin Panel Sync"]
+```
+
+### Phase 3 — Live Catalog & Inventory Synchronization
+- [ ] **Task 3.1: Connect Storefront Catalog to `products_public`**:
+  - Replace static `catalog.ts` imports in [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx) with queries to the Supabase `products_public` view.
+  - Support server-side filtering, category narrowing, brand selection, and pagination.
+- [ ] **Task 3.2: Connect Active Promotions & Coupons**:
+  - Fetch real-time banner discounts and promotional rules from `live_offers` and `public_coupons`.
+- [ ] **Task 3.3: Realtime Stock Subscription**:
+  - Wire Supabase Realtime (`postgres_changes` on `inventory`) to display live availability badges ("In Stock", "Only 2 left", "Out of Stock") on product pages.
+- [ ] **Task 3.4: Offline Fallback & Hydration Cache**:
+  - Cache fetched catalog in memory/IndexedDB for instant route transitions and resilience during network drops.
+
+### Phase 4 — End-to-End Checkout & Razorpay Settlement Integration
+- [ ] **Task 4.1: Connect Cart to `create_order` RPC**:
+  - Wire [`src/pages/Commerce.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Commerce.tsx) checkout action to execute `create_order` with the user's active cart items and selected shipping address.
+- [ ] **Task 4.2: Razorpay Client Integration**:
+  - Inject Razorpay Checkout JavaScript SDK with IT HUB branding tokens (`#1a4fd6`).
+  - Pass order details, customer phone, and prefill metadata.
+- [ ] **Task 4.3: Edge Function Payment Verification**:
+  - Deploy `verify-payment` Edge Function to securely calculate HMAC SHA-256 signatures against the `RAZORPAY_KEY_SECRET`.
+  - Update `orders` record atomically upon successful payment verification.
+- [ ] **Task 4.4: Live Order Tracking**:
+  - Connect `/track-order/:id` to fetch live status (`placed` → `confirmed` → `packed` → `shipped` → `delivered`).
+
+### Phase 5 — Customer Account & Profile Management
+- [ ] **Task 5.1: Address Book Management**:
+  - Allow customers to manage multiple shipping and billing addresses (`customer_addresses`) in [`src/pages/Account.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Account.tsx).
+- [ ] **Task 5.2: Cloud PC Builds Synchronization**:
+  - Persist customer custom PC configurations (`pc_builds`) to Supabase under their authenticated `user_id`.
+- [ ] **Task 5.3: Service Booking Management**:
+  - Connect the service booking wizard in [`src/pages/Services.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Services.tsx) to insert into `service_requests` and enable real-time tracking at `/track-service/:id`.
+
+### Phase 6 — Live Visitor Analytics Ingestion
+- [ ] **Task 6.1: Client Analytics Ingestion**:
+  - Update [`src/lib/analytics.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/analytics.ts) to push session creation and tracking events to the database using `log_visitor_event` RPC.
+- [ ] **Task 6.2: Privacy & Anonymization Compliance**:
+  - Respect IP masking settings and user consent flags prior to transmission.
+- [ ] **Task 6.3: Scheduled Data Retention (pg_cron)**:
+  - Configure automated execution of `purge_visitor_data()` to enforce data retention limits (e.g. 30/90 days).
+
+### Phase 7 — Admin Dashboard Database Integration
+- [ ] **Task 7.1: Catalog & Inventory Management**:
+  - Connect [`src/pages/Admin.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Admin.tsx) products tab, bulk CSV/XLSX import, and stock adjustments directly to `products` and `inventory`.
+- [ ] **Task 7.2: Order Management & Fulfillment**:
+  - Enable live status changes (`confirmed`, `shipped`, `delivered`), cancellation management, and invoice generation.
+- [ ] **Task 7.3: Brand Support Verification**:
+  - Connect the brand support directory and official verification history logging.
+- [ ] **Task 7.4: Store Configuration & Service Areas**:
+  - Allow administrators to manage on-site service radius, PIN codes (`pincode_areas`), and official store contact settings.
+
+---
+
+## 5. Development & Verification Guide
+
+### 5.1. Running the Local Environment
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start Vite development server
+pnpm dev
+
+# Build production bundle
+pnpm build
+
+# Run TypeScript and test suite
+pnpm test
+```
+
+### 5.2. Edge Function Deployment
+
+```bash
+# Deploy SMS Hook to Supabase
+supabase functions deploy send-sms-hook --no-verify-jwt
+
+# Set Secrets on Supabase
+supabase secrets set SMS_GATEWAY_PROVIDER=fast2sms
+supabase secrets set FAST2SMS_API_KEY=your_key_here
+supabase secrets set FAST2SMS_SENDER_ID=ITHUBK
+supabase secrets set FAST2SMS_DLT_TEMPLATE_ID=your_dlt_template_id
+```
+
+---
+
+## 6. Directory Layout
 
 ```text
 src/
-├── main.tsx                 Entry: mounts the app, imports index.css
+├── main.tsx                 React entrypoint & CSS setup
 ├── app/
-│   ├── App.tsx              Router, lazy routes (auto-reloads once on stale chunks)
-│   └── store.tsx            Global state, persistence, auth, notifications, activity log
+│   ├── App.tsx              Router and lazy routes
+│   └── store.tsx            Client state & UI notification store
 ├── components/
-│   ├── Layout.tsx           Header, Products mega-menu, search, account menu, footer
-│   ├── ui.tsx               Button, Field, Modal, Badge, Select, Stars, Page, …
-│   ├── AuthModal.tsx        OTP login + LoginGate
-│   ├── ProductCard.tsx      Product card (Our price / MRP, stock, warranty)
-│   ├── WarrantyCheck.tsx    On-site warranty PIN eligibility check
-│   ├── WhatsAppIcon.tsx     Official WhatsApp glyph
-│   └── GlareHover, ShinyText, reactbits   Visual effects
-├── data/
-│   ├── catalog.ts           Products, categories, offers, services, PC components,
-│   │                        locations/PINs, brand-support directory, admin nav
-│   ├── buildTemplates.ts    Smart PC Builder recommendation templates
-│   └── admin.ts             Bulk-import columns & validation helpers
+│   ├── Layout.tsx           Header, navigation mega-menu, footer
+│   ├── AuthModal.tsx        Indian mobile phone + SMS OTP dialog
+│   ├── ProductCard.tsx      Product card with MRP, our price & stock
+│   ├── WarrantyCheck.tsx    On-site service PIN check
+│   └── ui.tsx               Design system primitives
 ├── lib/
-│   └── analytics.ts         Visitor sessions/events, track(), privacy controls, demo data
-└── pages/
-    ├── Home.tsx             Landing page
-    ├── Products.tsx         Listing + product detail
-    ├── Commerce.tsx         Cart, checkout, order success, order tracking
-    ├── Services.tsx         Services landing, booking wizard, service tracking
-    ├── Builder.tsx          Smart PC Builder + Expert Mode
-    ├── Support.tsx          Help & Support (warranty assistance)
-    ├── Account.tsx          Customer account
-    ├── Information.tsx      About, Offers, Contact, 404
-    ├── Admin.tsx            Admin dashboard
-    └── AdminAnalytics.tsx   Analytics & Visitors views
-public/images/               Product, store and PC imagery
-supabase/schema.sql          Database schema + RLS policies
+│   ├── auth.ts              Supabase Auth client & E.164 phone utilities
+│   ├── supabase.ts          Supabase client initialization
+│   └── analytics.ts         Visitor session & event tracking client
+├── pages/
+│   ├── Home.tsx             Landing page
+│   ├── Products.tsx         Product catalog and detail pages
+│   ├── Commerce.tsx         Cart, checkout, and tracking
+│   ├── Services.tsx         Services landing and booking wizard
+│   ├── Builder.tsx          Smart PC Builder & Expert Mode
+│   ├── Support.tsx          Help & Support directory
+│   ├── Account.tsx          Customer account dashboard
+│   ├── Admin.tsx            Admin management dashboard
+│   └── AdminAnalytics.tsx   Visitor & sales analytics
+supabase/
+├── schema.sql               Canonical database schema & RLS policies
+├── migration.sql            Incremental migration and hardening scripts
+└── functions/
+    └── send-sms-hook/       Deno edge function for SMS OTP delivery
 ```
-
----
-
-## 4. Customer site — how it works
-
-### Navigation
-
-The menu reads: **Products · Services · PC Builder · Help & Support · About**, with Search, Account and Cart on the right. The IT HUB logo links back to Home.
-
-Hovering **Products** opens an animated mega-menu. It groups the categories (Computers & Office, PC Components, Mobiles & Audio, Accessories & More), shows a product count for each, and lists a few product names under each category. The mobile menu includes About and Contact as well.
-
-### Home (`/`)
-
-The page runs in priority order:
-
-1. **Hero:** "Everything Tech. Sales, Service & Support." with *Shop Products* and *Explore Services*.
-2. **Shop by Category:** a numbered list of categories with product counts.
-3. **Featured Products.**
-4. **IT Services:** Laptop, Mobile, PC and Printer service cards.
-5. **IT Support at Your Location:** the on-site flow and the PIN check.
-6. **We're Here After Your Purchase Too:** warranty and after-sales support.
-7. **Build Your PC With IT HUB:** a small promo for the PC Builder.
-8. **Your Local Technology Hub Since 2011:** the customer showcase and the "Rooted in Kothamangalam" section with a live Google Map.
-
-### Products (`/products`, `/products/:id`)
-
-- **Filters:** search, category, brand, price, availability and sort. Filters can also be set from the URL, e.g. `?category=Laptops&brand=ASUS&q=…`.
-- **Pricing:** every product shows **Our price** with the struck-through **MRP**. Active offers are applied automatically; there are no coupon codes.
-- **Product detail:** a gallery and price box (% OFF, You save, Inclusive of all taxes), stock, warranty and delivery. It has tabs for Overview, Specifications, Warranty, Reviews and Delivery, plus Related Products and Related Services. A *Warranty help* link goes to the support page.
-
-### Cart & checkout (`/cart`, `/checkout`)
-
-- **Login required:** you must be logged in to check out; the login modal opens automatically.
-- **Order flow:** checkout collects the address, delivery and payment method (simulated), then shows *Order success*. Track the order at `/track-order/:id`.
-- **Order statuses:** Placed → Confirmed → Packed → Shipped → Delivered. Cancelled orders are stored with status `-1`.
-
-### IT Services (`/services`, `/services/book`)
-
-- **Services page:** a hero ("Professional IT Services You Can Trust"), then service cards for Laptop, Mobile, PC, Printer and Software. PC Services links to PC Repair, Upgrade, Maintenance and the PC Builder. There is also an on-site section and a 7-step "Simple from start to finish" timeline.
-- **Booking wizard:** Device → Problem → Service method → Your details → Date & time → Confirm.
-  - Opening a service card passes the device in the URL (`?service=…&device=Laptop`), so the wizard starts directly at **Problem**.
-  - Login is required to book.
-- **Tracking:** at `/track-service/:id`.
-
-### On-site warranty / service area
-
-- **Eligibility check:** customers enter a PIN code. The app looks it up in the PIN directory, calculates the distance to the IT HUB location (Kothamangalam 686691), and checks it against the service radius (about 15 km, set by admin).
-- **Logging:** every check is recorded for admin under Services → On-Site Warranty.
-
-### Help & Support (`/support`)
-
-There are four views (`?view=`): **Warranty Assistance, Service Assistance, On-Site Warranty, Contact IT HUB**.
-
-**Warranty flow:**
-
-1. **Category:** Laptop, Mobile or Printer. More can be added by admin.
-2. **Brand:** search, Popular, Recently viewed, or *Other brand*.
-3. **Brand support card:**
-   - Warranty phone, customer care, support site, warranty portal, email and notes.
-   - Actions: *Call Now* (`tel:` links), *Visit Official Website* and *Contact IT HUB*.
-   - Each card has a **Verified on** or **Unverified** badge.
-
-**Two separate paths:**
-
-- **Brand Warranty Assistance** (white card): handled by the manufacturer, not IT HUB.
-- **IT HUB Support** (blue card): call, WhatsApp, service request or the on-site PIN check, plus a "Can't resolve your issue?" checklist.
-
-**Order-aware help:** each order has a *Warranty Assistance* button that links to `?order=…&product=…`. The page auto-fills the product, brand, category, purchase date and order number.
-
-- If the warranty period is known, it shows an estimated *Warranty until* date.
-- A manufacturer-verification disclaimer is always shown.
-
-> **Data integrity rule:** support numbers and URLs must come from official manufacturer sources. The seed data includes only official support-site URLs, all marked *Unverified*. Every phone number is empty until an admin adds and verifies it.
-
-### Smart PC Builder (`/pc-builder`)
-
-The builder is a guided recommendation flow, not a component configurator.
-
-1. **Landing:** *Find My PC* (primary) or *I'm an expert — Customize My Build* (Expert Mode).
-2. **Purpose:**
-   - Choose Gaming, Content Creation, Work, Professional, General Use, or *Something Else* (free text).
-3. **Budget:** ₹40k–60k, ₹60k–80k, ₹80k–1L, ₹1L–1.5L, ₹1.5L+, or a custom amount. *Show My Builds* goes straight to the results.
-4. **Recommendations:** three builds labelled by trade-off (Value-focused, Balanced, Higher-performance, Upgrade-friendly), never ranked.
-   - **Scoring:** builds are scored on purpose match, flexible budget fit, availability and upgrade potential.
-   - **Over budget:** builds slightly over budget show a note.
-   - **Out of stock:** out-of-stock parts suggest an alternative with the price difference.
-6. **Build detail:**
-   - "Designed for" line, each component with a plain-language explanation, and "Why we recommend this build".
-   - Expandable price breakdown: components plus assembly (Free when the charge is 0).
-   - The estimate disclaimer.
-7. **Actions:**
-   - **Customize This Build:** swaps are compatibility-checked (socket, RAM type, GPU clearance, PSU wattage, cooler, storage interface) and the price is recalculated.
-   - **Save Build:** requires login.
-   - **Continue on WhatsApp:** sends a pre-filled enquiry to the number set in admin Settings.
-
-Expert Mode keeps the manual 8-part configurator, with compatibility checks, *Add build to cart*, and a *Complete configuration* preview with WhatsApp.
-
-### Account (`/account/:section`)
-
-Sections: Profile, Orders (with order details and Warranty Assistance), Addresses, Offers, Wishlist, Warranty, After-sales Support, Service requests, and **PC Builds**.
-
-PC Builds lets the customer view, rename, compare two side by side, customize, contact IT HUB, add to cart, or delete a build.
-
-### Authentication
-
-Login is by **phone/email + 6-digit OTP**.
-
-- **Demo behaviour:** the prototype has no SMS gateway, so the OTP is generated locally and shown in a notification.
-- **Gated actions:** checkout, service booking and saving builds require login.
-- **Roles:** there are only two, **customer** and **admin**.
-
-### Other pages
-
-- **About:** store story, live Google Map, and the Intel partner section.
-- **Offers:** direct product offers, no coupon codes.
-- **Contact.**
-- **404.**
-
----
-
-## 5. Admin dashboard (`/admin/:section?view=…`)
-
-| Section | What it does |
-| --- | --- |
-| **Dashboard** | KPIs, recent orders/requests, activity log, sample-data tools |
-| **Products** | All Products, Categories, Brands, **Bulk Import**: CSV/XLSX upload in steps, with templates, validation, preview and import history |
-| **Inventory** | Stock levels, low-stock thresholds, filters |
-| **Orders** | Status updates, cancellation, filters |
-| **Offers** | Create time-boxed offers (percentage or flat) for products, categories or brands; banner, active toggle |
-| **Services** | Laptop / Mobile / PC / Printer / On-Site views (matched by keywords in the device or method), All Requests, On-Site Warranty check log, Service Areas (PIN codes and radius) |
-| **Warranty / After-Sales** | Brand Support directory (All / Laptop / Mobile / Printer), Verification History |
-| **PC Builder** | **Build Templates**, Configurations, Requests (WhatsApp enquiries), Estimates (component prices) |
-| **Customers** | Customer list |
-| **Reviews** | Review moderation |
-| **Analytics & Visitors** | Overview (visitor KPIs + sales/service charts), Visitor Locations, Traffic Sources, Devices, Pages & Products, Audit Logs (visitor activity + admin activity) |
-| **Settings** | Store info, IT HUB location, service radius, **WhatsApp number**, **Privacy & Visitor Data** |
-| **Website Content** | Customer showcase (Home "Trust" gallery) |
-
-### Analytics & Visitors
-
-- **Data model:** `src/lib/analytics.ts` records visitor sessions and events separately (anonymous browser-scoped visitor ID, 30-minute session timeout). Storefront actions call `track()` (page views, product views, add to cart, checkout, orders, service bookings, PC builder, warranty assistance, WhatsApp, login/logout, admin login/data changes).
-- **Date range:** Today / 7 / 30 / 90 days / Custom, shared across all views. Every figure is calculated from stored records; sparse ranges show an empty or "insufficient data" state.
-- **Locations:** IP-derived and always labelled *approximate* (or *Location unavailable*). Never an address, and separate from addresses customers enter. Ranked table, "Visitors by Location" chart (City/State/Country), Kerala / Other India / International summary and grouped distribution tiles.
-- **Audit Logs:** search, filters, sorting and pagination. Click a row to open the session drawer with an activity timeline. The existing admin activity log is on the *Admin activity* tab.
-- **Demo data:** *Load demo data* generates rows flagged `demo` that use documentation-range IPs. A "Demo data" badge appears whenever any are in range; *Clear demo data* removes them.
-- **Privacy (Settings → Privacy & Visitor Data):** analytics on/off, IP logging, IP masking, retention (7–365 days), anonymize, delete all (with confirmation), CSV export.
-
-### Brand Support admin
-
-- **Records:** add or edit records, one per brand per category. URLs must start with `https://`.
-- **Verification:**
-  - Editing a phone number, URL or email resets the record to *Unverified*, unless it is re-verified in the same save.
-  - **Mark verified** requires the official source URL and the verifier's name, and writes an entry to Verification History.
-- **Controls:** enable/disable and delete each record. You can also add new support categories (e.g. TV) for future use.
-
-### Build Templates admin
-
-- **Fields:** purpose, budget range, name, resolution, usage, trade-off, all 8 parts (from the component catalogue), highlights, and active/inactive status.
-- **Pricing:** the estimated price is calculated live from current component prices. The **assembly charge** is set here (0 = free).
-- **Actions:** duplicate a template or delete it with a confirmation.
-
----
-
-## 6. Data & state
-
-All state lives in `src/app/store.tsx` and is saved to `localStorage` on change. On load, saved data is merged with the defaults so that new features get their seed data. Old coupon-style offers are migrated, and missing build templates and components are added back. Because of this, a component an admin deleted can reappear after a reload.
-
-**Main state keys:**
-
-| Group | Keys |
-| --- | --- |
-| Catalogue | `products`, `brands`, `componentCatalog` |
-| Commerce | `cart`, `orders`, `offers`, `wishlist` |
-| Services | `requests` (services), `warrantyChecks`, `locations` |
-| Support | `supportCategories`, `brandSupport`, `supportVerifications`, `recentSupport` |
-| PC Builder | `builds` (saved), `buildTemplates`, `assemblyCharge`, `pcEnquiries` |
-| Admin | `importHistory`, `showcase`, `settings` (WhatsApp, address, phone, email), activity log |
-
-The store also provides `set(updater)`, `notify(message)`, `log(event)`, `loggedIn` and `setAuthOpen()`. `log()` also records an *Admin Data Change* analytics event on admin pages.
-
-The store's React context is created once and reused across hot reloads, so editing `store.tsx` during development doesn't cause a "Store provider is required" crash.
-
-**Visitor analytics** is kept apart from the main store, in `src/lib/analytics.ts`, under its own key `ithub-analytics-v1`:
-
-| Data | Contents |
-| --- | --- |
-| `sessions` | Visitor/session IDs, approximate location (via ipapi.co), IP (only when IP logging is on), device, OS, browser, referrer, landing page, first/last seen, page views, new/returning |
-| `events` | Event ID, session ID, user ID (when logged in), event type, timestamp, page and metadata (newest 5,000 kept) |
-| `settings` | Analytics on/off, IP logging, IP masking, retention period |
-
-Read it in components with `useAnalytics()` and record events with `track(type, meta)`. Old data is deleted automatically once it passes the retention period.
-
----
-
-## 7. Supabase schema (`supabase/schema.sql`)
-
-The schema is ready for moving off `localStorage`:
-
-- **Users:** `profiles` with an `app_role` enum (`admin` | `customer`) and an `is_admin()` helper.
-- **Catalogue and offers:** catalogue tables, plus offers and their product, category and brand links, and a `live_offers` view.
-- **Commerce and services:** orders, reviews and service requests.
-- **Locations:** `it_hub_locations`, `pincode_areas` and `check_onsite_warranty()`.
-- **PC Builder:** `pc_builds` and `pc_build_templates`.
-- **Support:** `support_categories`, `brand_support` (unique per brand + category, with verification fields) and `support_verifications`.
-- **Settings:** `store_settings`.
-- **Visitor analytics:** `visitor_sessions` and `visitor_events` (kept separate and linked by session), plus `analytics_settings`. Visitors write only through the security-definer function `log_visitor_event(...)`, which takes the IP from request headers. `purge_visitor_data()` enforces retention and can be scheduled with pg_cron. Only admins can read these tables.
-
-**Row-level security:**
-
-- The public can read active catalogue, offer, support and template rows.
-- Customers can read and write only their own orders, builds and requests.
-- **Only admins can write** management tables.
-
----
-
-## 8. Before going live
-
-- [ ] Replace the placeholder WhatsApp number (`919999999999`) in **Admin → Settings**.
-- [ ] Fill in and **verify** brand support phone numbers and URLs from official manufacturer sources.
-- [ ] Connect Supabase and replace the `localStorage` store with database queries.
-- [ ] Connect a real SMS/OTP provider and a payment gateway.
-- [ ] Review the service radius, PIN directory, component prices and build templates.
-- [ ] Send analytics events to Supabase (`log_visitor_event`). Today they are stored only in each visitor's browser, so the dashboard shows only local and demo data.
-- [ ] Review the privacy notice and retention period for visitor analytics. Each new session sends the visitor's IP to ipapi.co for an approximate location.
-- [ ] Optimise large images (e.g. `public/images/pc-build.png`, about 3 MB).
-
-## 9. Changelog
-
-- **PC Builder:** the guided flow is now Purpose → Budget → Builds. The purpose follow-up questions and the optional Preferences step were removed.
-- **Navigation:** removed Home from the menu (the logo links home) and added About after Help & Support.
