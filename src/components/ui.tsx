@@ -348,7 +348,10 @@ export function Stars({
   )
 }
 
-export type SelectOption = { value: string label: string }
+export interface SelectOption {
+  value: string
+  label: string
+}
 
 /** Styled dropdown — replaces native <select> so the list always opens below, in theme. */
 export function Select({

@@ -721,7 +721,12 @@ export default function SellYourItem({
     setError("")
 
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-    const newImages: { name: string url: string size: number }[] = []
+    type ProcessedImageFile = {
+      name: string
+      url: string
+      size: number
+    }
+    const newImages: ProcessedImageFile[] = []
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]

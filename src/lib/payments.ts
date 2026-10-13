@@ -27,8 +27,13 @@ export interface VerifyPaymentResult {
   error?: string
 }
 
+export interface OrderItemParam {
+  product_id: string
+  quantity: number
+}
+
 export interface CreateOrderParams {
-  items: { product_id: string quantity: number }[]
+  items: OrderItemParam[]
   addressId?: string | null
   deliveryMethod?: string
   paymentMethod?: string

@@ -669,7 +669,13 @@ const keywordFor: Record<string, string[]> = {
   "Competitive / Esports": ["esports", "competitive", "high-refresh"],
   "AAA Games": ["aaa"],
 }
-type Budget = { id: string label: string tier: string min: number max: number }
+export interface Budget {
+  id: string
+  label: string
+  tier: string
+  min: number
+  max: number
+}
 const budgets: Budget[] = [
   {
     id: "40-60",
@@ -770,7 +776,11 @@ type DetailBuild = {
   templateId?: string
   inBudget?: boolean
 }
-type Recommendation = DetailBuild & { price: number template: BuildTemplate }
+export interface RecommendationExtra {
+  price: number
+  template: BuildTemplate
+}
+export type Recommendation = DetailBuild & RecommendationExtra
 
 function inferPurpose(text: string): BuildPurpose {
   const t = text.toLowerCase()
@@ -1052,7 +1062,12 @@ function Choice({
     </button>
   )
 }
-function Question({ title, children }: { title: string children: ReactNode }) {
+interface QuestionProps {
+  title: string
+  children: ReactNode
+}
+
+function Question({ title, children }: QuestionProps) {
   return (
     <fieldset className="mt-8">
       <legend className="mb-3 text-sm font-semibold">{title}</legend>

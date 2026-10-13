@@ -315,7 +315,12 @@ export default function AuthModal({
   )
 }
 
-export function LoginGate({ title, text }: { title: string text: string }) {
+export interface LoginGateProps {
+  title: string
+  text: string
+}
+
+export function LoginGate({ title, text }: LoginGateProps) {
   const store = useStore()
   return (
     <section className="mx-auto my-16 max-w-lg rounded-3xl border border-border bg-card p-10 text-center shadow-sm">

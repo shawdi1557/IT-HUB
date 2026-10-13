@@ -957,11 +957,17 @@ export const offerHeadline = (offer: Offer) =>
     ? `UP TO ${offer.discount}% OFF`
     : `FLAT ${money(offer.amount)} OFF`
 /** Best currently-active offer for a product and its discounted unit price. */
+export interface BestOfferResult {
+  offer: Offer
+  price: number
+  saving: number
+}
+
 export const bestOffer = (
   offers: Offer[],
   product: Pick<Product, "id" | "brand" | "category" | "price">,
 ) => {
-  let best: { offer: Offer price: number saving: number } | null = null
+  let best: BestOfferResult | null = null
   for (const offer of offers) {
     if (offerStatus(offer) !== "Active" || !offerApplies(offer, product))
       continue
@@ -1214,11 +1220,17 @@ export type WarrantyCheck = {
   date: string
 }
 
+export interface PcEnquiryPart {
+  type: string
+  name: string
+  price: number
+}
+
 // ── PC Builder enquiries (sent to WhatsApp) ──
 export type PcEnquiry = {
   id: string
   summary: string
-  parts: { type: string name: string price: number }[]
+  parts: PcEnquiryPart[]
   estimate: number
   date: string
   status: "New" | "Contacted" | "Quoted" | "Closed"
@@ -1237,7 +1249,10 @@ export type ImportRecord = {
 }
 
 /** Admin navigation tree. Sub-items map to `/admin/:section?view=<view>`. */
-export type AdminNavItem = { label: string view: string }
+export interface AdminNavItem {
+  label: string
+  view: string
+}
 export type AdminNavGroup = {
   name: string
   section: string
@@ -1611,16 +1626,22 @@ export const initialCouponUsages: CouponUsage[] = []
  * All coupons are strictly one-time per customer: verifies customer has not previously completed an order with this coupon.
  * Returns { valid: true, coupon, discount } or { valid: false, error }
  */
+export type CouponValidationResult = {
+  valid: true
+  coupon: Coupon
+  discount: number
+} | {
+  valid: false
+  error: string
+}
+
 export const validateCoupon = (
   code: string,
   cartTotal: number,
   customerId: string,
   coupons: Coupon[],
   usages: CouponUsage[],
-): { valid: true coupon: Coupon discount: number } | {
-  valid: false
-  error: string
-} => {
+): CouponValidationResult => {
   const upper = code.trim().toUpperCase()
   if (!upper) return { valid: false, error: "Enter a coupon code." }
   const coupon = coupons.find((c) => c.code.toUpperCase() === upper)

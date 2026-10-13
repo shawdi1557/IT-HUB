@@ -285,12 +285,18 @@ export async function fetchOrCreateProfile(
 /**
  * Updates customer profile information in PostgreSQL.
  */
+export interface UpdateProfileResult {
+  ok: boolean
+  profile?: CustomerProfile | null
+  error?: string
+}
+
 export async function updateCustomerProfile(updates: {
   fullName?: string
   email?: string
   address?: string
   phone?: string
-}): Promise<{ ok: boolean profile?: CustomerProfile | null error?: string }> {
+}): Promise<UpdateProfileResult> {
   if (!supabase) {
     return { ok: false, error: "Supabase client not available" }
   }
@@ -338,7 +344,12 @@ export async function updateCustomerProfile(updates: {
 /**
  * Signs the user out of Supabase Auth.
  */
-export async function signOutUser(): Promise<{ ok: boolean error?: string }> {
+export interface SignOutResult {
+  ok: boolean
+  error?: string
+}
+
+export async function signOutUser(): Promise<SignOutResult> {
   if (!supabase) return { ok: true }
 
   try {

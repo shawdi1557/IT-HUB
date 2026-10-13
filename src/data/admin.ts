@@ -127,7 +127,10 @@ export const importTemplateRows = [
     Status: "Active",
   },
 ]
-export type ImportIssue = { level: "error" | "warning" message: string }
+export interface ImportIssue {
+  level: "error" | "warning"
+  message: string
+}
 export type ImportRow = {
   row: number
   data: Record<string, string>

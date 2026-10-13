@@ -196,11 +196,16 @@ const locate = async (sessionId: string) => {
   }
 }
 
+interface SavedSessionCookie {
+  id: string
+  at: number
+}
+
 let currentUser: string | undefined
 const currentSession = () => {
   const visitorId = localStorage.getItem(VISITOR_KEY)
   const raw = sessionStorage.getItem(SESSION_KEY)
-  const saved = raw ? JSON.parse(raw) as { id: string at: number } : null
+  const saved = raw ? JSON.parse(raw) as SavedSessionCookie : null
   if (saved && Date.now() - saved.at < SESSION_TIMEOUT) {
     const session = state.sessions.find((item) => item.id === saved.id)
     if (session) return session

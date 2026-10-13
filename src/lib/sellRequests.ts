@@ -25,8 +25,14 @@ export interface CreateSellRequestInput {
   warrantyRemaining?: string
   warrantyDetails?: string
   expectedPrice?: number
-  images: { name: string file?: File dataUrl?: string }[]
-  invoice?: { name: string file?: File dataUrl?: string } | null
+  images: SellRequestFile[]
+  invoice?: SellRequestFile | null
+}
+
+export interface SellRequestFile {
+  name: string
+  file?: File
+  dataUrl?: string
 }
 
 export interface SellRequestResult {

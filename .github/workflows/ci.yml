@@ -44,8 +44,12 @@ jobs:
       - name: Verify code formatting
         run: npx oxfmt --check
 
+      - name: Run TypeScript typecheck
+        run: npx tsc --noEmit
+
       - name: Run automated test suite
         run: deno test --allow-net --allow-env --allow-read supabase/functions/tests/
 
       - name: Run production build
         run: npm run build
+

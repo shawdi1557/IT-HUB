@@ -180,12 +180,17 @@ function Card({
     </div>
   )
 }
+interface AnalyticsBarItem {
+  name: string
+  value: number
+}
+
 function Bars({
   rows,
   total,
   empty = "No data in this range.",
 }: {
-  rows: { name: string value: number }[]
+  rows: AnalyticsBarItem[]
   total?: number
   empty?: string
 }) {
@@ -220,7 +225,7 @@ function HBarChart({
   data,
   label,
 }: {
-  data: { name: string value: number }[]
+  data: AnalyticsBarItem[]
   label: string
 }) {
   if (!data.length)
@@ -631,8 +636,13 @@ const keyFor = (mode: Mode) => (s: VisitorSession) =>
 function Locations({ sessions }: { sessions: VisitorSession[] }) {
   const [mode, setMode] = useState<Mode>("city")
   const totalVisitors = new Set(sessions.map((s) => s.visitorId)).size
+  interface LocationAggRecord {
+    visitors: Set<string>
+    sessions: number
+  }
+
   const rows = useMemo(() => {
-    const map = new Map<string, { visitors: Set<string> sessions: number }>()
+    const map = new Map<string, LocationAggRecord>()
     sessions.forEach((s) => {
       const k = keyFor(mode)(s)
       const row = map.get(k) || { visitors: new Set(), sessions: 0 }

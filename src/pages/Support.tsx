@@ -435,7 +435,12 @@ export default function Support() {
 const match = (record: BrandSupport, query: string) =>
   record.brand.toLowerCase().includes(query.trim().toLowerCase())
 
-function StepTitle({ step, title }: { step: string title: string }) {
+interface StepTitleProps {
+  step: string
+  title: string
+}
+
+function StepTitle({ step, title }: StepTitleProps) {
   return (
     <h2 className="mb-5 flex items-center gap-3 text-xl font-bold">
       <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs text-white">
@@ -676,7 +681,12 @@ function BrandCard({
   )
 }
 
-function ItHubCard({ whatsapp, phone }: { whatsapp: string phone: string }) {
+interface ItHubCardProps {
+  whatsapp: string
+  phone: string
+}
+
+function ItHubCard({ whatsapp, phone }: ItHubCardProps) {
   return (
     <aside className="rounded-2xl border border-primary/20 bg-gradient-to-br from-[#ecf1ff] to-white p-7">
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">
@@ -779,7 +789,12 @@ function OrderContext({
   )
 }
 
-function Info({ label, value }: { label: string value: string }) {
+interface InfoProps {
+  label: string
+  value: string
+}
+
+function Info({ label, value }: InfoProps) {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>

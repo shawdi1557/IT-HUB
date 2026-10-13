@@ -50,7 +50,13 @@ import {
   SpotlightCard,
 } from "../components/reactbits"
 
-const homeCategories: { name: string label?: string Icon: typeof Laptop }[] = [
+interface HomeCategoryEntry {
+  name: string
+  label?: string
+  Icon: typeof Laptop
+}
+
+const homeCategories: HomeCategoryEntry[] = [
   { name: "Laptops", Icon: Laptop },
   { name: "Mobiles", Icon: Smartphone },
   { name: "PC Components", Icon: Cpu },

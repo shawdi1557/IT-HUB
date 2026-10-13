@@ -98,12 +98,17 @@ export function getAllowedOrigins(
   return origins
 }
 
+export interface CorsHeadersResult {
+  headers: Record<string, string>
+  originAllowed: boolean
+}
+
 export function getCorsHeaders(
   req: Request,
   overrideOrigins?: Set<string>,
   appEnv?: string,
   storefrontOrigin?: string,
-): { headers: Record<string, string>; originAllowed: boolean } {
+): CorsHeadersResult {
   const origin = req.headers.get("origin")
   const allowedOrigins =
     overrideOrigins ?? getAllowedOrigins(appEnv, storefrontOrigin)

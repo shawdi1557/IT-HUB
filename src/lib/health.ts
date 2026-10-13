@@ -61,9 +61,14 @@ export async function checkDatabaseConnection(
     // 2. Wrap query in a timeout promise
     const queryPromise = client.from("store_settings").select("id").limit(1)
 
+    type HealthTimeoutError = {
+      message: string
+      name: string
+    }
+
     const timeoutPromise = new Promise<{
       data: null
-      error: { message: string name: string }
+      error: HealthTimeoutError
     }>((_, reject) => {
       const timer = setTimeout(() => {
         clearTimeout(timer)
