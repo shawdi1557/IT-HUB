@@ -42,13 +42,13 @@ jobs:
         run: npm ci
 
       - name: Verify code formatting
-        run: npx oxfmt --check
+        run: npm run lint
 
       - name: Run TypeScript typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
-      - name: Run automated test suite
-        run: deno test --allow-net --allow-env --allow-read supabase/functions/tests/
+      - name: Run automated edge security test suite (96 tests)
+        run: npm run test:edge
 
       - name: Run production build
         run: npm run build

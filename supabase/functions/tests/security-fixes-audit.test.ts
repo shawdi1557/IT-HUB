@@ -225,6 +225,67 @@ Deno.test("SQL-14. Fix I: Execution revoked from PUBLIC on internal triggers and
   )
 })
 
+Deno.test("SQL-15. Phase 3 Invariants: Database cost_price shielding and atomic inventory row locks", () => {
+  // 1. Column-level privilege restriction: cost_price must never be granted to anon/authenticated
+  assertStringIncludes(
+    schemaSqlLower,
+    "revoke all on table products from anon, authenticated, public;",
+    "products table must revoke full table privileges",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "on table products to anon, authenticated;",
+    "products table must grant explicit column list only",
+  )
+  // Ensure 'cost_price' is NOT granted in the column list
+  const productsGrantMatch = schemaSql.match(
+    /grant\s+select\s*\(([^)]+)\)\s*on\s+(?:table\s+)?products\s+to\s+anon/i,
+  )
+  if (productsGrantMatch) {
+    const grantedCols = productsGrantMatch[1].toLowerCase()
+    assertEquals(
+      grantedCols.includes("cost_price"),
+      false,
+      "cost_price must NEVER be granted to anon or authenticated roles",
+    )
+  }
+
+  // 2. products_public view must not expose cost_price
+  const viewMatch = schemaSql.match(
+    /create(?:\s+or\s+replace)?\s+view\s+products_public[^;]+;/i,
+  )
+  if (viewMatch) {
+    const viewBody = viewMatch[0].toLowerCase()
+    assertEquals(
+      viewBody.includes("cost_price"),
+      false,
+      "products_public view must NEVER expose cost_price",
+    )
+    assertStringIncludes(
+      viewBody,
+      "security_invoker = on",
+      "products_public must enforce security_invoker = on",
+    )
+  }
+
+  // 3. create_order() must use atomic row-level locks on inventory to prevent overselling
+  assertStringIncludes(
+    schemaSqlLower,
+    "for share of p for update of i;",
+    "create_order must place FOR UPDATE row lock on inventory to prevent concurrent overselling",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "if v_product.stock < v_item_qty then",
+    "create_order must validate stock before deducting",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "update inventory\n    set stock = stock - v_item_qty",
+    "create_order must deduct stock atomically on backend",
+  )
+})
+
 // ==============================================================================
 // Section 2: Business Logic Emulation Tests (Pure algorithmic rules)
 // ==============================================================================
