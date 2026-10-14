@@ -136,7 +136,9 @@ create view products_public with (security_invoker = on, security_barrier = true
     p.sku,
     p.name,
     p.brand_id,
+    b.name as brand,
     p.category_id,
+    c.name as category,
     p.subcategory,
     p.description,
     p.mrp,
@@ -150,8 +152,21 @@ create view products_public with (security_invoker = on, security_barrier = true
     p.condition,
     p.status,
     p.created_at,
-    coalesce(i.stock, 0) as stock
+    coalesce(i.stock, 0) as stock,
+    coalesce(i.low_stock_threshold, 3) as low_stock_threshold,
+    coalesce(
+      (
+        select pi.storage_path
+        from product_images pi
+        where pi.product_id = p.id
+        order by pi.position asc, pi.created_at asc
+        limit 1
+      ),
+      '/images/photo-1616440347437-b1c73416efc2.jpg'
+    ) as image_url
   from products p
+  left join brands b on b.id = p.brand_id
+  left join categories c on c.id = p.category_id
   left join inventory i on i.product_id = p.id
   where p.status = 'Active';
 
@@ -1645,6 +1660,22 @@ $$;
 
 revoke all on function health_check() from public;
 grant execute on function health_check() to anon, authenticated, service_role;
+
+-- Supabase Realtime Publication Setup (Idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'inventory'
+  ) then
+    alter publication supabase_realtime add table public.inventory;
+  end if;
+end $$;
+
+alter table public.inventory replica identity default;
 
 commit;
 

@@ -486,4 +486,18 @@ on conflict (product_id) do update set
   stock = excluded.stock,
   low_stock_threshold = excluded.low_stock_threshold;
 
+-- Seed sample product images
+insert into public.product_images (id, product_id, storage_path, position)
+values
+  ('60000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '/images/photo-1616440347437-b1c73416efc2.jpg', 0),
+  ('60000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-000000000002', '/images/photo-1603302576837-37561b2e2302.jpg', 0),
+  ('60000000-0000-0000-0000-000000000003', '50000000-0000-0000-0000-000000000003', '/images/photo-1603302576837-37561b2e2302.jpg', 0),
+  ('60000000-0000-0000-0000-000000000004', '50000000-0000-0000-0000-000000000004', '/images/photo-1603302576837-37561b2e2302.jpg', 0),
+  ('60000000-0000-0000-0000-000000000005', '50000000-0000-0000-0000-000000000005', '/images/pc-build.png', 0),
+  ('60000000-0000-0000-0000-000000000006', '50000000-0000-0000-0000-000000000006', '/images/rtx-5070.jpg', 0),
+  ('60000000-0000-0000-0000-000000000007', '50000000-0000-0000-0000-000000000007', '/images/photo-1527443224154-c4a3942d3acf.jpg', 0)
+on conflict (id) do update set
+  storage_path = excluded.storage_path,
+  position = excluded.position;
+
 commit;

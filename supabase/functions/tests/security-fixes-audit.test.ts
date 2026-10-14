@@ -286,6 +286,70 @@ Deno.test("SQL-15. Phase 3 Invariants: Database cost_price shielding and atomic 
   )
 })
 
+Deno.test("SQL-16. Phase 3 Step 1: Enriched products_public view & idempotent Realtime publication", () => {
+  // 1. Enriched products_public view joins brand and category names
+  assertStringIncludes(
+    schemaSqlLower,
+    "b.name as brand",
+    "products_public must join brands table to provide brand name",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "c.name as category",
+    "products_public must join categories table to provide category name",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "low_stock_threshold",
+    "products_public must include low_stock_threshold for live badges",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "as image_url",
+    "products_public must extract primary image path from product_images",
+  )
+
+  // 2. cost_price must never leak into products_public
+  const viewMatch = schemaSql.match(
+    /create(?:\s+or\s+replace)?\s+view\s+products_public[^;]+;/i,
+  )
+  if (viewMatch) {
+    const viewBody = viewMatch[0].toLowerCase()
+    assertEquals(
+      viewBody.includes("cost_price"),
+      false,
+      "products_public must never leak cost_price",
+    )
+  }
+
+  // 3. Idempotent Realtime publication configuration
+  assertStringIncludes(
+    schemaSqlLower,
+    "from pg_publication_tables",
+    "Realtime publication configuration must check pg_publication_tables to prevent rerun errors",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "pubname = 'supabase_realtime'",
+    "Realtime publication must check pubname = 'supabase_realtime'",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "tablename = 'inventory'",
+    "Realtime publication must check tablename = 'inventory'",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "alter publication supabase_realtime add table public.inventory;",
+    "Realtime publication must add public.inventory table",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "alter table public.inventory replica identity default;",
+    "inventory must configure replica identity default for primary key updates",
+  )
+})
+
 // ==============================================================================
 // Section 2: Business Logic Emulation Tests (Pure algorithmic rules)
 // ==============================================================================
