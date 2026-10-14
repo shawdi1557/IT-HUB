@@ -245,7 +245,7 @@ export async function fetchOrCreateProfile(
   if (!supabase) return null
 
   try {
-    // 1. First attempt to select existing profile
+    // 1. First attempt to select existing profile with address
     const { data: existing, error: selectErr } = await supabase
       .from("profiles")
       .select("id, role, full_name, email, phone, address")
@@ -256,6 +256,21 @@ export async function fetchOrCreateProfile(
       return existing as CustomerProfile
     }
 
+    // 1b. Fallback query without address if column has not yet been migrated in PostgreSQL
+    if (
+      selectErr &&
+      (selectErr.code === "42703" || selectErr.message?.includes("address"))
+    ) {
+      const { data: fallback, error: fallbackErr } = await supabase
+        .from("profiles")
+        .select("id, role, full_name, email, phone")
+        .eq("id", user.id)
+        .maybeSingle()
+      if (fallback && !fallbackErr) {
+        return fallback as CustomerProfile
+      }
+    }
+
     // 2. Self-healing reconciliation RPC (ensure_profile)
     const { data: rpcData, error: rpcErr } =
       await supabase.rpc("ensure_profile")
@@ -264,7 +279,7 @@ export async function fetchOrCreateProfile(
     }
 
     // 3. Fallback direct upsert if permitted
-    const { data: upsertData } = await supabase
+    const { data: upsertData, error: upsertErr } = await supabase
       .from("profiles")
       .upsert({
         id: user.id,
@@ -273,10 +288,14 @@ export async function fetchOrCreateProfile(
         role: "customer",
         updated_at: new Date().toISOString(),
       })
-      .select("id, role, full_name, email, phone, address")
+      .select("id, role, full_name, email, phone")
       .maybeSingle()
 
-    return upsertData as CustomerProfile || null
+    if (upsertData && !upsertErr) {
+      return upsertData as CustomerProfile
+    }
+
+    return null
   } catch {
     return null
   }
@@ -332,6 +351,25 @@ export async function updateCustomerProfile(updates: {
       .single()
 
     if (error) {
+      // If address column does not exist yet on remote database (error 42703), retry without address
+      if (error.code === "42703" && payload.address !== undefined) {
+        delete payload.address
+        const { data: retryData, error: retryErr } = await supabase
+          .from("profiles")
+          .update(payload)
+          .eq("id", user.id)
+          .select("id, role, full_name, email, phone")
+          .single()
+
+        if (!retryErr && retryData) {
+          return {
+            ok: true,
+            profile: retryData as CustomerProfile,
+            error:
+              "Profile saved, but the address column requires running the migration in Supabase SQL editor.",
+          }
+        }
+      }
       return { ok: false, error: error.message }
     }
 

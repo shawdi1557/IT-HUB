@@ -41,6 +41,7 @@ end $$;
 
 -- 2.1 Profiles
 alter table profiles
+  add column if not exists address text,
   add column if not exists updated_at timestamptz not null default now();
 
 -- 2.2 Products: Add MRP, Second-hand, and Condition
@@ -285,13 +286,14 @@ begin
     raise exception 'Authenticated user record not found';
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
   values (
     v_user.id,
     'customer',
     nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
     nullif(trim(v_user.phone), ''),
     nullif(trim(v_user.email), ''),
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'address', '')), ''),
     now(),
     now()
   )

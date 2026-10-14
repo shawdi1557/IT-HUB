@@ -40,6 +40,7 @@ create table profiles (
   full_name text,
   phone text unique check (phone is null or phone ~ '^\+?[0-9]{10,15}$'), -- E.164 / Indian mobile format
   email text,
+  address text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -75,6 +76,7 @@ declare
   v_phone text;
   v_email text;
   v_full_name text;
+  v_address text;
 begin
   v_phone := nullif(trim(new.phone), '');
   v_email := nullif(trim(new.email), '');
@@ -82,18 +84,23 @@ begin
     new.raw_user_meta_data->>'full_name',
     new.raw_user_meta_data->>'name'
   )), '');
+  v_address := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'address',
+    ''
+  )), '');
 
   -- Pre-validate unique phone to prevent orphaned auth.users records on constraint failure
   if v_phone is not null and exists (select 1 from profiles where phone = v_phone and id <> new.id) then
     raise exception 'Phone number % is already registered to another account', v_phone;
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
-  values (new.id, 'customer', v_full_name, v_phone, v_email, now(), now())
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
+  values (new.id, 'customer', v_full_name, v_phone, v_email, v_address, now(), now())
   on conflict (id) do update set
     email = coalesce(excluded.email, profiles.email),
     phone = coalesce(excluded.phone, profiles.phone),
     full_name = coalesce(excluded.full_name, profiles.full_name),
+    address = coalesce(excluded.address, profiles.address),
     updated_at = now();
   return new;
 end;
@@ -126,13 +133,14 @@ begin
     raise exception 'Authenticated user record not found';
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
   values (
     v_user.id,
     'customer',
     nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
     nullif(trim(v_user.phone), ''),
     nullif(trim(v_user.email), ''),
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'address', '')), ''),
     now(),
     now()
   )
