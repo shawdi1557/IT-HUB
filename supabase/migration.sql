@@ -130,15 +130,13 @@ alter table analytics_settings add column if not exists updated_at timestamptz n
 -- Drop views cleanly without CASCADE to protect any dependent references
 drop view if exists products_public;
 
-create view products_public with (security_invoker = on, security_barrier = true) as
+create or replace view products_public with (security_invoker = on, security_barrier = true) as
   select
     p.id,
     p.sku,
     p.name,
     p.brand_id,
-    b.name as brand,
     p.category_id,
-    c.name as category,
     p.subcategory,
     p.description,
     p.mrp,
@@ -153,6 +151,9 @@ create view products_public with (security_invoker = on, security_barrier = true
     p.status,
     p.created_at,
     coalesce(i.stock, 0) as stock,
+    -- Appended columns (Preserves backward compatibility for CREATE OR REPLACE VIEW)
+    b.name as brand,
+    c.name as category,
     coalesce(i.low_stock_threshold, 3) as low_stock_threshold,
     coalesce(
       (
@@ -1382,7 +1383,7 @@ grant select (
 ) on table products to anon, authenticated;
 
 revoke all on table inventory from anon, authenticated, public;
-grant select (product_id, stock) on table inventory to anon, authenticated;
+grant select (product_id, stock, low_stock_threshold) on table inventory to anon, authenticated;
 
 revoke all on table coupons from anon, authenticated, public;
 grant select (

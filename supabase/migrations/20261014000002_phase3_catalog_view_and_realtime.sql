@@ -4,24 +4,25 @@
 -- Features:
 --   1. Enriches products_public view with brand, category, low_stock_threshold,
 --      and primary image path from product_images.
---   2. Enforces security_invoker = on and cost_price shielding.
---   3. Idempotently registers public.inventory into supabase_realtime publication.
+--   2. Preserves original column positions (1-19) and appends new columns (20-23)
+--      so CREATE OR REPLACE VIEW succeeds safely without CASCADE drops.
+--   3. Explicitly grants SELECT on low_stock_threshold, brands, categories, and images.
+--   4. Idempotently registers public.inventory into supabase_realtime publication.
 -- ============================================================================
 
 begin;
 
--- 1. Re-create products_public view with enriched joins
-drop view if exists public.products_public cascade;
+-- 1. Create or replace products_public view (Non-cascade safe)
+-- If a clean recreation is desired, DROP VIEW without CASCADE prevents accidental downstream drops
+drop view if exists public.products_public;
 
-create view public.products_public with (security_invoker = on, security_barrier = true) as
+create or replace view public.products_public with (security_invoker = on, security_barrier = true) as
   select
     p.id,
     p.sku,
     p.name,
     p.brand_id,
-    b.name as brand,
     p.category_id,
-    c.name as category,
     p.subcategory,
     p.description,
     p.mrp,
@@ -36,6 +37,9 @@ create view public.products_public with (security_invoker = on, security_barrier
     p.status,
     p.created_at,
     coalesce(i.stock, 0) as stock,
+    -- Appended columns (Preserves backward compatibility for CREATE OR REPLACE VIEW)
+    b.name as brand,
+    c.name as category,
     coalesce(i.low_stock_threshold, 3) as low_stock_threshold,
     coalesce(
       (
@@ -59,6 +63,7 @@ alter view public.products_public set (security_invoker = on, security_barrier =
 grant select (id, name) on table public.brands to anon, authenticated;
 grant select (id, name, parent_id) on table public.categories to anon, authenticated;
 grant select (id, product_id, storage_path, position, created_at) on table public.product_images to anon, authenticated;
+grant select (product_id, stock, low_stock_threshold) on table public.inventory to anon, authenticated;
 grant select on public.products_public to anon, authenticated;
 
 -- 3. Idempotent Realtime publication registration
