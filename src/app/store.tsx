@@ -9,6 +9,11 @@ import { track } from "../lib/analytics"
 import { supabase } from "../lib/supabase"
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
 import {
+  fetchCatalogDetailed,
+  fetchActiveOffersDetailed,
+  fetchActiveCouponsDetailed,
+} from "../lib/catalog"
+import {
   initialProducts,
   initialOffers,
   categories,
@@ -109,9 +114,13 @@ type State = {
   coupons: Coupon[]
   couponUsages: CouponUsage[]
   sellRequests: SellRequest[]
+  catalogLoading: boolean
+  catalogLive: boolean
 }
 const initial: State = {
   products: initialProducts,
+  catalogLoading: true,
+  catalogLive: false,
   cart: [],
   wishlist: [],
   orders: [],
@@ -170,6 +179,7 @@ type Store = State & {
   addCart: (item: Omit<CartItem, "quantity">, quantity?: number) => void
   toggleWish: (id: string) => void
   log: (action: string) => void
+  refreshCatalog: () => Promise<void>
 }
 // Keep one context instance across hot updates; otherwise an edited store
 // module creates a new context that the already-mounted provider doesn't supply.
@@ -187,6 +197,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return {
         ...initial,
         ...parsed,
+        catalogLoading: true,
+        catalogLive: false,
         // Older saves used coupon-code offers; replace them with the new offer model.
         offers: parsed.offers?.every((offer) => "type" in offer)
           ? parsed.offers
@@ -293,6 +305,74 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [])
+
+  const refreshCatalog = async () => {
+    setState((prev) => ({ ...prev, catalogLoading: true }))
+    try {
+      const [catalogRes, offersRes, couponsRes] = await Promise.allSettled([
+        fetchCatalogDetailed(),
+        fetchActiveOffersDetailed(),
+        fetchActiveCouponsDetailed(),
+      ])
+
+      setState((prev) => {
+        const updates: Partial<State> = { catalogLoading: false }
+
+        if (catalogRes.status === "fulfilled") {
+          const { products: liveProducts, isLive } = catalogRes.value
+          if (isLive && liveProducts.length > 0) {
+            updates.products = liveProducts
+            updates.catalogLive = true
+
+            // Derive dynamic categories and brands from live catalog
+            const liveCategories = Array.from(
+              new Set(liveProducts.map((p) => p.category).filter(Boolean)),
+            )
+            if (liveCategories.length > 0) {
+              updates.catalogCategories = [
+                "All",
+                ...liveCategories.filter((c) => c !== "All"),
+              ]
+            }
+
+            const liveBrands = Array.from(
+              new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
+            )
+            if (liveBrands.length > 0) {
+              updates.brands = liveBrands
+            }
+          }
+        }
+
+        if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
+          updates.offers = offersRes.value.offers
+        }
+
+        if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
+          updates.coupons = couponsRes.value.coupons
+        }
+
+        return { ...prev, ...updates }
+      })
+    } catch (err) {
+      console.warn("[store] Background catalog hydration error:", err)
+      setState((prev) => ({ ...prev, catalogLoading: false }))
+    }
+  }
+
+  // Phase 3 Step 3: Background Stale-While-Revalidate catalog hydration
+  useEffect(() => {
+    let isMounted = true
+    refreshCatalog().catch(() => {
+      if (isMounted) {
+        setState((prev) => ({ ...prev, catalogLoading: false }))
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const set = (next: Partial<State> | ((value: State) => Partial<State>)) =>
     setState((previous) => ({
       ...previous,
@@ -375,6 +455,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addCart,
         toggleWish,
         log,
+        refreshCatalog,
       }}
     >
       {children}

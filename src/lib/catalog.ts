@@ -251,15 +251,35 @@ export function filterFallbackProducts(
   return filtered
 }
 
+export interface CatalogFetchResult {
+  products: Product[]
+  isLive: boolean
+  error?: string
+}
+
+export interface OffersFetchResult {
+  offers: Offer[]
+  isLive: boolean
+  error?: string
+}
+
+export interface CouponsFetchResult {
+  coupons: Coupon[]
+  isLive: boolean
+  error?: string
+}
+
 /**
- * Fetches the active storefront catalog from the products_public database view.
- * Gracefully falls back to local data if the database or network is unavailable.
+ * Fetches the active storefront catalog from the products_public database view with live status metadata.
  */
-export async function fetchCatalog(
+export async function fetchCatalogDetailed(
   options: CatalogFilterOptions = {},
-): Promise<Product[]> {
+): Promise<CatalogFetchResult> {
   if (!supabase) {
-    return filterFallbackProducts(initialProducts, options)
+    return {
+      products: filterFallbackProducts(initialProducts, options),
+      isLive: false,
+    }
   }
 
   try {
@@ -325,21 +345,46 @@ export async function fetchCatalog(
         "[catalog] products_public query failed; using fallback catalog:",
         error.message,
       )
-      return filterFallbackProducts(initialProducts, options)
+      return {
+        products: filterFallbackProducts(initialProducts, options),
+        isLive: false,
+        error: error.message,
+      }
     }
 
     if (!data || data.length === 0) {
-      return filterFallbackProducts(initialProducts, options)
+      return {
+        products: filterFallbackProducts(initialProducts, options),
+        isLive: true,
+      }
     }
 
-    return (data as DatabaseProductRow[]).map(mapDatabaseProduct)
+    return {
+      products: (data as DatabaseProductRow[]).map(mapDatabaseProduct),
+      isLive: true,
+    }
   } catch (err: any) {
     console.warn(
       "[catalog] network error querying products_public; using fallback catalog:",
       err?.message || err,
     )
-    return filterFallbackProducts(initialProducts, options)
+    return {
+      products: filterFallbackProducts(initialProducts, options),
+      isLive: false,
+      error: err?.message || String(err),
+    }
   }
+}
+
+/**
+ * Fetches the active storefront catalog from the products_public database view.
+ * Gracefully falls back to local data if the database or network is unavailable.
+ */
+export async function fetchCatalog(
+  options: CatalogFilterOptions = {},
+): Promise<Product[]> {
+  const result = await fetchCatalogDetailed(options)
+  return result.products
 }
 
 /**
@@ -381,10 +426,10 @@ export async function fetchProductById(
 }
 
 /**
- * Fetches currently active promotional offers from public.live_offers view.
+ * Fetches currently active promotional offers from public.live_offers view with live status metadata.
  */
-export async function fetchActiveOffers(): Promise<Offer[]> {
-  if (!supabase) return initialOffers
+export async function fetchActiveOffersDetailed(): Promise<OffersFetchResult> {
+  if (!supabase) return { offers: initialOffers, isLive: false }
 
   try {
     const { data, error } = await supabase
@@ -392,21 +437,40 @@ export async function fetchActiveOffers(): Promise<Offer[]> {
       .select("*")
       .order("created_at", { ascending: false })
 
-    if (error || !data || data.length === 0) {
-      return initialOffers
+    if (error) {
+      return { offers: initialOffers, isLive: false, error: error.message }
     }
 
-    return (data as LiveOfferRow[]).map(mapDatabaseOffer)
-  } catch {
-    return initialOffers
+    if (!data || data.length === 0) {
+      return { offers: initialOffers, isLive: true }
+    }
+
+    return {
+      offers: (data as LiveOfferRow[]).map(mapDatabaseOffer),
+      isLive: true,
+    }
+  } catch (err: any) {
+    return {
+      offers: initialOffers,
+      isLive: false,
+      error: err?.message || String(err),
+    }
   }
 }
 
 /**
- * Fetches eligible storefront coupons from public.public_coupons view.
+ * Fetches currently active promotional offers from public.live_offers view.
  */
-export async function fetchActiveCoupons(): Promise<Coupon[]> {
-  if (!supabase) return initialCoupons
+export async function fetchActiveOffers(): Promise<Offer[]> {
+  const result = await fetchActiveOffersDetailed()
+  return result.offers
+}
+
+/**
+ * Fetches eligible storefront coupons from public.public_coupons view with live status metadata.
+ */
+export async function fetchActiveCouponsDetailed(): Promise<CouponsFetchResult> {
+  if (!supabase) return { coupons: initialCoupons, isLive: false }
 
   try {
     const { data, error } = await supabase
@@ -414,14 +478,33 @@ export async function fetchActiveCoupons(): Promise<Coupon[]> {
       .select("*")
       .order("min_order_value", { ascending: true })
 
-    if (error || !data || data.length === 0) {
-      return initialCoupons
+    if (error) {
+      return { coupons: initialCoupons, isLive: false, error: error.message }
     }
 
-    return (data as PublicCouponRow[]).map(mapDatabaseCoupon)
-  } catch {
-    return initialCoupons
+    if (!data || data.length === 0) {
+      return { coupons: initialCoupons, isLive: true }
+    }
+
+    return {
+      coupons: (data as PublicCouponRow[]).map(mapDatabaseCoupon),
+      isLive: true,
+    }
+  } catch (err: any) {
+    return {
+      coupons: initialCoupons,
+      isLive: false,
+      error: err?.message || String(err),
+    }
   }
+}
+
+/**
+ * Fetches eligible storefront coupons from public.public_coupons view.
+ */
+export async function fetchActiveCoupons(): Promise<Coupon[]> {
+  const result = await fetchActiveCouponsDetailed()
+  return result.coupons
 }
 
 /**
