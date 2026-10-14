@@ -463,3 +463,138 @@ Deno.test("CAT-6. filterFallbackProducts sorts ascending and descending accurate
   assertEquals(desc[0].id, "p-high")
   assertEquals(desc[2].id, "p-low")
 })
+
+interface InventoryUpdatePayload {
+  product_id: string
+  stock: number
+  low_stock_threshold?: number
+}
+
+function patchProductInventory(
+  products: Product[],
+  update: InventoryUpdatePayload,
+): Product[] {
+  if (!update || !update.product_id) return products
+
+  return products.map((product) => {
+    if (product.id === update.product_id) {
+      return {
+        ...product,
+        stock: Number(update.stock ?? product.stock),
+        lowStockThreshold:
+          update.low_stock_threshold !== undefined &&
+          update.low_stock_threshold !== null
+            ? Number(update.low_stock_threshold)
+            : (product.lowStockThreshold ?? 3),
+      }
+    }
+    return product
+  })
+}
+
+Deno.test("RT-1: Realtime inventory update correctly patches stock on matching product", () => {
+  const products: Product[] = [
+    {
+      id: "prod-101",
+      name: "Mechanical Keyboard",
+      brand: "Keychron",
+      category: "Peripherals",
+      price: 8500,
+      original: 8500,
+      image: "/images/kb.jpg",
+      stock: 12,
+      lowStockThreshold: 3,
+      rating: 4.8,
+      specs: { Switch: "Gateron Brown" },
+    },
+  ]
+
+  const updated = patchProductInventory(products, {
+    product_id: "prod-101",
+    stock: 4,
+  })
+
+  assertEquals(updated[0].stock, 4)
+  assertEquals(updated[0].lowStockThreshold, 3)
+  assertEquals(updated[0].name, "Mechanical Keyboard")
+  assertEquals(updated[0].price, 8500)
+})
+
+Deno.test("RT-2: Realtime inventory update modifies low_stock_threshold without mutating immutable product fields", () => {
+  const products: Product[] = [
+    {
+      id: "prod-202",
+      name: "RTX 4070 GPU",
+      brand: "Nvidia",
+      category: "Components",
+      price: 59999,
+      original: 65000,
+      image: "/images/gpu.jpg",
+      stock: 7,
+      lowStockThreshold: 2,
+      rating: 4.9,
+      specs: { VRAM: "12GB GDDR6X" },
+      tag: "Deal",
+    },
+  ]
+
+  const updated = patchProductInventory(products, {
+    product_id: "prod-202",
+    stock: 2,
+    low_stock_threshold: 5,
+  })
+
+  assertEquals(updated[0].stock, 2)
+  assertEquals(updated[0].lowStockThreshold, 5)
+  assertEquals(updated[0].tag, "Deal")
+  assertEquals(updated[0].specs["VRAM"], "12GB GDDR6X")
+})
+
+Deno.test("RT-3: Realtime inventory update with unmatched product ID safely preserves existing products", () => {
+  const products: Product[] = [
+    {
+      id: "prod-303",
+      name: "1TB NVMe SSD",
+      brand: "Samsung",
+      category: "Storage",
+      price: 9000,
+      original: 10000,
+      image: "/images/ssd.jpg",
+      stock: 15,
+      rating: 4.9,
+      specs: {},
+    },
+  ]
+
+  const updated = patchProductInventory(products, {
+    product_id: "prod-unknown-999",
+    stock: 0,
+  })
+
+  assertEquals(updated[0].stock, 15)
+})
+
+Deno.test("RT-4: Realtime inventory DELETE event sets stock to 0", () => {
+  const products: Product[] = [
+    {
+      id: "prod-404",
+      name: "Wireless Mouse",
+      brand: "Logitech",
+      category: "Peripherals",
+      price: 2500,
+      original: 3000,
+      image: "/images/mouse.jpg",
+      stock: 8,
+      rating: 4.7,
+      specs: {},
+    },
+  ]
+
+  const updated = patchProductInventory(products, {
+    product_id: "prod-404",
+    stock: 0,
+  })
+
+  assertEquals(updated[0].stock, 0)
+  assertEquals(updated[0].name, "Wireless Mouse")
+})

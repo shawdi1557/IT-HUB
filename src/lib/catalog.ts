@@ -251,6 +251,42 @@ export function filterFallbackProducts(
   return filtered
 }
 
+/**
+ * Realtime inventory update event payload.
+ */
+export interface InventoryUpdatePayload {
+  product_id: string
+  stock: number
+  low_stock_threshold?: number
+}
+
+/**
+ * Pure in-memory patcher for Realtime inventory updates.
+ * Updates stock and lowStockThreshold on the matching product while preserving
+ * all other immutable fields (name, price, images, specs, tags, etc.).
+ */
+export function patchProductInventory(
+  products: Product[],
+  update: InventoryUpdatePayload,
+): Product[] {
+  if (!update || !update.product_id) return products
+
+  return products.map((product) => {
+    if (product.id === update.product_id) {
+      return {
+        ...product,
+        stock: Number(update.stock ?? product.stock),
+        lowStockThreshold:
+          update.low_stock_threshold !== undefined &&
+          update.low_stock_threshold !== null
+            ? Number(update.low_stock_threshold)
+            : (product.lowStockThreshold ?? 3),
+      }
+    }
+    return product
+  })
+}
+
 export interface CatalogFetchResult {
   products: Product[]
   isLive: boolean

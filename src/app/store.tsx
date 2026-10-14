@@ -12,6 +12,7 @@ import {
   fetchCatalogDetailed,
   fetchActiveOffersDetailed,
   fetchActiveCouponsDetailed,
+  patchProductInventory,
 } from "../lib/catalog"
 import {
   initialProducts,
@@ -116,11 +117,13 @@ type State = {
   sellRequests: SellRequest[]
   catalogLoading: boolean
   catalogLive: boolean
+  realtimeConnected: boolean
 }
 const initial: State = {
   products: initialProducts,
   catalogLoading: true,
   catalogLive: false,
+  realtimeConnected: false,
   cart: [],
   wishlist: [],
   orders: [],
@@ -199,6 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...parsed,
         catalogLoading: true,
         catalogLive: false,
+        realtimeConnected: false,
         // Older saves used coupon-code offers; replace them with the new offer model.
         offers: parsed.offers?.every((offer) => "type" in offer)
           ? parsed.offers
@@ -370,6 +374,81 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
     return () => {
       isMounted = false
+    }
+  }, [])
+
+  // Phase 3 Step 4: Realtime Inventory Synchronization & Window Focus Revalidation
+  useEffect(() => {
+    const client = supabase
+    if (!client) return
+
+    const channel = client
+      .channel("public:inventory")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory" },
+        (payload) => {
+          if (
+            payload.eventType === "UPDATE" ||
+            payload.eventType === "INSERT"
+          ) {
+            const row = payload.new as {
+              product_id: string
+              stock: number
+              low_stock_threshold?: number
+            }
+            if (row?.product_id) {
+              setState((prev) => {
+                const productExists = prev.products.some(
+                  (p) => p.id === row.product_id,
+                )
+                if (productExists) {
+                  return {
+                    ...prev,
+                    products: patchProductInventory(prev.products, row),
+                  }
+                } else if (payload.eventType === "INSERT") {
+                  // Brand new product record added; trigger full catalog revalidation
+                  refreshCatalog()
+                  return prev
+                }
+                return prev
+              })
+            }
+          } else if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { product_id?: string }
+            if (oldRow?.product_id) {
+              setState((prev) => ({
+                ...prev,
+                products: patchProductInventory(prev.products, {
+                  product_id: oldRow.product_id!,
+                  stock: 0,
+                }),
+              }))
+            }
+          }
+        },
+      )
+      .subscribe((status) => {
+        setState((prev) => ({
+          ...prev,
+          realtimeConnected: status === "SUBSCRIBED",
+        }))
+      })
+
+    const handleFocusSync = () => {
+      if (document.visibilityState === "visible") {
+        refreshCatalog()
+      }
+    }
+
+    window.addEventListener("focus", handleFocusSync)
+    document.addEventListener("visibilitychange", handleFocusSync)
+
+    return () => {
+      window.removeEventListener("focus", handleFocusSync)
+      document.removeEventListener("visibilitychange", handleFocusSync)
+      client.removeChannel(channel)
     }
   }, [])
 
