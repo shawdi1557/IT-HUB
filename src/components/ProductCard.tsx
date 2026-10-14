@@ -57,7 +57,11 @@ export default function ProductCard({ product }: { product: Product }) {
     <>
       <article className="group relative overflow-hidden rounded-2xl border border-border bg-card transition duration-300 hover:border-primary/40 hover:shadow-sm">
         <div className="relative flex h-44 items-center justify-center bg-muted p-5 md:h-52">
-          {(deal || product.tag || product.secondHand) && (
+          {(deal ||
+            product.tag ||
+            product.secondHand ||
+            (product.stock > 0 &&
+              product.stock <= (product.lowStockThreshold || 5))) && (
             <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1">
               {product.secondHand && (
                 <Badge tone="amber">
@@ -69,6 +73,10 @@ export default function ProductCard({ product }: { product: Product }) {
               {product.tag && !product.secondHand && (
                 <Badge>{product.tag}</Badge>
               )}
+              {product.stock > 0 &&
+                product.stock <= (product.lowStockThreshold || 5) && (
+                  <Badge tone="amber">Only {product.stock} left!</Badge>
+                )}
             </div>
           )}
           <button
@@ -146,11 +154,15 @@ export default function ProductCard({ product }: { product: Product }) {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px]">
-            <span
-              className={product.stock ? "text-emerald-700" : "text-red-600"}
-            >
-              ● {product.stock ? "In stock" : "Out of stock"}
-            </span>
+            {product.stock > 5 ? (
+              <span className="text-emerald-700">● In stock</span>
+            ) : product.stock > 0 ? (
+              <span className="font-semibold text-amber-700">
+                ● Only {product.stock} left!
+              </span>
+            ) : (
+              <span className="text-muted-foreground">● Out of stock</span>
+            )}
             <span className="inline-flex items-center gap-1 text-muted-foreground">
               <ShieldCheck size={11} className="text-primary" />
               {product.warranty || "Brand warranty"}
@@ -167,8 +179,16 @@ export default function ProductCard({ product }: { product: Product }) {
           <strong className="text-2xl">
             {money(deal ? deal.price : product.price)}
           </strong>
-          <Badge tone={product.stock ? "green" : "red"}>
-            {product.stock ? "In stock" : "Out of stock"}
+          <Badge
+            tone={
+              product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray"
+            }
+          >
+            {product.stock > 5
+              ? "In stock"
+              : product.stock > 0
+                ? `Only ${product.stock} left!`
+                : "Out of stock"}
           </Badge>
         </div>
         <div className="mb-6 grid grid-cols-2 gap-3">

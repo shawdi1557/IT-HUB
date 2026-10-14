@@ -75,16 +75,40 @@ export function Products() {
   const section = (params.get("section") ||
     defaultSection) as "fresh" | "secondhand" | "sell"
 
+  const sectionProducts = useMemo(
+    () =>
+      store.products.filter((product) => {
+        if (section === "secondhand") return Boolean(product.secondHand)
+        if (section === "fresh") return !product.secondHand
+        return true
+      }),
+    [store.products, section],
+  )
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of sectionProducts) {
+      if (p.category) {
+        counts[p.category] = (counts[p.category] || 0) + 1
+      }
+    }
+    return counts
+  }, [sectionProducts])
+
+  const brandCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of sectionProducts) {
+      if (p.brand) {
+        counts[p.brand] = (counts[p.brand] || 0) + 1
+      }
+    }
+    return counts
+  }, [sectionProducts])
+
   const filtered = useMemo(
     () =>
-      store.products
+      sectionProducts
         .filter((product) => {
-          // Strictly separate Fresh items from Second-Hand items
-          if (section === "secondhand") {
-            if (!product.secondHand) return false
-          } else if (section === "fresh") {
-            if (product.secondHand) return false
-          }
           return (
             (!category ||
               product.category === category ||
@@ -323,11 +347,16 @@ export function Products() {
                     setSpecs({})
                   }}
                   options={[
-                    { value: "", label: "All categories" },
-                    ...store.catalogCategories.map((value) => ({
-                      value,
-                      label: value,
-                    })),
+                    {
+                      value: "",
+                      label: `All categories (${sectionProducts.length})`,
+                    },
+                    ...store.catalogCategories
+                      .filter((val) => val !== "All")
+                      .map((value) => ({
+                        value,
+                        label: `${value} (${categoryCounts[value] || 0})`,
+                      })),
                   ]}
                 />
               </Field>
@@ -337,12 +366,22 @@ export function Products() {
                   value={brand}
                   onChange={setBrand}
                   options={[
-                    { value: "", label: "All brands" },
+                    {
+                      value: "",
+                      label: `All brands (${sectionProducts.length})`,
+                    },
                     ...[
                       ...new Set(
-                        store.products.map((product) => product.brand),
+                        sectionProducts
+                          .map((product) => product.brand)
+                          .filter(Boolean),
                       ),
-                    ].map((value) => ({ value, label: value })),
+                    ]
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((value) => ({
+                        value,
+                        label: `${value} (${brandCounts[value] || 0})`,
+                      })),
                   ]}
                 />
               </Field>
@@ -589,10 +628,16 @@ export function ProductDetail() {
               </div>
             )
           })()}
-          <Badge tone={product.stock ? "green" : "red"}>
-            {product.stock
+          <Badge
+            tone={
+              product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray"
+            }
+          >
+            {product.stock > 5
               ? `In stock · ${product.stock} available`
-              : "Out of stock"}
+              : product.stock > 0
+                ? `Only ${product.stock} left in stock!`
+                : "Out of stock"}
           </Badge>
           {product.secondHand && (
             <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
@@ -624,22 +669,29 @@ export function ProductDetail() {
             <div className="flex items-center rounded-md border border-border">
               <button
                 aria-label="Decrease quantity"
+                disabled={quantity <= 1 || product.stock <= 0}
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="p-3"
+                className="p-3 disabled:opacity-40"
               >
                 <Minus size={15} />
               </button>
-              <span className="w-7 text-center text-sm">{quantity}</span>
+              <span className="w-7 text-center text-sm">
+                {product.stock <= 0 ? 0 : quantity}
+              </span>
               <button
                 aria-label="Increase quantity"
-                disabled={quantity >= product.stock}
+                disabled={quantity >= product.stock || product.stock <= 0}
                 onClick={() => setQuantity(quantity + 1)}
-                className="p-3"
+                className="p-3 disabled:opacity-40"
               >
                 <Plus size={15} />
               </button>
             </div>
-            <Button disabled={!product.stock} onClick={add} className="flex-1">
+            <Button
+              disabled={!product.stock || product.stock <= 0}
+              onClick={add}
+              className="flex-1"
+            >
               Add to cart
             </Button>
             <button
@@ -659,7 +711,7 @@ export function ProductDetail() {
           </div>
           <Button
             variant="secondary"
-            disabled={!product.stock}
+            disabled={!product.stock || product.stock <= 0}
             onClick={() => {
               add()
               navigate("/checkout")
