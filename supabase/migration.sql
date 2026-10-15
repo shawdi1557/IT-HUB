@@ -41,6 +41,7 @@ end $$;
 
 -- 2.1 Profiles
 alter table profiles
+  add column if not exists address text,
   add column if not exists updated_at timestamptz not null default now();
 
 -- 2.2 Products: Add MRP, Second-hand, and Condition
@@ -129,7 +130,7 @@ alter table analytics_settings add column if not exists updated_at timestamptz n
 -- Drop views cleanly without CASCADE to protect any dependent references
 drop view if exists products_public;
 
-create view products_public with (security_invoker = on, security_barrier = true) as
+create or replace view products_public with (security_invoker = on, security_barrier = true) as
   select
     p.id,
     p.sku,
@@ -149,8 +150,24 @@ create view products_public with (security_invoker = on, security_barrier = true
     p.condition,
     p.status,
     p.created_at,
-    coalesce(i.stock, 0) as stock
+    coalesce(i.stock, 0) as stock,
+    -- Appended columns (Preserves backward compatibility for CREATE OR REPLACE VIEW)
+    b.name as brand,
+    c.name as category,
+    coalesce(i.low_stock_threshold, 3) as low_stock_threshold,
+    coalesce(
+      (
+        select pi.storage_path
+        from product_images pi
+        where pi.product_id = p.id
+        order by pi.position asc, pi.created_at asc
+        limit 1
+      ),
+      '/images/photo-1616440347437-b1c73416efc2.jpg'
+    ) as image_url
   from products p
+  left join brands b on b.id = p.brand_id
+  left join categories c on c.id = p.category_id
   left join inventory i on i.product_id = p.id
   where p.status = 'Active';
 
@@ -285,13 +302,14 @@ begin
     raise exception 'Authenticated user record not found';
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
   values (
     v_user.id,
     'customer',
     nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
     nullif(trim(v_user.phone), ''),
     nullif(trim(v_user.email), ''),
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'address', '')), ''),
     now(),
     now()
   )
@@ -1365,7 +1383,7 @@ grant select (
 ) on table products to anon, authenticated;
 
 revoke all on table inventory from anon, authenticated, public;
-grant select (product_id, stock) on table inventory to anon, authenticated;
+grant select (product_id, stock, low_stock_threshold) on table inventory to anon, authenticated;
 
 revoke all on table coupons from anon, authenticated, public;
 grant select (
@@ -1643,6 +1661,22 @@ $$;
 
 revoke all on function health_check() from public;
 grant execute on function health_check() to anon, authenticated, service_role;
+
+-- Supabase Realtime Publication Setup (Idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'inventory'
+  ) then
+    alter publication supabase_realtime add table public.inventory;
+  end if;
+end $$;
+
+alter table public.inventory replica identity default;
 
 commit;
 

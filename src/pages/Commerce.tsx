@@ -76,6 +76,11 @@ export function Cart() {
     )
   }
   const { subtotal, discount, applied } = offerTotals(store)
+  const hasInsufficientStock = store.cart.some((item) => {
+    if (!item.productId) return false
+    const product = store.products.find((row) => row.id === item.productId)
+    return product ? item.quantity > product.stock : false
+  })
   return (
     <Page>
       <PageHeading
@@ -92,106 +97,133 @@ export function Cart() {
       ) : (
         <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
           <div className="space-y-4">
-            {store.cart.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-center gap-5 rounded-lg border border-border p-5"
-              >
-                <div className="flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-                  {item.build ? (
-                    <ShoppingBag className="text-primary" />
-                  ) : (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="h-full w-full object-contain p-2"
-                      onError={(event) => {
-                        event.currentTarget.hidden = true
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="min-w-32 flex-1">
-                  {item.productId ? (
-                    <Link
-                      to={`/products/${item.productId}`}
-                      className="text-sm font-semibold hover:text-primary"
-                    >
-                      {item.name}
-                    </Link>
-                  ) : (
-                    <p className="text-sm font-semibold">{item.name}</p>
-                  )}
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {money(item.price)} each
-                  </p>
-                  {item.build && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {Object.keys(item.build.parts).length} components
+            {store.cart.map((item) => {
+              const product = item.productId
+                ? store.products.find((row) => row.id === item.productId)
+                : undefined
+              const isOutOfStock = Boolean(product && product.stock <= 0)
+              const isOverStock = Boolean(
+                product && product.stock > 0 && item.quantity > product.stock,
+              )
+
+              return (
+                <div
+                  key={item.id}
+                  className={`flex flex-wrap items-center gap-5 rounded-lg border p-5 ${
+                    isOutOfStock
+                      ? "border-red-300 bg-red-50/20"
+                      : isOverStock
+                        ? "border-amber-300 bg-amber-50/20"
+                        : "border-border"
+                  }`}
+                >
+                  <div className="flex h-24 w-24 items-center justify-center rounded-md bg-muted">
+                    {item.build ? (
+                      <ShoppingBag className="text-primary" />
+                    ) : (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-contain p-2"
+                        onError={(event) => {
+                          event.currentTarget.hidden = true
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-32 flex-1">
+                    {item.productId ? (
+                      <Link
+                        to={`/products/${item.productId}`}
+                        className="text-sm font-semibold hover:text-primary"
+                      >
+                        {item.name}
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-semibold">{item.name}</p>
+                    )}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {money(item.price)} each
                     </p>
-                  )}
-                  <button
-                    onClick={() => {
-                      store.set({
-                        cart: store.cart.filter((row) => row.id !== item.id),
-                      })
-                      store.notify("Removed from cart")
-                    }}
-                    className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-red-600"
-                  >
-                    <Trash2 size={12} /> Remove
-                  </button>
+                    {item.build && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {Object.keys(item.build.parts).length} components
+                      </p>
+                    )}
+                    {isOutOfStock && (
+                      <p className="mt-2 text-xs font-semibold text-red-600">
+                        Item is now out of stock. Please remove to proceed.
+                      </p>
+                    )}
+                    {isOverStock && (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        Only {product!.stock} available. Please reduce quantity
+                        to {product!.stock}.
+                      </p>
+                    )}
+                    <button
+                      onClick={() => {
+                        store.set({
+                          cart: store.cart.filter((row) => row.id !== item.id),
+                        })
+                        store.notify("Removed from cart")
+                      }}
+                      className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-red-600"
+                    >
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  </div>
+                  <div className="flex items-center rounded-md border border-border">
+                    <button
+                      aria-label={`Decrease ${item.name} quantity`}
+                      onClick={() =>
+                        store.set({
+                          cart: store.cart.map((row) =>
+                            row.id === item.id
+                              ? {
+                                  ...row,
+                                  quantity: Math.max(1, row.quantity - 1),
+                                }
+                              : row,
+                          ),
+                        })
+                      }
+                      className="p-2.5"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="w-5 text-center text-sm">
+                      {item.quantity}
+                    </span>
+                    <button
+                      aria-label={`Increase ${item.name} quantity`}
+                      disabled={
+                        Boolean(item.productId) &&
+                        item.quantity >=
+                          (store.products.find(
+                            (product) => product.id === item.productId,
+                          )?.stock || 0)
+                      }
+                      onClick={() =>
+                        store.set({
+                          cart: store.cart.map((row) =>
+                            row.id === item.id
+                              ? { ...row, quantity: row.quantity + 1 }
+                              : row,
+                          ),
+                        })
+                      }
+                      className="p-2.5 disabled:opacity-30"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                  <strong className="w-24 text-right text-sm">
+                    {money(item.price * item.quantity)}
+                  </strong>
                 </div>
-                <div className="flex items-center rounded-md border border-border">
-                  <button
-                    aria-label={`Decrease ${item.name} quantity`}
-                    onClick={() =>
-                      store.set({
-                        cart: store.cart.map((row) =>
-                          row.id === item.id
-                            ? {
-                                ...row,
-                                quantity: Math.max(1, row.quantity - 1),
-                              }
-                            : row,
-                        ),
-                      })
-                    }
-                    className="p-2.5"
-                  >
-                    <Minus size={13} />
-                  </button>
-                  <span className="w-5 text-center text-sm">
-                    {item.quantity}
-                  </span>
-                  <button
-                    aria-label={`Increase ${item.name} quantity`}
-                    disabled={
-                      Boolean(item.productId) &&
-                      item.quantity >=
-                        (store.products.find(
-                          (product) => product.id === item.productId,
-                        )?.stock || 0)
-                    }
-                    onClick={() =>
-                      store.set({
-                        cart: store.cart.map((row) =>
-                          row.id === item.id
-                            ? { ...row, quantity: row.quantity + 1 }
-                            : row,
-                        ),
-                      })
-                    }
-                    className="p-2.5 disabled:opacity-30"
-                  >
-                    <Plus size={13} />
-                  </button>
-                </div>
-                <strong className="w-24 text-right text-sm">
-                  {money(item.price * item.quantity)}
-                </strong>
-              </div>
-            ))}
+              )
+            })}
             <ActionLink secondary to="/products">
               Continue shopping
             </ActionLink>
@@ -220,9 +252,24 @@ export function Cart() {
                 <span>{money(subtotal - discount)}</span>
               </div>
             </div>
-            <ActionLink to="/checkout" className="mt-6 w-full">
-              Proceed to checkout <ArrowRight size={16} />
-            </ActionLink>
+            {hasInsufficientStock ? (
+              <div className="mt-6">
+                <Button
+                  disabled
+                  className="w-full cursor-not-allowed opacity-50"
+                >
+                  Proceed to checkout <ArrowRight size={16} />
+                </Button>
+                <p className="mt-2 text-center text-xs font-medium text-red-600">
+                  Please adjust cart quantities to match available stock before
+                  proceeding.
+                </p>
+              </div>
+            ) : (
+              <ActionLink to="/checkout" className="mt-6 w-full">
+                Proceed to checkout <ArrowRight size={16} />
+              </ActionLink>
+            )}
             <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
               <LockKeyhole size={12} /> Demo checkout · no real payment
             </p>

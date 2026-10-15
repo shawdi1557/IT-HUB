@@ -40,6 +40,7 @@ create table profiles (
   full_name text,
   phone text unique check (phone is null or phone ~ '^\+?[0-9]{10,15}$'), -- E.164 / Indian mobile format
   email text,
+  address text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -75,6 +76,7 @@ declare
   v_phone text;
   v_email text;
   v_full_name text;
+  v_address text;
 begin
   v_phone := nullif(trim(new.phone), '');
   v_email := nullif(trim(new.email), '');
@@ -82,18 +84,23 @@ begin
     new.raw_user_meta_data->>'full_name',
     new.raw_user_meta_data->>'name'
   )), '');
+  v_address := nullif(trim(coalesce(
+    new.raw_user_meta_data->>'address',
+    ''
+  )), '');
 
   -- Pre-validate unique phone to prevent orphaned auth.users records on constraint failure
   if v_phone is not null and exists (select 1 from profiles where phone = v_phone and id <> new.id) then
     raise exception 'Phone number % is already registered to another account', v_phone;
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
-  values (new.id, 'customer', v_full_name, v_phone, v_email, now(), now())
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
+  values (new.id, 'customer', v_full_name, v_phone, v_email, v_address, now(), now())
   on conflict (id) do update set
     email = coalesce(excluded.email, profiles.email),
     phone = coalesce(excluded.phone, profiles.phone),
     full_name = coalesce(excluded.full_name, profiles.full_name),
+    address = coalesce(excluded.address, profiles.address),
     updated_at = now();
   return new;
 end;
@@ -126,13 +133,14 @@ begin
     raise exception 'Authenticated user record not found';
   end if;
 
-  insert into profiles (id, role, full_name, phone, email, created_at, updated_at)
+  insert into profiles (id, role, full_name, phone, email, address, created_at, updated_at)
   values (
     v_user.id,
     'customer',
     nullif(trim(coalesce(v_user.raw_user_meta_data->>'full_name', v_user.raw_user_meta_data->>'name')), ''),
     nullif(trim(v_user.phone), ''),
     nullif(trim(v_user.email), ''),
+    nullif(trim(coalesce(v_user.raw_user_meta_data->>'address', '')), ''),
     now(),
     now()
   )
@@ -321,8 +329,24 @@ create or replace view products_public with (security_invoker = on, security_bar
     p.condition,
     p.status,
     p.created_at,
-    coalesce(i.stock, 0) as stock
+    coalesce(i.stock, 0) as stock,
+    -- Appended columns (Preserves backward compatibility for CREATE OR REPLACE VIEW)
+    b.name as brand,
+    c.name as category,
+    coalesce(i.low_stock_threshold, 3) as low_stock_threshold,
+    coalesce(
+      (
+        select pi.storage_path
+        from product_images pi
+        where pi.product_id = p.id
+        order by pi.position asc, pi.created_at asc
+        limit 1
+      ),
+      '/images/photo-1616440347437-b1c73416efc2.jpg'
+    ) as image_url
   from products p
+  left join brands b on b.id = p.brand_id
+  left join categories c on c.id = p.category_id
   left join inventory i on i.product_id = p.id
   where p.status = 'Active';
 
@@ -2268,7 +2292,7 @@ grant select (
 ) on table products to anon, authenticated;
 
 revoke all on table inventory from anon, authenticated, public;
-grant select (product_id, stock) on table inventory to anon, authenticated;
+grant select (product_id, stock, low_stock_threshold) on table inventory to anon, authenticated;
 
 revoke all on table coupons from anon, authenticated, public;
 grant select (
@@ -2379,3 +2403,20 @@ begin
     execute 'revoke all on function rls_auto_enable() from public, anon, authenticated';
   end if;
 end $$;
+
+-- 6. Supabase Realtime Publication Setup (Idempotent)
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'inventory'
+  ) then
+    alter publication supabase_realtime add table public.inventory;
+  end if;
+end $$;
+
+alter table public.inventory replica identity default;
+

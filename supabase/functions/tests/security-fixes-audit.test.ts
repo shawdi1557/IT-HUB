@@ -225,6 +225,131 @@ Deno.test("SQL-14. Fix I: Execution revoked from PUBLIC on internal triggers and
   )
 })
 
+Deno.test("SQL-15. Phase 3 Invariants: Database cost_price shielding and atomic inventory row locks", () => {
+  // 1. Column-level privilege restriction: cost_price must never be granted to anon/authenticated
+  assertStringIncludes(
+    schemaSqlLower,
+    "revoke all on table products from anon, authenticated, public;",
+    "products table must revoke full table privileges",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "on table products to anon, authenticated;",
+    "products table must grant explicit column list only",
+  )
+  // Ensure 'cost_price' is NOT granted in the column list
+  const productsGrantMatch = schemaSql.match(
+    /grant\s+select\s*\(([^)]+)\)\s*on\s+(?:table\s+)?products\s+to\s+anon/i,
+  )
+  if (productsGrantMatch) {
+    const grantedCols = productsGrantMatch[1].toLowerCase()
+    assertEquals(
+      grantedCols.includes("cost_price"),
+      false,
+      "cost_price must NEVER be granted to anon or authenticated roles",
+    )
+  }
+
+  // 2. products_public view must not expose cost_price
+  const viewMatch = schemaSql.match(
+    /create(?:\s+or\s+replace)?\s+view\s+products_public[^;]+;/i,
+  )
+  if (viewMatch) {
+    const viewBody = viewMatch[0].toLowerCase()
+    assertEquals(
+      viewBody.includes("cost_price"),
+      false,
+      "products_public view must NEVER expose cost_price",
+    )
+    assertStringIncludes(
+      viewBody,
+      "security_invoker = on",
+      "products_public must enforce security_invoker = on",
+    )
+  }
+
+  // 3. create_order() must use atomic row-level locks on inventory to prevent overselling
+  assertStringIncludes(
+    schemaSqlLower,
+    "for share of p for update of i;",
+    "create_order must place FOR UPDATE row lock on inventory to prevent concurrent overselling",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "if v_product.stock < v_item_qty then",
+    "create_order must validate stock before deducting",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "update inventory\n    set stock = stock - v_item_qty",
+    "create_order must deduct stock atomically on backend",
+  )
+})
+
+Deno.test("SQL-16. Phase 3 Step 1: Enriched products_public view & idempotent Realtime publication", () => {
+  // 1. Enriched products_public view joins brand and category names
+  assertStringIncludes(
+    schemaSqlLower,
+    "b.name as brand",
+    "products_public must join brands table to provide brand name",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "c.name as category",
+    "products_public must join categories table to provide category name",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "low_stock_threshold",
+    "products_public must include low_stock_threshold for live badges",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "as image_url",
+    "products_public must extract primary image path from product_images",
+  )
+
+  // 2. cost_price must never leak into products_public
+  const viewMatch = schemaSql.match(
+    /create(?:\s+or\s+replace)?\s+view\s+products_public[^;]+;/i,
+  )
+  if (viewMatch) {
+    const viewBody = viewMatch[0].toLowerCase()
+    assertEquals(
+      viewBody.includes("cost_price"),
+      false,
+      "products_public must never leak cost_price",
+    )
+  }
+
+  // 3. Idempotent Realtime publication configuration
+  assertStringIncludes(
+    schemaSqlLower,
+    "from pg_publication_tables",
+    "Realtime publication configuration must check pg_publication_tables to prevent rerun errors",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "pubname = 'supabase_realtime'",
+    "Realtime publication must check pubname = 'supabase_realtime'",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "tablename = 'inventory'",
+    "Realtime publication must check tablename = 'inventory'",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "alter publication supabase_realtime add table public.inventory;",
+    "Realtime publication must add public.inventory table",
+  )
+  assertStringIncludes(
+    schemaSqlLower,
+    "alter table public.inventory replica identity default;",
+    "inventory must configure replica identity default for primary key updates",
+  )
+})
+
 // ==============================================================================
 // Section 2: Business Logic Emulation Tests (Pure algorithmic rules)
 // ==============================================================================

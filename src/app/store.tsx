@@ -9,6 +9,12 @@ import { track } from "../lib/analytics"
 import { supabase } from "../lib/supabase"
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
 import {
+  fetchCatalogDetailed,
+  fetchActiveOffersDetailed,
+  fetchActiveCouponsDetailed,
+  patchProductInventory,
+} from "../lib/catalog"
+import {
   initialProducts,
   initialOffers,
   categories,
@@ -109,9 +115,15 @@ type State = {
   coupons: Coupon[]
   couponUsages: CouponUsage[]
   sellRequests: SellRequest[]
+  catalogLoading: boolean
+  catalogLive: boolean
+  realtimeConnected: boolean
 }
 const initial: State = {
   products: initialProducts,
+  catalogLoading: true,
+  catalogLive: false,
+  realtimeConnected: false,
   cart: [],
   wishlist: [],
   orders: [],
@@ -170,6 +182,7 @@ type Store = State & {
   addCart: (item: Omit<CartItem, "quantity">, quantity?: number) => void
   toggleWish: (id: string) => void
   log: (action: string) => void
+  refreshCatalog: () => Promise<void>
 }
 // Keep one context instance across hot updates; otherwise an edited store
 // module creates a new context that the already-mounted provider doesn't supply.
@@ -187,6 +200,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return {
         ...initial,
         ...parsed,
+        catalogLoading: true,
+        catalogLive: false,
+        realtimeConnected: false,
         // Older saves used coupon-code offers; replace them with the new offer model.
         offers: parsed.offers?.every((offer) => "type" in offer)
           ? parsed.offers
@@ -293,6 +309,149 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [])
+
+  const refreshCatalog = async () => {
+    setState((prev) => ({ ...prev, catalogLoading: true }))
+    try {
+      const [catalogRes, offersRes, couponsRes] = await Promise.allSettled([
+        fetchCatalogDetailed(),
+        fetchActiveOffersDetailed(),
+        fetchActiveCouponsDetailed(),
+      ])
+
+      setState((prev) => {
+        const updates: Partial<State> = { catalogLoading: false }
+
+        if (catalogRes.status === "fulfilled") {
+          const { products: liveProducts, isLive } = catalogRes.value
+          if (isLive && liveProducts.length > 0) {
+            updates.products = liveProducts
+            updates.catalogLive = true
+
+            // Derive dynamic categories and brands from live catalog
+            const liveCategories = Array.from(
+              new Set(liveProducts.map((p) => p.category).filter(Boolean)),
+            )
+            if (liveCategories.length > 0) {
+              updates.catalogCategories = [
+                "All",
+                ...liveCategories.filter((c) => c !== "All"),
+              ]
+            }
+
+            const liveBrands = Array.from(
+              new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
+            )
+            if (liveBrands.length > 0) {
+              updates.brands = liveBrands
+            }
+          }
+        }
+
+        if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
+          updates.offers = offersRes.value.offers
+        }
+
+        if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
+          updates.coupons = couponsRes.value.coupons
+        }
+
+        return { ...prev, ...updates }
+      })
+    } catch (err) {
+      console.warn("[store] Background catalog hydration error:", err)
+      setState((prev) => ({ ...prev, catalogLoading: false }))
+    }
+  }
+
+  // Phase 3 Step 3: Background Stale-While-Revalidate catalog hydration
+  useEffect(() => {
+    let isMounted = true
+    refreshCatalog().catch(() => {
+      if (isMounted) {
+        setState((prev) => ({ ...prev, catalogLoading: false }))
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Phase 3 Step 4: Realtime Inventory Synchronization & Window Focus Revalidation
+  useEffect(() => {
+    const client = supabase
+    if (!client) return
+
+    const channel = client
+      .channel("public:inventory")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory" },
+        (payload) => {
+          if (
+            payload.eventType === "UPDATE" ||
+            payload.eventType === "INSERT"
+          ) {
+            const row = payload.new as {
+              product_id: string
+              stock: number
+              low_stock_threshold?: number
+            }
+            if (row?.product_id) {
+              setState((prev) => {
+                const productExists = prev.products.some(
+                  (p) => p.id === row.product_id,
+                )
+                if (productExists) {
+                  return {
+                    ...prev,
+                    products: patchProductInventory(prev.products, row),
+                  }
+                } else if (payload.eventType === "INSERT") {
+                  // Brand new product record added; trigger full catalog revalidation
+                  refreshCatalog()
+                  return prev
+                }
+                return prev
+              })
+            }
+          } else if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as { product_id?: string }
+            if (oldRow?.product_id) {
+              setState((prev) => ({
+                ...prev,
+                products: patchProductInventory(prev.products, {
+                  product_id: oldRow.product_id!,
+                  stock: 0,
+                }),
+              }))
+            }
+          }
+        },
+      )
+      .subscribe((status) => {
+        setState((prev) => ({
+          ...prev,
+          realtimeConnected: status === "SUBSCRIBED",
+        }))
+      })
+
+    const handleFocusSync = () => {
+      if (document.visibilityState === "visible") {
+        refreshCatalog()
+      }
+    }
+
+    window.addEventListener("focus", handleFocusSync)
+    document.addEventListener("visibilitychange", handleFocusSync)
+
+    return () => {
+      window.removeEventListener("focus", handleFocusSync)
+      document.removeEventListener("visibilitychange", handleFocusSync)
+      client.removeChannel(channel)
+    }
+  }, [])
+
   const set = (next: Partial<State> | ((value: State) => Partial<State>)) =>
     setState((previous) => ({
       ...previous,
@@ -375,6 +534,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addCart,
         toggleWish,
         log,
+        refreshCatalog,
       }}
     >
       {children}
