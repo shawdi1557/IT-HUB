@@ -85,6 +85,7 @@ import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
 import CouponsAdmin from "./AdminCoupons"
 import SellRequestsAdmin from "./AdminSellRequests"
 import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel"
+import AdminImageDiscovery from "./AdminImageDiscovery"
 import { track } from "../lib/analytics"
 import type { BuildTemplate, BuildPurpose } from "../data/buildTemplates"
 import {
@@ -1604,6 +1605,9 @@ export default function Admin() {
             />
           )}
           {section === "products" && view === "import" && <BulkImport />}
+          {section === "products" && view === "image-discovery" && (
+            <AdminImageDiscovery />
+          )}
           {section === "services" && view === "requests" && (
             <TechnicianManager />
           )}
