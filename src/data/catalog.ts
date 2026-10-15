@@ -1268,6 +1268,7 @@ export const adminGroups: AdminNavGroup[] = [
       { label: "Categories", view: "categories" },
       { label: "Brands", view: "brands" },
       { label: "Bulk Import", view: "import" },
+      { label: "Image Discovery", view: "image-discovery" },
     ],
   },
   {
