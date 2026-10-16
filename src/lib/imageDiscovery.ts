@@ -127,6 +127,28 @@ export function buildOptimizedSearchQuery(
   }
 }
 
+/**
+ * Detects whether a product is second-hand / pre-owned.
+ * Checks explicit boolean flag, SKU prefix ('SH-'), condition ('Good', 'Like New', etc.),
+ * or keywords in title / description.
+ */
+export function isProductSecondHand(item: {
+  isSecondHand?: boolean
+  sku?: string
+  condition?: string
+  productName?: string
+  originalDescription?: string
+}): boolean {
+  if (item.isSecondHand) return true
+  if (item.sku && item.sku.toUpperCase().startsWith("SH-")) return true
+  if (item.condition && item.condition !== "New") return true
+  const text =
+    `${item.productName || ""} ${item.originalDescription || ""}`.toLowerCase()
+  if (/\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/.test(text))
+    return true
+  return false
+}
+
 // ── Security & Validation Helpers ───────────────────────────────────────────
 
 /**
@@ -273,7 +295,7 @@ export class CuratedCatalogProvider implements ImageProvider {
     const candidates: ImageCandidate[] = []
 
     // Second-hand safeguard: Mandatory actual photographs
-    if (query.isSecondHand) {
+    if (isProductSecondHand(query)) {
       return [
         {
           id: `cand-${query.sku}-sh`,
@@ -506,7 +528,7 @@ export class AuthorizedDistributorProvider implements ImageProvider {
   supportedLicence: ImageLicenceType = "Distributor_Feed"
 
   async search(query: DiscoveryQuery): Promise<ImageCandidate[]> {
-    if (query.isSecondHand) return []
+    if (isProductSecondHand(query)) return []
 
     // Matches if exact manufacturer part number or brand model exists
     if (query.modelMpn && query.modelMpn !== "N/A") {
@@ -584,7 +606,7 @@ export class SerpApiImageProvider implements ImageProvider {
     query: DiscoveryQuery,
     customSearchText?: string,
   ): Promise<ImageCandidate[]> {
-    if (query.isSecondHand) {
+    if (isProductSecondHand(query)) {
       return [
         {
           id: `cand-${query.sku}-sh`,
@@ -783,6 +805,34 @@ export class ImageDiscoveryEngine {
     query: DiscoveryQuery,
     customSearchText?: string,
   ): Promise<ImageCandidate[]> {
+    if (isProductSecondHand(query)) {
+      // Second-hand safeguard: Strictly bypass all automated search and provider queries.
+      // Second-hand items mandate actual physical photos uploaded manually by the admin.
+      return [
+        {
+          id: `cand-${query.sku}-sh`,
+          sourceRow: query.sourceRow,
+          sku: query.sku,
+          productName: query.productName,
+          brand: query.brand,
+          category: query.category,
+          modelMpn: query.modelMpn,
+          candidateUrl: "",
+          sourceProvider: "Admin Physical Photo Upload",
+          licenceType: "Manual_Upload",
+          licenceEvidence:
+            "Second-hand listings mandate physical item photographs uploaded by admin.",
+          matchEvidence:
+            "Second-hand device requires verified physical condition photos. Automated search is strictly bypassed.",
+          confidence: 0.0,
+          status: "needs_review",
+          isSecondHand: true,
+          failureReason:
+            "Second-hand listings cannot use automated stock images",
+        },
+      ]
+    }
+
     const candidates: ImageCandidate[] = []
 
     for (const provider of this.providers) {
@@ -1178,7 +1228,7 @@ export const prototypeProducts: DiscoveryQuery[] = [
     originalDescription: "20MM PVC CONDUIT ISI(L) KON-DUCT",
   },
 
-  // 11. Pre-Owned / Second-Hand Verification Test
+  // 11. Pre-Owned / Second-Hand Verification Items (Mandate Physical Photos)
   {
     sourceRow: 9999,
     sku: "SH-MACBOOK-AIR-M1",
@@ -1187,6 +1237,27 @@ export const prototypeProducts: DiscoveryQuery[] = [
     category: "Laptops & MacBooks",
     modelMpn: "MacBook Air M1",
     originalDescription: "Apple MacBook Air M1 256GB Space Grey (Pre-Owned)",
+    isSecondHand: true,
+  },
+  {
+    sourceRow: 10000,
+    sku: "SH-IPHONE-13-128GB",
+    productName: "Apple iPhone 13 128GB Midnight (Pre-Owned)",
+    brand: "Apple",
+    category: "Mobile Phones & Tablets",
+    modelMpn: "MLPF3HN/A",
+    originalDescription: "Apple iPhone 13 128GB Midnight (Pre-Owned - Grade A)",
+    isSecondHand: true,
+  },
+  {
+    sourceRow: 10001,
+    sku: "SH-DELL-LATITUDE-7490",
+    productName: "Dell Latitude 7490 i5-8350U (Refurbished)",
+    brand: "Dell",
+    category: "Laptops & MacBooks",
+    modelMpn: "Latitude 7490",
+    originalDescription:
+      "Dell Latitude 7490 (i5-8th Gen, 8GB, 256GB SSD) Refurbished",
     isSecondHand: true,
   },
 ]
