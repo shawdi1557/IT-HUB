@@ -287,15 +287,14 @@ serve(async (req: Request) => {
 
     // ── Protected Actions Authorization Gate (search & fetch-and-store) ──────
     const authHeader = req.headers.get("Authorization") || ""
-    const apiKeyHeader = req.headers.get("apikey") || ""
     const token = authHeader.replace(/^Bearer\s+/i, "").trim()
 
-    if (!authHeader && !apiKeyHeader) {
+    if (!authHeader || !token) {
       return new Response(
         JSON.stringify({
           ok: false,
           error: "UNAUTHORIZED",
-          message: "Missing Authorization or apikey header",
+          message: "Missing or empty Authorization header",
         }),
         {
           status: 401,
@@ -306,36 +305,57 @@ serve(async (req: Request) => {
 
     let isAuthorizedAdmin = false
 
-    // Verify if caller holds Supabase Service Role or App Anon Key
-    if (
-      (SUPABASE_SERVICE_ROLE_KEY && token === SUPABASE_SERVICE_ROLE_KEY) ||
-      (SUPABASE_ANON_KEY &&
-        (token === SUPABASE_ANON_KEY || apiKeyHeader === SUPABASE_ANON_KEY))
-    ) {
+    // 1. Verify if caller holds Supabase Service Role key (internal backend)
+    if (SUPABASE_SERVICE_ROLE_KEY && token === SUPABASE_SERVICE_ROLE_KEY) {
       isAuthorizedAdmin = true
     }
 
-    // Verify if caller holds an authenticated Admin User session
-    if (!isAuthorizedAdmin && SUPABASE_URL && SUPABASE_ANON_KEY && authHeader) {
-      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: authHeader } },
-      })
+    // 2. Verify if caller holds an authenticated Admin User session
+    if (!isAuthorizedAdmin && SUPABASE_URL && SUPABASE_ANON_KEY) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
       const {
         data: { user },
-      } = await userClient.auth.getUser()
+        error: userError,
+      } = await userClient.auth.getUser(token)
 
-      if (user && SUPABASE_SERVICE_ROLE_KEY) {
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "UNAUTHORIZED",
+            message: "Invalid or expired authorization token",
+          }),
+          {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        )
+      }
+
+      // Query profile role using caller's authenticated session
+      const userAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const { data: profile } = await userAuthClient
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      if (profile?.role === "admin") {
+        isAuthorizedAdmin = true
+      } else if (SUPABASE_SERVICE_ROLE_KEY) {
         const adminClient = createClient(
           SUPABASE_URL,
           SUPABASE_SERVICE_ROLE_KEY,
         )
-        const { data: profile } = await adminClient
+        const { data: adminProfile } = await adminClient
           .from("profiles")
           .select("role")
           .eq("id", user.id)
-          .single()
+          .maybeSingle()
 
-        if (profile?.role === "admin") {
+        if (adminProfile?.role === "admin") {
           isAuthorizedAdmin = true
         }
       }

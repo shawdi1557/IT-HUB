@@ -422,3 +422,176 @@ export function subscribeToAuthChanges(
     subscription.unsubscribe()
   }
 }
+
+// ── Admin Authentication & Session Verification ─────────────────────────────
+
+export interface AdminAuthResult {
+  ok: boolean
+  user?: User | null
+  session?: Session | null
+  profile?: CustomerProfile | null
+  error?: string
+}
+
+export type AdminAccessState = "loading" | "authorized" | "unauthenticated" | "denied"
+
+export interface AdminSessionStatus {
+  state: AdminAccessState
+  user: User | null
+  profile: CustomerProfile | null
+  error?: string
+}
+
+/**
+ * Authenticates an administrator with email and password via Supabase Auth.
+ * Reconciles and verifies that the account's profile role is strictly 'admin'.
+ * If an authenticated user lacks the 'admin' role, their session is immediately
+ * terminated and access is safely denied.
+ */
+export async function signInAdminWithPassword(
+  email: string,
+  password: string,
+): Promise<AdminAuthResult> {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return {
+      ok: false,
+      error: "Supabase authentication client is not configured.",
+    }
+  }
+
+  const cleanEmail = email.trim().toLowerCase()
+  if (!cleanEmail) {
+    return {
+      ok: false,
+      error: "Please enter your administrator email address.",
+    }
+  }
+  if (!password) {
+    return {
+      ok: false,
+      error: "Please enter your administrator password.",
+    }
+  }
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    })
+
+    if (error) {
+      const msg = error.message.toLowerCase()
+      if (
+        msg.includes("invalid login credentials") ||
+        msg.includes("invalid credentials") ||
+        msg.includes("invalid password") ||
+        msg.includes("email not confirmed")
+      ) {
+        return {
+          ok: false,
+          error:
+            "Invalid email or password. Please verify your credentials and try again.",
+        }
+      }
+      if (msg.includes("rate limit") || error.status === 429) {
+        return {
+          ok: false,
+          error:
+            "Too many sign-in attempts. Please wait a moment and try again.",
+        }
+      }
+      return {
+        ok: false,
+        error: "Sign-in failed. Please verify your credentials and try again.",
+      }
+    }
+
+    if (!data.user) {
+      return {
+        ok: false,
+        error: "Authentication failed. No user record returned.",
+      }
+    }
+
+    // Verify application profile role
+    const profile = await fetchOrCreateProfile(data.user)
+
+    if (!profile || profile.role !== "admin") {
+      // Immediate session termination for non-admins attempting admin access
+      await supabase.auth.signOut()
+      return {
+        ok: false,
+        error:
+          "Access Denied: Administrator privileges are required for this account.",
+      }
+    }
+
+    return {
+      ok: true,
+      user: data.user,
+      session: data.session,
+      profile,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      error:
+        err?.message || "An unexpected error occurred during authentication.",
+    }
+  }
+}
+
+/**
+ * Checks the current Supabase Auth session and verifies the 'admin' profile role.
+ * Used on page load and session restoration to prevent brief unauthenticated flashes.
+ */
+export async function checkAdminSession(): Promise<AdminSessionStatus> {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return {
+      state: "unauthenticated",
+      user: null,
+      profile: null,
+      error: "Supabase authentication client is not configured.",
+    }
+  }
+
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession()
+
+    if (error || !session?.user) {
+      return {
+        state: "unauthenticated",
+        user: null,
+        profile: null,
+      }
+    }
+
+    const profile = await fetchOrCreateProfile(session.user)
+
+    if (profile?.role === "admin") {
+      return {
+        state: "authorized",
+        user: session.user,
+        profile,
+      }
+    }
+
+    // Authenticated user exists, but lacks admin privileges
+    return {
+      state: "denied",
+      user: session.user,
+      profile,
+      error: `Access Denied: Account ${session.user.email || session.user.phone || ""} is not an authorized administrator.`,
+    }
+  } catch (err: any) {
+    return {
+      state: "unauthenticated",
+      user: null,
+      profile: null,
+      error: err?.message || "Failed to verify session authorization.",
+    }
+  }
+}
