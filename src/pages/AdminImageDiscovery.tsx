@@ -18,6 +18,8 @@ import {
   Info,
   ExternalLink,
   CheckCircle2,
+  Trash2,
+  Plus,
 } from "lucide-react"
 import { useStore } from "../app/store"
 import {
@@ -25,6 +27,8 @@ import {
   SerpApiImageProvider,
   buildOptimizedSearchQuery,
   prototypeProducts,
+  validateImageMagicBytes,
+  isProductSecondHand,
   type ImageCandidate,
   type DiscoveryQuery,
   type DiscoveryStatus,
@@ -192,71 +196,163 @@ export default function AdminImageDiscovery() {
     setReviewModalOpen(false)
   }
 
-  // Upload actual physical photograph for second-hand items
+  // Upload actual physical photographs for second-hand items (supports multiple real photos)
   const handleSecondHandPhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     item: DiscoveryQuery,
   ) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const fileList = e.target.files
+    if (!fileList || fileList.length === 0) return
 
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      store.notify("Only JPEG, PNG, or WebP images are allowed.")
+    interface ValidUploadFile {
+      file: File
+      buffer: Uint8Array
+    }
+    const files = Array.from(fileList)
+    const validFiles: ValidUploadFile[] = []
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"]
+    const MAX_SIZE = 5 * 1024 * 1024 // 5MB limit
+
+    for (const file of files) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        store.notify(
+          `File "${file.name}" rejected: Only JPEG, PNG, or WebP images are allowed.`,
+        )
+        continue
+      }
+      if (file.size > MAX_SIZE) {
+        store.notify(`File "${file.name}" rejected: Exceeds 5MB size limit.`)
+        continue
+      }
+      try {
+        const slice = file.slice(0, 16)
+        const buffer = new Uint8Array(await slice.arrayBuffer())
+        const magic = validateImageMagicBytes(buffer)
+        if (!magic.valid) {
+          store.notify(
+            `File "${file.name}" rejected: Invalid raster image headers (disguised file or script blocked).`,
+          )
+          continue
+        }
+        validFiles.push({ file, buffer })
+      } catch {
+        store.notify(`File "${file.name}" rejected: Could not read image data.`)
+      }
+    }
+
+    if (validFiles.length === 0) {
+      e.target.value = ""
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      store.notify("Image exceeds 5MB maximum file size limit.")
-      return
+    const existingPhotos = (candidatesMap[item.sku] || []).filter(
+      (c) => c.candidateUrl && c.candidateUrl.length > 0,
+    )
+    const newlyUploaded: ImageCandidate[] = []
+
+    for (let i = 0; i < validFiles.length; i++) {
+      const { file } = validFiles[i]
+      const position = existingPhotos.length + newlyUploaded.length
+      const ext =
+        file.type === "image/png"
+          ? "png"
+          : file.type === "image/webp"
+            ? "webp"
+            : "jpg"
+      const path = `products/${item.sku.toLowerCase()}/physical-${Date.now()}-${position}.${ext}`
+
+      if (supabase) {
+        const { error: uploadError } = await supabase.storage
+          .from("product-images")
+          .upload(path, file, { contentType: file.type, upsert: true })
+
+        if (uploadError) {
+          store.notify(
+            `Upload failed for "${file.name}": ${uploadError.message}`,
+          )
+          continue
+        }
+
+        const { data: pubData } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(path)
+        const storageUrl = pubData?.publicUrl || path
+
+        newlyUploaded.push({
+          id: `manual-${item.sku}-${Date.now()}-${position}`,
+          sourceRow: item.sourceRow,
+          sku: item.sku,
+          productName: item.productName,
+          brand: item.brand,
+          category: item.category,
+          modelMpn: item.modelMpn,
+          candidateUrl: storageUrl,
+          sourceProvider: "Admin Physical Photo Upload",
+          licenceType: "Manual_Upload",
+          licenceEvidence:
+            "Physical item condition photo taken and uploaded by IT HUB staff.",
+          matchEvidence: `Physical photograph #${position + 1} of actual device.`,
+          confidence: 1.0,
+          status: "uploaded",
+          rightsConfirmed: true,
+          storagePath: storageUrl,
+          reviewedBy: store.profile?.email || "admin@ithub.com",
+          reviewedAt: new Date().toISOString(),
+          isSecondHand: true,
+          notes:
+            position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
+        })
+      } else {
+        // Mock fallback for local preview without live Supabase
+        const localUrl = URL.createObjectURL(file)
+        newlyUploaded.push({
+          id: `manual-${item.sku}-${Date.now()}-${position}`,
+          sourceRow: item.sourceRow,
+          sku: item.sku,
+          productName: item.productName,
+          brand: item.brand,
+          category: item.category,
+          modelMpn: item.modelMpn,
+          candidateUrl: localUrl,
+          sourceProvider: "Admin Physical Photo Upload",
+          licenceType: "Manual_Upload",
+          licenceEvidence: "Physical item condition photo (Local Preview).",
+          matchEvidence: `Physical photograph #${position + 1} of actual device.`,
+          confidence: 1.0,
+          status: "uploaded",
+          rightsConfirmed: true,
+          storagePath: path,
+          reviewedBy: store.profile?.email || "admin@ithub.com",
+          reviewedAt: new Date().toISOString(),
+          isSecondHand: true,
+          notes:
+            position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
+        })
+      }
     }
 
-    const path = `products/${item.sku.toLowerCase()}/physical-${Date.now()}.jpg`
-
-    if (supabase) {
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(path, file, { contentType: file.type, upsert: true })
-
-      if (uploadError) {
-        store.notify(`Upload failed: ${uploadError.message}`)
-        return
-      }
-
-      const { data: pubData } = supabase.storage
-        .from("product-images")
-        .getPublicUrl(path)
-      const storageUrl = pubData?.publicUrl || path
-
-      const manualCand: ImageCandidate = {
-        id: `manual-${item.sku}-${Date.now()}`,
-        sourceRow: item.sourceRow,
-        sku: item.sku,
-        productName: item.productName,
-        brand: item.brand,
-        category: item.category,
-        modelMpn: item.modelMpn,
-        candidateUrl: storageUrl,
-        sourceProvider: "Admin Physical Photo Upload",
-        licenceType: "Manual_Upload",
-        licenceEvidence:
-          "Physical item condition photo taken and uploaded by IT HUB staff.",
-        matchEvidence: "Actual physical hardware photograph.",
-        confidence: 1.0,
-        status: "uploaded",
-        rightsConfirmed: true,
-        storagePath: storageUrl,
-        reviewedBy: store.profile?.email || "admin@ithub.com",
-        reviewedAt: new Date().toISOString(),
-        isSecondHand: true,
-      }
-
+    if (newlyUploaded.length > 0) {
       setCandidatesMap((prev) => ({
         ...prev,
-        [item.sku]: [manualCand],
+        [item.sku]: [...existingPhotos, ...newlyUploaded],
       }))
-      store.notify(`Physical photo uploaded and attached to SKU: ${item.sku}`)
-      setReviewModalOpen(false)
+      store.notify(
+        `Uploaded ${newlyUploaded.length} physical photograph${
+          newlyUploaded.length > 1 ? "s" : ""
+        } for ${item.sku}. Total: ${existingPhotos.length + newlyUploaded.length}.`,
+      )
     }
+    e.target.value = ""
+  }
+
+  // Remove individual physical photograph from second-hand listing
+  const handleRemoveSecondHandPhoto = (sku: string, photoId: string) => {
+    setCandidatesMap((prev) => {
+      const list = prev[sku] || []
+      const updated = list.filter((c) => c.id !== photoId)
+      return { ...prev, [sku]: updated }
+    })
+    store.notify("Photo removed from pre-owned listing")
   }
 
   // Filtered rows for catalog table
@@ -628,6 +724,11 @@ export default function AdminImageDiscovery() {
                                 "/images/photo-1616440347437-b1c73416efc2.jpg"
                             }}
                           />
+                          {cands.length > 1 && (
+                            <span className="absolute bottom-0 right-0 rounded-tl bg-purple-900/90 px-1 py-0.2 text-[9px] font-bold text-white">
+                              +{cands.length}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground">
@@ -697,15 +798,29 @@ export default function AdminImageDiscovery() {
                           <Eye size={15} />
                         </button>
 
-                        <button
-                          onClick={() => handleSearchForProduct(item)}
-                          disabled={item.isSecondHand}
-                          className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-secondary disabled:opacity-50"
-                          title="Search Google Images / Providers"
-                        >
-                          <Search size={12} className="inline mr-1" />
-                          Search
-                        </button>
+                        {item.isSecondHand ? (
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(item)
+                              setSelectedCandidate(topCand || null)
+                              setReviewModalOpen(true)
+                            }}
+                            className="rounded border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100"
+                            title="Upload Physical Photographs (Multiple Photos Allowed)"
+                          >
+                            <Upload size={12} className="inline mr-1" />
+                            Upload Photos
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSearchForProduct(item)}
+                            className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-secondary"
+                            title="Search Google Images / Providers"
+                          >
+                            <Search size={12} className="inline mr-1" />
+                            Search
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -752,9 +867,9 @@ export default function AdminImageDiscovery() {
               </button>
             </div>
 
-            {/* Second-Hand Physical Upload Notice */}
+            {/* Second-Hand Physical Upload Notice & Multi-Photo Gallery */}
             {selectedProduct.isSecondHand ? (
-              <div className="mt-5 space-y-4">
+              <div className="mt-5 space-y-5">
                 <div className="rounded-lg border border-purple-300 bg-purple-50 p-4 text-purple-900">
                   <div className="flex items-start gap-2.5">
                     <Lock
@@ -771,26 +886,103 @@ export default function AdminImageDiscovery() {
                         strictly blocked. Staff must capture and upload real
                         photographs of this physical unit.
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-purple-700">
+                        <span>• Multiple real photos supported</span>
+                        <span>• No fixed 6-photo requirement</span>
+                        <span>
+                          • JPEG, PNG, WebP up to 5MB (magic-byte verified)
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-purple-200 bg-purple-50/30 p-8 text-center">
+                {/* Uploaded Photos Gallery (if any) */}
+                {(() => {
+                  const photos = (
+                    candidatesMap[selectedProduct.sku] || []
+                  ).filter((c) => c.candidateUrl && c.candidateUrl.length > 0)
+                  if (photos.length === 0) return null
+
+                  return (
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-foreground">
+                          Attached Physical Photographs ({photos.length}{" "}
+                          uploaded):
+                        </p>
+                        <span className="text-[11px] text-muted-foreground">
+                          Photo #1 is used as primary storefront cover
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {photos.map((photo, idx) => (
+                          <div
+                            key={photo.id || idx}
+                            className="group relative rounded-lg border border-border bg-muted/30 p-2 overflow-hidden shadow-2xs"
+                          >
+                            <div className="relative aspect-4/3 w-full overflow-hidden rounded-md bg-black/5">
+                              <img
+                                src={photo.candidateUrl}
+                                alt={`Photo ${idx + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute top-1 left-1 rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                {idx === 0
+                                  ? "Cover Photo"
+                                  : `Angle #${idx + 1}`}
+                              </span>
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between">
+                              <span className="text-[10px] text-muted-foreground truncate font-mono">
+                                #{idx + 1} · Physical
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveSecondHandPhoto(
+                                    selectedProduct.sku,
+                                    photo.id,
+                                  )
+                                }
+                                className="rounded p-1 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                title="Remove photo"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Multi-Photo Upload Dropzone */}
+                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-purple-300 bg-purple-50/40 p-8 text-center transition hover:border-purple-400">
                   <Upload size={32} className="text-purple-600 mb-2" />
                   <p className="text-sm font-semibold text-foreground">
-                    Upload Physical Device Photograph
+                    Upload Physical Device Photographs
                   </p>
                   <p className="text-xs text-muted-foreground mt-1 mb-4">
-                    JPEG, PNG, or WebP up to 5MB (magic-byte validated)
+                    Select one or multiple real photos (JPEG, PNG, or WebP up to
+                    5MB each)
                   </p>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) =>
-                      handleSecondHandPhotoUpload(e, selectedProduct)
-                    }
-                    className="block text-xs text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-purple-700"
-                  />
+                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-purple-700 transition">
+                    <Plus size={14} />
+                    Choose Photos (Multiple Allowed)
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) =>
+                        handleSecondHandPhotoUpload(e, selectedProduct)
+                      }
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
             ) : (

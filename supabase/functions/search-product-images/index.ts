@@ -397,7 +397,23 @@ serve(async (req: Request) => {
       const query = String(payload.query || "").trim()
       const brand = String(payload.brand || "").trim()
       const modelMpn = String(payload.modelMpn || "").trim()
-      const isSecondHand = Boolean(payload.isSecondHand)
+      const productName = String(payload.productName || "").trim()
+      const originalDescription = String(
+        payload.originalDescription || "",
+      ).trim()
+      const condition = String(payload.condition || "").trim()
+
+      const isSecondHand =
+        Boolean(payload.isSecondHand) ||
+        sku.toUpperCase().startsWith("SH-") ||
+        (condition.length > 0 && condition.toLowerCase() !== "new") ||
+        /\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/i.test(query) ||
+        /\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/i.test(
+          productName,
+        ) ||
+        /\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/i.test(
+          originalDescription,
+        )
 
       if (!sku) {
         return new Response(
@@ -413,7 +429,7 @@ serve(async (req: Request) => {
         )
       }
 
-      // Second-hand safeguard: Never allow automated search
+      // Second-hand safeguard: Never allow automated search for pre-owned items
       if (isSecondHand) {
         return new Response(
           JSON.stringify({
@@ -427,6 +443,40 @@ serve(async (req: Request) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         )
+      }
+
+      // Check database if SKU corresponds to a second-hand product
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        try {
+          const userAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: authHeader } },
+          })
+          const { data: dbProd } = await userAuthClient
+            .from("products")
+            .select("second_hand, condition")
+            .eq("sku", sku)
+            .maybeSingle()
+
+          if (
+            dbProd?.second_hand ||
+            (dbProd?.condition && dbProd.condition !== "New")
+          ) {
+            return new Response(
+              JSON.stringify({
+                ok: false,
+                error: "SECOND_HAND_RESTRICTED",
+                message:
+                  "Second-hand products mandate physical admin photo uploads. Automated search is prohibited.",
+              }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            )
+          }
+        } catch {
+          // Continue if DB check fails
+        }
       }
 
       if (!query) {

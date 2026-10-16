@@ -3239,18 +3239,39 @@ function BulkImport() {
           d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined
         const price = num("Price")!
         const sale = num("Sale Price")
-        const category = store.catalogCategories.find(
-          (name) => name.toLowerCase() === d.Category.toLowerCase(),
-        )!
+        const mrp = num("MRP")
+        const isSecondHand =
+          d["Second Hand"]?.toLowerCase() === "yes" ||
+          d["Second Hand"]?.toLowerCase() === "true" ||
+          (Boolean(d.Condition) && d.Condition?.toLowerCase() !== "new") ||
+          d.SKU.toUpperCase().startsWith("SH-")
+        const condition =
+          d.Condition as Product["condition"] || (isSecondHand ? "Good" : "New")
+
+        const category =
+          store.catalogCategories.find(
+            (name) => name.toLowerCase() === d.Category.toLowerCase(),
+          ) ||
+          d.Category ||
+          "Uncategorized"
+
         let brand = brands.find(
           (name) => name.toLowerCase() === d.Brand.toLowerCase(),
         )
         if (!brand) {
-          brand = d.Brand
+          brand = d.Brand || "Generic / OEM"
           brands.push(brand)
         }
-        const status = (d.Status[0].toUpperCase() +
-          d.Status.slice(1).toLowerCase()) as Product["status"]
+        const status = (
+          d.Status
+            ? d.Status[0].toUpperCase() + d.Status.slice(1).toLowerCase()
+            : "Draft"
+        ) as Product["status"]
+
+        const specs: Record<string, string> = {}
+        if (d["Model Number"]) specs["Model / MPN"] = d["Model Number"]
+        if (d.Warranty) specs.Warranty = d.Warranty
+
         const fields: Partial<Product> = {
           sku: d.SKU,
           name: d["Product Name"],
@@ -3258,27 +3279,33 @@ function BulkImport() {
           category,
           subcategory: d.Subcategory || undefined,
           description: d.Description || undefined,
-          original: price,
+          original: mrp && mrp >= price ? mrp : price,
           price: sale ?? price,
           costPrice: num("Cost Price"),
-          stock: num("Stock")!,
-          lowStockThreshold: num("Low Stock Threshold"),
+          stock: num("Stock") ?? 0,
+          lowStockThreshold: num("Low Stock Threshold") ?? 3,
           warranty: d.Warranty || undefined,
           weight: d.Weight || undefined,
+          secondHand: isSecondHand,
+          condition,
           status,
         }
         const index = products.findIndex(
           (item) => item.sku?.toLowerCase() === d.SKU.toLowerCase(),
         )
         if (index >= 0) {
-          products[index] = { ...products[index], ...fields }
+          products[index] = {
+            ...products[index],
+            ...fields,
+            specs: { ...products[index].specs, ...specs },
+          }
           updated++
         } else {
           products.unshift({
             id: `${slug(d["Product Name"]).replace(/[^a-z0-9-]/g, "")}-${crypto.randomUUID().slice(0, 4)}`,
             image: images.pc,
             rating: 4.8,
-            specs: d.Warranty ? { Warranty: d.Warranty } : {},
+            specs,
             ...fields as Omit<Product, "id" | "image" | "rating" | "specs">,
           })
           created++
@@ -3342,7 +3369,7 @@ function BulkImport() {
       {tab === "template" && (
         <Panel
           title="Import template"
-          description={`Columns: ${importColumns.join(", ")}. Required: SKU, Product Name, Brand, Category, Price, Stock, Status (Active / Draft / Archived). Existing products are matched by SKU and updated.`}
+          description={`Columns: ${importColumns.join(", ")}. Required: Product Name, Price (Selling Price), and at least one identifier (SKU or Model Number). Optional: MRP, Stock, Brand, Category, Warranty, Condition, Second Hand, Status. Inconsistent prices (MRP < Price) and missing details are flagged for review.`}
         >
           <div className="flex flex-wrap gap-3">
             <Button onClick={() => download("csv")}>

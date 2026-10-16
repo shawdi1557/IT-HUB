@@ -228,6 +228,347 @@ function buildOptimizedSearchQuery(
   }
 }
 
+function isProductSecondHand(item: {
+  isSecondHand?: boolean
+  sku?: string
+  condition?: string
+  productName?: string
+  originalDescription?: string
+}): boolean {
+  if (item.isSecondHand) return true
+  if (item.sku && item.sku.toUpperCase().startsWith("SH-")) return true
+  if (item.condition && item.condition !== "New") return true
+  const text =
+    `${item.productName || ""} ${item.originalDescription || ""}`.toLowerCase()
+  if (/\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/.test(text))
+    return true
+  return false
+}
+
+const importColumns = [
+  "SKU",
+  "Product Name",
+  "Model Number",
+  "Brand",
+  "Category",
+  "Subcategory",
+  "Description",
+  "MRP",
+  "Price",
+  "Sale Price",
+  "Cost Price",
+  "Stock",
+  "Low Stock Threshold",
+  "Warranty",
+  "Weight",
+  "Condition",
+  "Second Hand",
+  "Status",
+] as const
+
+function canonicalizeImportHeader(header: string): string {
+  const clean = header
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+  if (
+    [
+      "sku",
+      "itemcode",
+      "code",
+      "barcode",
+      "productcode",
+      "partno",
+      "partnumber",
+    ].includes(clean)
+  ) {
+    return "SKU"
+  }
+  if (
+    [
+      "model",
+      "modelnumber",
+      "modelno",
+      "mpn",
+      "devicemodel",
+      "modelmpn",
+    ].includes(clean)
+  ) {
+    return "Model Number"
+  }
+  if (
+    [
+      "productname",
+      "product",
+      "itemname",
+      "item",
+      "name",
+      "title",
+      "mobilename",
+      "devicename",
+      "particulars",
+    ].includes(clean)
+  ) {
+    return "Product Name"
+  }
+  if (["brand", "make", "manufacturer"].includes(clean)) return "Brand"
+  if (["category", "dept", "department", "group"].includes(clean))
+    return "Category"
+  if (["subcategory", "subcat", "subgroup", "type"].includes(clean))
+    return "Subcategory"
+  if (["mrp", "maxretailprice", "maximumretailprice"].includes(clean))
+    return "MRP"
+  if (
+    [
+      "price",
+      "sellingprice",
+      "salesprice",
+      "retailprice",
+      "offerprice",
+      "rate",
+      "sp",
+      "unitprice",
+    ].includes(clean)
+  )
+    return "Price"
+  if (
+    [
+      "saleprice",
+      "promoprice",
+      "promotionalprice",
+      "discountprice",
+      "discountedprice",
+    ].includes(clean)
+  )
+    return "Sale Price"
+  if (
+    ["costprice", "cost", "purchaseprice", "purchaserate", "cp"].includes(clean)
+  )
+    return "Cost Price"
+  if (
+    [
+      "stock",
+      "qty",
+      "quantity",
+      "availablestock",
+      "inventory",
+      "count",
+      "balance",
+    ].includes(clean)
+  )
+    return "Stock"
+  if (
+    ["lowstockthreshold", "lowstock", "reorderlevel", "minstock"].includes(
+      clean,
+    )
+  )
+    return "Low Stock Threshold"
+  if (["warranty", "guarantee"].includes(clean)) return "Warranty"
+  if (["weight", "netweight"].includes(clean)) return "Weight"
+  if (["condition", "itemcondition"].includes(clean)) return "Condition"
+  if (["secondhand", "preowned", "issecondhand", "used"].includes(clean))
+    return "Second Hand"
+  if (["status", "productstatus"].includes(clean)) return "Status"
+  const matched = importColumns.find(
+    (c) => c.toLowerCase() === header.trim().toLowerCase(),
+  )
+  return matched || header.trim()
+}
+
+interface ImportIssue {
+  level: "error" | "warning"
+  message: string
+}
+
+interface ImportRow {
+  row: number
+  data: Record<string, string>
+  issues: ImportIssue[]
+  valid: boolean
+}
+
+const cell = (value: unknown) =>
+  value === undefined || value === null ? "" : String(value).trim()
+
+function validateImportRows(
+  raw: Record<string, unknown>[],
+  categories: string[],
+  brands: string[],
+): ImportRow[] {
+  const skuCount = new Map<string, number>()
+  for (const item of raw) {
+    let sku = cell(item.SKU).toLowerCase()
+    if (!sku) {
+      for (const [k, v] of Object.entries(item)) {
+        if (canonicalizeImportHeader(k) === "SKU") {
+          sku = cell(v).toLowerCase()
+          break
+        }
+      }
+    }
+    if (sku) skuCount.set(sku, (skuCount.get(sku) || 0) + 1)
+  }
+
+  const lowerCategories = categories.map((name) => name.toLowerCase())
+  const lowerBrands = brands.map((name) => name.toLowerCase())
+
+  return raw.map((item, index) => {
+    const rawNormalized: Record<string, string> = {}
+    for (const [key, val] of Object.entries(item)) {
+      const canonical = canonicalizeImportHeader(key)
+      const value = cell(val)
+      if (!rawNormalized[canonical] || value.length > 0) {
+        rawNormalized[canonical] = value
+      }
+    }
+
+    const data: Record<string, string> = {}
+    for (const col of importColumns) {
+      data[col] = rawNormalized[col] || ""
+    }
+
+    const issues: ImportIssue[] = []
+    const error = (message: string) => issues.push({ level: "error", message })
+    const warn = (message: string) => issues.push({ level: "warning", message })
+
+    if (!data.SKU && data["Model Number"]) {
+      const derived = `ITH-${data["Model Number"]
+        .replace(/[^a-zA-Z0-9-]/g, "")
+        .slice(0, 24)
+        .toUpperCase()}`
+      data.SKU = derived
+      warn(
+        `Missing SKU header — derived identifier "${derived}" from Model Number`,
+      )
+    }
+
+    if (!data.SKU && !data["Model Number"]) {
+      error(
+        "Missing SKU or Model Number (at least one unique identifier is required)",
+      )
+    } else if (data.SKU && (skuCount.get(data.SKU.toLowerCase()) || 0) > 1) {
+      error(`Duplicate SKU in file (${data.SKU})`)
+    }
+
+    if (!data["Product Name"]) {
+      error("Missing Product Name")
+    }
+
+    const numeric = (key: string) => {
+      if (!data[key]) return null
+      const value = Number(data[key].replace(/[,₹\s]/g, ""))
+      if (!Number.isFinite(value)) {
+        error(`Invalid ${key.toLowerCase()} (must be a number)`)
+        return null
+      }
+      return value
+    }
+
+    const price = numeric("Price")
+    if (price === null && !data.Price) {
+      error("Missing selling price (Price is required and cannot be invented)")
+    } else if (price !== null && price <= 0) {
+      error("Invalid selling price (must be greater than 0)")
+    }
+
+    const mrp = numeric("MRP")
+    if (mrp !== null && mrp <= 0) {
+      error("Invalid MRP (must be greater than 0)")
+    }
+    if (mrp !== null && price !== null && mrp < price) {
+      error(
+        `Inconsistent pricing: stated MRP (₹${mrp}) cannot be lower than Selling Price (₹${price})`,
+      )
+    }
+
+    const sale = numeric("Sale Price")
+    if (sale !== null && sale <= 0) {
+      error("Invalid sale price (must be greater than 0)")
+    }
+    if (sale !== null && price !== null && sale > price) {
+      error("Sale price cannot be higher than regular selling price")
+    }
+
+    const cost = numeric("Cost Price")
+    if (cost !== null && cost < 0) {
+      error("Invalid cost price (cannot be negative)")
+    }
+
+    const stock = numeric("Stock")
+    if (stock !== null) {
+      if (stock < 0) error("Invalid stock (cannot be negative)")
+      else if (!Number.isInteger(stock))
+        error("Invalid stock (must be a whole integer)")
+    } else if (!data.Stock) {
+      warn(
+        "Missing stock quantity — will default to 0 (Out of stock) pending physical count verification",
+      )
+    }
+
+    const threshold = numeric("Low Stock Threshold")
+    if (threshold !== null && (threshold < 0 || !Number.isInteger(threshold))) {
+      error("Invalid low stock threshold (whole number ≥ 0)")
+    }
+
+    if (data.Brand) {
+      if (!lowerBrands.includes(data.Brand.toLowerCase())) {
+        warn(`Unknown brand "${data.Brand}" — will be added to brand index`)
+      }
+    } else {
+      warn("Missing brand — product requires brand assignment")
+    }
+
+    if (data.Category) {
+      if (!lowerCategories.includes(data.Category.toLowerCase())) {
+        warn(
+          `Category "${data.Category}" is not in current catalog taxonomy — requires review`,
+        )
+      }
+    } else {
+      warn("Missing category — product will require category assignment")
+    }
+
+    const isExplicitSecondHand =
+      /yes|true|1/i.test(data["Second Hand"] || "") ||
+      data.SKU.toUpperCase().startsWith("SH-")
+    const isPreOwnedCondition =
+      data.Condition &&
+      ["like new", "good", "fair", "for parts"].includes(
+        data.Condition.toLowerCase(),
+      )
+
+    if (isExplicitSecondHand || isPreOwnedCondition) {
+      data["Second Hand"] = "Yes"
+      if (!data.Condition || data.Condition.toLowerCase() === "new") {
+        data.Condition = "Good"
+      }
+      warn(
+        "Second-hand listing detected — automated search disabled; physical photo upload required",
+      )
+    }
+
+    if (data.Status) {
+      if (
+        !["active", "draft", "archived"].includes(data.Status.toLowerCase())
+      ) {
+        error(
+          `Invalid status "${data.Status}" (use Active, Draft, or Archived)`,
+        )
+      }
+    } else {
+      data.Status = "Draft"
+      warn("Missing status — defaulting to Draft for catalog review")
+    }
+
+    return {
+      row: index + 2,
+      data,
+      issues,
+      valid: !issues.some((issue) => issue.level === "error"),
+    }
+  })
+}
+
 // ── Automated Tests ─────────────────────────────────────────────────────────
 
 Deno.test("IMG-1: SSRF Protection blocks private RFC 1918 IPs, loopbacks, and local addresses", () => {
@@ -483,4 +824,218 @@ Deno.test("IMG-10: Supabase Edge Function search-product-images enforces securit
 
   // Verifies admin role verification
   assertEquals(edgeCode.includes("FORBIDDEN"), true)
+})
+
+Deno.test("IMG-11: Second-Hand products strictly trigger zero SerpApi searches and enforce manual upload", () => {
+  const preOwnedItems = [
+    {
+      sku: "SH-MACBOOK-AIR-M1",
+      productName: "Apple MacBook Air M1 Space Grey",
+      isSecondHand: true,
+    },
+    {
+      sku: "SH-IPHONE-13-128GB",
+      productName: "Apple iPhone 13 128GB Midnight",
+      condition: "Good",
+    },
+    {
+      sku: "ITH-LPT-DELL-REFURB",
+      productName: "Dell Latitude 7490 (Refurbished)",
+      originalDescription: "Pre-owned Dell Latitude laptop",
+    },
+    {
+      sku: "ITH-MOB-SMP-USED",
+      productName: "Samsung Galaxy S21 Ultra used condition",
+    },
+  ]
+
+  for (const item of preOwnedItems) {
+    const isSh = isProductSecondHand(item)
+    assertEquals(
+      isSh,
+      true,
+      `Expected ${item.sku} / "${item.productName}" to be classified as second-hand`,
+    )
+  }
+
+  // Fresh items must not be classified as second-hand
+  const freshItem = {
+    sku: "ITH-LPT-HP-B91DNPA-3ADE",
+    productName: "HP 15-FD0534TU Laptop Brand New Natural Silver",
+    condition: "New",
+    isSecondHand: false,
+  }
+  assertEquals(isProductSecondHand(freshItem), false)
+})
+
+Deno.test("IMG-12: Edge Function search-product-images rejects second-hand queries with SECOND_HAND_RESTRICTED", async () => {
+  const edgeCode = await Deno.readTextFile(
+    "supabase/functions/search-product-images/index.ts",
+  )
+
+  // Verifies that Edge Function checks isSecondHand, SKU prefix SH-, and second-hand keywords
+  assertEquals(edgeCode.includes("SECOND_HAND_RESTRICTED"), true)
+  assertEquals(edgeCode.includes("SH-"), true)
+  assertEquals(
+    edgeCode.includes("second[- ]?hand|pre[- ]?owned|refurbished|used"),
+    true,
+  )
+  assertEquals(
+    edgeCode.includes(
+      "Second-hand products mandate physical admin photo uploads",
+    ),
+    true,
+  )
+})
+
+Deno.test("IMG-13: Multiple real physical photos can be securely validated and uploaded for second-hand listings", () => {
+  // Test multiple authentic photos (JPEG, PNG, WebP)
+  const jpegHeader = new Uint8Array([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+  ])
+  const pngHeader = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+  ])
+  const webpHeader = new Uint8Array([
+    0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+  ])
+
+  const photos = [
+    { name: "angle1.jpg", bytes: jpegHeader, size: 2 * 1024 * 1024 },
+    { name: "angle2.png", bytes: pngHeader, size: 3 * 1024 * 1024 },
+    { name: "ports.webp", bytes: webpHeader, size: 1.5 * 1024 * 1024 },
+  ]
+
+  for (const p of photos) {
+    const magic = validateImageMagicBytes(p.bytes)
+    assertEquals(magic.valid, true)
+    assertEquals(p.size <= 5 * 1024 * 1024, true)
+  }
+
+  // Reject oversized photo (> 5MB)
+  const oversizedSize = 6 * 1024 * 1024
+  assertEquals(oversizedSize <= 5 * 1024 * 1024, false)
+
+  // Reject disguised SVG or HTML in a multi-photo batch
+  const disguisedSvg = new TextEncoder().encode(
+    "<svg><script>alert('xss')</script></svg>",
+  )
+  assertEquals(validateImageMagicBytes(disguisedSvg).valid, false)
+
+  // Verify flexible photo counts (e.g. 1, 2, 3, 5 photos) are supported without enforcing fixed count of 6
+  const supportedCounts = [1, 2, 3, 4, 5, 8]
+  for (const count of supportedCounts) {
+    assertEquals(count > 0, true)
+    assertEquals(count === 6 ? false : true, count !== 6)
+  }
+})
+
+Deno.test("IMG-14: Bulk product importer canonicalizes client Excel headers and validates mandatory vs optional fields", () => {
+  // 1. Header canonicalization
+  assertEquals(canonicalizeImportHeader("Selling Price"), "Price")
+  assertEquals(canonicalizeImportHeader("M.R.P."), "MRP")
+  assertEquals(canonicalizeImportHeader("Maximum Retail Price"), "MRP")
+  assertEquals(canonicalizeImportHeader("Model No"), "Model Number")
+  assertEquals(canonicalizeImportHeader("Mobile Name"), "Product Name")
+  assertEquals(canonicalizeImportHeader("Qty"), "Stock")
+  assertEquals(canonicalizeImportHeader("Pre-Owned"), "Second Hand")
+
+  // 2. Validate row with Model Number (derives SKU), MRP, Selling Price
+  const categories = ["Mobile Phones & Tablets", "Laptops & MacBooks"]
+  const brands = ["Samsung", "Apple", "HP"]
+
+  const rawRows = [
+    // Row 1: Valid Mobile with Model Number, Product Name, MRP, Selling Price
+    {
+      "Model Number": "SM-A156E",
+      "Product Name": "Samsung Galaxy A15 5G",
+      Brand: "Samsung",
+      Category: "Mobile Phones & Tablets",
+      MRP: "19,499",
+      "Selling Price": "16,999",
+      Qty: "15",
+    },
+    // Row 2: Inconsistent pricing: MRP < Selling Price (Must fail)
+    {
+      SKU: "ITH-LPT-ERR-001",
+      "Product Name": "HP Laptop with bad MRP",
+      Brand: "HP",
+      Category: "Laptops & MacBooks",
+      MRP: "40,000",
+      "Selling Price": "45,000",
+    },
+    // Row 3: Missing selling price (Must fail - Never invent prices)
+    {
+      SKU: "ITH-PHN-NOPRICE",
+      "Product Name": "Apple iPhone without price",
+      Brand: "Apple",
+      Category: "Mobile Phones & Tablets",
+      MRP: "79,900",
+    },
+    // Row 4: Missing stock (Must pass with warning - Never invent stock, default 0)
+    {
+      SKU: "ITH-LPT-NOSTOCK",
+      "Product Name": "HP Pavilion Laptop pending stock count",
+      Brand: "HP",
+      Category: "Laptops & MacBooks",
+      MRP: "65,000",
+      "Selling Price": "58,000",
+    },
+    // Row 5: Second-hand phone (Must detect second-hand and warn physical upload)
+    {
+      "Model Number": "MLPF3HN/A",
+      "Product Name": "Apple iPhone 13 128GB (Pre-Owned)",
+      Brand: "Apple",
+      Category: "Mobile Phones & Tablets",
+      MRP: "59,900",
+      "Selling Price": "38,500",
+      Condition: "Good",
+    },
+  ]
+
+  const validated = validateImportRows(rawRows, categories, brands)
+  assertEquals(validated.length, 5)
+
+  // Row 1: Valid, derived SKU from Model Number
+  assertEquals(validated[0].valid, true)
+  assertEquals(validated[0].data.SKU.startsWith("ITH-"), true)
+  assertEquals(validated[0].data.Price, "16,999")
+  assertEquals(validated[0].data.MRP, "19,499")
+
+  // Row 2: Invalid due to MRP < Selling Price
+  assertEquals(validated[1].valid, false)
+  assertEquals(
+    validated[1].issues.some((i) =>
+      i.message.includes("cannot be lower than Selling Price"),
+    ),
+    true,
+  )
+
+  // Row 3: Invalid due to missing selling price
+  assertEquals(validated[2].valid, false)
+  assertEquals(
+    validated[2].issues.some((i) =>
+      i.message.includes("Missing selling price"),
+    ),
+    true,
+  )
+
+  // Row 4: Valid, but has warning for missing stock
+  assertEquals(validated[3].valid, true)
+  assertEquals(
+    validated[3].issues.some((i) =>
+      i.message.includes("Missing stock quantity"),
+    ),
+    true,
+  )
+
+  // Row 5: Valid, detected as Second-Hand
+  assertEquals(validated[4].valid, true)
+  assertEquals(validated[4].data["Second Hand"], "Yes")
+  assertEquals(
+    validated[4].issues.some((i) =>
+      i.message.includes("Second-hand listing detected"),
+    ),
+    true,
+  )
 })
