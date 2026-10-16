@@ -33,7 +33,17 @@ import {
   FileSpreadsheet,
   MapPin,
   XCircle,
+  LogOut,
 } from "lucide-react"
+import type { User } from "@supabase/supabase-js"
+import {
+  checkAdminSession,
+  subscribeToAuthChanges,
+  signOutUser,
+  type CustomerProfile,
+  type AdminAccessState,
+} from "../lib/auth"
+import { AdminLogin, AdminAccessDenied, AdminAuthLoading } from "./AdminLogin"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import * as XLSX from "xlsx"
 import {
@@ -376,6 +386,52 @@ const navIcons: Record<string, typeof LayoutDashboard> = {
 }
 
 export default function Admin() {
+  const [authStatus, setAuthStatus] = useState<AdminAccessState>("loading")
+  const [adminUser, setAdminUser] = useState<User | null>(null)
+  const [adminProfile, setAdminProfile] = useState<CustomerProfile | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+
+    // Initial session verification
+    checkAdminSession().then((res) => {
+      if (!mounted) return
+      setAuthStatus(res.state)
+      setAdminUser(res.user)
+      setAdminProfile(res.profile)
+    })
+
+    // Listen for auth state transitions (sign in, sign out, token refresh)
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      if (!user) {
+        if (mounted) {
+          setAuthStatus("unauthenticated")
+          setAdminUser(null)
+          setAdminProfile(null)
+        }
+      } else {
+        checkAdminSession().then((res) => {
+          if (!mounted) return
+          setAuthStatus(res.state)
+          setAdminUser(res.user)
+          setAdminProfile(res.profile)
+        })
+      }
+    })
+
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [])
+
+  const handleSignOut = async () => {
+    await signOutUser()
+    setAuthStatus("unauthenticated")
+    setAdminUser(null)
+    setAdminProfile(null)
+  }
+
   const { section = "dashboard" } = useParams()
   const store = useStore()
   const [params] = useSearchParams()
@@ -685,6 +741,39 @@ export default function Admin() {
     URL.revokeObjectURL(url)
     store.notify("Report exported")
   }
+
+  // Route Security Guard: Enforce authentication and administrator authorization
+  if (authStatus === "loading") {
+    return <AdminAuthLoading />
+  }
+
+  if (authStatus === "unauthenticated") {
+    return (
+      <AdminLogin
+        onLoginSuccess={(user, profile) => {
+          setAdminUser(user)
+          setAdminProfile(profile)
+          setAuthStatus("authorized")
+        }}
+      />
+    )
+  }
+
+  if (authStatus === "denied") {
+    return (
+      <AdminAccessDenied
+        customerEmail={
+          adminUser?.email || adminProfile?.email || "Customer Account"
+        }
+        onSignOut={() => {
+          setAuthStatus("unauthenticated")
+          setAdminUser(null)
+          setAdminProfile(null)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-muted">
       <aside
@@ -777,12 +866,29 @@ export default function Admin() {
               </div>
             )
           })}
-          <Link
-            to="/"
-            className="mt-7 flex items-center gap-2 border-t border-border px-3 pt-5 text-xs text-primary"
-          >
-            Back to storefront <ArrowUpRight size={14} />
-          </Link>
+          <div className="mt-7 border-t border-border pt-4">
+            <div className="mb-3 px-3">
+              <div className="truncate text-xs font-semibold text-foreground">
+                {adminUser?.email || "Administrator"}
+              </div>
+              <div className="text-[10px] tracking-wider text-muted-foreground uppercase">
+                Role: {adminProfile?.role || "admin"}
+              </div>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              <LogOut size={14} />
+              Sign Out
+            </button>
+            <Link
+              to="/"
+              className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs text-primary"
+            >
+              Back to storefront <ArrowUpRight size={14} />
+            </Link>
+          </div>
         </div>
       </aside>
       {menu && (
@@ -807,13 +913,27 @@ export default function Admin() {
               <strong className="text-foreground">{heading}</strong>
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link
               to="/"
               className="hidden items-center gap-1.5 text-xs text-primary sm:flex"
             >
               View store <ArrowUpRight size={13} />
             </Link>
+            <div className="hidden h-4 w-px bg-border sm:block" />
+            <div className="flex items-center gap-2">
+              <span className="hidden text-xs text-muted-foreground md:inline">
+                {adminUser?.email || "Administrator"}
+              </span>
+              <button
+                onClick={handleSignOut}
+                title="Sign out of admin"
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted hover:text-red-600"
+              >
+                <LogOut size={13} />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
           </div>
         </header>
         <div className="mx-auto max-w-[1500px] p-5 md:p-8">
