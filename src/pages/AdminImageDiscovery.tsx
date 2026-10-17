@@ -26,7 +26,6 @@ import {
   ImageDiscoveryEngine,
   SerpApiImageProvider,
   buildOptimizedSearchQuery,
-  prototypeProducts,
   validateImageMagicBytes,
   isProductSecondHand,
   type ImageCandidate,
@@ -40,8 +39,20 @@ export default function AdminImageDiscovery() {
   const engine = useMemo(() => new ImageDiscoveryEngine(), [])
   const serpProvider = useMemo(() => new SerpApiImageProvider(), [])
 
-  // Initialize state from the 25-product prototype
-  const [items] = useState<DiscoveryQuery[]>(prototypeProducts)
+  // Derive discovery queries dynamically from genuine store products
+  const items = useMemo<DiscoveryQuery[]>(() => {
+    return store.products.map((p, idx) => ({
+      sourceRow: idx + 1,
+      sku: p.sku || p.id,
+      productName: p.name,
+      brand: p.brand || "",
+      category: p.category || "",
+      modelMpn:
+        p.specs?.["Model / MPN"] || p.specs?.Model || p.specs?.MPN || "",
+      originalDescription: p.description || p.name,
+      isSecondHand: Boolean(p.secondHand),
+    }))
+  }, [store.products])
   const [candidatesMap, setCandidatesMap] =
     useState<Record<string, ImageCandidate[]>>({})
   const [selectedProduct, setSelectedProduct] = useState<DiscoveryQuery | null>(

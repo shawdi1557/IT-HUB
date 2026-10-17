@@ -15,7 +15,6 @@ import {
   patchProductInventory,
 } from "../lib/catalog"
 import {
-  initialProducts,
   initialOffers,
   categories,
   componentOptions,
@@ -117,12 +116,14 @@ type State = {
   sellRequests: SellRequest[]
   catalogLoading: boolean
   catalogLive: boolean
+  catalogError: string | null
   realtimeConnected: boolean
 }
 const initial: State = {
-  products: initialProducts,
+  products: [],
   catalogLoading: true,
   catalogLive: false,
+  catalogError: null,
   realtimeConnected: false,
   cart: [],
   wishlist: [],
@@ -200,8 +201,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return {
         ...initial,
         ...parsed,
+        products: [], // Never restore stale products from localStorage; always hydrate fresh from Supabase
         catalogLoading: true,
         catalogLive: false,
+        catalogError: null,
         realtimeConnected: false,
         // Older saves used coupon-code offers; replace them with the new offer model.
         offers: parsed.offers?.every((offer) => "type" in offer)
@@ -323,28 +326,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const updates: Partial<State> = { catalogLoading: false }
 
         if (catalogRes.status === "fulfilled") {
-          const { products: liveProducts, isLive } = catalogRes.value
-          if (isLive && liveProducts.length > 0) {
-            // Live products from Supabase take precedence (matched by SKU or ID)
-            const dbSkus = new Set(
-              liveProducts.map((p) => p.sku?.toUpperCase()).filter(Boolean),
-            )
-            const dbIds = new Set(liveProducts.map((p) => p.id))
-
-            const nonOverlappingInitial = initialProducts.filter(
-              (p) =>
-                !dbIds.has(p.id) &&
-                (!p.sku || !dbSkus.has(p.sku.toUpperCase())),
-            )
-
-            // Combined catalog: Live database products first, followed by non-overlapping catalog items
-            const mergedProducts = [...liveProducts, ...nonOverlappingInitial]
-            updates.products = mergedProducts
+          const { products: liveProducts, isLive, error } = catalogRes.value
+          if (error) {
+            updates.catalogError = error
+            updates.catalogLive = false
+          } else if (isLive) {
+            // Live products from Supabase are the single source of truth
+            updates.products = liveProducts
             updates.catalogLive = true
+            updates.catalogError = null
 
-            // Derive dynamic categories and brands from combined catalog
+            // Derive dynamic categories and brands from live database products
             const liveCategories = Array.from(
-              new Set(mergedProducts.map((p) => p.category).filter(Boolean)),
+              new Set(liveProducts.map((p) => p.category).filter(Boolean)),
             )
             if (liveCategories.length > 0) {
               updates.catalogCategories = [
@@ -354,12 +348,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
 
             const liveBrands = Array.from(
-              new Set(mergedProducts.map((p) => p.brand).filter(Boolean)),
+              new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
             )
             if (liveBrands.length > 0) {
               updates.brands = liveBrands
             }
           }
+        } else {
+          updates.catalogError =
+            catalogRes.reason?.message || "Failed to load live catalog."
+          updates.catalogLive = false
         }
 
         if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
@@ -374,7 +372,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
     } catch (err) {
       console.warn("[store] Background catalog hydration error:", err)
-      setState((prev) => ({ ...prev, catalogLoading: false }))
+      setState((prev) => ({
+        ...prev,
+        catalogLoading: false,
+        catalogError: err instanceof Error ? err.message : String(err),
+      }))
     }
   }
 
