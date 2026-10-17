@@ -16,6 +16,7 @@ import {
   Plus,
   Truck,
   ShieldCheck,
+  ChevronLeft,
   ChevronRight,
   Sparkles,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
+import { fetchProductGallery, DEFAULT_IMAGE_FALLBACK } from "../lib/catalog"
 import { bestOffer, categories, money, offerHeadline } from "../data/catalog"
 import ProductCard, { ProductImage } from "../components/ProductCard"
 import SellYourItem from "../components/SellYourItem"
@@ -157,6 +159,22 @@ export function Products() {
       sort,
     ],
   )
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 12
+
+  // Reset to page 1 whenever any filter, search query, or category changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [category, brand, max, available, rating, query, section, sort, specs])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const paginatedProducts = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, safePage])
+
   const specificKeys =
     category === "Laptops"
       ? ["Processor", "RAM", "Storage", "GPU", "Screen"]
@@ -454,17 +472,91 @@ export function Products() {
                 })}
             </aside>
             <div>
-              <p className="mb-5 text-xs text-muted-foreground">
-                Showing{" "}
-                <strong className="text-foreground">{filtered.length}</strong>{" "}
-                products · Static prototype catalog
-              </p>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <p>
+                  Showing{" "}
+                  <strong className="text-foreground">
+                    {filtered.length === 0
+                      ? 0
+                      : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(
+                          safePage * PAGE_SIZE,
+                          filtered.length,
+                        )}`}
+                  </strong>{" "}
+                  of{" "}
+                  <strong className="text-foreground">{filtered.length}</strong>{" "}
+                  products
+                  {store.catalogLive ? (
+                    <span className="ml-2 inline-flex items-center font-medium text-emerald-600">
+                      · Live Catalog
+                    </span>
+                  ) : null}
+                </p>
+                {totalPages > 1 && (
+                  <p className="font-medium">
+                    Page {safePage} of {totalPages}
+                  </p>
+                )}
+              </div>
               {filtered.length ? (
-                <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
-                  {filtered.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
+                    {paginatedProducts.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+
+                  {/* Accessible Pagination Navigation */}
+                  {totalPages > 1 && (
+                    <div className="mt-10 flex items-center justify-center gap-2 border-t border-border pt-6">
+                      <Button
+                        variant="secondary"
+                        disabled={safePage === 1}
+                        onClick={() => {
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                          window.scrollTo({ top: 0, behavior: "smooth" })
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs"
+                      >
+                        <ChevronLeft size={14} /> Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1,
+                        ).map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            onClick={() => {
+                              setCurrentPage(pageNum)
+                              window.scrollTo({ top: 0, behavior: "smooth" })
+                            }}
+                            className={`h-8 w-8 rounded-lg text-xs font-semibold transition ${
+                              safePage === pageNum
+                                ? "bg-primary text-white shadow-sm"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                      </div>
+
+                      <Button
+                        variant="secondary"
+                        disabled={safePage === totalPages}
+                        onClick={() => {
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                          window.scrollTo({ top: 0, behavior: "smooth" })
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs"
+                      >
+                        Next <ChevronRight size={14} />
+                      </Button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <Empty
                   title="No products found"
@@ -482,7 +574,34 @@ export function ProductDetail() {
   const { id } = useParams()
   const store = useStore()
   const navigate = useNavigate()
-  const product = store.products.find((item) => item.id === id)
+  const product = store.products.find(
+    (item) => item.id === id || item.sku === id,
+  )
+
+  const [galleryImages, setGalleryImages] = useState<string[]>([])
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
+
+  useEffect(() => {
+    let isMounted = true
+    if (product?.id) {
+      fetchProductGallery(product.id).then((imgs) => {
+        if (isMounted && imgs && imgs.length > 0) {
+          setGalleryImages(imgs)
+        }
+      })
+    }
+    return () => {
+      isMounted = false
+    }
+  }, [product?.id])
+
+  const allImages = useMemo(() => {
+    if (galleryImages.length > 0) return galleryImages
+    return [product?.image || DEFAULT_IMAGE_FALLBACK]
+  }, [galleryImages, product?.image])
+
+  const activeImage = allImages[activeImageIndex] || allImages[0]
+
   useEffect(() => {
     if (product)
       track("Product Viewed", {
@@ -494,13 +613,12 @@ export function ProductDetail() {
   }, [product?.id])
   const [quantity, setQuantity] = useState(1)
   const [tab, setTab] = useState("Overview")
-  const [gallery, setGallery] = useState(0)
   if (!product)
     return (
       <Page>
         <Empty
           title="Product not found"
-          description="This product may have been removed from the demo catalog."
+          description="This product may have been removed from the catalog."
           to="/products"
         />
       </Page>
@@ -512,7 +630,7 @@ export function ProductDetail() {
         productId: product.id,
         name: product.name,
         price: product.price,
-        image: product.image,
+        image: activeImage,
       },
       quantity,
     )
@@ -529,13 +647,12 @@ export function ProductDetail() {
       </div>
       <div className="grid gap-10 md:grid-cols-2">
         <div>
-          <div className="relative flex h-80 items-center justify-center rounded-xl bg-muted p-8 lg:h-[420px]">
+          <div className="relative flex h-80 items-center justify-center rounded-2xl border border-border bg-muted p-8 shadow-inner lg:h-[420px]">
             <ProductImage
-              key={product.id}
+              key={`${product.id}-${activeImageIndex}`}
               product={product}
-              className={`h-full w-full transition ${
-                gallery === 1 ? "scale-110" : gallery === 2 ? "scale-90" : ""
-              }`}
+              src={activeImage}
+              className="h-full w-full object-contain transition duration-300"
             />
             {(product.tag || product.secondHand) && (
               <span className="absolute left-5 top-5 flex flex-col gap-1.5">
@@ -554,23 +671,43 @@ export function ProductDetail() {
                 )}
               </span>
             )}
+            {allImages.length > 1 && (
+              <span className="absolute bottom-4 right-4 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                Photo {activeImageIndex + 1} of {allImages.length}
+              </span>
+            )}
           </div>
-          <div className="mt-4 flex gap-3">
-            {["Product", "Closer look", "Full view"].map((label, index) => (
-              <button
-                aria-label={label}
-                key={label}
-                onClick={() => setGallery(index)}
-                className={`h-20 w-24 rounded-md border bg-muted p-2 ${
-                  gallery === index ? "border-primary" : "border-border"
-                }`}
-              >
-                <ProductImage product={product} className="h-full w-full" />
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-[10px] text-muted-foreground">
-            Representative product imagery · views use the same demo image.
+          {allImages.length > 1 && (
+            <div className="mt-4 flex flex-wrap gap-3">
+              {allImages.map((imgUrl, index) => (
+                <button
+                  aria-label={`View photo ${index + 1}`}
+                  key={imgUrl}
+                  onClick={() => setActiveImageIndex(index)}
+                  className={`relative h-20 w-24 overflow-hidden rounded-xl border bg-muted p-1 transition duration-200 ${
+                    activeImageIndex === index
+                      ? "border-primary ring-2 ring-primary/20 shadow-sm"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <ProductImage
+                    product={product}
+                    src={imgUrl}
+                    className="h-full w-full object-contain"
+                  />
+                  {product.secondHand && (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[9px] text-white">
+                      #{index + 1}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            {product.secondHand
+              ? "Verified physical condition photos taken and uploaded by IT HUB technicians."
+              : "Official manufacturer / verified catalog imagery."}
           </p>
         </div>
         <div>
