@@ -89,7 +89,44 @@ export interface CatalogFilterOptions {
   offset?: number
 }
 
-const DEFAULT_IMAGE_FALLBACK = "/images/photo-1616440347437-b1c73416efc2.jpg"
+export const DEFAULT_IMAGE_FALLBACK =
+  "/images/photo-1616440347437-b1c73416efc2.jpg"
+
+/**
+ * Normalizes and resolves a product image path into a fully qualified, publicly accessible URL.
+ * Handles local assets (/images/...), full HTTP/HTTPS URLs, and Supabase Storage bucket relative paths.
+ */
+export function resolveProductImageUrl(
+  pathOrUrl: string | null | undefined,
+): string {
+  if (!pathOrUrl || typeof pathOrUrl !== "string" || pathOrUrl.trim() === "") {
+    return DEFAULT_IMAGE_FALLBACK
+  }
+
+  const trimmed = pathOrUrl.trim()
+
+  // Full absolute URLs
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed
+  }
+
+  // Local assets bundled with the frontend
+  if (trimmed.startsWith("/images/")) {
+    return trimmed
+  }
+
+  // Supabase Storage relative path (e.g. products/sku/primary.jpg)
+  const cleanPath = trimmed.replace(/^product-images\//, "").replace(/^\/+/, "")
+
+  if (supabase) {
+    const { data } = supabase.storage
+      .from("product-images")
+      .getPublicUrl(cleanPath)
+    if (data?.publicUrl) return data.publicUrl
+  }
+
+  return `https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/${cleanPath}`
+}
 
 /**
  * Transforms a raw database view row into the canonical storefront Product model.
@@ -127,7 +164,7 @@ export function mapDatabaseProduct(row: DatabaseProductRow): Product {
     description: row.description || undefined,
     price,
     original,
-    image: row.image_url || DEFAULT_IMAGE_FALLBACK,
+    image: resolveProductImageUrl(row.image_url),
     stock: Number(row.stock || 0),
     lowStockThreshold: Number(row.low_stock_threshold || 3),
     rating: 4.8,
@@ -289,6 +326,7 @@ export function patchProductInventory(
 
 export interface CatalogFetchResult {
   products: Product[]
+  totalCount?: number
   isLive: boolean
   error?: string
 }
@@ -312,14 +350,16 @@ export async function fetchCatalogDetailed(
   options: CatalogFilterOptions = {},
 ): Promise<CatalogFetchResult> {
   if (!supabase) {
+    const fallback = filterFallbackProducts(initialProducts, options)
     return {
-      products: filterFallbackProducts(initialProducts, options),
+      products: fallback,
+      totalCount: fallback.length,
       isLive: false,
     }
   }
 
   try {
-    let query = supabase.from("products_public").select("*")
+    let query = supabase.from("products_public").select("*", { count: "exact" })
 
     if (
       options.category &&
@@ -374,29 +414,34 @@ export async function fetchCatalogDetailed(
       query = query.range(offset, offset + options.limit - 1)
     }
 
-    const { data, error } = await query
+    const { data, count, error } = await query
 
     if (error) {
       console.warn(
         "[catalog] products_public query failed; using fallback catalog:",
         error.message,
       )
+      const fallback = filterFallbackProducts(initialProducts, options)
       return {
-        products: filterFallbackProducts(initialProducts, options),
+        products: fallback,
+        totalCount: fallback.length,
         isLive: false,
         error: error.message,
       }
     }
 
     if (!data || data.length === 0) {
+      const fallback = filterFallbackProducts(initialProducts, options)
       return {
-        products: filterFallbackProducts(initialProducts, options),
+        products: fallback,
+        totalCount: count ?? fallback.length,
         isLive: true,
       }
     }
 
     return {
       products: (data as DatabaseProductRow[]).map(mapDatabaseProduct),
+      totalCount: count ?? data.length,
       isLive: true,
     }
   } catch (err: any) {
@@ -563,7 +608,9 @@ export async function fetchProductGallery(
     }
 
     return data
-      .map((item: { storage_path: string }) => item.storage_path)
+      .map((item: { storage_path: string }) =>
+        resolveProductImageUrl(item.storage_path),
+      )
       .filter(Boolean)
   } catch {
     return []

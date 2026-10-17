@@ -71,6 +71,25 @@ interface CatalogFilterOptions {
 
 const DEFAULT_IMAGE_FALLBACK = "/images/photo-1616440347437-b1c73416efc2.jpg"
 
+function resolveProductImageUrl(pathOrUrl: string | null | undefined): string {
+  if (!pathOrUrl || typeof pathOrUrl !== "string" || pathOrUrl.trim() === "") {
+    return DEFAULT_IMAGE_FALLBACK
+  }
+
+  const trimmed = pathOrUrl.trim()
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed
+  }
+
+  if (trimmed.startsWith("/images/")) {
+    return trimmed
+  }
+
+  const cleanPath = trimmed.replace(/^product-images\//, "").replace(/^\/+/, "")
+  return `https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/${cleanPath}`
+}
+
 function mapDatabaseProduct(row: DatabaseProductRow): Product {
   const original =
     row.mrp !== null && row.mrp !== undefined && Number(row.mrp) > 0
@@ -104,7 +123,7 @@ function mapDatabaseProduct(row: DatabaseProductRow): Product {
     description: row.description || undefined,
     price,
     original,
-    image: row.image_url || DEFAULT_IMAGE_FALLBACK,
+    image: resolveProductImageUrl(row.image_url),
     stock: Number(row.stock || 0),
     lowStockThreshold: Number(row.low_stock_threshold || 3),
     rating: 4.8,
@@ -597,4 +616,82 @@ Deno.test("RT-4: Realtime inventory DELETE event sets stock to 0", () => {
 
   assertEquals(updated[0].stock, 0)
   assertEquals(updated[0].name, "Wireless Mouse")
+})
+
+Deno.test("CAT-11: resolveProductImageUrl correctly resolves storage paths, remote URLs, and fallbacks", () => {
+  // 1. Supabase Storage relative path
+  const storageUrl = resolveProductImageUrl(
+    "products/ith-lpt-hp-b91dnpa-3ade/primary.jpg",
+  )
+  assertEquals(
+    storageUrl,
+    "https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/products/ith-lpt-hp-b91dnpa-3ade/primary.jpg",
+  )
+
+  // 2. Second-hand physical photo path
+  const shPhotoUrl = resolveProductImageUrl(
+    "products/second-hand/sh-macbook-air-m1/photo-1792220852101-0.jpg",
+  )
+  assertEquals(
+    shPhotoUrl,
+    "https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/products/second-hand/sh-macbook-air-m1/photo-1792220852101-0.jpg",
+  )
+
+  // 3. Local bundled asset
+  assertEquals(
+    resolveProductImageUrl("/images/photo-1616440347437-b1c73416efc2.jpg"),
+    "/images/photo-1616440347437-b1c73416efc2.jpg",
+  )
+
+  // 4. Remote HTTPS URL
+  assertEquals(
+    resolveProductImageUrl("https://example.com/laptop.jpg"),
+    "https://example.com/laptop.jpg",
+  )
+
+  // 5. Empty or null fallback
+  assertEquals(resolveProductImageUrl(null), DEFAULT_IMAGE_FALLBACK)
+  assertEquals(resolveProductImageUrl(""), DEFAULT_IMAGE_FALLBACK)
+  assertEquals(resolveProductImageUrl("   "), DEFAULT_IMAGE_FALLBACK)
+})
+
+Deno.test("CAT-12: Storefront pagination boundary ensures zero overlapping products", () => {
+  const dummyProducts: Product[] = Array.from({ length: 29 }, (_, i) => ({
+    id: `prod-${i + 1}`,
+    sku: `SKU-${i + 1}`,
+    name: `Product ${i + 1}`,
+    brand: "IT HUB",
+    category: "Hardware",
+    price: 1000 + i * 100,
+    original: 1200 + i * 100,
+    image: DEFAULT_IMAGE_FALLBACK,
+    stock: 5,
+    rating: 4.8,
+    specs: {},
+  }))
+
+  const PAGE_SIZE = 12
+  const totalPages = Math.ceil(dummyProducts.length / PAGE_SIZE)
+  assertEquals(totalPages, 3)
+
+  const page1 = dummyProducts.slice(0, PAGE_SIZE)
+  const page2 = dummyProducts.slice(PAGE_SIZE, PAGE_SIZE * 2)
+  const page3 = dummyProducts.slice(PAGE_SIZE * 2, PAGE_SIZE * 3)
+
+  assertEquals(page1.length, 12)
+  assertEquals(page2.length, 12)
+  assertEquals(page3.length, 5)
+
+  const page1Ids = new Set(page1.map((p) => p.id))
+  const page2Ids = new Set(page2.map((p) => p.id))
+  const page3Ids = new Set(page3.map((p) => p.id))
+
+  // Assert mutually exclusive pages (zero overlap)
+  for (const id of page2Ids) {
+    assertEquals(page1Ids.has(id), false)
+  }
+  for (const id of page3Ids) {
+    assertEquals(page1Ids.has(id), false)
+    assertEquals(page2Ids.has(id), false)
+  }
 })

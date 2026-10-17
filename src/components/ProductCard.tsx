@@ -15,25 +15,29 @@ import { Badge, Button, Modal, ActionLink } from "./ui"
 
 export function ProductImage({
   product,
+  src,
   className = "",
 }: {
   product: Product
+  src?: string
   className?: string
 }) {
   const [failed, setFailed] = useState(false)
-  useEffect(() => setFailed(false), [product.image])
+  const imageSrc =
+    src || product.image || "/images/photo-1616440347437-b1c73416efc2.jpg"
+  useEffect(() => setFailed(false), [imageSrc])
   return failed ? (
     <div className={`flex items-center justify-center bg-muted ${className}`}>
-      <div className="text-center">
-        <Cpu size={44} className="mx-auto text-primary" />
-        <p className="mt-3 text-xs text-muted-foreground">
+      <div className="text-center p-3">
+        <Cpu size={40} className="mx-auto text-primary/70" />
+        <p className="mt-2 text-xs font-medium text-muted-foreground truncate max-w-[160px]">
           {product.brand} · {product.category}
         </p>
       </div>
     </div>
   ) : (
     <img
-      src={product.image}
+      src={imageSrc}
       alt={product.name}
       onError={() => setFailed(true)}
       className={`object-contain ${className}`}

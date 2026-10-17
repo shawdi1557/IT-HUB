@@ -2340,9 +2340,8 @@ grant select, insert, update, delete on pc_builds to authenticated;
 grant select, insert on warranty_checks to authenticated;
 
 -- 3. Client & Authenticated RPC Execution Grants (Exact Function Signatures)
--- is_admin only needed by authenticated users (anon can never be admin)
-revoke all on function is_admin() from public, anon;
-grant execute on function is_admin() to authenticated;
+-- is_admin is callable by anon and authenticated (anon safely evaluates to false, needed by security_invoker view products_public)
+grant execute on function is_admin() to anon, authenticated;
 
 revoke all on function check_onsite_warranty(text) from public;
 grant execute on function check_onsite_warranty(text) to anon, authenticated;

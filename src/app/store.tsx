@@ -325,12 +325,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (catalogRes.status === "fulfilled") {
           const { products: liveProducts, isLive } = catalogRes.value
           if (isLive && liveProducts.length > 0) {
-            updates.products = liveProducts
+            // Live products from Supabase take precedence (matched by SKU or ID)
+            const dbSkus = new Set(
+              liveProducts.map((p) => p.sku?.toUpperCase()).filter(Boolean),
+            )
+            const dbIds = new Set(liveProducts.map((p) => p.id))
+
+            const nonOverlappingInitial = initialProducts.filter(
+              (p) =>
+                !dbIds.has(p.id) &&
+                (!p.sku || !dbSkus.has(p.sku.toUpperCase())),
+            )
+
+            // Combined catalog: Live database products first, followed by non-overlapping catalog items
+            const mergedProducts = [...liveProducts, ...nonOverlappingInitial]
+            updates.products = mergedProducts
             updates.catalogLive = true
 
-            // Derive dynamic categories and brands from live catalog
+            // Derive dynamic categories and brands from combined catalog
             const liveCategories = Array.from(
-              new Set(liveProducts.map((p) => p.category).filter(Boolean)),
+              new Set(mergedProducts.map((p) => p.category).filter(Boolean)),
             )
             if (liveCategories.length > 0) {
               updates.catalogCategories = [
@@ -340,7 +354,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
 
             const liveBrands = Array.from(
-              new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
+              new Set(mergedProducts.map((p) => p.brand).filter(Boolean)),
             )
             if (liveBrands.length > 0) {
               updates.brands = liveBrands
