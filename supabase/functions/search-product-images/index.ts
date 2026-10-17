@@ -393,18 +393,28 @@ serve(async (req: Request) => {
         )
       }
 
-      const sku = String(payload.sku || "").trim()
-      const query = String(payload.query || "").trim()
-      const brand = String(payload.brand || "").trim()
-      const modelMpn = String(payload.modelMpn || "").trim()
-      const productName = String(payload.productName || "").trim()
-      const originalDescription = String(
-        payload.originalDescription || "",
+      const productObj =
+        payload.product && typeof payload.product === "object"
+          ? payload.product
+          : {}
+      const sku = String(payload.sku || productObj.sku || "").trim()
+      const query = String(payload.query || productObj.query || "").trim()
+      const brand = String(payload.brand || productObj.brand || "").trim()
+      const modelMpn = String(
+        payload.modelMpn || productObj.modelMpn || "",
       ).trim()
-      const condition = String(payload.condition || "").trim()
+      const productName = String(
+        payload.productName || productObj.productName || "",
+      ).trim()
+      const originalDescription = String(
+        payload.originalDescription || productObj.originalDescription || "",
+      ).trim()
+      const condition = String(
+        payload.condition || productObj.condition || "",
+      ).trim()
 
       const isSecondHand =
-        Boolean(payload.isSecondHand) ||
+        Boolean(payload.isSecondHand || productObj.isSecondHand) ||
         sku.toUpperCase().startsWith("SH-") ||
         (condition.length > 0 && condition.toLowerCase() !== "new") ||
         /\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/i.test(query) ||
@@ -498,7 +508,13 @@ serve(async (req: Request) => {
       const cached = getCachedResults(cacheKey)
       if (cached) {
         return new Response(
-          JSON.stringify({ ok: true, cached: true, query, results: cached }),
+          JSON.stringify({
+            ok: true,
+            cached: true,
+            query,
+            results: cached,
+            candidates: cached,
+          }),
           {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -644,7 +660,13 @@ serve(async (req: Request) => {
       setCachedResults(cacheKey, candidates)
 
       return new Response(
-        JSON.stringify({ ok: true, cached: false, query, results: candidates }),
+        JSON.stringify({
+          ok: true,
+          cached: false,
+          query,
+          results: candidates,
+          candidates,
+        }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
