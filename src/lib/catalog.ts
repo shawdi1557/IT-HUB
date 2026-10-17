@@ -11,7 +11,7 @@ import type {
   CouponType,
   ProductCondition,
 } from "../data/catalog"
-import { initialProducts, initialOffers, initialCoupons } from "../data/catalog"
+import { initialOffers, initialCoupons } from "../data/catalog"
 
 /**
  * Raw PostgreSQL row shape from public.products_public view.
@@ -350,11 +350,11 @@ export async function fetchCatalogDetailed(
   options: CatalogFilterOptions = {},
 ): Promise<CatalogFetchResult> {
   if (!supabase) {
-    const fallback = filterFallbackProducts(initialProducts, options)
     return {
-      products: fallback,
-      totalCount: fallback.length,
+      products: [],
+      totalCount: 0,
       isLive: false,
+      error: "Supabase client is not configured.",
     }
   }
 
@@ -417,24 +417,19 @@ export async function fetchCatalogDetailed(
     const { data, count, error } = await query
 
     if (error) {
-      console.warn(
-        "[catalog] products_public query failed; using fallback catalog:",
-        error.message,
-      )
-      const fallback = filterFallbackProducts(initialProducts, options)
+      console.warn("[catalog] products_public query failed:", error.message)
       return {
-        products: fallback,
-        totalCount: fallback.length,
+        products: [],
+        totalCount: 0,
         isLive: false,
         error: error.message,
       }
     }
 
     if (!data || data.length === 0) {
-      const fallback = filterFallbackProducts(initialProducts, options)
       return {
-        products: fallback,
-        totalCount: count ?? fallback.length,
+        products: [],
+        totalCount: count ?? 0,
         isLive: true,
       }
     }
@@ -446,11 +441,12 @@ export async function fetchCatalogDetailed(
     }
   } catch (err: any) {
     console.warn(
-      "[catalog] network error querying products_public; using fallback catalog:",
+      "[catalog] network error querying products_public:",
       err?.message || err,
     )
     return {
-      products: filterFallbackProducts(initialProducts, options),
+      products: [],
+      totalCount: 0,
       isLive: false,
       error: err?.message || String(err),
     }
@@ -479,9 +475,7 @@ export async function fetchProductById(
   const trimmed = idOrSku.trim()
 
   if (!supabase) {
-    return (
-      initialProducts.find((p) => p.id === trimmed || p.sku === trimmed) || null
-    )
+    return null
   }
 
   try {
@@ -492,17 +486,12 @@ export async function fetchProductById(
       .maybeSingle()
 
     if (error || !data) {
-      return (
-        initialProducts.find((p) => p.id === trimmed || p.sku === trimmed) ||
-        null
-      )
+      return null
     }
 
     return mapDatabaseProduct(data as DatabaseProductRow)
   } catch {
-    return (
-      initialProducts.find((p) => p.id === trimmed || p.sku === trimmed) || null
-    )
+    return null
   }
 }
 

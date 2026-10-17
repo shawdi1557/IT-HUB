@@ -21,11 +21,23 @@ import {
   Sparkles,
   RefreshCw,
   BadgeIndianRupee,
+  AlertTriangle,
+  LoaderCircle,
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
-import { fetchProductGallery, DEFAULT_IMAGE_FALLBACK } from "../lib/catalog"
-import { bestOffer, categories, money, offerHeadline } from "../data/catalog"
+import {
+  fetchProductGallery,
+  fetchProductById,
+  DEFAULT_IMAGE_FALLBACK,
+} from "../lib/catalog"
+import {
+  bestOffer,
+  categories,
+  money,
+  offerHeadline,
+  type Product,
+} from "../data/catalog"
 import ProductCard, { ProductImage } from "../components/ProductCard"
 import SellYourItem from "../components/SellYourItem"
 import {
@@ -472,96 +484,145 @@ export function Products() {
                 })}
             </aside>
             <div>
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <p>
-                  Showing{" "}
-                  <strong className="text-foreground">
-                    {filtered.length === 0
-                      ? 0
-                      : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(
-                          safePage * PAGE_SIZE,
-                          filtered.length,
-                        )}`}
-                  </strong>{" "}
-                  of{" "}
-                  <strong className="text-foreground">{filtered.length}</strong>{" "}
-                  products
-                  {store.catalogLive ? (
-                    <span className="ml-2 inline-flex items-center font-medium text-emerald-600">
-                      · Live Catalog
-                    </span>
-                  ) : null}
-                </p>
-                {totalPages > 1 && (
-                  <p className="font-medium">
-                    Page {safePage} of {totalPages}
+              {store.catalogLoading && store.products.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-primary" />
+                  <h3 className="text-base font-semibold text-foreground">
+                    Loading products from IT HUB catalog...
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Fetching verified inventory from Supabase
                   </p>
-                )}
-              </div>
-              {filtered.length ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
-                    {paginatedProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
+                </div>
+              ) : store.catalogError && store.products.length === 0 ? (
+                <div className="my-6 rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                    <AlertTriangle size={24} />
                   </div>
-
-                  {/* Accessible Pagination Navigation */}
-                  {totalPages > 1 && (
-                    <div className="mt-10 flex items-center justify-center gap-2 border-t border-border pt-6">
-                      <Button
-                        variant="secondary"
-                        disabled={safePage === 1}
-                        onClick={() => {
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                          window.scrollTo({ top: 0, behavior: "smooth" })
-                        }}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs"
-                      >
-                        <ChevronLeft size={14} /> Previous
-                      </Button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from(
-                          { length: totalPages },
-                          (_, i) => i + 1,
-                        ).map((pageNum) => (
-                          <button
-                            key={pageNum}
-                            onClick={() => {
-                              setCurrentPage(pageNum)
-                              window.scrollTo({ top: 0, behavior: "smooth" })
-                            }}
-                            className={`h-8 w-8 rounded-lg text-xs font-semibold transition ${
-                              safePage === pageNum
-                                ? "bg-primary text-white shadow-sm"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
+                  <h3 className="text-base font-bold text-foreground">
+                    Failed to load live catalog
+                  </h3>
+                  <p className="mx-auto my-2 max-w-md text-xs text-muted-foreground">
+                    {store.catalogError}
+                  </p>
+                  <Button
+                    variant="primary"
+                    onClick={() => store.refreshCatalog()}
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold"
+                  >
+                    <RefreshCw size={14} />
+                    Retry Connection
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <p>
+                      Showing{" "}
+                      <strong className="text-foreground">
+                        {filtered.length === 0
+                          ? 0
+                          : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(
+                              safePage * PAGE_SIZE,
+                              filtered.length,
+                            )}`}
+                      </strong>{" "}
+                      of{" "}
+                      <strong className="text-foreground">
+                        {filtered.length}
+                      </strong>{" "}
+                      products
+                      {store.catalogLive ? (
+                        <span className="ml-2 inline-flex items-center font-medium text-emerald-600">
+                          · Live Catalog
+                        </span>
+                      ) : null}
+                    </p>
+                    {totalPages > 1 && (
+                      <p className="font-medium">
+                        Page {safePage} of {totalPages}
+                      </p>
+                    )}
+                  </div>
+                  {filtered.length ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
+                        {paginatedProducts.map((product) => (
+                          <ProductCard key={product.id} product={product} />
                         ))}
                       </div>
 
-                      <Button
-                        variant="secondary"
-                        disabled={safePage === totalPages}
-                        onClick={() => {
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                          window.scrollTo({ top: 0, behavior: "smooth" })
-                        }}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs"
-                      >
-                        Next <ChevronRight size={14} />
-                      </Button>
-                    </div>
+                      {/* Accessible Pagination Navigation */}
+                      {totalPages > 1 && (
+                        <div className="mt-10 flex items-center justify-center gap-2 border-t border-border pt-6">
+                          <Button
+                            variant="secondary"
+                            disabled={safePage === 1}
+                            onClick={() => {
+                              setCurrentPage((p) => Math.max(1, p - 1))
+                              window.scrollTo({ top: 0, behavior: "smooth" })
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs"
+                          >
+                            <ChevronLeft size={14} /> Previous
+                          </Button>
+
+                          <div className="flex items-center gap-1">
+                            {Array.from(
+                              { length: totalPages },
+                              (_, i) => i + 1,
+                            ).map((pageNum) => (
+                              <button
+                                key={pageNum}
+                                onClick={() => {
+                                  setCurrentPage(pageNum)
+                                  window.scrollTo({
+                                    top: 0,
+                                    behavior: "smooth",
+                                  })
+                                }}
+                                className={`h-8 w-8 rounded-lg text-xs font-semibold transition ${
+                                  safePage === pageNum
+                                    ? "bg-primary text-white shadow-sm"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            ))}
+                          </div>
+
+                          <Button
+                            variant="secondary"
+                            disabled={safePage === totalPages}
+                            onClick={() => {
+                              setCurrentPage((p) => Math.min(totalPages, p + 1))
+                              window.scrollTo({ top: 0, behavior: "smooth" })
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs"
+                          >
+                            Next <ChevronRight size={14} />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Empty
+                      title={
+                        store.products.length === 0
+                          ? "IT HUB catalog is currently empty"
+                          : section === "secondhand"
+                            ? "No pre-owned products match your criteria"
+                            : "No products found"
+                      }
+                      description={
+                        store.products.length === 0
+                          ? "No active products are currently available in the live database. Please check back soon!"
+                          : "Try another search or clear your filters."
+                      }
+                    />
                   )}
                 </>
-              ) : (
-                <Empty
-                  title="No products found"
-                  description="Try another search or clear your filters."
-                />
               )}
             </div>
           </div>
@@ -574,9 +635,35 @@ export function ProductDetail() {
   const { id } = useParams()
   const store = useStore()
   const navigate = useNavigate()
-  const product = store.products.find(
-    (item) => item.id === id || item.sku === id,
-  )
+  const [directProduct, setDirectProduct] = useState<Product | null>(null)
+  const [fetchingDirect, setFetchingDirect] = useState(false)
+
+  const product = useMemo(() => {
+    return (
+      store.products.find((item) => item.id === id || item.sku === id) ||
+      directProduct
+    )
+  }, [store.products, directProduct, id])
+
+  useEffect(() => {
+    if (!product && id) {
+      let isMounted = true
+      setFetchingDirect(true)
+      fetchProductById(id)
+        .then((fetched) => {
+          if (isMounted) {
+            setDirectProduct(fetched)
+            setFetchingDirect(false)
+          }
+        })
+        .catch(() => {
+          if (isMounted) setFetchingDirect(false)
+        })
+      return () => {
+        isMounted = false
+      }
+    }
+  }, [product, id])
 
   const [galleryImages, setGalleryImages] = useState<string[]>([])
   const [activeImageIndex, setActiveImageIndex] = useState(0)
@@ -613,12 +700,29 @@ export function ProductDetail() {
   }, [product?.id])
   const [quantity, setQuantity] = useState(1)
   const [tab, setTab] = useState("Overview")
+
+  if (!product && (store.catalogLoading || fetchingDirect)) {
+    return (
+      <Page>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-primary" />
+          <h3 className="text-base font-semibold text-foreground">
+            Loading product details...
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Retrieving live data from IT HUB catalog
+          </p>
+        </div>
+      </Page>
+    )
+  }
+
   if (!product)
     return (
       <Page>
         <Empty
           title="Product not found"
-          description="This product may have been removed from the catalog."
+          description="This product may have been removed or does not exist in the IT HUB catalog."
           to="/products"
         />
       </Page>
@@ -798,7 +902,7 @@ export function ProductDetail() {
               .map(([key, value]) => (
                 <div key={key}>
                   <p className="text-[11px] text-muted-foreground">{key}</p>
-                  <p className="mt-1 text-sm font-medium">{value}</p>
+                  <p className="mt-1 text-sm font-medium">{String(value)}</p>
                 </div>
               ))}
           </div>
@@ -923,7 +1027,7 @@ export function ProductDetail() {
                   className="grid grid-cols-2 border-b border-border py-3"
                 >
                   <span className="text-muted-foreground">{key}</span>
-                  <span className="font-medium">{value}</span>
+                  <span className="font-medium">{String(value)}</span>
                 </div>
               ))}
             </div>
@@ -934,7 +1038,7 @@ export function ProductDetail() {
                 .filter(([key]) => key !== "Warranty")
                 .map(([key, value]) => (
                   <li key={key}>
-                    ✓ {key}: {value}
+                    ✓ {key}: {String(value)}
                   </li>
                 ))}
             </ul>
