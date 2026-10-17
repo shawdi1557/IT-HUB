@@ -33,9 +33,11 @@ import {
   type ImportRecord,
   initialSupportCategories,
   initialBrandSupport,
+  initialServiceCentres,
   type SupportCategory,
   type BrandSupport,
   type SupportVerification,
+  type ServiceCentre,
   type Coupon,
   type CouponUsage,
   type SellRequest,
@@ -90,6 +92,7 @@ type State = {
   importHistory: ImportRecord[]
   supportCategories: SupportCategory[]
   brandSupport: BrandSupport[]
+  serviceCentres: ServiceCentre[]
   supportVerifications: SupportVerification[]
   /** Recently viewed brand-support record ids (customer side). */
   recentSupport: string[]
@@ -154,6 +157,7 @@ const initial: State = {
   importHistory: [],
   supportCategories: initialSupportCategories,
   brandSupport: initialBrandSupport,
+  serviceCentres: initialServiceCentres,
   supportVerifications: [],
   recentSupport: [],
   componentCatalog: componentOptions,
@@ -230,6 +234,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   : loc,
               )
             : initial.locations,
+        brandSupport: parsed.brandSupport?.some((r: any) => r.warrantyPhone)
+          ? parsed.brandSupport
+          : initial.brandSupport,
+        serviceCentres: parsed.serviceCentres?.length
+          ? parsed.serviceCentres
+          : initial.serviceCentres,
+        supportCategories: parsed.supportCategories?.length
+          ? parsed.supportCategories
+          : initial.supportCategories,
         // Append newly added catalog options missing from older saves.
         componentCatalog: Object.fromEntries(
           Object.entries(initial.componentCatalog).map(([type, options]) => {

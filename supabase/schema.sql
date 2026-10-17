@@ -921,6 +921,10 @@ create table brand_support (
   support_url text check (support_url is null or support_url like 'https://%'),
   warranty_url text check (warranty_url is null or warranty_url like 'https://%'),
   email text,
+  service_locator_url text check (service_locator_url is null or service_locator_url like 'https://%'),
+  region text not null default 'India',
+  verification_status text not null default 'pending_verification' check (verification_status in ('verified', 'pending_verification', 'unverified')),
+  is_published boolean not null default false,
   notes text,
   popular boolean not null default false,
   active boolean not null default true,
@@ -935,6 +939,39 @@ create table brand_support (
 create trigger brand_support_set_updated_at
   before update on brand_support
   for each row execute function handle_updated_at();
+
+create table service_centres (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  brand_id uuid references brands (id) on delete cascade,
+  brand_name text not null,
+  category text not null references support_categories (id) on delete cascade,
+  address text not null,
+  city text not null,
+  state text not null default 'Kerala',
+  pincode text not null check (pincode ~ '^[1-9][0-9]{5}$'),
+  phone text,
+  email text,
+  services_offered text[] not null default '{}',
+  is_authorized boolean not null default false,
+  authorization_evidence text,
+  source_url text not null check (source_url like 'https://%'),
+  latitude double precision,
+  longitude double precision,
+  active boolean not null default true,
+  verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create trigger service_centres_set_updated_at
+  before update on service_centres
+  for each row execute function handle_updated_at();
+
+create index idx_service_centres_brand on service_centres(brand_id);
+create index idx_service_centres_category on service_centres(category);
+create index idx_service_centres_pincode on service_centres(pincode);
+create index idx_service_centres_active_verified on service_centres(active, verified_at);
 
 create table support_verifications (
   id uuid primary key default gen_random_uuid(),
@@ -2109,6 +2146,7 @@ alter table pc_build_templates enable row level security;
 alter table store_settings enable row level security;
 alter table support_categories enable row level security;
 alter table brand_support enable row level security;
+alter table service_centres enable row level security;
 alter table support_verifications enable row level security;
 alter table visitor_sessions enable row level security;
 alter table visitor_events enable row level security;
@@ -2152,7 +2190,8 @@ create policy public_read on pincode_areas for select using (true);
 create policy public_read on store_settings for select using (true);
 create policy public_read on pc_build_templates for select using (active or is_admin());
 create policy public_read on support_categories for select using (active or is_admin());
-create policy public_read on brand_support for select using (active or is_admin());
+create policy public_read on brand_support for select using (((active and last_verified_at is not null and is_published) or is_admin()));
+create policy public_read on service_centres for select using (((active and verified_at is not null) or is_admin()));
 
 -- Storefront admin mutation policies (INSERT, UPDATE, DELETE scoped to authenticated admins; zero SELECT overlap)
 do $$
@@ -2162,7 +2201,7 @@ begin
     'categories','brands','products','inventory','coupons','product_images',
     'offers','offer_products','offer_categories','offer_brands',
     'it_hub_locations','pincode_areas','store_settings','pc_build_templates',
-    'support_categories','brand_support'
+    'support_categories','brand_support','service_centres'
   ] loop
     execute format('create policy admin_insert on %I for insert to authenticated with check (is_admin())', t);
     execute format('create policy admin_update on %I for update to authenticated using (is_admin()) with check (is_admin())', t);
@@ -2319,6 +2358,7 @@ grant select on pincode_areas to anon, authenticated;
 grant select on pc_build_templates to anon, authenticated;
 grant select on support_categories to anon, authenticated;
 grant select on brand_support to anon, authenticated;
+grant select on service_centres to anon, authenticated;
 grant select on reviews to anon, authenticated;
 grant select on product_images to anon, authenticated;
 grant select on offers to anon, authenticated;

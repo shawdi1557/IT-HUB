@@ -74,6 +74,7 @@ import {
   type PcEnquiry,
   type BrandSupport,
   type SupportCategory,
+  type ServiceCentre,
   offerTypes,
   offerStatus,
   offerHeadline,
@@ -90,6 +91,11 @@ import {
   type AdminRecord,
   type ImportRow,
 } from "../data/admin"
+import {
+  checkStoreSettingsCompleteness,
+  validateIndianPincode,
+  validateHttpsUrl,
+} from "../lib/support"
 import { compatibility } from "./Builder"
 import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
 import CouponsAdmin from "./AdminCoupons"
@@ -4631,33 +4637,71 @@ function ShowcaseManager() {
 
 const supportWarning =
   "Only enter numbers and URLs taken from the manufacturer's official website. Do not guess support details."
+
 const emptySupport = (category = ""): BrandSupport => ({
   id: "",
   brand: "",
-  category,
+  category:
+    category === "all" || category === "centres" || category === "history"
+      ? ""
+      : category,
   warrantyPhone: "",
   customerCarePhone: "",
   supportUrl: "",
   warrantyUrl: "",
+  serviceLocatorUrl: "",
   email: "",
   notes: "",
   sourceUrl: "",
   verifiedBy: "",
   lastVerifiedAt: "",
+  region: "India",
+  verificationStatus: "pending_verification",
+  isPublished: false,
   popular: false,
   active: true,
   createdAt: "",
   updatedAt: "",
 })
+
+const emptyServiceCentre = (category = ""): ServiceCentre => ({
+  id: "",
+  name: "",
+  brandName: "",
+  category:
+    category === "all" || category === "centres" || category === "history"
+      ? "laptop"
+      : category,
+  address: "",
+  city: "Kochi",
+  state: "Kerala",
+  pincode: "",
+  phone: "",
+  email: "",
+  servicesOffered: [],
+  isAuthorized: true,
+  authorizationEvidence: "",
+  sourceUrl: "",
+  latitude: undefined,
+  longitude: undefined,
+  active: true,
+  verifiedAt: new Date().toISOString(),
+})
+
 const contactKeys = [
   "warrantyPhone",
   "customerCarePhone",
   "supportUrl",
   "warrantyUrl",
+  "serviceLocatorUrl",
   "email",
 ] as const
-const badUrl = (value: string) =>
-  Boolean(value.trim()) && !/^https:\/\/\S+$/i.test(value.trim())
+
+const badUrl = (value?: string) => {
+  if (!value || !value.trim()) return false
+  return !/^https:\/\/\S+$/i.test(value.trim())
+}
+
 function SupportAdmin({ view }: { view: string }) {
   const store = useStore()
   const [status, setStatus] = useState("all")
@@ -4665,11 +4709,26 @@ function SupportAdmin({ view }: { view: string }) {
   const [editing, setEditing] = useState<BrandSupport | null>(null)
   const [verifying, setVerifying] = useState<BrandSupport | null>(null)
   const [removing, setRemoving] = useState<BrandSupport | null>(null)
+  const [editingCentre, setEditingCentre] = useState<ServiceCentre | null>(null)
+  const [removingCentre, setRemovingCentre] = useState<ServiceCentre | null>(
+    null,
+  )
+
+  const settingsStatus = useMemo(
+    () => checkStoreSettingsCompleteness(store.settings),
+    [store.settings],
+  )
+
   const categoryName = (id: string) =>
     store.supportCategories.find((item) => item.id === id)?.name || id
   const history = view === "history"
+  const isCentres = view === "centres"
+
   const rows = store.brandSupport
-    .filter((item) => view === "all" || history || item.category === view)
+    .filter(
+      (item) =>
+        view === "all" || history || isCentres || item.category === view,
+    )
     .filter((item) =>
       status === "all"
         ? true
@@ -4677,9 +4736,11 @@ function SupportAdmin({ view }: { view: string }) {
           ? item.active
           : status === "inactive"
             ? !item.active
-            : status === "verified"
-              ? Boolean(item.lastVerifiedAt)
-              : !item.lastVerifiedAt,
+            : status === "published"
+              ? item.isPublished
+              : status === "verified"
+                ? Boolean(item.lastVerifiedAt)
+                : !item.lastVerifiedAt,
     )
     .filter((item) =>
       [
@@ -4693,6 +4754,21 @@ function SupportAdmin({ view }: { view: string }) {
         .toLowerCase()
         .includes(query.toLowerCase()),
     )
+
+  const centreRows = store.serviceCentres.filter((item) =>
+    [
+      item.name,
+      item.brandName,
+      item.city,
+      item.pincode,
+      item.address,
+      item.phone || "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  )
+
   const update = (id: string, patch: Partial<BrandSupport>) =>
     store.set((state) => ({
       brandSupport: state.brandSupport.map((item) =>
@@ -4701,13 +4777,33 @@ function SupportAdmin({ view }: { view: string }) {
           : item,
       ),
     }))
+
   return (
     <>
+      {/* Configuration Required Banner if IT HUB store contact details are missing */}
+      {!settingsStatus.complete && (
+        <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
+            <div>
+              <p className="font-bold">
+                Attention: Store Settings Contact Details Incomplete
+              </p>
+              <p className="mt-1 text-xs leading-5">
+                {settingsStatus.warningMessage}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <p>{supportWarning}</p>
       </div>
-      {history ? (
+
+      {/* History Subview */}
+      {history && (
         <DataTable
           rows={[...store.supportVerifications]
             .sort((a, b) => b.date.localeCompare(a.date))
@@ -4738,7 +4834,10 @@ function SupportAdmin({ view }: { view: string }) {
             { key: "changes", label: "Changes" },
           ]}
         />
-      ) : (
+      )}
+
+      {/* Service Centres Subview */}
+      {isCentres && (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="relative w-full max-w-xs">
@@ -4749,7 +4848,126 @@ function SupportAdmin({ view }: { view: string }) {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search brand, phone, URL"
+                placeholder="Search centre, city, PIN, brand..."
+                className={`${fieldClass} pl-9`}
+              />
+            </div>
+            <Button
+              className="ml-auto"
+              onClick={() => setEditingCentre(emptyServiceCentre())}
+            >
+              <Plus size={14} /> Add authorized service centre
+            </Button>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border bg-white">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted text-muted-foreground">
+                <tr>
+                  {[
+                    "Centre Name",
+                    "Brand & Category",
+                    "Location & PIN",
+                    "Phone & Contact",
+                    "Authorization",
+                    "Verified",
+                    "",
+                  ].map((label) => (
+                    <th key={label} className="px-4 py-3 font-semibold">
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {centreRows.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t border-border align-top"
+                  >
+                    <td className="px-4 py-3 font-semibold max-w-[200px]">
+                      <div>{item.name}</div>
+                      <div className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
+                        {item.address}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-semibold">{item.brandName}</span>
+                      <div className="text-[10px] text-muted-foreground">
+                        {categoryName(item.category)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>
+                        {item.city}, {item.state}
+                      </div>
+                      <div className="font-mono text-primary font-semibold">
+                        PIN: {item.pincode}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>{item.phone || "—"}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {item.email || ""}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.isAuthorized ? (
+                        <Badge tone="green">Authorized</Badge>
+                      ) : (
+                        <Badge tone="gray">Partner</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.verifiedAt ? (
+                        <span className="text-emerald-700 font-semibold">
+                          Verified
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold">
+                          Pending
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <button
+                        className="mr-3"
+                        onClick={() => setEditingCentre(item)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        className="text-red-600"
+                        onClick={() => setRemovingCentre(item)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!centreRows.length && (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                No service centres match your query.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Main Brand Support Subview */}
+      {!history && !isCentres && (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative w-full max-w-xs">
+              <Search
+                size={15}
+                className="absolute left-3 top-3 text-muted-foreground"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search brand, phone, URL..."
                 className={`${fieldClass} pl-9`}
               />
             </div>
@@ -4761,6 +4979,7 @@ function SupportAdmin({ view }: { view: string }) {
               <option value="all">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Disabled</option>
+              <option value="published">Published</option>
               <option value="verified">Verified</option>
               <option value="unverified">Unverified</option>
             </select>
@@ -4780,9 +4999,10 @@ function SupportAdmin({ view }: { view: string }) {
                   {[
                     "Brand",
                     "Category",
-                    "Phones",
-                    "URLs",
-                    "Verified",
+                    "Phones (Warranty / Care)",
+                    "Official Portals",
+                    "Verification",
+                    "Public",
                     "Active",
                     "",
                   ].map((label) => (
@@ -4808,11 +5028,20 @@ function SupportAdmin({ view }: { view: string }) {
                     </td>
                     <td className="px-4 py-3">{categoryName(item.category)}</td>
                     <td className="px-4 py-3">
-                      <div>Warranty: {item.warrantyPhone || "—"}</div>
+                      <div>
+                        Warranty:{" "}
+                        <span className="font-semibold">
+                          {item.warrantyPhone || "—"}
+                        </span>
+                      </div>
                       <div>Care: {item.customerCarePhone || "—"}</div>
                     </td>
                     <td className="max-w-[220px] px-4 py-3">
-                      {[item.supportUrl, item.warrantyUrl]
+                      {[
+                        item.supportUrl,
+                        item.warrantyUrl,
+                        item.serviceLocatorUrl,
+                      ]
                         .filter(Boolean)
                         .map((url) => (
                           <a
@@ -4842,6 +5071,17 @@ function SupportAdmin({ view }: { view: string }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
+                      {item.isPublished ? (
+                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          Published
+                        </span>
+                      ) : (
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                          Draft
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <button
                         className={`rounded px-2 py-1 text-[10px] font-semibold ${
                           item.active
@@ -4865,7 +5105,7 @@ function SupportAdmin({ view }: { view: string }) {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <button
-                        className="mr-3 text-primary"
+                        className="mr-3 text-primary font-semibold"
                         onClick={() => setVerifying(item)}
                       >
                         Mark verified
@@ -4893,8 +5133,16 @@ function SupportAdmin({ view }: { view: string }) {
           {view === "all" && <SupportCategories />}
         </>
       )}
+
+      {/* Modals */}
       <SupportEditor record={editing} onClose={() => setEditing(null)} />
       <VerifyModal record={verifying} onClose={() => setVerifying(null)} />
+      <ServiceCentreEditor
+        record={editingCentre}
+        onClose={() => setEditingCentre(null)}
+      />
+
+      {/* Remove Brand Support Modal */}
       <Modal
         open={Boolean(removing)}
         onOpenChange={(open) => !open && setRemoving(null)}
@@ -4929,9 +5177,44 @@ function SupportAdmin({ view }: { view: string }) {
           </Button>
         </div>
       </Modal>
+
+      {/* Remove Service Centre Modal */}
+      <Modal
+        open={Boolean(removingCentre)}
+        onOpenChange={(open) => !open && setRemovingCentre(null)}
+        title="Delete authorized service centre?"
+        description={
+          removingCentre
+            ? `${removingCentre.name} (${removingCentre.city})`
+            : ""
+        }
+        size="max-w-md"
+      >
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setRemovingCentre(null)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (!removingCentre) return
+              store.set((state) => ({
+                serviceCentres: state.serviceCentres.filter(
+                  (item) => item.id !== removingCentre.id,
+                ),
+              }))
+              store.log(`Service centre deleted: ${removingCentre.name}`)
+              store.notify("Service centre deleted")
+              setRemovingCentre(null)
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      </Modal>
     </>
   )
 }
+
 const appendVerification = (
   record: BrandSupport,
   verifiedBy: string,
@@ -4947,6 +5230,7 @@ const appendVerification = (
   changes,
   date: new Date().toISOString(),
 })
+
 function SupportEditor({
   record,
   onClose,
@@ -4958,6 +5242,7 @@ function SupportEditor({
   const [form, setForm] = useState<BrandSupport>(emptySupport())
   const [reverify, setReverify] = useState(false)
   const [error, setError] = useState("")
+
   useEffect(() => {
     if (record) {
       setForm(record)
@@ -4965,22 +5250,31 @@ function SupportEditor({
       setError("")
     }
   }, [record])
+
   const field = (key: keyof BrandSupport, label: string, placeholder = "") => (
     <Field label={label}>
       <input
-        value={String(form[key])}
+        value={String(form[key] || "")}
         placeholder={placeholder}
         onChange={(event) => setForm({ ...form, [key]: event.target.value })}
         className={fieldClass}
       />
     </Field>
   )
+
   const save = () => {
     const brand = form.brand.trim()
     if (!brand || !form.category)
       return setError("Brand and category are required.")
-    for (const key of ["supportUrl", "warrantyUrl", "sourceUrl"] as const)
-      if (badUrl(form[key])) return setError("URLs must start with https://")
+
+    for (const key of [
+      "supportUrl",
+      "warrantyUrl",
+      "serviceLocatorUrl",
+      "sourceUrl",
+    ] as const)
+      if (badUrl(form[key])) return setError(`${key} must start with https://`)
+
     if (
       store.brandSupport.some(
         (item) =>
@@ -4990,22 +5284,58 @@ function SupportEditor({
       )
     )
       return setError("This brand already has a record for this category.")
+
+    if (form.isPublished && !form.sourceUrl.trim()) {
+      return setError("Publishing requires an official source URL (https://).")
+    }
+
+    if (form.isPublished && !form.lastVerifiedAt && !reverify) {
+      return setError(
+        "Cannot publish unverified records. Please confirm verification against the official source.",
+      )
+    }
+
     if (reverify && (!form.sourceUrl.trim() || !form.verifiedBy.trim()))
       return setError("Re-verifying requires a source URL and verifier name.")
+
     const now = new Date().toISOString()
     const changed = record?.id
-      ? contactKeys.filter((key) => record[key].trim() !== form[key].trim())
+      ? contactKeys.filter(
+          (key) => (record[key] || "").trim() !== (form[key] || "").trim(),
+        )
       : []
-    let next: BrandSupport = { ...form, brand, updatedAt: now }
-    if (!record?.id)
+
+    let next: BrandSupport = {
+      ...form,
+      brand,
+      updatedAt: now,
+      region: "India",
+    }
+
+    if (!record?.id) {
       next = {
         ...next,
         id: `${form.category}-${brand.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
         createdAt: now,
       }
-    if (reverify) next = { ...next, lastVerifiedAt: now }
-    else if (!record?.id || changed.length)
-      next = { ...next, lastVerifiedAt: "", verifiedBy: "" }
+    }
+
+    if (reverify) {
+      next = {
+        ...next,
+        lastVerifiedAt: now,
+        verificationStatus: "verified",
+      }
+    } else if (!record?.id || changed.length) {
+      next = {
+        ...next,
+        lastVerifiedAt: "",
+        verifiedBy: "",
+        verificationStatus: "pending_verification",
+        isPublished: false, // unpublish until verified
+      }
+    }
+
     store.set((state) => ({
       brandSupport: record?.id
         ? state.brandSupport.map((item) => (item.id === next.id ? next : item))
@@ -5024,6 +5354,7 @@ function SupportEditor({
           ]
         : state.supportVerifications,
     }))
+
     store.log(
       `Brand support ${
         record?.id ? "updated" : "added"
@@ -5031,11 +5362,12 @@ function SupportEditor({
     )
     store.notify(
       changed.length && !reverify
-        ? "Saved — contact details changed, marked Unverified"
+        ? "Saved — contact details changed, marked Unverified and Draft"
         : "Support record saved",
     )
     onClose()
   }
+
   return (
     <Modal
       open={Boolean(record)}
@@ -5044,7 +5376,7 @@ function SupportEditor({
       description={supportWarning}
     >
       <div className="grid gap-4 md:grid-cols-2">
-        {field("brand", "Brand")}
+        {field("brand", "Brand (e.g. HP, Apple)")}
         <Field label="Category">
           <select
             value={form.category}
@@ -5062,35 +5394,51 @@ function SupportEditor({
             ))}
           </select>
         </Field>
-        {field("warrantyPhone", "Warranty phone")}
-        {field("customerCarePhone", "Customer care phone")}
-        {field("supportUrl", "Support URL", "https://")}
-        {field("warrantyUrl", "Warranty URL", "https://")}
-        {field("email", "Support email")}
-        {field("sourceUrl", "Official source URL", "https://")}
+        {field("warrantyPhone", "Official warranty support phone")}
+        {field("customerCarePhone", "General customer care phone")}
+        {field("supportUrl", "Official support portal URL", "https://")}
+        {field("warrantyUrl", "Warranty verification URL", "https://")}
+        {field("serviceLocatorUrl", "Service centre locator URL", "https://")}
+        {field("email", "Official support email")}
+        {field("sourceUrl", "Official source verification URL", "https://")}
         {field("verifiedBy", "Verified by")}
-        <div className="flex flex-col justify-end gap-2 text-xs">
+
+        <div className="flex flex-col justify-end gap-2 text-xs md:col-span-2">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={form.popular}
+              checked={form.isPublished ?? false}
               onChange={(event) =>
-                setForm({ ...form, popular: event.target.checked })
+                setForm({ ...form, isPublished: event.target.checked })
               }
             />{" "}
-            Popular brand
+            <strong>Published on Storefront</strong> (Requires verified source
+            URL)
           </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.active}
-              onChange={(event) =>
-                setForm({ ...form, active: event.target.checked })
-              }
-            />{" "}
-            Active
-          </label>
+          <div className="flex gap-4 mt-1">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.popular}
+                onChange={(event) =>
+                  setForm({ ...form, popular: event.target.checked })
+                }
+              />{" "}
+              Popular brand
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(event) =>
+                  setForm({ ...form, active: event.target.checked })
+                }
+              />{" "}
+              Active
+            </label>
+          </div>
         </div>
+
         <div className="md:col-span-2">
           <Field label="Notes">
             <textarea
@@ -5102,25 +5450,294 @@ function SupportEditor({
             />
           </Field>
         </div>
-        <label className="flex items-center gap-2 text-xs md:col-span-2">
+
+        <label className="flex items-center gap-2 text-xs md:col-span-2 rounded-lg bg-blue-50 p-3 text-blue-900">
           <input
             type="checkbox"
             checked={reverify}
             onChange={(event) => setReverify(event.target.checked)}
           />
-          I re-verified these details against the official source in this save
+          I have confirmed these details against the official manufacturer
+          source and authorize publication
         </label>
       </div>
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+      {error && (
+        <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>
+      )}
+
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={save}>Save</Button>
+        <Button onClick={save}>Save Support Record</Button>
       </div>
     </Modal>
   )
 }
+
+function ServiceCentreEditor({
+  record,
+  onClose,
+}: {
+  record: ServiceCentre | null
+  onClose: () => void
+}) {
+  const store = useStore()
+  const [form, setForm] = useState<ServiceCentre>(emptyServiceCentre())
+  const [servicesInput, setServicesInput] = useState("")
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (record) {
+      setForm(record)
+      setServicesInput((record.servicesOffered || []).join(", "))
+      setError("")
+    }
+  }, [record])
+
+  const save = () => {
+    const name = form.name.trim()
+    const brandName = form.brandName.trim()
+    const pincode = form.pincode.trim()
+    const sourceUrl = form.sourceUrl.trim()
+
+    if (!name || !brandName || !form.category) {
+      return setError("Centre name, brand name, and category are required.")
+    }
+
+    if (!validateIndianPincode(pincode)) {
+      return setError(
+        "PIN code must be a valid 6-digit Indian PIN code (e.g. 686691).",
+      )
+    }
+
+    if (!validateHttpsUrl(sourceUrl)) {
+      return setError(
+        "Official source URL is mandatory and must start with https://.",
+      )
+    }
+
+    const services = servicesInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    const next: ServiceCentre = {
+      ...form,
+      name,
+      brandName,
+      pincode,
+      sourceUrl,
+      servicesOffered: services,
+      id:
+        form.id ||
+        `sc-${brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+      verifiedAt: form.verifiedAt || new Date().toISOString(),
+    }
+
+    store.set((state) => ({
+      serviceCentres: record?.id
+        ? state.serviceCentres.map((item) =>
+            item.id === next.id ? next : item,
+          )
+        : [...state.serviceCentres, next],
+    }))
+
+    store.log(`Service centre ${record?.id ? "updated" : "added"}: ${name}`)
+    store.notify("Service centre saved")
+    onClose()
+  }
+
+  return (
+    <Modal
+      open={Boolean(record)}
+      onOpenChange={(open) => !open && onClose()}
+      title={
+        record?.id
+          ? "Edit Authorized Service Centre"
+          : "Add Authorized Service Centre"
+      }
+      description="Record verified manufacturer-authorized service delivery locations in Kerala. Never fabricate details."
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Centre Name">
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="e.g. HP Authorized Service Centre (F1 Info Solutions)"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Brand Name">
+          <input
+            value={form.brandName}
+            onChange={(e) => setForm({ ...form, brandName: e.target.value })}
+            placeholder="e.g. HP, Apple, Samsung"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Category">
+          <select
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            className={fieldClass}
+          >
+            {store.supportCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="6-Digit Indian PIN Code">
+          <input
+            value={form.pincode}
+            maxLength={6}
+            onChange={(e) => setForm({ ...form, pincode: e.target.value })}
+            placeholder="682035"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="City">
+          <input
+            value={form.city}
+            onChange={(e) => setForm({ ...form, city: e.target.value })}
+            placeholder="Kochi, Muvattupuzha, etc."
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="State">
+          <input
+            value={form.state}
+            onChange={(e) => setForm({ ...form, state: e.target.value })}
+            className={fieldClass}
+          />
+        </Field>
+        <div className="md:col-span-2">
+          <Field label="Full Address">
+            <input
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              placeholder="Building name, street, landmarks"
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+        <Field label="Phone">
+          <input
+            value={form.phone || ""}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="+91-484-XXXXXXX"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Email">
+          <input
+            value={form.email || ""}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="service@example.com"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Latitude (Optional, for distance)">
+          <input
+            type="number"
+            step="0.0001"
+            value={form.latitude ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                latitude: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            placeholder="9.9816"
+            className={fieldClass}
+          />
+        </Field>
+        <Field label="Longitude (Optional, for distance)">
+          <input
+            type="number"
+            step="0.0001"
+            value={form.longitude ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                longitude: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            placeholder="76.2845"
+            className={fieldClass}
+          />
+        </Field>
+        <div className="md:col-span-2">
+          <Field label="Services Offered (Comma-separated)">
+            <input
+              value={servicesInput}
+              onChange={(e) => setServicesInput(e.target.value)}
+              placeholder="Screen Replacement, Motherboard Repair, Battery Replacement"
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+        <div className="md:col-span-2">
+          <Field label="Official Source Verification URL (Mandatory)">
+            <input
+              value={form.sourceUrl}
+              onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+              placeholder="https://support.hp.com/in-en/service-center"
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+        <div className="md:col-span-2">
+          <Field label="Authorization Evidence Note">
+            <input
+              value={form.authorizationEvidence || ""}
+              onChange={(e) =>
+                setForm({ ...form, authorizationEvidence: e.target.value })
+              }
+              placeholder="e.g. Official HP India Service Delivery Partner Network"
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+        <div className="flex items-center gap-4 text-xs md:col-span-2">
+          <label className="flex items-center gap-2 font-semibold">
+            <input
+              type="checkbox"
+              checked={form.isAuthorized}
+              onChange={(e) =>
+                setForm({ ...form, isAuthorized: e.target.checked })
+              }
+            />
+            Official Manufacturer-Authorized Centre
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+            />
+            Active
+          </label>
+        </div>
+      </div>
+
+      {error && (
+        <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>
+      )}
+
+      <div className="mt-6 flex justify-end gap-3">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={save}>Save Service Centre</Button>
+      </div>
+    </Modal>
+  )
+}
+
 function VerifyModal({
   record,
   onClose,
@@ -5132,18 +5749,20 @@ function VerifyModal({
   const [sourceUrl, setSourceUrl] = useState("")
   const [verifiedBy, setVerifiedBy] = useState("")
   const [error, setError] = useState("")
+
   useEffect(() => {
     if (record) {
       setSourceUrl(record.sourceUrl)
-      setVerifiedBy(record.verifiedBy)
+      setVerifiedBy(record.verifiedBy || "Store Administrator")
       setError("")
     }
   }, [record])
+
   return (
     <Modal
       open={Boolean(record)}
       onOpenChange={(open) => !open && onClose()}
-      title="Mark as verified"
+      title="Mark as verified & publish"
       description={
         record
           ? `${record.brand} · ${record.category}. Confirm details against the manufacturer's official website.`
@@ -5160,11 +5779,13 @@ function VerifyModal({
             return setError("Enter the official source URL (https://).")
           if (!verifiedBy.trim()) return setError("Enter the verifier name.")
           const now = new Date().toISOString()
-          const next = {
+          const next: BrandSupport = {
             ...record,
             sourceUrl: sourceUrl.trim(),
             verifiedBy: verifiedBy.trim(),
             lastVerifiedAt: now,
+            verificationStatus: "verified",
+            isPublished: true,
             updatedAt: now,
           }
           store.set((state) => ({
@@ -5177,18 +5798,18 @@ function VerifyModal({
                 next,
                 next.verifiedBy,
                 next.sourceUrl,
-                "Marked verified",
+                "Marked verified & published",
               ),
             ],
           }))
           store.log(
             `Brand support verified: ${record.brand} (${record.category})`,
           )
-          store.notify("Marked as verified")
+          store.notify("Marked as verified and published on storefront")
           onClose()
         }}
       >
-        <Field label="Official source URL">
+        <Field label="Official source URL (https://)">
           <input
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
@@ -5203,13 +5824,13 @@ function VerifyModal({
             className={fieldClass}
           />
         </Field>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 font-semibold">{error}</p>}
         <div className="flex justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit">
-            <CheckCircle2 size={14} /> Mark verified
+            <CheckCircle2 size={14} /> Mark verified & publish
           </Button>
         </div>
       </form>
