@@ -107,6 +107,7 @@ type State = {
     address: string
     phone: string
     email: string
+    workingHours: string
   }
   tickets: {
     id: string
@@ -173,8 +174,9 @@ const initial: State = {
     emailNotifications: true,
     whatsapp: "919847223886",
     address: "Molathu Building, College Jn., Kothamangalam, Kerala - 686691",
-    phone: "+91-9847223886",
+    phone: "+91 98472 23886",
     email: "ithubkmgm@gmail.com",
+    workingHours: "10:00 AM - 8:30 PM (Sunday Holiday)",
   },
   tickets: [],
 }
@@ -214,7 +216,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         offers: parsed.offers?.every((offer) => "type" in offer)
           ? parsed.offers
           : initial.offers,
-        settings: { ...initial.settings, ...parsed.settings },
+        settings: {
+          ...initial.settings,
+          ...parsed.settings,
+          phone: "+91 98472 23886",
+          email: "ithubkmgm@gmail.com",
+          workingHours: "10:00 AM - 8:30 PM (Sunday Holiday)",
+        },
         buildTemplates: parsed.buildTemplates?.length
           ? parsed.buildTemplates
           : initial.buildTemplates,

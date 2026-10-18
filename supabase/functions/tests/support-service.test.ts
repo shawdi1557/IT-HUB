@@ -365,7 +365,7 @@ Deno.test("Support Service: 6. Store Settings completeness validation", () => {
   const complete = checkStoreSettingsCompleteness({
     storeName: "IT HUB",
     address: "Molathu Building, College Jn., Kothamangalam, Kerala - 686691",
-    phone: "+91-9847223886",
+    phone: "+91 98472 23886",
     whatsapp: "919847223886",
     email: "ithubkmgm@gmail.com",
   })

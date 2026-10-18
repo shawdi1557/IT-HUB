@@ -535,14 +535,14 @@ export default function Support() {
               <Row
                 Icon={Phone}
                 label="Phone (Verified)"
-                value={store.settings.phone}
-                href={`tel:${store.settings.phone}`}
+                value={store.settings.phone || "+91 98472 23886"}
+                href={`tel:${(store.settings.phone || "+91 98472 23886").replace(/\s/g, "")}`}
               />
               <Row
                 Icon={Mail}
                 label="Email"
-                value={store.settings.email}
-                href={`mailto:${store.settings.email}`}
+                value={store.settings.email || "ithubkmgm@gmail.com"}
+                href={`mailto:${store.settings.email || "ithubkmgm@gmail.com"}`}
               />
               <Row
                 Icon={MapPin}
@@ -550,9 +550,15 @@ export default function Support() {
                 value={store.settings.address}
               />
             </dl>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Business hours: Monday to Saturday, 9:30 AM to 7:30 PM.
-            </p>
+            <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-foreground">
+              <p className="font-semibold text-primary">Store Working Hours:</p>
+              <p className="mt-1 font-medium">
+                Monday to Saturday: 10:00 AM – 8:30 PM
+              </p>
+              <p className="mt-0.5 font-medium text-rose-600">
+                Sunday: Holiday
+              </p>
+            </div>
             <Link
               to="/contact"
               className="mt-6 inline-block text-sm font-semibold text-primary hover:underline"
@@ -870,6 +876,11 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
         Hardware repairs, software diagnostics, parts upgrades and IT HUB
         on-site service — handled directly by our certified local team.
       </p>
+      <div className="mt-3 rounded-lg border border-primary/15 bg-white/70 p-3 text-xs text-foreground">
+        <p className="font-semibold text-primary">Store Working Hours:</p>
+        <p className="mt-0.5">Monday – Saturday: 10:00 AM – 8:30 PM</p>
+        <p className="mt-0.5 font-medium text-rose-600">Sunday: Holiday</p>
+      </div>
       <div className="mt-6 grid gap-3">
         {complete && phone && (
           <a href={`tel:${phone.replace(/\s/g, "")}`} className={buttonClass}>

@@ -400,22 +400,22 @@ export function Contact() {
           {
             name: "Call us",
             Icon: Phone,
-            text: "Contact details available through IT HUB",
+            text: store.settings.phone || "+91 98472 23886",
           },
           {
             name: "WhatsApp",
             Icon: WhatsAppIcon,
-            text: "Ask the store for its verified WhatsApp number",
+            text: "+91 98472 23886",
           },
           {
             name: "Visit our store",
             Icon: MapPin,
-            text: "Kothamangalam, Kerala, India",
+            text: "Molathu Building, College Jn., Kothamangalam",
           },
           {
-            name: "Service enquiry",
+            name: "Store Hours",
             Icon: Wrench,
-            text: "Tell us what your device needs",
+            text: "10:00 AM – 8:30 PM (Sun: Holiday)",
           },
         ].map(({ name, Icon, text }) => (
           <button
@@ -441,8 +441,10 @@ export function Contact() {
           <h2 className="mb-5 text-2xl font-bold">Find your way to our hub.</h2>
           <LocationCard />
           <p className="mt-4 text-xs leading-6 text-muted-foreground">
-            MA College / Kothamangalam area. Confirm the exact address and store
-            hours with IT HUB.
+            Molathu Building, College Jn., Kothamangalam, Kerala - 686691.
+            <br />
+            Working hours: Monday to Saturday, 10:00 AM – 8:30 PM (Sunday:
+            Holiday).
           </p>
           <a
             href="https://www.justdial.com/Ernakulam/IT-HUB-Ma-College-Kothamangalam-Ernakulam/0484PX484-X484-120621183943-F6M7_BZDET"
@@ -544,11 +546,35 @@ export function Contact() {
         }}
         title={info}
       >
-        <p className="text-sm leading-7 text-muted-foreground">
-          Verified contact details and store hours have not been supplied.
-          Please visit the supplied business listing to reach IT HUB in
-          Kothamangalam, Kerala.
-        </p>
+        <div className="space-y-2 text-sm leading-6 text-muted-foreground">
+          <p>
+            <strong>Phone (Verified):</strong>{" "}
+            <a href="tel:+919847223886" className="text-primary font-semibold">
+              +91 98472 23886
+            </a>
+          </p>
+          <p>
+            <strong>Email:</strong>{" "}
+            <a
+              href="mailto:ithubkmgm@gmail.com"
+              className="text-primary font-semibold"
+            >
+              ithubkmgm@gmail.com
+            </a>
+          </p>
+          <p>
+            <strong>Store Working Hours:</strong> Monday – Saturday: 10:00 AM to
+            8:30 PM
+          </p>
+          <p>
+            <strong>Sunday:</strong>{" "}
+            <span className="font-semibold text-rose-600">Holiday</span>
+          </p>
+          <p>
+            <strong>Address:</strong> Molathu Building, College Jn.,
+            Kothamangalam, Kerala - 686691
+          </p>
+        </div>
         <a
           href="https://www.justdial.com/Ernakulam/IT-HUB-Ma-College-Kothamangalam-Ernakulam/0484PX484-X484-120621183943-F6M7_BZDET"
           target="_blank"
