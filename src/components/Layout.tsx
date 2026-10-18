@@ -32,6 +32,7 @@ import { serviceTypes, money } from "../data/catalog"
 import { useStore } from "../app/store"
 import { Logo, Modal, fieldClass, containerClass } from "./ui"
 import { signOutUser } from "../lib/auth"
+import GooeyNav, { type GooeyNavItem } from "./GooeyNav"
 
 const nav = [
   { name: "Products", to: "/products" },
@@ -39,6 +40,15 @@ const nav = [
   { name: "PC Builder", to: "/pc-builder" },
   { name: "Help & Support", to: "/support" },
   { name: "About", to: "/about" },
+]
+
+const navItems: GooeyNavItem[] = [
+  { label: "Home", href: "/" },
+  { label: "Products", href: "/products" },
+  { label: "Services", href: "/services" },
+  { label: "PC Builder", href: "/pc-builder" },
+  { label: "Help & Support", href: "/support" },
+  { label: "About", href: "/about" },
 ]
 export default function Layout() {
   const store = useStore()
@@ -116,6 +126,16 @@ export default function Layout() {
       .toLowerCase()
       .includes(query.toLowerCase()),
   )
+  const activeNavIndex = (() => {
+    const p = location.pathname
+    if (p === "/") return 0
+    if (p.startsWith("/products")) return 1
+    if (p.startsWith("/services")) return 2
+    if (p.startsWith("/pc-builder")) return 3
+    if (p.startsWith("/support")) return 4
+    if (p.startsWith("/about")) return 5
+    return -1
+  })()
   return (
     <>
       <a
@@ -169,32 +189,34 @@ export default function Layout() {
               PRODUCTS. SERVICE. SUPPORT.
             </div>
           </Link>
-          <nav className="hidden items-center gap-1 rounded-full border border-border bg-white/60 p-1 lg:flex">
-            {nav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-medium transition ${
-                    isActive
-                      ? "bg-primary text-white"
-                      : "text-slate-700 hover:bg-secondary hover:text-primary"
-                  }`
+          <div className="hidden items-center lg:flex">
+            <GooeyNav
+              items={navItems}
+              activeIndex={activeNavIndex >= 0 ? activeNavIndex : undefined}
+              onChange={(_index, item) => {
+                if (
+                  item.href &&
+                  item.href !== "#" &&
+                  location.pathname !== item.href
+                ) {
+                  navigate(item.href)
                 }
-              >
-                <span
-                  className={
-                    item.name === "Products" || item.name === "Services"
-                      ? "font-semibold"
-                      : ""
-                  }
-                >
-                  {item.name}
-                </span>
-              </NavLink>
-            ))}
-          </nav>
+              }}
+              theme="light"
+              color="#1a4fd6"
+              activeTextColor="#ffffff"
+              colors={["#1a4fd6", "#2563eb", "#3b82f6"]}
+              size="sm"
+              frame={true}
+              particleCount={15}
+              spread={56}
+              animationTime={600}
+              timeVariance={300}
+              gooeyness={0.5}
+              wobble={0.5}
+              hoverEffect={true}
+            />
+          </div>
           <div className="flex items-center gap-1 sm:gap-3">
             <button
               onClick={() => setSearch(true)}

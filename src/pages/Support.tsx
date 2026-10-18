@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router"
 import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Calendar,
   Camera,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Clock,
   Cpu,
   ExternalLink,
   FileText,
@@ -550,15 +552,7 @@ export default function Support() {
                 value={store.settings.address}
               />
             </dl>
-            <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-foreground">
-              <p className="font-semibold text-primary">Store Working Hours:</p>
-              <p className="mt-1 font-medium">
-                Monday to Saturday: 10:00 AM – 8:30 PM
-              </p>
-              <p className="mt-0.5 font-medium text-rose-600">
-                Sunday: Holiday
-              </p>
-            </div>
+            <StoreWorkingHoursCard />
             <Link
               to="/contact"
               className="mt-6 inline-block text-sm font-semibold text-primary hover:underline"
@@ -863,6 +857,69 @@ interface ItHubCardProps {
   complete: boolean
 }
 
+function StoreWorkingHoursCard() {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    el.style.setProperty("--x", `${e.clientX - rect.left}px`)
+    el.style.setProperty("--y", `${e.clientY - rect.top}px`)
+    el.style.setProperty("--spot", "rgba(26, 79, 214, 0.16)")
+  }
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      className="rb-spotlight relative mt-6 overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-[#f8faff] via-white to-[#ecf1ff]/60 p-5 shadow-sm transition-all duration-300 hover:border-primary/40 hover:shadow-md"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-primary/10 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Clock size={15} />
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+            Store Working Hours
+          </span>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          Service Counter
+        </span>
+      </div>
+
+      <div className="mt-3.5 space-y-2.5 text-xs">
+        <div className="flex items-center justify-between rounded-xl border border-border/50 bg-white/80 px-3.5 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+          <div className="flex items-center gap-2">
+            <Calendar size={13} className="text-muted-foreground" />
+            <span className="font-semibold text-foreground">
+              Monday to Saturday
+            </span>
+          </div>
+          <span className="rounded-md bg-primary/10 px-2.5 py-1 font-bold text-primary">
+            10:00 AM – 8:30 PM
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-border/50 bg-white/80 px-3.5 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            <span className="font-medium text-foreground">Sunday</span>
+          </div>
+          <span className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 font-bold text-rose-700">
+            Holiday
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
   return (
     <aside className="rounded-2xl border border-primary/20 bg-gradient-to-br from-[#ecf1ff] to-white p-7">
@@ -876,11 +933,6 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
         Hardware repairs, software diagnostics, parts upgrades and IT HUB
         on-site service — handled directly by our certified local team.
       </p>
-      <div className="mt-3 rounded-lg border border-primary/15 bg-white/70 p-3 text-xs text-foreground">
-        <p className="font-semibold text-primary">Store Working Hours:</p>
-        <p className="mt-0.5">Monday – Saturday: 10:00 AM – 8:30 PM</p>
-        <p className="mt-0.5 font-medium text-rose-600">Sunday: Holiday</p>
-      </div>
       <div className="mt-6 grid gap-3">
         {complete && phone && (
           <a href={`tel:${phone.replace(/\s/g, "")}`} className={buttonClass}>
@@ -897,12 +949,6 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
             <WhatsAppIcon size={15} /> WhatsApp IT HUB
           </a>
         )}
-        <ActionLink secondary to="/services/book">
-          <Wrench size={15} /> Book a repair request
-        </ActionLink>
-        <ActionLink secondary to="/support?view=onsite">
-          <Navigation size={15} /> On-site service PIN check
-        </ActionLink>
       </div>
     </aside>
   )
