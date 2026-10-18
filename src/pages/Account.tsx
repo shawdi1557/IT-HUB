@@ -820,7 +820,7 @@ export default function Account() {
                 className="mb-6 flex items-center justify-between rounded-xl border border-primary/20 bg-secondary p-5 text-sm font-semibold text-primary"
               >
                 Open the Help &amp; Support centre — brand warranty contacts,
-                service and on-site warranty
+                service and on-site service
                 <span>→</span>
               </Link>
               <form

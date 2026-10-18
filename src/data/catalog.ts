@@ -1008,7 +1008,7 @@ export const adminGroups: AdminNavGroup[] = [
       { label: "Printer Services", view: "printer" },
       { label: "On-Site Services", view: "onsite" },
       { label: "All Requests", view: "requests" },
-      { label: "On-Site Warranty", view: "warranty" },
+      { label: "On-Site Service", view: "warranty" },
       { label: "Service Areas", view: "areas" },
     ],
   },

@@ -3744,7 +3744,7 @@ function WarrantyAdmin() {
               <>
                 <Badge tone={result.status === "eligible" ? "green" : "red"}>
                   {result.status === "eligible"
-                    ? "Eligible for on-site warranty"
+                    ? "Eligible for on-site service"
                     : "Outside service radius"}
                 </Badge>
                 <p className="mt-3">
@@ -3921,7 +3921,7 @@ function LocationForm({
             setDraft({ ...draft, active: event.target.checked })
           }
         />
-        Active (used for on-site warranty checks)
+        Active (used for on-site service checks)
       </label>
       {error && (
         <p role="alert" className="text-xs text-red-600">
@@ -4118,7 +4118,7 @@ function SettingsPanel({ view }: { view: string }) {
     return (
       <Panel
         title="Primary IT HUB location"
-        description="Used for on-site warranty distance checks and shown as the store location."
+        description="Used for on-site service distance checks and shown as the store location."
       >
         <LocationForm
           value={primary || emptyLocation()}
@@ -4138,7 +4138,7 @@ function SettingsPanel({ view }: { view: string }) {
     return (
       <Panel
         title="On-site service radius"
-        description="Customers whose PIN-area estimate is within the radius of an active location are eligible for on-site warranty."
+        description="Customers whose PIN-area estimate is within the radius of an active location are eligible for on-site service."
       >
         <div className="space-y-4">
           {store.locations.map((location) => (

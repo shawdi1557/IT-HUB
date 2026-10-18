@@ -436,7 +436,7 @@ export default function Home() {
               to="/services#on-site"
               className="mt-5 inline-flex items-center gap-1 text-xs font-semibold text-blue-200"
             >
-              Check On-Site Warranty Eligibility <ArrowRight size={13} />
+              Check On-Site Service Eligibility <ArrowRight size={13} />
             </Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

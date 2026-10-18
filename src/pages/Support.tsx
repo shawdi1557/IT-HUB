@@ -73,7 +73,7 @@ const icons: Record<string, LucideIcon> = {
 const views = [
   { id: "warranty", name: "Manufacturer Directory", Icon: ShieldCheck },
   { id: "service", name: "Service Assistance", Icon: Wrench },
-  { id: "onsite", name: "On-Site Warranty", Icon: Navigation },
+  { id: "onsite", name: "On-Site Service", Icon: Navigation },
   { id: "contact", name: "Contact IT HUB", Icon: Headphones },
 ] as const
 
@@ -484,14 +484,14 @@ export default function Support() {
         </div>
       )}
 
-      {/* VIEW 4: On-Site Warranty Coverage Check */}
+      {/* VIEW 4: On-Site Service Coverage Check */}
       {view === "onsite" && (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
           <div className="rounded-2xl border border-primary/20 bg-secondary/60 p-8">
-            <h2 className="text-2xl font-bold">IT HUB On-Site Warranty</h2>
+            <h2 className="text-2xl font-bold">IT HUB On-Site Service</h2>
             <p className="mb-6 mt-2 text-sm text-muted-foreground">
               Enter your PIN code to check whether IT HUB on-site doorstep
-              warranty service covers your area.
+              service covers your area.
             </p>
             <WarrantyCheck source="support" />
           </div>
@@ -500,9 +500,10 @@ export default function Support() {
               How is this different?
             </h3>
             <p>
-              <strong>IT HUB On-Site Warranty:</strong> Provided directly by IT
-              HUB for eligible purchases made from our store. Our technician
-              visits your premises in covered Kerala areas.
+              <strong>IT HUB On-Site Service:</strong> Provided directly by IT
+              HUB for repairs, diagnostics, upgrades, and doorstep assistance.
+              Our certified technician visits your premises in covered Kerala
+              areas.
             </p>
             <p className="mt-3">
               <strong>Manufacturer Warranty:</strong> Handled directly by the
@@ -867,7 +868,7 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
       </h2>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         Hardware repairs, software diagnostics, parts upgrades and IT HUB
-        on-site warranty — handled directly by our certified local team.
+        on-site service — handled directly by our certified local team.
       </p>
       <div className="mt-6 grid gap-3">
         {complete && phone && (
@@ -889,7 +890,7 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
           <Wrench size={15} /> Book a repair request
         </ActionLink>
         <ActionLink secondary to="/support?view=onsite">
-          <Navigation size={15} /> On-site warranty PIN check
+          <Navigation size={15} /> On-site service PIN check
         </ActionLink>
       </div>
     </aside>

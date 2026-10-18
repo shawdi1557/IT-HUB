@@ -78,7 +78,7 @@ export default function WarrantyCheck({
         }`}
       >
         <ShieldCheck size={compact ? 16 : 18} className="text-primary" /> Check
-        On-Site Warranty Eligibility
+        On-Site Service Eligibility
       </p>
       {pincode === undefined && (
         <>
@@ -133,7 +133,7 @@ export default function WarrantyCheck({
       )}
       {pincode !== undefined && !result && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Enter your delivery PIN code to check on-site warranty coverage.
+          Enter your delivery PIN code to check on-site service coverage.
         </p>
       )}
       {result?.status === "invalid" && (
@@ -152,7 +152,7 @@ export default function WarrantyCheck({
               We couldn’t map PIN code {result.pincode} yet
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Please contact IT HUB to confirm on-site warranty availability for
+              Please contact IT HUB to confirm on-site service availability for
               your area.
             </p>
             <a
@@ -174,7 +174,7 @@ export default function WarrantyCheck({
           />
           <div>
             <p className="font-semibold text-emerald-800">
-              ✓ On-Site Warranty Available
+              ✓ On-Site Service Available
             </p>
             <p className="mt-1 text-xs leading-5 text-emerald-900">
               Your location is within our on-site service coverage area.
@@ -194,7 +194,7 @@ export default function WarrantyCheck({
           <XCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
           <div>
             <p className="font-semibold text-amber-900">
-              On-Site Warranty Not Available
+              On-Site Service Not Available
             </p>
             <p className="mt-1 text-xs leading-5 text-amber-900">
               Your location is outside our current on-site service coverage

@@ -1114,7 +1114,7 @@ export function ProductDetail() {
             },
             {
               name: "Help & Support",
-              text: "Official brand support and on-site warranty eligibility.",
+              text: "Official brand support and on-site service eligibility.",
               to: "/support?view=warranty",
             },
           ].map((service) => (
