@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Cpu,
   Check,
+  BadgeCheck,
 } from "lucide-react"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ShinyText from "../components/ShinyText"
@@ -30,9 +31,7 @@ import {
 } from "../components/ui"
 
 const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
-import CircularGallery, {
-  type CircularGalleryItem,
-} from "../components/CircularGallery"
+import ScrollStack, { ScrollStackItem } from "../components/ScrollStack"
 import asusCert from "../assets/recognition/asus-premium-partner.jpg"
 import canonCert from "../assets/recognition/canon-authorised-reseller.jpg"
 import epsonCert from "../assets/recognition/epson-channel-partner.jpg"
@@ -48,7 +47,14 @@ import {
   type Offer,
 } from "../data/catalog"
 
-const recognitionItems: CircularGalleryItem[] = [
+interface RecognitionItem {
+  image: string
+  text: string
+  description?: string
+  alt?: string
+}
+
+const recognitionItems: RecognitionItem[] = [
   {
     image: asusCert,
     text: "ASUS Premium Partner",
@@ -211,11 +217,10 @@ export function LocationCard() {
   )
 }
 export function About() {
+  const [viewCert, setViewCert] = useState<RecognitionItem | null>(null)
   return (
     <Page>
       <section className="relative pb-8 pt-4 md:py-12">
-        <div className="pointer-events-none absolute -left-20 -top-16 h-80 w-80 rounded-full bg-primary/5 blur-3xl -z-10" />
-        <div className="pointer-events-none absolute -right-20 top-1/4 h-80 w-80 rounded-full bg-[#ecf1ff] blur-3xl -z-10" />
         <div className="relative grid items-center gap-10 md:grid-cols-[1.2fr_1fr]">
           <div>
             <p className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.17em] text-primary">
@@ -352,15 +357,7 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="relative isolate my-16 w-full -mx-5 md:-mx-9 lg:-mx-12 px-5 md:px-9 lg:px-12 py-16 overflow-hidden bg-gradient-to-b from-transparent via-[#ecf1ff]/85 to-transparent">
-        {/* Ambient atmospheric lighting */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[520px] w-full max-w-5xl rounded-full bg-gradient-to-r from-primary/10 via-blue-400/15 to-indigo-400/10 blur-3xl -z-10" />
-        <div className="pointer-events-none absolute left-1/4 top-1/3 h-72 w-72 rounded-full bg-[#dbeafe]/70 blur-3xl -z-10" />
-        <div className="pointer-events-none absolute right-1/4 bottom-1/4 h-72 w-72 rounded-full bg-primary/10 blur-3xl -z-10" />
-
-        {/* Subtle tech dot matrix grid */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px] opacity-25 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)] -z-10" />
-
+      <FadeContent className="relative my-14 w-full">
         <div className="mx-auto max-w-3xl text-center">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.18em] text-primary">
             <ShinyText
@@ -390,7 +387,7 @@ export function About() {
             ].map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-blue-200/80 bg-white/85 px-4 py-1.5 text-xs font-semibold text-slate-800 shadow-xs backdrop-blur-xs"
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground/80 shadow-xs"
               >
                 {t}
               </span>
@@ -398,21 +395,66 @@ export function About() {
           </div>
         </div>
 
-        <div
-          style={{ height: "560px", position: "relative" }}
-          className="mt-8 w-full"
-        >
-          <CircularGallery
-            items={recognitionItems}
-            bend={0}
-            textColor="#0f172a"
-            borderRadius={0.05}
-            scrollEase={0.05}
-            shadow={0.35}
-            autoScroll={0.85}
-            fadeEdges={0.2}
-            snap={false}
-          />
+        <div style={{ height: 600 }} className="mt-10 w-full">
+          <ScrollStack
+            itemDistance={120}
+            itemStackDistance={24}
+            stackPosition="12%"
+            itemScale={0.04}
+            baseScale={0.84}
+            dimAmount={0.14}
+            holdDistance={180}
+            smoothScroll={true}
+          >
+            {recognitionItems.map((item, index) => (
+              <ScrollStackItem
+                key={item.text}
+                itemClassName="group relative overflow-hidden rounded-3xl border border-border/80 bg-card p-6 md:p-8 shadow-xl transition-shadow hover:shadow-2xl"
+              >
+                <div className="grid h-full items-center gap-6 md:grid-cols-[1.15fr_1fr]">
+                  <div className="flex flex-col justify-center space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">
+                        <BadgeCheck size={14} /> Official Milestone #{index + 1}
+                      </span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Since 2011
+                      </span>
+                    </div>
+                    <h3 className="font-display text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                      {item.text}
+                    </h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </p>
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+                        <ShieldCheck size={16} /> Certified Manufacturer Partner
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewCert(item)}
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary cursor-pointer"
+                      >
+                        View Certificate <ArrowUpRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => setViewCert(item)}
+                    className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-2 shadow-inner flex items-center justify-center transition-all hover:border-primary/40"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.alt || item.text}
+                      className="h-full w-full rounded-xl object-contain transition-transform duration-500 group-hover:scale-[1.03]"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </ScrollStackItem>
+            ))}
+          </ScrollStack>
         </div>
       </FadeContent>
       <div className="grid gap-5 md:grid-cols-3">
@@ -473,6 +515,23 @@ export function About() {
         </div>
         <LocationCard />
       </div>
+      <Modal
+        open={!!viewCert}
+        onOpenChange={(open) => !open && setViewCert(null)}
+        title={viewCert?.text || "Recognition Certificate"}
+        description={viewCert?.description}
+        size="max-w-4xl"
+      >
+        {viewCert && (
+          <div className="mt-4 flex items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/20 p-2">
+            <img
+              src={viewCert.image}
+              alt={viewCert.alt || viewCert.text}
+              className="max-h-[75vh] w-auto max-w-full rounded-xl object-contain shadow-sm"
+            />
+          </div>
+        )}
+      </Modal>
     </Page>
   )
 }
