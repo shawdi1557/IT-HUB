@@ -1057,6 +1057,14 @@ export const adminGroups: AdminNavGroup[] = [
   { name: "Customers", section: "customers" },
   { name: "Reviews", section: "reviews" },
   {
+    name: "Certificates",
+    section: "certificates",
+    items: [
+      { label: "All Showcase", view: "all" },
+      { label: "Add Certificate", view: "add" },
+    ],
+  },
+  {
     name: "Analytics & Visitors",
     section: "analytics",
     items: [
@@ -2010,5 +2018,98 @@ export const initialSellRequests: SellRequest[] = [
     adminNotes: "",
     submittedAt: "2026-10-06T18:00:00.000Z",
     updatedAt: "2026-10-06T18:00:00.000Z",
+  },
+]
+
+export type CertificateItem = {
+  id: string
+  text: string
+  brand: string
+  category: string
+  status: string
+  validity: string
+  description: string
+  image: string
+  alt?: string
+  shopUrl?: string
+}
+
+export const initialCertificates: CertificateItem[] = [
+  {
+    id: "cert-asus",
+    image: "/images/recognition/asus-premium-partner.jpg",
+    text: "ASUS Premium Partner",
+    brand: "ASUS",
+    category: "Laptops & Computing",
+    status: "Authorised Premium Partner",
+    validity: "2026 Certified",
+    description:
+      "Certified ASUS Premium Partner 2026 — 100% authentic ROG, TUF, ZenBook laptops and motherboards with direct manufacturer warranty.",
+    alt: "ASUS Premium Partner Certificate for IT HUB",
+    shopUrl: "/products?brand=ASUS",
+  },
+  {
+    id: "cert-canon",
+    image: "/images/recognition/canon-authorised-reseller.jpg",
+    text: "Canon Authorised Reseller",
+    brand: "Canon",
+    category: "Printers & Consumables",
+    status: "Authorised Reseller",
+    validity: "Official Reseller",
+    description:
+      "Officially recognized Canon Reseller delivering genuine PIXMA & imageCLASS printers, high-yield toner cartridges, and expert support.",
+    alt: "Canon Authorised Reseller Certificate for IT HUB",
+    shopUrl: "/products?brand=Canon",
+  },
+  {
+    id: "cert-epson",
+    image: "/images/recognition/epson-channel-partner.jpg",
+    text: "Epson Channel Partner",
+    brand: "Epson",
+    category: "EcoTank Printers & Supplies",
+    status: "Certified Channel Partner",
+    validity: "2026 – 2027",
+    description:
+      "Officially accredited Epson Certified Channel Partner delivering genuine EcoTank printers, original inks, and imaging systems.",
+    alt: "Epson Certified Channel Partner Certificate for IT HUB",
+    shopUrl: "/products?brand=Epson",
+  },
+  {
+    id: "cert-numeric",
+    image: "/images/recognition/numeric-energy-partner.jpg",
+    text: "Numeric Energy Partner",
+    brand: "Numeric",
+    category: "UPS & Power Systems",
+    status: "Authorised Energy Partner",
+    validity: "Authorised Partner",
+    description:
+      "Authorised sales and support partner for Numeric by Legrand power backup, line-interactive UPS, and energy storage solutions.",
+    alt: "Numeric Authorised Energy Partner Certificate for IT HUB",
+    shopUrl: "/products?category=Power%20%26%20UPS",
+  },
+  {
+    id: "cert-iggis",
+    image: "/images/recognition/iggis-honour-recognition.jpg",
+    text: "IGGIS Honour & Recognition",
+    brand: "IGGIS",
+    category: "Institutional IT Partner",
+    status: "Excellence Recognition",
+    validity: "Partnership Award",
+    description:
+      "Honour & recognition awarded by Indira Gandhi Group of Institutions for exceptional technology supply and institutional support.",
+    alt: "Indira Gandhi Group of Institutions recognition award presented to IT HUB",
+  },
+  {
+    id: "cert-intel",
+    image: "/images/about-store.png",
+    text: "Intel Partner Alliance",
+    brand: "Intel",
+    category: "Processors & Systems",
+    status: "Alliance Member",
+    validity: "Active Member",
+    description:
+      "Official Intel® Partner Alliance Member delivering authentic Core processors, boxed CPUs, and certified desktop computing solutions.",
+    alt: "Intel Partner Alliance Membership Certificate for IT HUB",
+    shopUrl: "/products?brand=Intel",
   },
 ]

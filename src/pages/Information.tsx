@@ -46,93 +46,9 @@ import {
   offerHeadline,
   offerStatus,
   type Offer,
+  type CertificateItem,
+  initialCertificates,
 } from "../data/catalog"
-
-interface RecognitionItem {
-  image: string
-  text: string
-  brand: string
-  category: string
-  status: string
-  validity: string
-  description: string
-  alt: string
-  shopUrl?: string
-}
-
-const recognitionItems: RecognitionItem[] = [
-  {
-    image: asusCert,
-    text: "ASUS Premium Partner",
-    brand: "ASUS",
-    category: "Laptops & Computing",
-    status: "Authorised Premium Partner",
-    validity: "2026 Certified",
-    description:
-      "Certified ASUS Premium Partner 2026 — 100% authentic ROG, TUF, ZenBook laptops and motherboards with direct manufacturer warranty.",
-    alt: "ASUS Premium Partner Certificate for IT HUB",
-    shopUrl: "/products?brand=ASUS",
-  },
-  {
-    image: canonCert,
-    text: "Canon Authorised Reseller",
-    brand: "Canon",
-    category: "Printers & Consumables",
-    status: "Authorised Reseller",
-    validity: "Official Reseller",
-    description:
-      "Officially recognized Canon Reseller delivering genuine PIXMA & imageCLASS printers, high-yield toner cartridges, and expert support.",
-    alt: "Canon Authorised Reseller Certificate for IT HUB",
-    shopUrl: "/products?brand=Canon",
-  },
-  {
-    image: epsonCert,
-    text: "Epson Channel Partner",
-    brand: "Epson",
-    category: "EcoTank Printers & Supplies",
-    status: "Certified Channel Partner",
-    validity: "2026 – 2027",
-    description:
-      "Officially accredited Epson Certified Channel Partner delivering genuine EcoTank printers, original inks, and imaging systems.",
-    alt: "Epson Certified Channel Partner Certificate for IT HUB",
-    shopUrl: "/products?brand=Epson",
-  },
-  {
-    image: numericCert,
-    text: "Numeric Energy Partner",
-    brand: "Numeric",
-    category: "UPS & Power Systems",
-    status: "Authorised Energy Partner",
-    validity: "Authorised Partner",
-    description:
-      "Authorised sales and support partner for Numeric by Legrand power backup, line-interactive UPS, and energy storage solutions.",
-    alt: "Numeric Authorised Energy Partner Certificate for IT HUB",
-    shopUrl: "/products?category=Power%20%26%20UPS",
-  },
-  {
-    image: iggisCert,
-    text: "IGGIS Honour & Recognition",
-    brand: "IGGIS",
-    category: "Institutional IT Partner",
-    status: "Excellence Recognition",
-    validity: "Partnership Award",
-    description:
-      "Honour & recognition awarded by Indira Gandhi Group of Institutions for exceptional technology supply and institutional support.",
-    alt: "Indira Gandhi Group of Institutions recognition award presented to IT HUB",
-  },
-  {
-    image: intelCert,
-    text: "Intel Partner Alliance",
-    brand: "Intel",
-    category: "Processors & Systems",
-    status: "Alliance Member",
-    validity: "Active Member",
-    description:
-      "Official Intel® Partner Alliance Member delivering authentic Core processors, boxed CPUs, and certified desktop computing solutions.",
-    alt: "Intel Partner Alliance Membership Certificate for IT HUB",
-    shopUrl: "/products?brand=Intel",
-  },
-]
 
 const offerLink = (offer: Offer) =>
   offer.categories[0]
@@ -252,7 +168,12 @@ export function LocationCard() {
   )
 }
 export function About() {
-  const [viewCert, setViewCert] = useState<RecognitionItem | null>(null)
+  const store = useStore()
+  const [viewCert, setViewCert] = useState<CertificateItem | null>(null)
+  const certificates =
+    store.certificates && store.certificates.length > 0
+      ? store.certificates
+      : initialCertificates
   return (
     <Page>
       <section className="relative pb-8 pt-4 md:py-12">
@@ -460,7 +381,7 @@ export function About() {
 
         {/* 6-Card Minimalist Professional E-Commerce Grid */}
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {recognitionItems.map((item) => (
+          {certificates.map((item) => (
             <div
               key={item.text}
               onClick={() => setViewCert(item)}

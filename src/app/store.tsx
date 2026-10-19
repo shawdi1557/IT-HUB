@@ -44,6 +44,8 @@ import {
   initialCoupons,
   initialCouponUsages,
   initialSellRequests,
+  type CertificateItem,
+  initialCertificates,
 } from "../data/catalog"
 import {
   initialBuildTemplates,
@@ -118,6 +120,7 @@ type State = {
   coupons: Coupon[]
   couponUsages: CouponUsage[]
   sellRequests: SellRequest[]
+  certificates: CertificateItem[]
   catalogLoading: boolean
   catalogLive: boolean
   catalogError: string | null
@@ -140,6 +143,7 @@ const initial: State = {
   coupons: initialCoupons,
   couponUsages: initialCouponUsages,
   sellRequests: initialSellRequests,
+  certificates: initialCertificates,
   profile: { name: "", email: "", phone: "", address: "" },
   loggedIn: false,
   showcase: Array.from({ length: 10 }, (_, i) => ({
@@ -226,6 +230,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         buildTemplates: parsed.buildTemplates?.length
           ? parsed.buildTemplates
           : initial.buildTemplates,
+        certificates:
+          Array.isArray(parsed.certificates) && parsed.certificates.length > 0
+            ? parsed.certificates
+            : initial.certificates,
         locations:
           parsed.locations && parsed.locations.length > 0
             ? parsed.locations.map((loc) =>

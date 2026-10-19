@@ -34,6 +34,7 @@ import {
   MapPin,
   XCircle,
   LogOut,
+  Award,
 } from "lucide-react"
 import type { User } from "@supabase/supabase-js"
 import {
@@ -100,6 +101,7 @@ import { compatibility } from "./Builder"
 import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
 import CouponsAdmin from "./AdminCoupons"
 import SellRequestsAdmin from "./AdminSellRequests"
+import AdminCertificates from "./AdminCertificates"
 import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel"
 import AdminImageDiscovery from "./AdminImageDiscovery"
 import { track } from "../lib/analytics"
@@ -384,6 +386,7 @@ const navIcons: Record<string, typeof LayoutDashboard> = {
   offers: Tag,
   customers: Users,
   reviews: Star,
+  certificates: Award,
   services: Wrench,
   "pc-builder": Cpu,
   analytics: BarChart3,
@@ -1751,6 +1754,9 @@ export default function Admin() {
           {section === "coupons" && <CouponsAdmin key={view} view={view} />}
           {section === "sell-requests" && (
             <SellRequestsAdmin key={view} view={view} />
+          )}
+          {section === "certificates" && (
+            <AdminCertificates key={view} view={view} />
           )}
           {resourceDefinitions[section] && (
             <ResourceManager key={section} section={section} />

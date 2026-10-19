@@ -204,7 +204,8 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-slate-900/40" />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 z-[81] max-h-[90dvh] w-[calc(100%-32px)] ${size} -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl bg-white p-6 shadow-md md:p-8`}
+          data-lenis-prevent
+          className={`fixed left-1/2 top-1/2 z-[81] max-h-[90dvh] w-[calc(100%-32px)] ${size} -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-3xl bg-white p-6 shadow-md md:p-8`}
         >
           <Dialog.Title className="pr-8 font-display text-2xl font-bold">
             {title}
