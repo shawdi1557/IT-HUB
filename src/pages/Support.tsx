@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router"
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowUpRight,
   BadgeCheck,
   Calendar,
   Camera,
@@ -58,6 +59,9 @@ import {
 const DISCLAIMER =
   "Warranty terms and duration are determined exclusively by the respective manufacturer and vary by product model and purchase date. IT HUB provides official contact and locator assistance; warranty claims are validated directly by the brand against your purchase invoice."
 const MISSING = "Not yet published — visit the official portal"
+const STORE_MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
+const STORE_MAP_EMBED =
+  "https://www.google.com/maps?q=IT+HUB+Kothamangalam+Kerala&z=16&output=embed"
 
 const icons: Record<string, LucideIcon> = {
   laptop: Laptop,
@@ -532,26 +536,56 @@ export default function Support() {
             complete={settingsStatus.complete}
           />
           <div className="rounded-2xl border border-border bg-white p-8 shadow-sm">
-            <h2 className="text-xl font-bold">Reach IT HUB Directly</h2>
-            <dl className="mt-5 space-y-4 text-sm">
-              <Row
-                Icon={Phone}
-                label="Phone (Verified)"
-                value={store.settings.phone || "+91 98472 23886"}
-                href={`tel:${(store.settings.phone || "+91 98472 23886").replace(/\s/g, "")}`}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xl font-bold">Reach IT HUB Directly</h2>
+              <a
+                href={STORE_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              >
+                Open Google Maps <ArrowUpRight size={13} />
+              </a>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {store.settings.address ||
+                "Molathu Building, College Jn., Kothamangalam, Kerala - 686691"}
+            </p>
+
+            <div className="relative mt-4 h-60 w-full overflow-hidden rounded-2xl border border-border bg-muted shadow-inner">
+              <iframe
+                title="IT HUB store location on Google Maps"
+                src={STORE_MAP_EMBED}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+                className="h-full w-full border-0"
               />
-              <Row
-                Icon={Mail}
-                label="Email"
-                value={store.settings.email || "ithubkmgm@gmail.com"}
-                href={`mailto:${store.settings.email || "ithubkmgm@gmail.com"}`}
-              />
-              <Row
-                Icon={MapPin}
-                label="Headquarters"
-                value={store.settings.address}
-              />
-            </dl>
+              <a
+                href={STORE_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-xl border border-border bg-white/95 px-3.5 py-2.5 shadow-md backdrop-blur transition hover:border-primary/40 sm:right-auto"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-primary">
+                    <MapPin size={16} />
+                  </span>
+                  <div>
+                    <span className="block text-xs font-bold text-foreground">
+                      IT HUB
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      Kothamangalam, Kerala
+                    </span>
+                  </div>
+                </div>
+                <span className="ml-3 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-white">
+                  Directions <ArrowUpRight size={11} />
+                </span>
+              </a>
+            </div>
+
             <StoreWorkingHoursCard />
           </div>
         </div>
@@ -1032,30 +1066,6 @@ function Info({ label, value }: InfoProps) {
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 font-semibold">{value}</dd>
-    </div>
-  )
-}
-
-function Row({
-  Icon,
-  label,
-  value,
-  href,
-}: {
-  Icon: LucideIcon
-  label: string
-  value?: string
-  href?: string
-}) {
-  return (
-    <div className="flex gap-3">
-      <Icon size={17} className="mt-0.5 text-primary" />
-      <div>
-        <dt className="text-xs text-muted-foreground">{label}</dt>
-        <dd className="font-semibold">
-          {value ? href ? <a href={href}>{value}</a> : value : "Not available"}
-        </dd>
-      </div>
     </div>
   )
 }
