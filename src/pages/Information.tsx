@@ -352,10 +352,10 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="relative isolate mb-14 overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br from-[#ecf1ff] via-white to-white p-6 md:p-12 shadow-sm">
+      <FadeContent className="relative isolate mb-14 overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br from-[#ecf1ff] via-white to-white py-10 md:py-14 shadow-sm">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
         <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-        <div className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto max-w-3xl px-6 text-center md:px-12">
           <p className="text-[10px] font-semibold tracking-[.18em] text-primary uppercase">
             Official Recognition & Milestones
           </p>
@@ -387,8 +387,8 @@ export function About() {
         </div>
 
         <div
-          style={{ height: "600px", position: "relative" }}
-          className="mt-8 w-full overflow-hidden rounded-2xl border border-border/60 bg-card/60"
+          style={{ height: "580px", position: "relative" }}
+          className="mt-6 w-full"
         >
           <CircularGallery
             items={recognitionItems}
@@ -398,6 +398,7 @@ export function About() {
             scrollEase={0.05}
             shadow={0.3}
             autoScroll={0.6}
+            fadeEdges={0.25}
           />
         </div>
       </FadeContent>
