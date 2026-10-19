@@ -33,6 +33,12 @@ const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
 import CircularGallery, {
   type CircularGalleryItem,
 } from "../components/CircularGallery"
+import asusCert from "../assets/recognition/asus-premium-partner.jpg"
+import canonCert from "../assets/recognition/canon-authorised-reseller.jpg"
+import epsonCert from "../assets/recognition/epson-channel-partner.jpg"
+import numericCert from "../assets/recognition/numeric-energy-partner.jpg"
+import iggisCert from "../assets/recognition/iggis-honour-recognition.jpg"
+import intelCert from "../assets/recognition/about-store.png"
 import {
   formatDate,
   images,
@@ -43,42 +49,42 @@ import {
 
 const recognitionItems: CircularGalleryItem[] = [
   {
-    image: "/images/recognition/asus-premium-partner.jpg",
+    image: asusCert,
     text: "ASUS Premium Partner",
     description:
       "Certified ASUS Premium Partner 2026 — 100% authentic products, trusted service & certified excellence.",
     alt: "ASUS Premium Partner Certificate for IT HUB",
   },
   {
-    image: "/images/recognition/canon-authorised-reseller.jpg",
+    image: canonCert,
     text: "Canon Authorised Reseller",
     description:
       "Canon Authorised Reseller certification for inkjet & laser printers, genuine consumables, and expert support.",
     alt: "Canon Authorised Reseller Certificate for IT HUB",
   },
   {
-    image: "/images/recognition/epson-channel-partner.jpg",
+    image: epsonCert,
     text: "Epson Channel Partner",
     description:
       "Officially recognised as Epson Certified Channel Partner 2026–2027 milestone of excellence.",
     alt: "Epson Certified Channel Partner Certificate for IT HUB",
   },
   {
-    image: "/images/recognition/numeric-energy-partner.jpg",
+    image: numericCert,
     text: "Numeric Energy Partner",
     description:
       "Numeric by Legrand Authorised Energy Partner 2026 for reliable UPS systems and power solutions.",
     alt: "Numeric Authorised Energy Partner Certificate for IT HUB",
   },
   {
-    image: "/images/recognition/iggis-honour-recognition.jpg",
+    image: iggisCert,
     text: "IGGIS Honour Award",
     description:
       "Honoured & recognized by Indira Gandhi Group of Institutions (IGGIS) for unwavering IT support since 2010.",
     alt: "Indira Gandhi Group of Institutions recognition award presented to IT HUB",
   },
   {
-    image: "/images/about-store.png",
+    image: intelCert,
     text: "Intel Partner Alliance",
     description:
       "Official Intel® Partner Alliance Member delivering genuine Intel-powered solutions and trusted support.",

@@ -323,7 +323,26 @@ export default function CircularGallery({
   const fontRef = useRef(font)
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
+  const [webglSupported, setWebglSupported] = useState(true)
+  const [modalItem, setModalItem] = useState<CircularGalleryItem | null>(null)
   const list = Array.isArray(items) && items.length ? items : DEFAULT_ITEMS
+
+  useEffect(() => {
+    list.forEach((item) => {
+      if (!item.image) return
+      const img = new Image()
+      const isExternal =
+        typeof window !== "undefined" &&
+        (item.image.startsWith("http://") ||
+          item.image.startsWith("https://")) &&
+        !item.image.startsWith(window.location.origin)
+      if (isExternal) {
+        img.crossOrigin = "anonymous"
+      }
+      img.src = item.image
+    })
+  }, [list])
+
   const settings = {
     items: list,
     bend,
@@ -368,18 +387,31 @@ export default function CircularGallery({
     const canvas = canvasRef.current
     const labelLayer = labelsRef.current
     const caption = captionRef.current
-    const gl = canvas?.getContext("webgl2", {
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-    })
-    if (!container || !canvas || !labelLayer || !caption || !gl)
+    if (!container || !canvas || !labelLayer || !caption) return undefined
+
+    let gl: WebGL2RenderingContext | null = null
+    try {
+      gl = canvas.getContext("webgl2", {
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+      })
+    } catch (err) {
+      console.warn("[CircularGallery] WebGL2 initialization failed:", err)
+    }
+
+    if (!gl || gl.isContextLost()) {
+      setWebglSupported(false)
       return undefined
+    }
 
     const program = link(gl)
-    if (!program) return undefined
+    if (!program) {
+      setWebglSupported(false)
+      return undefined
+    }
     const u = program.uniforms
 
     const vertices: number[] = []
@@ -528,6 +560,47 @@ export default function CircularGallery({
     let lastItems: CircularGalleryItem[] | null = null
     let typing = false
 
+    const createGLTexture = (
+      img: HTMLImageElement,
+      entry: {
+        texture: WebGLTexture | null
+        aspect: number
+        ready: number
+        loaded: boolean
+      },
+    ) => {
+      if (!gl || gl.isContextLost()) return
+      const texture = gl.createTexture()
+      if (!texture) return
+      gl.bindTexture(gl.TEXTURE_2D, texture)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+      gl.generateMipmap(gl.TEXTURE_2D)
+      gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_MIN_FILTER,
+        gl.LINEAR_MIPMAP_LINEAR,
+      )
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      if (anisotropy) {
+        const max = gl.getParameter(
+          anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
+        ) as number
+        gl.texParameterf(
+          gl.TEXTURE_2D,
+          anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
+          Math.min(8, max),
+        )
+      }
+      entry.texture = texture
+      entry.aspect = img.naturalWidth / Math.max(1, img.naturalHeight)
+      entry.loaded = true
+      wake()
+    }
+
     const textureFor = (url: string) => {
       const existing = textures.get(url)
       if (existing) return existing
@@ -538,47 +611,48 @@ export default function CircularGallery({
         loaded: false,
       }
       textures.set(url, entry)
+
+      const isExternal =
+        typeof window !== "undefined" &&
+        (url.startsWith("http://") || url.startsWith("https://")) &&
+        !url.startsWith(window.location.origin)
+
       const image = new Image()
-      image.crossOrigin = "anonymous"
+      if (isExternal) {
+        image.crossOrigin = "anonymous"
+      }
       image.decoding = "async"
+
       image.onload = () => {
         if (!textures.has(url)) return
-        const texture = gl.createTexture()
-        gl.bindTexture(gl.TEXTURE_2D, texture)
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          image,
-        )
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
-        gl.generateMipmap(gl.TEXTURE_2D)
-        gl.texParameteri(
-          gl.TEXTURE_2D,
-          gl.TEXTURE_MIN_FILTER,
-          gl.LINEAR_MIPMAP_LINEAR,
-        )
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-        if (anisotropy) {
-          const max = gl.getParameter(
-            anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
-          ) as number
-          gl.texParameterf(
-            gl.TEXTURE_2D,
-            anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
-            Math.min(8, max),
-          )
+        try {
+          createGLTexture(image, entry)
+        } catch (e) {
+          console.warn("[CircularGallery] Failed to create GL texture:", e)
         }
-        entry.texture = texture
-        entry.aspect = image.naturalWidth / Math.max(1, image.naturalHeight)
-        entry.loaded = true
-        wake()
       }
+
+      image.onerror = (err) => {
+        if (image.crossOrigin) {
+          const retry = new Image()
+          retry.decoding = "async"
+          retry.onload = () => {
+            if (!textures.has(url)) return
+            try {
+              createGLTexture(retry, entry)
+            } catch (e) {
+              console.warn("[CircularGallery] Retry GL texture failed:", e)
+            }
+          }
+          retry.onerror = (e) => {
+            console.error(`[CircularGallery] Retry image failed for ${url}:`, e)
+          }
+          retry.src = url
+        } else {
+          console.error(`[CircularGallery] Failed to load image: ${url}`, err)
+        }
+      }
+
       image.src = url
       return entry
     }
@@ -1283,13 +1357,102 @@ export default function CircularGallery({
       gl.deleteBuffer(vertexBuffer)
       gl.deleteBuffer(indexBuffer)
       gl.deleteVertexArray(vao)
-      gl.getExtension("WEBGL_lose_context")?.loseContext()
     }
   }, [])
 
   useEffect(() => {
     engineRef.current?.wake()
   })
+
+  if (!webglSupported) {
+    return (
+      <div
+        className={`circular-gallery-fallback ${className || ""}`}
+        style={{ ...style }}
+        role="region"
+        aria-label="Recognition & Awards Gallery"
+      >
+        <div className="flex gap-6 overflow-x-auto pb-6 pt-2 px-4 no-scrollbar snap-x snap-mandatory">
+          {list.map((item, idx) => (
+            <div
+              key={`${item.image}-${idx}`}
+              onClick={() => {
+                onItemClick?.(item, idx)
+                if (openOnClick) setModalItem(item)
+              }}
+              className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] snap-center cursor-pointer group rounded-2xl bg-white/5 border border-white/10 p-4 transition-all hover:scale-[1.02] hover:bg-white/10 hover:border-white/20 shadow-lg"
+            >
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black/40 flex items-center justify-center">
+                <img
+                  src={item.image}
+                  alt={item.alt || item.text || "Certificate"}
+                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+              </div>
+              <div className="mt-4">
+                <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                  {item.text}
+                </h4>
+                {item.description && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-blue-200/80">
+                    {item.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {modalItem && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            onClick={() => setModalItem(null)}
+          >
+            <div
+              className="relative max-w-4xl max-h-[90vh] w-full bg-slate-900 border border-white/20 rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setModalItem(null)}
+                className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+                aria-label="Close certificate preview"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <div className="flex-1 min-h-0 flex items-center justify-center p-2">
+                <img
+                  src={modalItem.image}
+                  alt={modalItem.alt || modalItem.text || "Certificate preview"}
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg shadow-md"
+                />
+              </div>
+              <div className="mt-4 text-center">
+                <h3 className="text-xl font-bold text-white">
+                  {modalItem.text}
+                </h3>
+                {modalItem.description && (
+                  <p className="mt-2 text-sm text-blue-200">
+                    {modalItem.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const count = list.length
   const current = list[active % count] || list[0]
