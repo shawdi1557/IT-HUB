@@ -395,6 +395,7 @@ export function About() {
             shadow={0.3}
             autoScroll={0.6}
             fadeEdges={0.2}
+            snap={false}
           />
         </div>
       </FadeContent>

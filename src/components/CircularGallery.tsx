@@ -1383,7 +1383,11 @@ export default function CircularGallery({
         role="region"
         aria-label="Recognition & Awards Gallery"
       >
-        <div className="flex gap-6 overflow-x-auto pb-6 pt-2 px-4 no-scrollbar snap-x snap-mandatory">
+        <div
+          className={`flex gap-6 overflow-x-auto pb-6 pt-2 px-4 no-scrollbar ${
+            snap ? "snap-x snap-mandatory" : ""
+          }`}
+        >
           {list.map((item, idx) => (
             <div
               key={`${item.image}-${idx}`}
@@ -1391,7 +1395,9 @@ export default function CircularGallery({
                 onItemClick?.(item, idx)
                 if (openOnClick) setModalItem(item)
               }}
-              className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] snap-center cursor-pointer group rounded-2xl bg-card border border-border p-4 transition-all hover:scale-[1.02] hover:shadow-md hover:border-primary/40 shadow-xs"
+              className={`flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] cursor-pointer group rounded-2xl bg-card border border-border p-4 transition-all hover:scale-[1.02] hover:shadow-md hover:border-primary/40 shadow-xs ${
+                snap ? "snap-center" : ""
+              }`}
             >
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted/50 border border-border/60 flex items-center justify-center">
                 <img
