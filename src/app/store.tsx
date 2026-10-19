@@ -238,6 +238,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                       pincode: "686691",
                       latitude: 10.0601,
                       longitude: 76.6277,
+                      serviceRadiusKm: 15,
                     }
                   : loc,
               )

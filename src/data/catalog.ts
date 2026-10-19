@@ -696,7 +696,7 @@ export const initialLocations: ItHubLocation[] = [
     pincode: "686691",
     latitude: 10.0601,
     longitude: 76.6277,
-    serviceRadiusKm: 30,
+    serviceRadiusKm: 15,
     active: true,
   },
 ]
@@ -862,7 +862,7 @@ export type WarrantyResult = { status: "invalid" } | {
   pincode: string
   area: string
   location: ItHubLocation
-  distanceKm: number
+  distanceKm: number | null
 }
 /** Straight-line distance from the PIN centroid to the nearest active IT HUB location. */
 export const checkWarranty = (
@@ -873,7 +873,16 @@ export const checkWarranty = (
   if (!/^[1-9]\d{5}$/.test(pin)) return { status: "invalid" }
   const centroid = pincodeDirectory[pin]
   const active = locations.filter((location) => location.active)
-  if (!centroid || !active.length) return { status: "unknown", pincode: pin }
+  if (!centroid || !active.length) {
+    const fallbackLocation = active[0] || initialLocations[0]
+    return {
+      status: "ineligible",
+      pincode: pin,
+      area: "Outside Service Area",
+      location: fallbackLocation,
+      distanceKm: null,
+    }
+  }
   const nearest = active
     .map((location) => ({
       location,

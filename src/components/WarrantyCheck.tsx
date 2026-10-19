@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import {
-  CheckCircle2,
-  MapPin,
-  ShieldCheck,
-  XCircle,
-  HelpCircle,
-} from "lucide-react"
+import { CheckCircle2, MapPin, ShieldCheck, XCircle } from "lucide-react"
 import WhatsAppIcon from "./WhatsAppIcon"
 import { useStore } from "../app/store"
 import { checkWarranty, type WarrantyResult } from "../data/catalog"
@@ -141,31 +135,6 @@ export default function WarrantyCheck({
           Please enter a valid 6-digit PIN code.
         </p>
       )}
-      {result?.status === "unknown" && (
-        <div className="mt-4 flex gap-3 rounded-md bg-muted p-4 text-sm">
-          <HelpCircle
-            size={18}
-            className="mt-0.5 shrink-0 text-muted-foreground"
-          />
-          <div>
-            <p className="font-semibold">
-              We couldn’t map PIN code {result.pincode} yet
-            </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Please contact IT HUB to confirm on-site service availability for
-              your area.
-            </p>
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
-            >
-              <WhatsAppIcon size={13} /> Contact IT HUB
-            </a>
-          </div>
-        </div>
-      )}
       {result?.status === "eligible" && (
         <div className="mt-4 flex gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm">
           <CheckCircle2
@@ -189,7 +158,7 @@ export default function WarrantyCheck({
           </div>
         </div>
       )}
-      {result?.status === "ineligible" && (
+      {(result?.status === "ineligible" || result?.status === "unknown") && (
         <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
           <XCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
           <div>

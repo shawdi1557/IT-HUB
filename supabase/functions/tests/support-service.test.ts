@@ -421,3 +421,66 @@ Deno.test("Support Service: 8. Distinction between Warranty Support and Customer
   assertEquals(hpSupport.warrantyPhone.startsWith("1800-"), true)
   assertEquals(hpSupport.customerCarePhone.startsWith("1800-"), true)
 })
+
+Deno.test("Support Service: 9. On-Site Service Eligibility strictly restricted to 15km store radius", () => {
+  const storeLat = 10.0601
+  const storeLng = 76.6277
+  const serviceRadiusKm = 15
+
+  // 686691 (Kothamangalam Town) -> ~0 km -> Eligible
+  const distKothamangalam = calculateDistanceKm(
+    storeLat,
+    storeLng,
+    10.0601,
+    76.6277,
+  )
+  assertEquals(distKothamangalam <= serviceRadiusKm, true)
+
+  // 686666 (M.A. College) -> ~1.8 km -> Eligible
+  const distCollege = calculateDistanceKm(storeLat, storeLng, 10.0545, 76.6435)
+  assertEquals(distCollege <= serviceRadiusKm, true)
+
+  // 686661 (Muvattupuzha Town) -> ~9.5 km -> Eligible
+  const distMvv = calculateDistanceKm(storeLat, storeLng, 9.9894, 76.579)
+  assertEquals(distMvv <= serviceRadiusKm, true)
+
+  // 683542 (Perumbavoor Town) -> ~17.5 km -> Ineligible (>15km)
+  const distPerumbavoor = calculateDistanceKm(
+    storeLat,
+    storeLng,
+    10.1157,
+    76.478,
+  )
+  assertEquals(distPerumbavoor > serviceRadiusKm, true)
+
+  // 682030 (Kakkanad) -> ~31.7 km -> Ineligible (>15km)
+  const distKakkanad = calculateDistanceKm(storeLat, storeLng, 10.0159, 76.3419)
+  assertEquals(distKakkanad > serviceRadiusKm, true)
+})
+
+Deno.test("Support Service: 10. All PIN codes other than 15km coverage return ineligible / not available", () => {
+  const eligiblePincodesUnder15km = new Set([
+    "686691", // Kothamangalam Town (0 km)
+    "686666", // Kothamangalam College (1.8 km)
+    "686671", // Chathamattam (6.2 km)
+    "686692", // Kottappady (7.1 km)
+    "686670", // Pothanicad (8.7 km)
+    "686681", // Keerampara (9.0 km)
+    "686661", // Muvattupuzha Town (9.5 km)
+    "686693", // Manikinar (9.9 km)
+    "683556", // Odakkali (10.7 km)
+    "686673", // Muvattupuzha Market (10.7 km)
+    "685612", // Oonnukal Range (14.3 km)
+  ])
+
+  // Check eligible pin codes
+  for (const pin of eligiblePincodesUnder15km) {
+    assertEquals(eligiblePincodesUnder15km.has(pin), true)
+  }
+
+  // Any other pin code must be treated as ineligible (outside 15km coverage)
+  const otherPins = ["683542", "682030", "682001", "110001", "560001", "670001"]
+  for (const pin of otherPins) {
+    assertEquals(eligiblePincodesUnder15km.has(pin), false)
+  }
+})

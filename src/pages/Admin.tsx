@@ -3752,8 +3752,10 @@ function WarrantyAdmin() {
                   {result.location.name}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  approx. {result.distanceKm} km (PIN-area estimate) · radius{" "}
-                  {result.location.serviceRadiusKm} km
+                  {result.distanceKm !== null
+                    ? `approx. ${result.distanceKm} km (PIN-area estimate) · `
+                    : ""}
+                  radius {result.location.serviceRadiusKm} km
                 </p>
               </>
             )}
