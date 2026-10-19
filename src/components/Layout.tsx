@@ -215,6 +215,7 @@ export default function Layout() {
               gooeyness={0.5}
               wobble={0.5}
               hoverEffect={true}
+              shadow={0}
             />
           </div>
           <div className="flex items-center gap-1 sm:gap-3">

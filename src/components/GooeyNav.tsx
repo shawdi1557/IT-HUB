@@ -18,8 +18,7 @@ const THEMES = {
     "--gn-frame": "rgba(38, 35, 46, 0.66)",
     "--gn-frame-edge": "rgba(255, 255, 255, 0.08)",
     "--gn-frame-highlight": "rgba(255, 255, 255, 0.07)",
-    "--gn-frame-shadow":
-      "0 22px 44px -20px rgba(0, 0, 0, 0.8), 0 6px 16px -8px rgba(0, 0, 0, 0.5)",
+    "--gn-frame-shadow": "none",
     "--gn-ink": "#f4f4f5",
     "--gn-muted": "rgba(244, 244, 245, 0.62)",
   },
@@ -27,16 +26,15 @@ const THEMES = {
     "--gn-frame": "rgba(240, 240, 243, 0.8)",
     "--gn-frame-edge": "rgba(24, 24, 27, 0.07)",
     "--gn-frame-highlight": "rgba(255, 255, 255, 0.95)",
-    "--gn-frame-shadow":
-      "0 22px 44px -22px rgba(24, 24, 27, 0.3), 0 6px 16px -10px rgba(24, 24, 27, 0.16)",
+    "--gn-frame-shadow": "none",
     "--gn-ink": "#27272a",
     "--gn-muted": "rgba(39, 39, 42, 0.62)",
   },
 }
 
 const PILLS = {
-  dark: { color: "#f4f4f5", hover: "rgba(255, 255, 255, 0.08)", shadow: 0.4 },
-  light: { color: "#27272a", hover: "rgba(24, 24, 27, 0.06)", shadow: 0.2 },
+  dark: { color: "#f4f4f5", hover: "rgba(255, 255, 255, 0.08)", shadow: 0 },
+  light: { color: "#27272a", hover: "rgba(24, 24, 27, 0.06)", shadow: 0 },
 }
 
 const SIZES = { sm: "gooey-nav--sm", md: "", lg: "gooey-nav--lg" }
@@ -346,6 +344,7 @@ export interface GooeyNavProps {
   hoverEffect?: boolean
   className?: string
   style?: React.CSSProperties
+  shadow?: number | boolean
 }
 
 export const GooeyNav: FC<GooeyNavProps> = ({
@@ -368,6 +367,7 @@ export const GooeyNav: FC<GooeyNavProps> = ({
   hoverEffect = true,
   className = "",
   style,
+  shadow,
 }) => {
   const [innerIndex, setInnerIndex] = useState(initialActiveIndex)
   const current =
@@ -393,6 +393,15 @@ export const GooeyNav: FC<GooeyNavProps> = ({
   const pillColor = color || PILLS[palette].color
   const pillRgb = parse(pillColor)
 
+  const shadowValue =
+    shadow !== undefined
+      ? typeof shadow === "number"
+        ? shadow
+        : shadow
+          ? 0.2
+          : 0
+      : PILLS[palette].shadow
+
   const settings = {
     animationTime,
     particleCount,
@@ -404,7 +413,7 @@ export const GooeyNav: FC<GooeyNavProps> = ({
     pillRgb,
     tints: colors.map(parse),
     hoverRgb: parse(PILLS[palette].hover),
-    shadow: PILLS[palette].shadow,
+    shadow: shadowValue,
   }
   const settingsRef = useRef(settings)
   settingsRef.current = settings
@@ -987,7 +996,7 @@ export const GooeyNav: FC<GooeyNavProps> = ({
 
   useEffect(() => {
     engineRef.current?.refresh()
-  }, [pillColor, palette, gooeyness, size, frame])
+  }, [pillColor, palette, gooeyness, size, frame, shadowValue])
 
   const textColor = activeTextColor || contrastInk(pillRgb)
 
