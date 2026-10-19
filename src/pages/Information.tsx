@@ -214,6 +214,8 @@ export function About() {
   return (
     <Page>
       <section className="relative pb-8 pt-4 md:py-12">
+        <div className="pointer-events-none absolute -left-20 -top-16 h-80 w-80 rounded-full bg-primary/5 blur-3xl -z-10" />
+        <div className="pointer-events-none absolute -right-20 top-1/4 h-80 w-80 rounded-full bg-[#ecf1ff] blur-3xl -z-10" />
         <div className="relative grid items-center gap-10 md:grid-cols-[1.2fr_1fr]">
           <div>
             <p className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.17em] text-primary">
@@ -350,15 +352,29 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="relative my-14 w-full">
+      <FadeContent className="relative isolate my-16 w-full -mx-5 md:-mx-9 lg:-mx-12 px-5 md:px-9 lg:px-12 py-16 overflow-hidden bg-gradient-to-b from-transparent via-[#ecf1ff]/85 to-transparent">
+        {/* Ambient atmospheric lighting */}
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[520px] w-full max-w-5xl rounded-full bg-gradient-to-r from-primary/10 via-blue-400/15 to-indigo-400/10 blur-3xl -z-10" />
+        <div className="pointer-events-none absolute left-1/4 top-1/3 h-72 w-72 rounded-full bg-[#dbeafe]/70 blur-3xl -z-10" />
+        <div className="pointer-events-none absolute right-1/4 bottom-1/4 h-72 w-72 rounded-full bg-primary/10 blur-3xl -z-10" />
+
+        {/* Subtle tech dot matrix grid */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px] opacity-25 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_60%,transparent_100%)] -z-10" />
+
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-[10px] font-semibold tracking-[.18em] text-primary uppercase">
-            Official Recognition & Milestones
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.18em] text-primary">
+            <ShinyText
+              text="OFFICIAL RECOGNITION & MILESTONES"
+              color="#1a4fd6"
+              shineColor="#60a5fa"
+              speed={2.5}
+              delay={0.8}
+            />
           </p>
-          <h2 className="mt-3 text-3xl font-bold leading-tight tracking-[-.02em] text-foreground md:text-4xl">
+          <h2 className="mt-4 text-3xl font-extrabold leading-tight tracking-[-.02em] text-foreground md:text-4xl">
             Recognised by the World's Leading Technology Brands
           </h2>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+          <p className="mt-3.5 text-sm leading-7 text-muted-foreground">
             Certified manufacturer partnerships and industry honors reflecting
             our unwavering commitment to delivering genuine products, trusted
             technology solutions, and service excellence since 2011.
@@ -374,7 +390,7 @@ export function About() {
             ].map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-foreground/80 shadow-xs"
+                className="rounded-full border border-blue-200/80 bg-white/85 px-4 py-1.5 text-xs font-semibold text-slate-800 shadow-xs backdrop-blur-xs"
               >
                 {t}
               </span>
@@ -392,8 +408,8 @@ export function About() {
             textColor="#0f172a"
             borderRadius={0.05}
             scrollEase={0.05}
-            shadow={0.3}
-            autoScroll={0.6}
+            shadow={0.35}
+            autoScroll={0.85}
             fadeEdges={0.2}
             snap={false}
           />
