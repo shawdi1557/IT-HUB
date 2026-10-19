@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Link, useSearchParams } from "react-router"
+import { useSearchParams } from "react-router"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -161,6 +161,7 @@ export default function Support() {
   const whatsapp = store.settings.whatsapp
     ? `https://wa.me/${store.settings.whatsapp}`
     : ""
+  const email = store.settings.email || "ithubkmgm@gmail.com"
 
   return (
     <Page>
@@ -448,6 +449,7 @@ export default function Support() {
                 <ItHubCard
                   whatsapp={whatsapp}
                   phone={store.settings.phone}
+                  email={email}
                   complete={settingsStatus.complete}
                 />
               </div>
@@ -526,6 +528,7 @@ export default function Support() {
           <ItHubCard
             whatsapp={whatsapp}
             phone={store.settings.phone}
+            email={email}
             complete={settingsStatus.complete}
           />
           <div className="rounded-2xl border border-border bg-white p-8 shadow-sm">
@@ -550,12 +553,6 @@ export default function Support() {
               />
             </dl>
             <StoreWorkingHoursCard />
-            <Link
-              to="/contact"
-              className="mt-6 inline-block text-sm font-semibold text-primary hover:underline"
-            >
-              Open Contact & Directions Page →
-            </Link>
           </div>
         </div>
       )}
@@ -851,6 +848,7 @@ function BrandCard({
 interface ItHubCardProps {
   whatsapp: string
   phone: string
+  email?: string
   complete: boolean
 }
 
@@ -917,7 +915,7 @@ function StoreWorkingHoursCard() {
   )
 }
 
-function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
+function ItHubCard({ whatsapp, phone, email, complete }: ItHubCardProps) {
   return (
     <aside className="rounded-2xl border border-primary/20 bg-gradient-to-br from-[#ecf1ff] to-white p-7">
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">
@@ -944,6 +942,15 @@ function ItHubCard({ whatsapp, phone, complete }: ItHubCardProps) {
             className="inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
           >
             <WhatsAppIcon size={15} /> WhatsApp IT HUB
+          </a>
+        )}
+        {complete && email && (
+          <a
+            href={`mailto:${email}`}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-semibold text-foreground transition hover:border-primary hover:text-primary hover:shadow-sm"
+          >
+            <Mail size={15} className="shrink-0 text-primary" />
+            <span className="truncate">Email IT HUB ({email})</span>
           </a>
         )}
       </div>
