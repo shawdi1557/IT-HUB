@@ -11,6 +11,8 @@ import {
   Cpu,
   Check,
   BadgeCheck,
+  Award,
+  ZoomIn,
 } from "lucide-react"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import ShinyText from "../components/ShinyText"
@@ -31,7 +33,6 @@ import {
 } from "../components/ui"
 
 const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
-import ScrollStack, { ScrollStackItem } from "../components/ScrollStack"
 import asusCert from "../assets/recognition/asus-premium-partner.jpg"
 import canonCert from "../assets/recognition/canon-authorised-reseller.jpg"
 import epsonCert from "../assets/recognition/epson-channel-partner.jpg"
@@ -50,52 +51,86 @@ import {
 interface RecognitionItem {
   image: string
   text: string
-  description?: string
-  alt?: string
+  brand: string
+  category: string
+  status: string
+  validity: string
+  description: string
+  alt: string
+  shopUrl?: string
 }
 
 const recognitionItems: RecognitionItem[] = [
   {
     image: asusCert,
     text: "ASUS Premium Partner",
+    brand: "ASUS",
+    category: "Laptops & Computing",
+    status: "Authorised Premium Partner",
+    validity: "2026 Certified",
     description:
-      "Certified ASUS Premium Partner 2026 — 100% authentic products, trusted service & certified excellence.",
+      "Certified ASUS Premium Partner 2026 — 100% authentic ROG, TUF, ZenBook laptops and motherboards with direct manufacturer warranty.",
     alt: "ASUS Premium Partner Certificate for IT HUB",
+    shopUrl: "/products?brand=ASUS",
   },
   {
     image: canonCert,
     text: "Canon Authorised Reseller",
+    brand: "Canon",
+    category: "Printers & Consumables",
+    status: "Authorised Reseller",
+    validity: "Official Reseller",
     description:
-      "Canon Authorised Reseller certification for inkjet & laser printers, genuine consumables, and expert support.",
+      "Officially recognized Canon Reseller delivering genuine PIXMA & imageCLASS printers, high-yield toner cartridges, and expert support.",
     alt: "Canon Authorised Reseller Certificate for IT HUB",
+    shopUrl: "/products?brand=Canon",
   },
   {
     image: epsonCert,
     text: "Epson Channel Partner",
+    brand: "Epson",
+    category: "EcoTank Printers & Supplies",
+    status: "Certified Channel Partner",
+    validity: "2026 – 2027",
     description:
-      "Officially recognised as Epson Certified Channel Partner 2026–2027 milestone of excellence.",
+      "Officially accredited Epson Certified Channel Partner delivering genuine EcoTank printers, original inks, and imaging systems.",
     alt: "Epson Certified Channel Partner Certificate for IT HUB",
+    shopUrl: "/products?brand=Epson",
   },
   {
     image: numericCert,
     text: "Numeric Energy Partner",
+    brand: "Numeric",
+    category: "UPS & Power Systems",
+    status: "Authorised Energy Partner",
+    validity: "Authorised Partner",
     description:
-      "Numeric by Legrand Authorised Energy Partner 2026 for reliable UPS systems and power solutions.",
+      "Authorised sales and support partner for Numeric by Legrand power backup, line-interactive UPS, and energy storage solutions.",
     alt: "Numeric Authorised Energy Partner Certificate for IT HUB",
+    shopUrl: "/products?category=Power%20%26%20UPS",
   },
   {
     image: iggisCert,
-    text: "IGGIS Honour Award",
+    text: "IGGIS Honour & Recognition",
+    brand: "IGGIS",
+    category: "Institutional IT Partner",
+    status: "Excellence Recognition",
+    validity: "Partnership Award",
     description:
-      "Honoured & recognized by Indira Gandhi Group of Institutions (IGGIS) for unwavering IT support since 2010.",
+      "Honour & recognition awarded by Indira Gandhi Group of Institutions for exceptional technology supply and institutional support.",
     alt: "Indira Gandhi Group of Institutions recognition award presented to IT HUB",
   },
   {
     image: intelCert,
     text: "Intel Partner Alliance",
+    brand: "Intel",
+    category: "Processors & Systems",
+    status: "Alliance Member",
+    validity: "Active Member",
     description:
-      "Official Intel® Partner Alliance Member delivering genuine Intel-powered solutions and trusted support.",
+      "Official Intel® Partner Alliance Member delivering authentic Core processors, boxed CPUs, and certified desktop computing solutions.",
     alt: "Intel Partner Alliance Membership Certificate for IT HUB",
+    shopUrl: "/products?brand=Intel",
   },
 ]
 
@@ -361,7 +396,7 @@ export function About() {
         <div className="mx-auto max-w-3xl text-center">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.18em] text-primary">
             <ShinyText
-              text="OFFICIAL RECOGNITION & MILESTONES"
+              text="OFFICIAL ACCREDITATIONS & PARTNERSHIPS"
               color="#1a4fd6"
               shineColor="#60a5fa"
               speed={2.5}
@@ -372,89 +407,110 @@ export function About() {
             Recognised by the World's Leading Technology Brands
           </h2>
           <p className="mt-3.5 text-sm leading-7 text-muted-foreground">
-            Certified manufacturer partnerships and industry honors reflecting
-            our unwavering commitment to delivering genuine products, trusted
-            technology solutions, and service excellence since 2011.
+            Every laptop, printer, component, and device sold at IT HUB comes
+            directly through authorized manufacturer channels with 100% genuine
+            brand warranty, trusted service, and direct factory backing.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {[
-              "ASUS Premium Partner",
-              "Canon Authorised Reseller",
-              "Epson Channel Partner",
-              "Numeric Energy Partner",
-              "IGGIS Recognition",
-              "Intel Partner Alliance",
-            ].map((t) => (
-              <span
-                key={t}
-                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-foreground/80 shadow-xs"
-              >
-                {t}
-              </span>
-            ))}
+        </div>
+
+        {/* Minimalist Trust Features Strip */}
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground">
+                100% Genuine Inventory
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Direct authorized distributor sourcing
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <BadgeCheck size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground">
+                Official Brand Warranty
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Honoured at authorized service centres
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3.5 rounded-2xl border border-border/80 bg-card p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <Award size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground">
+                Trusted Since 2011
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                15+ years technology retail & service
+              </p>
+            </div>
           </div>
         </div>
 
-        <div style={{ height: 600 }} className="mt-10 w-full">
-          <ScrollStack
-            itemDistance={120}
-            itemStackDistance={24}
-            stackPosition="12%"
-            itemScale={0.04}
-            baseScale={0.84}
-            dimAmount={0.14}
-            holdDistance={180}
-            smoothScroll={true}
-          >
-            {recognitionItems.map((item, index) => (
-              <ScrollStackItem
-                key={item.text}
-                itemClassName="group relative overflow-hidden rounded-3xl border border-border/80 bg-card p-6 md:p-8 shadow-xl transition-shadow hover:shadow-2xl"
-              >
-                <div className="grid h-full items-center gap-6 md:grid-cols-[1.15fr_1fr]">
-                  <div className="flex flex-col justify-center space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">
-                        <BadgeCheck size={14} /> Official Milestone #{index + 1}
-                      </span>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Since 2011
-                      </span>
-                    </div>
-                    <h3 className="font-display text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-                      {item.text}
-                    </h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {item.description}
-                    </p>
-                    <div className="pt-2 flex flex-wrap items-center gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
-                        <ShieldCheck size={16} /> Certified Manufacturer Partner
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setViewCert(item)}
-                        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary cursor-pointer"
-                      >
-                        View Certificate <ArrowUpRight size={13} />
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => setViewCert(item)}
-                    className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-2 shadow-inner flex items-center justify-center transition-all hover:border-primary/40"
-                  >
-                    <img
-                      src={item.image}
-                      alt={item.alt || item.text}
-                      className="h-full w-full rounded-xl object-contain transition-transform duration-500 group-hover:scale-[1.03]"
-                      loading="lazy"
-                    />
-                  </div>
+        {/* 6-Card Minimalist Professional E-Commerce Grid */}
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {recognitionItems.map((item) => (
+            <div
+              key={item.text}
+              onClick={() => setViewCert(item)}
+              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg cursor-pointer"
+            >
+              <div>
+                {/* Certificate Preview Frame */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border/60 bg-muted/40 p-2.5 transition-colors group-hover:bg-muted/60 flex items-center justify-center">
+                  <img
+                    src={item.image}
+                    alt={item.alt}
+                    className="h-full w-full object-contain rounded-lg transition-transform duration-500 group-hover:scale-[1.03]"
+                    loading="lazy"
+                  />
+                  <div className="pointer-events-none absolute inset-0 rounded-xl bg-primary/0 transition-colors group-hover:bg-primary/5" />
+                  <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-foreground/85 px-2.5 py-1 text-[11px] font-medium text-background backdrop-blur-sm opacity-0 transition-opacity group-hover:opacity-100">
+                    <ZoomIn size={12} /> Inspect
+                  </span>
                 </div>
-              </ScrollStackItem>
-            ))}
-          </ScrollStack>
+
+                {/* Card Meta */}
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center rounded-md bg-secondary px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                    {item.brand}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                    <BadgeCheck size={13} /> {item.validity}
+                  </span>
+                </div>
+
+                <h3 className="mt-2.5 font-display text-base font-bold text-foreground transition-colors group-hover:text-primary">
+                  {item.text}
+                </h3>
+
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                  {item.description}
+                </p>
+              </div>
+
+              {/* Card Footer */}
+              <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+                <span className="truncate text-[11px] font-medium text-muted-foreground">
+                  {item.category}
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold text-primary transition-transform group-hover:translate-x-0.5">
+                  View Certificate <ArrowUpRight size={13} />
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </FadeContent>
       <div className="grid gap-5 md:grid-cols-3">
@@ -520,15 +576,39 @@ export function About() {
         onOpenChange={(open) => !open && setViewCert(null)}
         title={viewCert?.text || "Recognition Certificate"}
         description={viewCert?.description}
-        size="max-w-4xl"
+        size="max-w-3xl"
       >
         {viewCert && (
-          <div className="mt-4 flex items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/20 p-2">
-            <img
-              src={viewCert.image}
-              alt={viewCert.alt || viewCert.text}
-              className="max-h-[75vh] w-auto max-w-full rounded-xl object-contain shadow-sm"
-            />
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted/20 p-3 shadow-inner">
+              <img
+                src={viewCert.image}
+                alt={viewCert.alt || viewCert.text}
+                className="max-h-[65vh] w-auto max-w-full rounded-xl object-contain shadow-xs"
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3.5">
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck size={20} className="shrink-0 text-emerald-600" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">
+                    Verified Authentic Manufacturer Partnership
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Official authorization for IT HUB · Kothamangalam, Kerala
+                  </p>
+                </div>
+              </div>
+              {viewCert.shopUrl && (
+                <Link
+                  to={viewCert.shopUrl}
+                  onClick={() => setViewCert(null)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#0c2f8a]"
+                >
+                  Browse {viewCert.brand} Products <ArrowRight size={13} />
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </Modal>
