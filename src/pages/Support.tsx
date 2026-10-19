@@ -460,16 +460,18 @@ export default function Support() {
 
       {/* VIEW 3: Service Assistance (Repairs with IT HUB) */}
       {view === "service" && (
-        <div className="max-w-2xl">
-          <div className="rounded-2xl border border-primary/20 bg-secondary/60 p-8">
-            <Wrench className="text-primary" size={28} />
+        <div className="mx-auto max-w-2xl">
+          <div className="flex flex-col items-center rounded-2xl border border-primary/20 bg-secondary/60 p-8 text-center sm:p-10">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Wrench size={28} />
+            </div>
             <h2 className="mt-4 text-2xl font-bold">Service Assistance</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
               Out of warranty, physical damage or need an upgrade? IT HUB
               technicians repair laptops, desktops, mobiles and printers — in
               store or on-site.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
               <ActionLink to="/services/book">
                 Book a service request
               </ActionLink>
