@@ -30,6 +30,9 @@ import {
 } from "../components/ui"
 
 const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
+import CircularGallery, {
+  type CircularGalleryItem,
+} from "../components/CircularGallery"
 import {
   formatDate,
   images,
@@ -37,6 +40,51 @@ import {
   offerStatus,
   type Offer,
 } from "../data/catalog"
+
+const recognitionItems: CircularGalleryItem[] = [
+  {
+    image: "/images/recognition/asus-premium-partner.jpg",
+    text: "ASUS Premium Partner",
+    description:
+      "Certified ASUS Premium Partner 2026 — 100% authentic products, trusted service & certified excellence.",
+    alt: "ASUS Premium Partner Certificate for IT HUB",
+  },
+  {
+    image: "/images/recognition/canon-authorised-reseller.jpg",
+    text: "Canon Authorised Reseller",
+    description:
+      "Canon Authorised Reseller certification for inkjet & laser printers, genuine consumables, and expert support.",
+    alt: "Canon Authorised Reseller Certificate for IT HUB",
+  },
+  {
+    image: "/images/recognition/epson-channel-partner.jpg",
+    text: "Epson Channel Partner",
+    description:
+      "Officially recognised as Epson Certified Channel Partner 2026–2027 milestone of excellence.",
+    alt: "Epson Certified Channel Partner Certificate for IT HUB",
+  },
+  {
+    image: "/images/recognition/numeric-energy-partner.jpg",
+    text: "Numeric Energy Partner",
+    description:
+      "Numeric by Legrand Authorised Energy Partner 2026 for reliable UPS systems and power solutions.",
+    alt: "Numeric Authorised Energy Partner Certificate for IT HUB",
+  },
+  {
+    image: "/images/recognition/iggis-honour-recognition.jpg",
+    text: "IGGIS Honour Award",
+    description:
+      "Honoured & recognized by Indira Gandhi Group of Institutions (IGGIS) for unwavering IT support since 2010.",
+    alt: "Indira Gandhi Group of Institutions recognition award presented to IT HUB",
+  },
+  {
+    image: "/images/about-store.png",
+    text: "Intel Partner Alliance",
+    description:
+      "Official Intel® Partner Alliance Member delivering genuine Intel-powered solutions and trusted support.",
+    alt: "Intel Partner Alliance Membership Certificate for IT HUB",
+  },
+]
 
 const offerLink = (offer: Offer) =>
   offer.categories[0]
@@ -282,42 +330,52 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="mb-14 grid items-center gap-10 overflow-hidden rounded-[2rem] bg-[#0c2f8a] p-6 text-white md:grid-cols-[1fr_1.1fr] md:p-12">
-        <div className="order-2 md:order-1">
-          <p className="text-[10px] font-semibold tracking-[.17em] text-blue-300">
-            RECOGNITION
+      <FadeContent className="mb-14 overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0c2f8a] via-[#092265] to-[#04123b] p-6 text-white md:p-12 shadow-xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[10px] font-semibold tracking-[.18em] text-blue-300 uppercase">
+            Official Recognition & Milestones
           </p>
-          <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-.02em] md:text-4xl">
-            Official Intel<sup className="text-lg">®</sup> Partner Alliance
-            Member.
+          <h2 className="mt-3 text-3xl font-bold leading-tight tracking-[-.02em] md:text-4xl text-white">
+            Recognised by the World's Leading Technology Brands
           </h2>
-          <p className="mt-5 text-sm leading-7 text-blue-100">
-            This recognition reflects our commitment to delivering genuine
-            Intel-powered products, trusted technology solutions, and
-            exceptional customer service. Thank you to our valued customers for
-            your continued trust and support.
+          <p className="mt-4 text-sm leading-7 text-blue-100">
+            Certified manufacturer partnerships and industry honors reflecting
+            our unwavering commitment to delivering genuine products, trusted
+            technology solutions, and service excellence since 2011.
           </p>
-          <div className="mt-7 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
             {[
-              "Trusted Technology",
-              "Genuine Products",
-              "Exceptional Service",
+              "ASUS Premium Partner",
+              "Canon Authorised Reseller",
+              "Epson Channel Partner",
+              "Numeric Energy Partner",
+              "IGGIS Recognition",
+              "Intel Partner Alliance",
             ].map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium"
+                className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-blue-200 backdrop-blur-sm"
               >
                 {t}
               </span>
             ))}
           </div>
         </div>
-        <img
-          src="/images/about-store.png"
-          alt="IT HUB founder holding the Intel Partner Alliance membership certificate"
-          loading="lazy"
-          className="order-1 w-full rounded-2xl shadow-md  md:order-2"
-        />
+
+        <div
+          style={{ height: "600px", position: "relative" }}
+          className="mt-8 w-full overflow-hidden rounded-2xl bg-black/20"
+        >
+          <CircularGallery
+            items={recognitionItems}
+            bend={0}
+            textColor="#ffffff"
+            borderRadius={0.05}
+            scrollEase={0.05}
+            shadow={0.5}
+            autoScroll={0.6}
+          />
+        </div>
       </FadeContent>
       <div className="grid gap-5 md:grid-cols-3">
         {[
