@@ -460,7 +460,7 @@ export default function Support() {
 
       {/* VIEW 3: Service Assistance (Repairs with IT HUB) */}
       {view === "service" && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="max-w-2xl">
           <div className="rounded-2xl border border-primary/20 bg-secondary/60 p-8">
             <Wrench className="text-primary" size={28} />
             <h2 className="mt-4 text-2xl font-bold">Service Assistance</h2>
@@ -478,11 +478,6 @@ export default function Support() {
               </ActionLink>
             </div>
           </div>
-          <ItHubCard
-            whatsapp={whatsapp}
-            phone={store.settings.phone}
-            complete={settingsStatus.complete}
-          />
         </div>
       )}
 
