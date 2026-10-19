@@ -38,6 +38,16 @@ export interface CircularGalleryItem {
   alt?: string
 }
 
+interface DragSample {
+  x: number
+  t: number
+}
+
+interface Point2D {
+  x: number
+  y: number
+}
+
 export interface CircularGalleryProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "onItemClick"> {
   items?: CircularGalleryItem[]
@@ -489,6 +499,7 @@ export default function CircularGallery({
       loaded: boolean
     }>()
     const view = { width: 1, height: 1, ratio: 1 }
+
     const state = {
       scroll: 0,
       target: 0,
@@ -508,8 +519,8 @@ export default function CircularGallery({
         y0: number
         start: number
         moved: boolean
-        samples: { x: number t: number }[]
-        p: { x: number y: number }
+        samples: DragSample[]
+        p: Point2D
       } | null,
       lastInput: 0,
       active: 0,
@@ -1091,7 +1102,7 @@ export default function CircularGallery({
       }
     }
 
-    const hit = ({ x, y }: { x: number y: number }) => {
+    const hit = ({ x, y }: Point2D) => {
       for (let i = cards.length - 1; i >= 0; i--) {
         const card = cards[i]
         if (card.alpha < 0.05) continue
@@ -1380,9 +1391,9 @@ export default function CircularGallery({
                 onItemClick?.(item, idx)
                 if (openOnClick) setModalItem(item)
               }}
-              className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] snap-center cursor-pointer group rounded-2xl bg-white/5 border border-white/10 p-4 transition-all hover:scale-[1.02] hover:bg-white/10 hover:border-white/20 shadow-lg"
+              className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] snap-center cursor-pointer group rounded-2xl bg-card border border-border p-4 transition-all hover:scale-[1.02] hover:shadow-md hover:border-primary/40 shadow-xs"
             >
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black/40 flex items-center justify-center">
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted/50 border border-border/60 flex items-center justify-center">
                 <img
                   src={item.image}
                   alt={item.alt || item.text || "Certificate"}
@@ -1391,11 +1402,11 @@ export default function CircularGallery({
                 />
               </div>
               <div className="mt-4">
-                <h4 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                <h4 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
                   {item.text}
                 </h4>
                 {item.description && (
-                  <p className="mt-1.5 text-xs leading-relaxed text-blue-200/80">
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                     {item.description}
                   </p>
                 )}
@@ -1406,17 +1417,17 @@ export default function CircularGallery({
 
         {modalItem && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
             onClick={() => setModalItem(null)}
           >
             <div
-              className="relative max-w-4xl max-h-[90vh] w-full bg-slate-900 border border-white/20 rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col"
+              className="relative max-w-4xl max-h-[90vh] w-full bg-card border border-border rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setModalItem(null)}
-                className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+                className="absolute top-4 right-4 z-10 rounded-full bg-muted p-2 text-foreground hover:bg-muted/80 transition-colors"
                 aria-label="Close certificate preview"
               >
                 <svg
@@ -1438,11 +1449,11 @@ export default function CircularGallery({
                 />
               </div>
               <div className="mt-4 text-center">
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-xl font-bold text-foreground">
                   {modalItem.text}
                 </h3>
                 {modalItem.description && (
-                  <p className="mt-2 text-sm text-blue-200">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {modalItem.description}
                   </p>
                 )}

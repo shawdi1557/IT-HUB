@@ -212,23 +212,23 @@ export function LocationCard() {
 export function About() {
   return (
     <Page>
-      <section className="relative isolate overflow-hidden rounded-[2rem] bg-[#0c2f8a] p-8 text-white md:p-14">
+      <section className="relative isolate overflow-hidden rounded-[2rem] border border-border/80 bg-gradient-to-b from-muted/50 via-card to-card p-8 md:p-14 shadow-xs">
         <div className="relative grid items-center gap-10 md:grid-cols-[1.3fr_1fr]">
           <div>
-            <p className="inline-flex rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[10px] font-semibold tracking-[.17em] text-blue-200">
+            <p className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.17em] text-primary">
               <ShinyText
                 text="ABOUT IT HUB"
-                color="#93b4f5"
-                shineColor="#ffffff"
+                color="#1a4fd6"
+                shineColor="#60a5fa"
                 speed={2.5}
                 delay={0.8}
               />
             </p>
-            <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-[-.03em] md:text-6xl">
+            <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-[-.03em] text-foreground md:text-6xl">
               <SplitText text="Technology. Experience." />{" "}
-              <span className="text-blue-200">Trust.</span>
+              <span className="text-primary">Trust.</span>
             </h1>
-            <p className="mt-6 max-w-xl text-sm leading-7 text-blue-100">
+            <p className="mt-6 max-w-xl text-sm leading-7 text-muted-foreground">
               Established in 2011, IT HUB has grown from an IT products and
               services store into a complete technology solutions provider. With
               nearly 15 years of experience in the IT industry, we have built
@@ -246,18 +246,22 @@ export function About() {
               </a>
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/5 px-6 py-3 text-sm font-semibold transition hover:bg-white/15"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted"
               >
                 Contact us <ArrowUpRight size={16} />
               </Link>
             </div>
           </div>
           <div className="flex items-center justify-center">
-            <img
-              src={new URL("../imports/ITHUBLOGO-1.jpeg", import.meta.url).href}
-              alt="Official IT HUB logo — The Complete IT Store, since 2011"
-              className="w-full max-w-72 rounded-3xl bg-white object-contain p-4 shadow-md "
-            />
+            <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
+              <img
+                src={
+                  new URL("../imports/ITHUBLOGO-1.jpeg", import.meta.url).href
+                }
+                alt="Official IT HUB logo — The Complete IT Store, since 2011"
+                className="w-full max-w-72 rounded-2xl object-contain"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -336,15 +340,15 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="mb-14 overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0c2f8a] via-[#092265] to-[#04123b] p-6 text-white md:p-12 shadow-xl">
+      <FadeContent className="mb-14 rounded-[2rem] border border-border/80 bg-muted/40 p-6 md:p-12">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-[10px] font-semibold tracking-[.18em] text-blue-300 uppercase">
+          <p className="text-[10px] font-semibold tracking-[.18em] text-primary uppercase">
             Official Recognition & Milestones
           </p>
-          <h2 className="mt-3 text-3xl font-bold leading-tight tracking-[-.02em] md:text-4xl text-white">
+          <h2 className="mt-3 text-3xl font-bold leading-tight tracking-[-.02em] text-foreground md:text-4xl">
             Recognised by the World's Leading Technology Brands
           </h2>
-          <p className="mt-4 text-sm leading-7 text-blue-100">
+          <p className="mt-4 text-sm leading-7 text-muted-foreground">
             Certified manufacturer partnerships and industry honors reflecting
             our unwavering commitment to delivering genuine products, trusted
             technology solutions, and service excellence since 2011.
@@ -360,7 +364,7 @@ export function About() {
             ].map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-blue-200 backdrop-blur-sm"
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-foreground/80 shadow-xs"
               >
                 {t}
               </span>
@@ -370,15 +374,15 @@ export function About() {
 
         <div
           style={{ height: "600px", position: "relative" }}
-          className="mt-8 w-full overflow-hidden rounded-2xl bg-black/20"
+          className="mt-8 w-full overflow-hidden rounded-2xl border border-border/60 bg-card/60"
         >
           <CircularGallery
             items={recognitionItems}
             bend={0}
-            textColor="#ffffff"
+            textColor="#0f172a"
             borderRadius={0.05}
             scrollEase={0.05}
-            shadow={0.5}
+            shadow={0.3}
             autoScroll={0.6}
           />
         </div>
