@@ -208,7 +208,7 @@ export default function Layout() {
               colors={["#1a4fd6", "#2563eb", "#3b82f6"]}
               size="sm"
               frame={true}
-              particleCount={15}
+              particleCount={1}
               spread={56}
               animationTime={600}
               timeVariance={300}
