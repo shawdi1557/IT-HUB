@@ -39,6 +39,7 @@ import epsonCert from "../assets/recognition/epson-channel-partner.jpg"
 import numericCert from "../assets/recognition/numeric-energy-partner.jpg"
 import iggisCert from "../assets/recognition/iggis-honour-recognition.jpg"
 import intelCert from "../assets/recognition/about-store.png"
+import storeBuildingImg from "../assets/about-store-building.jpg"
 import {
   formatDate,
   images,
@@ -212,8 +213,10 @@ export function LocationCard() {
 export function About() {
   return (
     <Page>
-      <section className="relative isolate overflow-hidden rounded-[2rem] border border-border/80 bg-gradient-to-b from-muted/50 via-card to-card p-8 md:p-14 shadow-xs">
-        <div className="relative grid items-center gap-10 md:grid-cols-[1.3fr_1fr]">
+      <section className="relative isolate overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br from-[#ecf1ff] via-white to-white p-8 md:p-14 shadow-sm">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
+        <div className="relative grid items-center gap-10 md:grid-cols-[1.2fr_1fr]">
           <div>
             <p className="inline-flex rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-[10px] font-semibold tracking-[.17em] text-primary">
               <ShinyText
@@ -253,14 +256,23 @@ export function About() {
             </div>
           </div>
           <div className="flex items-center justify-center">
-            <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm">
-              <img
-                src={
-                  new URL("../imports/ITHUBLOGO-1.jpeg", import.meta.url).href
-                }
-                alt="Official IT HUB logo — The Complete IT Store, since 2011"
-                className="w-full max-w-72 rounded-2xl object-contain"
-              />
+            <div className="group relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl border border-border/80 bg-white p-2 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted">
+                <img
+                  src={storeBuildingImg}
+                  alt="IT HUB Flagship Store — The Complete IT Store, Kothamangalam"
+                  className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+                <div className="absolute bottom-4 left-4 right-4 text-white">
+                  <p className="text-[11px] font-semibold tracking-wider text-blue-200 uppercase">
+                    Flagship Store · Since 2011
+                  </p>
+                  <p className="text-sm font-bold text-white drop-shadow-sm">
+                    IT HUB — The Complete IT Store
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -340,7 +352,9 @@ export function About() {
           </ol>
         </FadeContent>
       </div>
-      <FadeContent className="mb-14 rounded-[2rem] border border-border/80 bg-muted/40 p-6 md:p-12">
+      <FadeContent className="relative isolate mb-14 overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br from-[#ecf1ff] via-white to-white p-6 md:p-12 shadow-sm">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-[10px] font-semibold tracking-[.18em] text-primary uppercase">
             Official Recognition & Milestones
