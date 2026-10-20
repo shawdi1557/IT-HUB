@@ -30,7 +30,6 @@ import {
   Router,
   Search,
   ShieldCheck,
-  ShieldQuestion,
   Smartphone,
   Tv,
   Wrench,
@@ -54,11 +53,7 @@ import {
   type SupportCategory,
 } from "../data/catalog"
 
-import {
-  checkStoreSettingsCompleteness,
-  calculatePincodeDistance,
-  validateIndianPincode,
-} from "../lib/support"
+import { checkStoreSettingsCompleteness } from "../lib/support"
 
 import {
   ActionLink,
@@ -136,8 +131,6 @@ export default function Support() {
 
   const [query, setQuery] = useState("")
 
-  const [other, setOther] = useState(false)
-
   const categories = store.supportCategories.filter((item) => item.active)
 
   const records = store.brandSupport.filter((item) => item.active)
@@ -198,8 +191,6 @@ export default function Support() {
     )
 
     setParams(copy)
-
-    setOther(false)
   }
 
   useEffect(() => {
@@ -457,40 +448,7 @@ export default function Support() {
                   (r) => r.category === category.id && match(r, query),
                 )}
                 onPick={(r) => update({ brand: r.brand })}
-                extra={
-                  <button
-                    onClick={() => setOther(true)}
-                    className="rounded-2xl border border-dashed border-border bg-white p-5 text-left text-sm font-semibold hover:border-primary hover:text-primary transition"
-                  >
-                    Other Brand
-                    <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                      Not listed here?
-                    </span>
-                  </button>
-                }
               />
-              {other && (
-                <div className="mt-6 rounded-2xl border border-border bg-white p-6">
-                  <h3 className="flex items-center gap-2 font-bold">
-                    <ShieldQuestion size={18} className="text-primary" /> Brand
-                    not listed
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Check the warranty card or invoice that came with your
-                    product — it lists the manufacturer's official support phone
-                    number and warranty website. Always avoid unverified
-                    third-party numbers on search engines. Still stuck? Contact
-                    IT HUB directly and our technicians will help you find the
-                    correct authorized support center.
-                  </p>
-                  <button
-                    onClick={() => update({ view: "contact" })}
-                    className={`${buttonClass} mt-4`}
-                  >
-                    Contact IT HUB
-                  </button>
-                </div>
-              )}
               <RecentlyViewed
                 ids={store.recentSupport}
                 records={records}
@@ -508,17 +466,11 @@ export default function Support() {
               >
                 <ArrowLeft size={15} /> Back to {category.name} brands
               </button>
-              <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+              <div className="mx-auto max-w-3xl">
                 <BrandCard
                   record={record}
                   categoryName={category.name}
                   onContact={() => update({ view: "contact" })}
-                />
-                <ItHubCard
-                  whatsapp={whatsapp}
-                  phone={store.settings.phone}
-                  email={email}
-                  complete={settingsStatus.complete}
                 />
               </div>
 
@@ -850,29 +802,29 @@ function BrandCard({
 }) {
   return (
     <article className="rounded-2xl border border-border bg-white p-7 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-muted-foreground">
-            Official Manufacturer Contacts
-          </p>
-          <h2 className="mt-1 text-2xl font-extrabold">
-            {record.brand}{" "}
-            <span className="font-medium text-muted-foreground">
-              {categoryName}
-            </span>
-          </h2>
+      <div className="text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[.16em] text-muted-foreground">
+          Official Manufacturer Contacts
+        </p>
+        <h2 className="mt-1 text-2xl font-extrabold">
+          {record.brand}{" "}
+          <span className="font-medium text-muted-foreground">
+            {categoryName}
+          </span>
+        </h2>
+        <div className="mt-2.5 flex justify-center">
+          {record.lastVerifiedAt ? (
+            <Badge tone="green">
+              <BadgeCheck size={13} className="mr-1 inline" /> Verified{" "}
+              {fmt(record.lastVerifiedAt)}
+            </Badge>
+          ) : (
+            <Badge tone="amber">Pending Verification</Badge>
+          )}
         </div>
-        {record.lastVerifiedAt ? (
-          <Badge tone="green">
-            <BadgeCheck size={13} className="mr-1 inline" /> Verified{" "}
-            {fmt(record.lastVerifiedAt)}
-          </Badge>
-        ) : (
-          <Badge tone="amber">Pending Verification</Badge>
-        )}
       </div>
 
-      <p className="mt-3 rounded-lg bg-blue-50 px-3.5 py-2.5 text-xs text-blue-900 leading-5">
+      <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-center text-xs text-blue-900 leading-relaxed">
         <strong>Manufacturer Support Notice:</strong> Services, spare parts, and
         warranty inspections are administered directly by {record.brand}. Have
         your product serial number and purchase invoice ready.
@@ -921,13 +873,13 @@ function BrandCard({
       </div>
 
       {record.notes && (
-        <p className="mt-3 text-sm leading-6 text-muted-foreground border-t border-border pt-3">
+        <p className="mt-4 border-t border-border pt-3 text-center text-sm leading-6 text-muted-foreground">
           {record.notes}
         </p>
       )}
 
       {/* Action Buttons */}
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
         {record.warrantyPhone && (
           <a
             href={`tel:${record.warrantyPhone.replace(/\s/g, "")}`}
@@ -1195,20 +1147,25 @@ function Info({ label, value }: InfoProps) {
 
 interface BrandKeralaServiceCentresProps {
   record: BrandSupport
+
   category: SupportCategory
+
   centres: ServiceCentre[]
 }
 
 function BrandKeralaServiceCentres({
   record,
+
   category,
+
   centres,
 }: BrandKeralaServiceCentresProps) {
   const [cityFilter, setCityFilter] = useState("all")
+
   const [searchQuery, setSearchQuery] = useState("")
-  const [pincodeInput, setPincodeInput] = useState("")
 
   // Filter centers matching category & brand
+
   const brandCentres = useMemo(() => {
     const list = centres.filter(
       (c) =>
@@ -1216,7 +1173,9 @@ function BrandKeralaServiceCentres({
         c.category.toLowerCase() === category.id.toLowerCase() &&
         c.brandName.toLowerCase() === record.brand.toLowerCase(),
     )
+
     if (list.length > 0) return list
+
     return centres.filter(
       (c) =>
         c.active && c.brandName.toLowerCase() === record.brand.toLowerCase(),
@@ -1224,13 +1183,16 @@ function BrandKeralaServiceCentres({
   }, [centres, category.id, record.brand])
 
   // Extract unique cities and counts
+
   const cityCounts = useMemo(() => {
     const counts: Record<string, number> = {}
+
     brandCentres.forEach((c) => {
       if (c.city) {
         counts[c.city] = (counts[c.city] || 0) + 1
       }
     })
+
     return counts
   }, [brandCentres])
 
@@ -1238,23 +1200,35 @@ function BrandKeralaServiceCentres({
     return Object.keys(cityCounts).sort((a, b) => {
       const priority = [
         "Kochi",
+
         "Muvattupuzha",
+
         "Thodupuzha",
+
         "Kottayam",
+
         "Thrissur",
+
         "Thiruvananthapuram",
+
         "Kozhikode",
       ]
+
       const idxA = priority.indexOf(a)
+
       const idxB = priority.indexOf(b)
+
       if (idxA !== -1 && idxB !== -1) return idxA - idxB
+
       if (idxA !== -1) return -1
+
       if (idxB !== -1) return 1
+
       return a.localeCompare(b)
     })
   }, [cityCounts])
 
-  // Displayed and calculated centres
+  // Filter by city and search query
   const displayedCentres = useMemo(() => {
     let list = brandCentres
 
@@ -1275,34 +1249,8 @@ function BrandKeralaServiceCentres({
       )
     }
 
-    const hasValidPin =
-      pincodeInput.trim().length === 6 && validateIndianPincode(pincodeInput)
-
-    if (hasValidPin) {
-      list = list.map((c) => {
-        const distance = calculatePincodeDistance(
-          pincodeInput,
-          c.latitude,
-          c.longitude,
-        )
-        return {
-          ...c,
-          distanceKm: distance !== null ? distance : undefined,
-        }
-      })
-
-      return [...list].sort((a, b) => {
-        if (a.distanceKm !== undefined && b.distanceKm !== undefined) {
-          return a.distanceKm - b.distanceKm
-        }
-        if (a.distanceKm !== undefined) return -1
-        if (b.distanceKm !== undefined) return 1
-        return a.city.localeCompare(b.city)
-      })
-    }
-
     return [...list].sort((a, b) => a.city.localeCompare(b.city))
-  }, [brandCentres, cityFilter, searchQuery, pincodeInput])
+  }, [brandCentres, cityFilter, searchQuery])
 
   if (brandCentres.length === 0) {
     return (
@@ -1388,9 +1336,9 @@ function BrandKeralaServiceCentres({
           ))}
         </div>
 
-        {/* Dual Search & Pincode Filter */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="relative">
+        {/* Search Bar */}
+        <div>
+          <label className="relative block">
             <Search
               size={16}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1398,23 +1346,7 @@ function BrandKeralaServiceCentres({
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search area, road, or centre name..."
-              className={`${fieldClass} pl-10 text-xs`}
-            />
-          </label>
-          <label className="relative">
-            <Navigation
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              value={pincodeInput}
-              onChange={(e) =>
-                setPincodeInput(
-                  e.target.value.replace(/[^0-9]/g, "").slice(0, 6),
-                )
-              }
-              placeholder="Enter your 6-digit PIN code to sort nearest first (e.g. 686691)"
+              placeholder="Search by city, area, road, pincode, or centre name..."
               className={`${fieldClass} pl-10 text-xs`}
             />
           </label>
@@ -1428,12 +1360,11 @@ function BrandKeralaServiceCentres({
           {brandCentres.length} {record.brand} service centres in Kerala
           {cityFilter !== "all" ? ` in ${cityFilter}` : ""}
         </span>
-        {(cityFilter !== "all" || searchQuery || pincodeInput) && (
+        {(cityFilter !== "all" || searchQuery) && (
           <button
             onClick={() => {
               setCityFilter("all")
               setSearchQuery("")
-              setPincodeInput("")
             }}
             className="font-semibold text-primary hover:underline"
           >
@@ -1468,14 +1399,6 @@ function BrandKeralaServiceCentres({
                     Authorized
                   </Badge>
                 </div>
-
-                {/* Distance Badge if calculated */}
-                {centre.distanceKm !== undefined && (
-                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">
-                    <Navigation size={12} className="text-emerald-600" />
-                    Approx. {centre.distanceKm} km from PIN {pincodeInput}
-                  </div>
-                )}
 
                 {/* Address */}
                 <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
@@ -1546,8 +1469,8 @@ function BrandKeralaServiceCentres({
           <button
             onClick={() => {
               setCityFilter("all")
+
               setSearchQuery("")
-              setPincodeInput("")
             }}
             className={`${buttonClass} mt-4 text-xs`}
           >
