@@ -856,14 +856,6 @@ function BrandCard({
           value={record.warrantyUrl}
           kind="url"
         />
-        {record.serviceLocatorUrl && (
-          <Field
-            Icon={MapPin}
-            label="Official Service Centre Locator"
-            value={record.serviceLocatorUrl}
-            kind="url"
-          />
-        )}
         <Field
           Icon={Mail}
           label="Official Email Support"
@@ -904,22 +896,6 @@ function BrandCard({
             className={secondaryClass}
           >
             <FileText size={15} /> Check Warranty Online
-          </button>
-        )}
-        {record.serviceLocatorUrl && (
-          <button
-            onClick={() =>
-              window.open(
-                record.serviceLocatorUrl,
-
-                "_blank",
-
-                "noopener,noreferrer",
-              )
-            }
-            className={secondaryClass}
-          >
-            <MapPin size={15} /> Official Service Centre Locator
           </button>
         )}
         <button onClick={onContact} className={secondaryClass}>
@@ -1229,6 +1205,7 @@ function BrandKeralaServiceCentres({
   }, [cityCounts])
 
   // Filter by city and search query
+
   const displayedCentres = useMemo(() => {
     let list = brandCentres
 
@@ -1240,6 +1217,7 @@ function BrandKeralaServiceCentres({
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
+
       list = list.filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -1364,6 +1342,7 @@ function BrandKeralaServiceCentres({
           <button
             onClick={() => {
               setCityFilter("all")
+
               setSearchQuery("")
             }}
             className="font-semibold text-primary hover:underline"
