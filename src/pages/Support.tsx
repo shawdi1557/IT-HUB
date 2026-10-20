@@ -467,11 +467,7 @@ export default function Support() {
                 <ArrowLeft size={15} /> Back to {category.name} brands
               </button>
               <div className="mx-auto max-w-3xl">
-                <BrandCard
-                  record={record}
-                  categoryName={category.name}
-                  onContact={() => update({ view: "contact" })}
-                />
+                <BrandCard record={record} categoryName={category.name} />
               </div>
 
               {/* Verified Manufacturer Service Centres in Whole Kerala */}
@@ -789,16 +785,10 @@ function Field({
 
 function BrandCard({
   record,
-
   categoryName,
-
-  onContact,
 }: {
   record: BrandSupport
-
   categoryName: string
-
-  onContact: () => void
 }) {
   return (
     <article className="rounded-2xl border border-border bg-white p-7 shadow-sm">
@@ -871,37 +861,38 @@ function BrandCard({
       )}
 
       {/* Action Buttons */}
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        {record.warrantyPhone && (
-          <a
-            href={`tel:${record.warrantyPhone.replace(/\s/g, "")}`}
-            className={buttonClass}
-          >
-            <Phone size={15} /> Call Warranty Support
-          </a>
-        )}
-        {record.customerCarePhone && (
-          <a
-            href={`tel:${record.customerCarePhone.replace(/\s/g, "")}`}
-            className={secondaryClass}
-          >
-            <Phone size={15} /> Call Customer Care
-          </a>
-        )}
-        {record.warrantyUrl && (
-          <button
-            onClick={() =>
-              window.open(record.warrantyUrl, "_blank", "noopener,noreferrer")
-            }
-            className={secondaryClass}
-          >
-            <FileText size={15} /> Check Warranty Online
-          </button>
-        )}
-        <button onClick={onContact} className={secondaryClass}>
-          <Headphones size={15} /> Contact IT HUB
-        </button>
-      </div>
+      {(record.warrantyPhone ||
+        record.customerCarePhone ||
+        record.warrantyUrl) && (
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {record.warrantyPhone && (
+            <a
+              href={`tel:${record.warrantyPhone.replace(/\s/g, "")}`}
+              className={buttonClass}
+            >
+              <Phone size={15} /> Call Warranty Support
+            </a>
+          )}
+          {record.customerCarePhone && (
+            <a
+              href={`tel:${record.customerCarePhone.replace(/\s/g, "")}`}
+              className={secondaryClass}
+            >
+              <Phone size={15} /> Call Customer Care
+            </a>
+          )}
+          {record.warrantyUrl && (
+            <button
+              onClick={() =>
+                window.open(record.warrantyUrl, "_blank", "noopener,noreferrer")
+              }
+              className={secondaryClass}
+            >
+              <FileText size={15} /> Check Warranty Online
+            </button>
+          )}
+        </div>
+      )}
     </article>
   )
 }
