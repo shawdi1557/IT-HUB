@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+
 import { useSearchParams } from "react-router"
+
 import {
   AlertTriangle,
   ArrowLeft,
@@ -34,18 +36,30 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react"
+
 import WhatsAppIcon from "../components/WhatsAppIcon"
+
 import { useStore } from "../app/store"
+
 import { track } from "../lib/analytics"
+
 import WarrantyCheck from "../components/WarrantyCheck"
+
 import {
   warrantyMonths,
   warrantyUntil,
   type BrandSupport,
   type Product,
+  type ServiceCentre,
   type SupportCategory,
 } from "../data/catalog"
-import { checkStoreSettingsCompleteness } from "../lib/support"
+
+import {
+  checkStoreSettingsCompleteness,
+  calculatePincodeDistance,
+  validateIndianPincode,
+} from "../lib/support"
+
 import {
   ActionLink,
   Badge,
@@ -58,81 +72,116 @@ import {
 
 const DISCLAIMER =
   "Warranty terms and duration are determined exclusively by the respective manufacturer and vary by product model and purchase date. IT HUB provides official contact and locator assistance; warranty claims are validated directly by the brand against your purchase invoice."
+
 const MISSING = "Not yet published — visit the official portal"
+
 const STORE_MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
+
 const STORE_MAP_EMBED =
   "https://www.google.com/maps?q=IT+HUB+Kothamangalam+Kerala&z=16&output=embed"
 
 const icons: Record<string, LucideIcon> = {
   laptop: Laptop,
+
   mobile: Smartphone,
+
   smartphone: Smartphone,
+
   printer: Printer,
+
   monitor: Monitor,
+
   tv: Tv,
+
   camera: Camera,
+
   router: Router,
+
   gamepad: Gamepad2,
+
   cpu: Cpu,
 }
 
 const views = [
   { id: "warranty", name: "Manufacturer Directory", Icon: ShieldCheck },
+
   { id: "service", name: "Service Assistance", Icon: Wrench },
+
   { id: "onsite", name: "On-Site Service", Icon: Navigation },
+
   { id: "contact", name: "Contact IT HUB", Icon: Headphones },
 ] as const
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, {
     day: "numeric",
+
     month: "short",
+
     year: "numeric",
   })
 
 export default function Support() {
   const store = useStore()
+
   const [params, setParams] = useSearchParams()
+
   const rawView = params.get("view") || "warranty"
+
   const view = rawView === "locator" ? "warranty" : rawView
+
   const orderId = params.get("order") || ""
+
   const productId = params.get("product") || ""
+
   const [query, setQuery] = useState("")
+
   const [other, setOther] = useState(false)
 
   const categories = store.supportCategories.filter((item) => item.active)
+
   const records = store.brandSupport.filter((item) => item.active)
 
   const settingsStatus = useMemo(
     () => checkStoreSettingsCompleteness(store.settings),
+
     [store.settings],
   )
 
   const order = store.orders.find((item) => item.id === orderId)
+
   const orderItem = order?.items.find((item) => item.id === productId)
+
   const product: Product | undefined = store.products.find(
     (item) => item.id === productId,
   )
 
   // Customer order history for order-aware assistance
+
   const customerOrders = useMemo(() => {
     if (!store.loggedIn) return []
+
     return store.orders.filter((o) => o.status >= 0)
   }, [store.loggedIn, store.orders])
 
   // Category param may be a support id or a store catalog category name.
+
   const rawCategory = params.get("category") || ""
+
   const fromProduct = product
     ? categories.find((item) =>
         item.catalogCategories.includes(product.category),
       )
     : undefined
+
   const category =
     categories.find((item) => item.id === rawCategory) ||
     categories.find((item) => item.catalogCategories.includes(rawCategory)) ||
     (rawCategory ? undefined : fromProduct)
+
   const brandName =
     params.get("brand") || (product && category ? product.brand : "")
+
   const record = category
     ? records.find(
         (item) =>
@@ -143,28 +192,36 @@ export default function Support() {
 
   const update = (next: Record<string, string | null>) => {
     const copy = new URLSearchParams(params)
+
     Object.entries(next).forEach(([key, value]) =>
       value ? copy.set(key, value) : copy.delete(key),
     )
+
     setParams(copy)
+
     setOther(false)
   }
 
   useEffect(() => {
     if (!record) return
+
     track("Warranty Assistance Viewed", { brand: record.brand })
+
     store.set((previous) => ({
       recentSupport: [
         record.id,
+
         ...previous.recentSupport.filter((id) => id !== record.id),
       ].slice(0, 6),
     }))
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record?.id])
 
   const whatsapp = store.settings.whatsapp
     ? `https://wa.me/${store.settings.whatsapp}`
     : ""
+
   const email = store.settings.email || "ithubkmgm@gmail.com"
 
   return (
@@ -253,19 +310,24 @@ export default function Support() {
                   {customerOrders.slice(0, 3).flatMap((o) =>
                     o.items.map((it) => {
                       const p = store.products.find((prod) => prod.id === it.id)
+
                       const targetCategory = p
                         ? categories.find((cat) =>
                             cat.catalogCategories.includes(p.category),
                           )?.id
                         : undefined
+
                       return (
                         <button
                           key={`${o.id}-${it.id}`}
                           onClick={() =>
                             update({
                               order: o.id,
+
                               product: it.id,
+
                               category: targetCategory || null,
+
                               brand: p?.brand || null,
                             })
                           }
@@ -298,9 +360,11 @@ export default function Support() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {categories.map((item) => {
                   const Icon = icons[item.icon] || LifeBuoy
+
                   const count = records.filter(
                     (r) => r.category === item.id,
                   ).length
+
                   return (
                     <button
                       key={item.id}
@@ -457,6 +521,13 @@ export default function Support() {
                   complete={settingsStatus.complete}
                 />
               </div>
+
+              {/* Verified Manufacturer Service Centres in Whole Kerala */}
+              <BrandKeralaServiceCentres
+                record={record}
+                category={category}
+                centres={store.serviceCentres}
+              />
             </section>
           )}
 
@@ -599,6 +670,7 @@ const match = (record: BrandSupport, query: string) =>
 
 interface StepTitleProps {
   step: string
+
   title: string
 }
 
@@ -615,16 +687,23 @@ function StepTitle({ step, title }: StepTitleProps) {
 
 function BrandGrid({
   title,
+
   list,
+
   onPick,
+
   extra,
 }: {
   title: string
+
   list: BrandSupport[]
+
   onPick: (record: BrandSupport) => void
+
   extra?: ReactNode
 }) {
   if (!list.length && !extra) return null
+
   return (
     <div className="mb-8">
       <p className="mb-3 text-[10px] font-bold uppercase tracking-[.16em] text-muted-foreground">
@@ -651,17 +730,25 @@ function BrandGrid({
 
 function RecentlyViewed({
   ids,
+
   records,
+
   onPick,
 }: {
   ids: string[]
+
   records: BrandSupport[]
+
   onPick: (record: BrandSupport) => void
 }) {
   const list = ids
+
     .map((id) => records.find((r) => r.id === id))
+
     .filter(Boolean) as BrandSupport[]
+
   if (!list.length) return null
+
   return (
     <div className="mt-8">
       <p className="mb-3 text-[10px] font-bold uppercase tracking-[.16em] text-muted-foreground">
@@ -684,13 +771,19 @@ function RecentlyViewed({
 
 function Field({
   Icon,
+
   label,
+
   value,
+
   kind,
 }: {
   Icon: LucideIcon
+
   label: string
+
   value?: string
+
   kind: "tel" | "url" | "mail"
 }) {
   return (
@@ -744,11 +837,15 @@ function Field({
 
 function BrandCard({
   record,
+
   categoryName,
+
   onContact,
 }: {
   record: BrandSupport
+
   categoryName: string
+
   onContact: () => void
 }) {
   return (
@@ -862,7 +959,9 @@ function BrandCard({
             onClick={() =>
               window.open(
                 record.serviceLocatorUrl,
+
                 "_blank",
+
                 "noopener,noreferrer",
               )
             }
@@ -881,8 +980,11 @@ function BrandCard({
 
 interface ItHubCardProps {
   whatsapp: string
+
   phone: string
+
   email?: string
+
   complete: boolean
 }
 
@@ -891,10 +993,15 @@ function StoreWorkingHoursCard() {
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = cardRef.current
+
     if (!el) return
+
     const rect = el.getBoundingClientRect()
+
     el.style.setProperty("--x", `${e.clientX - rect.left}px`)
+
     el.style.setProperty("--y", `${e.clientY - rect.top}px`)
+
     el.style.setProperty("--spot", "rgba(26, 79, 214, 0.16)")
   }
 
@@ -994,24 +1101,39 @@ function ItHubCard({ whatsapp, phone, email, complete }: ItHubCardProps) {
 
 function OrderContext({
   orderId,
+
   date,
+
   cancelled,
+
   name,
+
   brand,
+
   categoryName,
+
   warranty,
 }: {
   orderId: string
+
   date: string
+
   cancelled: boolean
+
   name: string
+
   brand: string
+
   categoryName: string
+
   warranty: string
 }) {
   const months = warrantyMonths(warranty)
+
   const until = months ? warrantyUntil(date, months) : ""
+
   const active = until ? new Date(until) > new Date() : false
+
   return (
     <section className="rounded-2xl border border-border bg-white p-7 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1058,6 +1180,7 @@ function OrderContext({
 
 interface InfoProps {
   label: string
+
   value: string
 }
 
@@ -1070,13 +1193,406 @@ function Info({ label, value }: InfoProps) {
   )
 }
 
+interface BrandKeralaServiceCentresProps {
+  record: BrandSupport
+  category: SupportCategory
+  centres: ServiceCentre[]
+}
+
+function BrandKeralaServiceCentres({
+  record,
+  category,
+  centres,
+}: BrandKeralaServiceCentresProps) {
+  const [cityFilter, setCityFilter] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [pincodeInput, setPincodeInput] = useState("")
+
+  // Filter centers matching category & brand
+  const brandCentres = useMemo(() => {
+    const list = centres.filter(
+      (c) =>
+        c.active &&
+        c.category.toLowerCase() === category.id.toLowerCase() &&
+        c.brandName.toLowerCase() === record.brand.toLowerCase(),
+    )
+    if (list.length > 0) return list
+    return centres.filter(
+      (c) =>
+        c.active && c.brandName.toLowerCase() === record.brand.toLowerCase(),
+    )
+  }, [centres, category.id, record.brand])
+
+  // Extract unique cities and counts
+  const cityCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    brandCentres.forEach((c) => {
+      if (c.city) {
+        counts[c.city] = (counts[c.city] || 0) + 1
+      }
+    })
+    return counts
+  }, [brandCentres])
+
+  const sortedCities = useMemo(() => {
+    return Object.keys(cityCounts).sort((a, b) => {
+      const priority = [
+        "Kochi",
+        "Muvattupuzha",
+        "Thodupuzha",
+        "Kottayam",
+        "Thrissur",
+        "Thiruvananthapuram",
+        "Kozhikode",
+      ]
+      const idxA = priority.indexOf(a)
+      const idxB = priority.indexOf(b)
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1) return -1
+      if (idxB !== -1) return 1
+      return a.localeCompare(b)
+    })
+  }, [cityCounts])
+
+  // Displayed and calculated centres
+  const displayedCentres = useMemo(() => {
+    let list = brandCentres
+
+    if (cityFilter !== "all") {
+      list = list.filter(
+        (c) => c.city.toLowerCase() === cityFilter.toLowerCase(),
+      )
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.city.toLowerCase().includes(q) ||
+          c.address.toLowerCase().includes(q) ||
+          c.pincode.includes(q),
+      )
+    }
+
+    const hasValidPin =
+      pincodeInput.trim().length === 6 && validateIndianPincode(pincodeInput)
+
+    if (hasValidPin) {
+      list = list.map((c) => {
+        const distance = calculatePincodeDistance(
+          pincodeInput,
+          c.latitude,
+          c.longitude,
+        )
+        return {
+          ...c,
+          distanceKm: distance !== null ? distance : undefined,
+        }
+      })
+
+      return [...list].sort((a, b) => {
+        if (a.distanceKm !== undefined && b.distanceKm !== undefined) {
+          return a.distanceKm - b.distanceKm
+        }
+        if (a.distanceKm !== undefined) return -1
+        if (b.distanceKm !== undefined) return 1
+        return a.city.localeCompare(b.city)
+      })
+    }
+
+    return [...list].sort((a, b) => a.city.localeCompare(b.city))
+  }, [brandCentres, cityFilter, searchQuery, pincodeInput])
+
+  if (brandCentres.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-white p-7 text-center shadow-sm">
+        <MapPin size={32} className="mx-auto text-muted-foreground/60 mb-2" />
+        <h3 className="text-lg font-bold">Authorized Service Centres</h3>
+        <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
+          Authorized service points for {record.brand} {category.name} in Kerala
+          are listed directly on the official brand locator.
+        </p>
+        {record.serviceLocatorUrl && (
+          <a
+            href={record.serviceLocatorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${buttonClass} mt-4 inline-flex items-center gap-1.5`}
+          >
+            Open Official {record.brand} Locator <ExternalLink size={14} />
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-gradient-to-b from-white via-white to-[#f8faff] p-7 shadow-sm">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/80 pb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MapPin size={18} />
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-[.16em] text-primary">
+              Kerala Authorized Service Network
+            </span>
+          </div>
+          <h2 className="mt-2 text-2xl font-extrabold text-foreground">
+            {record.brand} Authorized Service Centres in Whole Kerala
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Showing verified manufacturer service locations, warranty inspection
+            centers, and spare parts facilities across Kerala districts.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge tone="green">
+            <BadgeCheck size={14} className="mr-1 inline text-emerald-600" />
+            {brandCentres.length} Kerala Centres Verified
+          </Badge>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="mt-6 space-y-4">
+        {/* City Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-bold text-muted-foreground">
+            Filter District:
+          </span>
+          <button
+            onClick={() => setCityFilter("all")}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+              cityFilter === "all"
+                ? "bg-primary text-white shadow-sm"
+                : "border border-border bg-white text-muted-foreground hover:border-primary hover:text-primary"
+            }`}
+          >
+            All Kerala ({brandCentres.length})
+          </button>
+          {sortedCities.map((city) => (
+            <button
+              key={city}
+              onClick={() => setCityFilter(city)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                cityFilter.toLowerCase() === city.toLowerCase()
+                  ? "bg-primary text-white shadow-sm"
+                  : "border border-border bg-white text-muted-foreground hover:border-primary hover:text-primary"
+              }`}
+            >
+              {city} ({cityCounts[city]})
+            </button>
+          ))}
+        </div>
+
+        {/* Dual Search & Pincode Filter */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="relative">
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search area, road, or centre name..."
+              className={`${fieldClass} pl-10 text-xs`}
+            />
+          </label>
+          <label className="relative">
+            <Navigation
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              value={pincodeInput}
+              onChange={(e) =>
+                setPincodeInput(
+                  e.target.value.replace(/[^0-9]/g, "").slice(0, 6),
+                )
+              }
+              placeholder="Enter your 6-digit PIN code to sort nearest first (e.g. 686691)"
+              className={`${fieldClass} pl-10 text-xs`}
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Results Count & Status */}
+      <div className="mt-4 flex flex-wrap items-center justify-between text-xs text-muted-foreground">
+        <span>
+          Showing <strong>{displayedCentres.length}</strong> of{" "}
+          {brandCentres.length} {record.brand} service centres in Kerala
+          {cityFilter !== "all" ? ` in ${cityFilter}` : ""}
+        </span>
+        {(cityFilter !== "all" || searchQuery || pincodeInput) && (
+          <button
+            onClick={() => {
+              setCityFilter("all")
+              setSearchQuery("")
+              setPincodeInput("")
+            }}
+            className="font-semibold text-primary hover:underline"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
+      {/* Grid of Centres */}
+      {displayedCentres.length > 0 ? (
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {displayedCentres.map((centre) => (
+            <div
+              key={centre.id}
+              className="flex flex-col justify-between rounded-2xl border border-border/80 bg-white p-5 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+            >
+              <div>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <span className="inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary mb-1">
+                      {centre.city}, Kerala
+                    </span>
+                    <h3 className="text-base font-bold text-foreground leading-snug">
+                      {centre.name}
+                    </h3>
+                  </div>
+                  <Badge tone="green">
+                    <BadgeCheck
+                      size={12}
+                      className="mr-1 inline text-emerald-600"
+                    />
+                    Authorized
+                  </Badge>
+                </div>
+
+                {/* Distance Badge if calculated */}
+                {centre.distanceKm !== undefined && (
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                    <Navigation size={12} className="text-emerald-600" />
+                    Approx. {centre.distanceKm} km from PIN {pincodeInput}
+                  </div>
+                )}
+
+                {/* Address */}
+                <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                  <MapPin size={15} className="mt-0.5 shrink-0 text-primary" />
+                  <span>
+                    {centre.address} — PIN {centre.pincode}
+                  </span>
+                </div>
+
+                {/* Services Tags */}
+                {centre.servicesOffered &&
+                  centre.servicesOffered.length > 0 && (
+                    <div className="mt-3.5 flex flex-wrap gap-1.5">
+                      {centre.servicesOffered.map((service, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-foreground/80"
+                        >
+                          {service}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  {centre.phone && (
+                    <a
+                      href={`tel:${centre.phone.replace(/[^0-9+]/g, "")}`}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
+                    >
+                      <Phone size={12} /> Call Centre
+                    </a>
+                  )}
+                  {centre.email && (
+                    <a
+                      href={`mailto:${centre.email}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
+                    >
+                      <Mail size={12} /> Email
+                    </a>
+                  )}
+                </div>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    `${centre.name} ${centre.address}`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  Directions <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-white p-8 text-center">
+          <p className="font-semibold text-sm">
+            No service centres found matching your search.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Try selecting "All Kerala" or clearing your search keywords.
+          </p>
+          <button
+            onClick={() => {
+              setCityFilter("all")
+              setSearchQuery("")
+              setPincodeInput("")
+            }}
+            className={`${buttonClass} mt-4 text-xs`}
+          >
+            View All {record.brand} Kerala Centres
+          </button>
+        </div>
+      )}
+
+      {/* Official Brand Portal Notice */}
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-primary">
+        <div>
+          <span className="font-bold">
+            Need Doorstep Technician Assistance?
+          </span>
+          <p className="mt-0.5 text-muted-foreground text-[11px]">
+            {record.brand} also provides authorized on-site engineer visits for
+            eligible products across Kerala.
+          </p>
+        </div>
+        {record.serviceLocatorUrl && (
+          <a
+            href={record.serviceLocatorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-bold text-primary hover:underline"
+          >
+            Visit Official {record.brand} Locator <ArrowUpRight size={13} />
+          </a>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function Checklist({ onContact }: { onContact: () => void }) {
   const items = [
     { Icon: FileText, text: "Keep your invoice ready" },
+
     { Icon: Hash, text: "Note the serial number (S/N)" },
+
     { Icon: ClipboardList, text: "Describe symptoms clearly" },
+
     { Icon: Headphones, text: "Contact IT HUB for guidance" },
   ]
+
   return (
     <section className="rounded-2xl border border-border bg-white p-7 shadow-sm">
       <h2 className="text-lg font-bold">
