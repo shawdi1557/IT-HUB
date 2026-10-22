@@ -408,12 +408,21 @@ export async function fetchUserServiceRequests(): Promise<ServiceRequest[]> {
 }
 
 /**
+ * Validates whether a given string is a valid PostgreSQL UUID.
+ */
+export function isUuid(val: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    val,
+  )
+}
+
+/**
  * Fetches a single service request by ID from Supabase.
  */
 export async function fetchServiceRequestById(
   id: string,
 ): Promise<ServiceRequest | null> {
-  if (!supabase || !supabaseConfig.isConfigured) return null
+  if (!supabase || !supabaseConfig.isConfigured || !isUuid(id)) return null
 
   try {
     const { data, error } = await supabase
@@ -458,8 +467,8 @@ export async function submitCustomerQuoteDecision(
     return { ok: false, error: "Invalid quotation decision." }
   }
 
-  // 1. Try authoritative Supabase RPC first
-  if (supabase && supabaseConfig.isConfigured) {
+  // 1. Try authoritative Supabase RPC first (only if requestId is a valid PostgreSQL UUID)
+  if (supabase && supabaseConfig.isConfigured && isUuid(requestId)) {
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc(
         "submit_customer_quote_decision",
@@ -491,11 +500,13 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      // If RPC failed due to validation/auth, return its explicit error message
+      // If RPC failed due to domain rule validation, return its explicit error message
       if (
         rpcError &&
         !rpcError.message.includes("function") &&
-        !rpcError.message.includes("does not exist")
+        !rpcError.message.includes("does not exist") &&
+        !rpcError.message.includes("syntax") &&
+        !rpcError.message.includes("not found")
       ) {
         return { ok: false, error: rpcError.message }
       }
@@ -510,9 +521,11 @@ export async function submitCustomerQuoteDecision(
         error: authError,
       } = await supabase.auth.getUser()
       if (authError || !user) {
-        return {
-          ok: false,
-          error: "You must be signed in to approve or decline a quotation.",
+        if (!currentRequest) {
+          return {
+            ok: false,
+            error: "You must be signed in to approve or decline a quotation.",
+          }
         }
       }
 
@@ -525,145 +538,160 @@ export async function submitCustomerQuoteDecision(
         .maybeSingle()
 
       if (fetchErr || !existing) {
+        if (!currentRequest) {
+          return {
+            ok: false,
+            error:
+              "Service request not found or you do not have permission to view it.",
+          }
+        }
+        // Fall through to local fallback for demo/in-memory tickets
+      } else {
+        // Enforce ticket ownership unless administrator
+        if (user && existing.user_id !== user.id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle()
+
+          if (profile?.role !== "admin") {
+            return {
+              ok: false,
+              error: "Unauthorized: You do not own this service ticket.",
+            }
+          }
+        }
+
+        if (existing.quote_state !== "pending") {
+          return {
+            ok: false,
+            error: `This quotation has already been ${existing.quote_state}. Further decisions cannot be submitted.`,
+          }
+        }
+
+        if (
+          existing.quote_version &&
+          existing.quote_version !== expectedVersion
+        ) {
+          return {
+            ok: false,
+            error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
+          }
+        }
+
+        const items: QuotationItem[] = Array.isArray(existing.quotation_items)
+          ? existing.quotation_items
+          : []
+
+        // Validate selection
+        const val = validateItemSelection(items, selectedItemIds, decision)
+        if (!val.valid) {
+          return { ok: false, error: val.error }
+        }
+
+        const courierCharge = existing.courier_charge_return_delivery
+          ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
+          : undefined
+
+        const effectiveSelectedIds =
+          decision === "approved" ? selectedItemIds : []
+        const calc = calculateQuotationTotals(
+          items,
+          effectiveSelectedIds,
+          courierCharge,
+        )
+
+        const allItemIds = items.map((i) => i.id)
+        const declinedItemIds = allItemIds.filter(
+          (id) => !effectiveSelectedIds.includes(id),
+        )
+
+        const updatedItems = items.map((i) => {
+          if (effectiveSelectedIds.includes(i.id)) {
+            return { ...i, approvalState: "approved" as const }
+          }
+          if (decision === "approved" && i.canDefer) {
+            return { ...i, approvalState: "deferred" as const }
+          }
+          return { ...i, approvalState: "declined" as const }
+        })
+
+        const nextStatus =
+          decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
+        const nextStatusLabel =
+          nextStatus === 5 ? "Approved" : "Awaiting approval"
+
+        const { error: updateErr } = await supabase
+          .from("service_requests")
+          .update({
+            quote_state: decision,
+            quote: calc.totalPayable,
+            quotation_items: updatedItems,
+            approved_items: effectiveSelectedIds,
+            declined_items: declinedItemIds,
+            decision_notes: notes || null,
+            decision_at: new Date().toISOString(),
+            decision_actor: user?.id,
+          })
+          .eq("id", requestId)
+          .eq("quote_state", "pending")
+
+        if (updateErr) {
+          if (
+            updateErr.message.includes("schema cache") ||
+            updateErr.message.includes("approved_items") ||
+            updateErr.message.includes("quotation_items")
+          ) {
+            try {
+              await supabase
+                .from("service_requests")
+                .update({
+                  quote: calc.totalPayable,
+                })
+                .eq("id", requestId)
+            } catch {
+              // Ignore remote failure when remote schema is pending migration
+            }
+
+            return {
+              ok: true,
+              decision,
+              nextStatus,
+              nextStatusLabel,
+              approvedItems: effectiveSelectedIds,
+              declinedItems: declinedItemIds,
+              totalAmount: calc.totalPayable,
+              version: existing.quote_version || expectedVersion,
+            }
+          }
+          return {
+            ok: false,
+            error: updateErr.message || "Failed to update quotation decision.",
+          }
+        }
+
+        return {
+          ok: true,
+          decision,
+          nextStatus,
+          nextStatusLabel,
+          approvedItems: effectiveSelectedIds,
+          declinedItems: declinedItemIds,
+          totalAmount: calc.totalPayable,
+          version: existing.quote_version || expectedVersion,
+        }
+      }
+    } catch (err: any) {
+      if (!currentRequest) {
         return {
           ok: false,
           error:
-            "Service request not found or you do not have permission to view it.",
+            err?.message ||
+            "A network error occurred while submitting your decision.",
         }
       }
-
-      if (existing.user_id !== user.id) {
-        return {
-          ok: false,
-          error: "Unauthorized: You do not own this service ticket.",
-        }
-      }
-
-      if (existing.quote_state !== "pending") {
-        return {
-          ok: false,
-          error: `This quotation has already been ${existing.quote_state}. Further decisions cannot be submitted.`,
-        }
-      }
-
-      if (
-        existing.quote_version &&
-        existing.quote_version !== expectedVersion
-      ) {
-        return {
-          ok: false,
-          error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
-        }
-      }
-
-      const items: QuotationItem[] = Array.isArray(existing.quotation_items)
-        ? existing.quotation_items
-        : []
-
-      // Validate selection
-      const val = validateItemSelection(items, selectedItemIds, decision)
-      if (!val.valid) {
-        return { ok: false, error: val.error }
-      }
-
-      const courierCharge = existing.courier_charge_return_delivery
-        ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
-        : undefined
-
-      const effectiveSelectedIds =
-        decision === "approved" ? selectedItemIds : []
-      const calc = calculateQuotationTotals(
-        items,
-        effectiveSelectedIds,
-        courierCharge,
-      )
-
-      const allItemIds = items.map((i) => i.id)
-      const declinedItemIds = allItemIds.filter(
-        (id) => !effectiveSelectedIds.includes(id),
-      )
-
-      const updatedItems = items.map((i) => {
-        if (effectiveSelectedIds.includes(i.id)) {
-          return { ...i, approvalState: "approved" as const }
-        }
-        if (decision === "approved" && i.canDefer) {
-          return { ...i, approvalState: "deferred" as const }
-        }
-        return { ...i, approvalState: "declined" as const }
-      })
-
-      const nextStatus =
-        decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
-      const nextStatusLabel =
-        nextStatus === 5 ? "Approved" : "Awaiting approval"
-
-      const { error: updateErr } = await supabase
-        .from("service_requests")
-        .update({
-          quote_state: decision,
-          quote: calc.totalPayable,
-          quotation_items: updatedItems,
-          approved_items: effectiveSelectedIds,
-          declined_items: declinedItemIds,
-          decision_notes: notes || null,
-          decision_at: new Date().toISOString(),
-          decision_actor: user.id,
-        })
-        .eq("id", requestId)
-        .eq("quote_state", "pending")
-
-      if (updateErr) {
-        if (
-          updateErr.message.includes("schema cache") ||
-          updateErr.message.includes("approved_items") ||
-          updateErr.message.includes("quotation_items")
-        ) {
-          try {
-            await supabase
-              .from("service_requests")
-              .update({
-                quote: calc.totalPayable,
-              })
-              .eq("id", requestId)
-          } catch {
-            // Ignore remote failure when remote schema is pending migration
-          }
-
-          return {
-            ok: true,
-            decision,
-            nextStatus,
-            nextStatusLabel,
-            approvedItems: effectiveSelectedIds,
-            declinedItems: declinedItemIds,
-            totalAmount: calc.totalPayable,
-            version: existing.quote_version || expectedVersion,
-          }
-        }
-        return {
-          ok: false,
-          error: updateErr.message || "Failed to update quotation decision.",
-        }
-      }
-
-      return {
-        ok: true,
-        decision,
-        nextStatus,
-        nextStatusLabel,
-        approvedItems: effectiveSelectedIds,
-        declinedItems: declinedItemIds,
-        totalAmount: calc.totalPayable,
-        version: existing.quote_version || expectedVersion,
-      }
-    } catch (err: any) {
-      return {
-        ok: false,
-        error:
-          err?.message ||
-          "A network error occurred while submitting your decision.",
-      }
+      // If error occurred and currentRequest is available, fall through to local fallback
     }
   }
 
@@ -758,7 +786,7 @@ export async function adminPublishQuotation(
     ? [...currentRequest.quotationHistory, revision]
     : [revision]
 
-  if (supabase && supabaseConfig.isConfigured) {
+  if (supabase && supabaseConfig.isConfigured && isUuid(requestId)) {
     try {
       const { error } = await supabase
         .from("service_requests")
@@ -831,7 +859,7 @@ export async function adminUpdateServiceRequest(
     notes?: string
   },
 ): Promise<AdminUpdateResult> {
-  if (supabase && supabaseConfig.isConfigured) {
+  if (supabase && supabaseConfig.isConfigured && isUuid(id)) {
     try {
       const { error } = await supabase
         .from("service_requests")
