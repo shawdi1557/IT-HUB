@@ -614,6 +614,32 @@ export async function submitCustomerQuoteDecision(
         .eq("quote_state", "pending")
 
       if (updateErr) {
+        if (
+          updateErr.message.includes("schema cache") ||
+          updateErr.message.includes("approved_items") ||
+          updateErr.message.includes("quotation_items")
+        ) {
+          const { error: fallbackErr } = await supabase
+            .from("service_requests")
+            .update({
+              quote_state: decision,
+              quote: calc.totalPayable,
+            })
+            .eq("id", requestId)
+
+          if (!fallbackErr) {
+            return {
+              ok: true,
+              decision,
+              nextStatus,
+              nextStatusLabel,
+              approvedItems: effectiveSelectedIds,
+              declinedItems: declinedItemIds,
+              totalAmount: calc.totalPayable,
+              version: existing.quote_version || expectedVersion,
+            }
+          }
+        }
         return {
           ok: false,
           error: updateErr.message || "Failed to update quotation decision.",
@@ -703,6 +729,7 @@ export async function adminPublishQuotation(
   ok: boolean
   newVersion?: number
   totalAmount?: number
+  warning?: string
   error?: string
 }> {
   const allItemIds = quotationItems.map((i) => i.id)
@@ -749,6 +776,40 @@ export async function adminPublishQuotation(
         .eq("id", requestId)
 
       if (error) {
+        // Handle unmigrated remote database gracefully by updating legacy columns
+        if (
+          error.message.includes("schema cache") ||
+          error.message.includes("approved_items") ||
+          error.message.includes("quotation_items") ||
+          error.message.includes("findings")
+        ) {
+          const { error: fallbackErr } = await supabase
+            .from("service_requests")
+            .update({
+              status: "Awaiting Approval",
+              quote: calc.totalPayable,
+              quote_state: "pending",
+              notes:
+                adminNotes !== undefined ? adminNotes : currentRequest?.notes,
+            })
+            .eq("id", requestId)
+
+          if (!fallbackErr) {
+            return {
+              ok: true,
+              newVersion,
+              totalAmount: calc.totalPayable,
+              warning:
+                "Quotation published in compatibility mode. To save itemized findings in the database, run the Phase 5.2 migration in your Supabase SQL Editor.",
+            }
+          }
+
+          return {
+            ok: false,
+            error:
+              "Database migration required: The 'service_requests' table in Supabase is missing columns. Please execute 'supabase/migrations/20261022000001_phase5_dynamic_diagnosis_and_itemized_quotations.sql' in your Supabase SQL Editor.",
+          }
+        }
         return { ok: false, error: error.message }
       }
       return { ok: true, newVersion, totalAmount: calc.totalPayable }

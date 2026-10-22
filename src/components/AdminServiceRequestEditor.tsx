@@ -317,7 +317,11 @@ export default function AdminServiceRequestEditor({
       }))
 
       store.log(`Quotation v${newVersion} published for ${request.id}`)
-      store.notify(`Quotation v${newVersion} published for customer review`)
+      if (result.warning) {
+        store.notify(result.warning)
+      } else {
+        store.notify(`Quotation v${newVersion} published for customer review`)
+      }
       setIsPublishing(false)
     } catch (err: any) {
       setError(err?.message || "Failed to publish quotation.")
