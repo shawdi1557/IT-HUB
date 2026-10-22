@@ -282,3 +282,4 @@ $$;
 grant execute on function public.submit_customer_quote_decision to authenticated;
 
 commit;
+

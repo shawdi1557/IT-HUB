@@ -1872,6 +1872,7 @@ export interface QuotationRevision {
   notes?: string
 }
 
+
 export type ServiceRequest = {
   id: string
 
