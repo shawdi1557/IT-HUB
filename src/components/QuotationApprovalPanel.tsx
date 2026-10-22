@@ -28,6 +28,7 @@ import {
   type SafePublicTracking,
 } from "../lib/services"
 import { Badge, Button } from "./ui"
+import RepairPaymentModal from "./RepairPaymentModal"
 
 interface QuotationApprovalPanelProps {
   request: ServiceRequest
@@ -47,6 +48,7 @@ export default function QuotationApprovalPanel({
   // Concurrency & confirmation states
   const [confirmingAction, setConfirmingAction] =
     useState<"approved" | "rejected" | null>(null)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [decisionNotes, setDecisionNotes] = useState<string>("")
@@ -911,7 +913,18 @@ export default function QuotationApprovalPanel({
                       }
                       onClick={() => {
                         setActionError(null)
-                        setConfirmingAction("approved")
+                        const val = validateItemSelection(
+                          quotationItems,
+                          selectedItemIds,
+                          "approved",
+                        )
+                        if (!val.valid) {
+                          setActionError(
+                            val.error || "Please select valid repairs to continue.",
+                          )
+                          return
+                        }
+                        setIsPaymentModalOpen(true)
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-xs"
                     >
@@ -926,7 +939,9 @@ export default function QuotationApprovalPanel({
                         variant="secondary"
                         onClick={() => {
                           setActionError(null)
-                          setSelectedItemIds(quotationItems.map((i) => i.id))
+                          const allIds = quotationItems.map((i) => i.id)
+                          setSelectedItemIds(allIds)
+                          setIsPaymentModalOpen(true)
                         }}
                         className="text-xs"
                       >
@@ -952,6 +967,24 @@ export default function QuotationApprovalPanel({
           </>
         )}
       </div>
+
+      {/* Complete Cost Breakdown & Mock Razorpay Payment Modal */}
+      <RepairPaymentModal
+        open={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        request={request}
+        quotationItems={quotationItems}
+        selectedItemIds={selectedItemIds}
+        calc={calc}
+        decisionNotes={decisionNotes}
+        onDecisionNotesChange={setDecisionNotes}
+        onSuccess={(updated) => {
+          setIsPaymentModalOpen(false)
+          if (onDecisionComplete) {
+            onDecisionComplete(updated)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -1929,6 +1929,8 @@ export type ServiceRequest = {
   decisionActor?: string
 
   quotationHistory?: QuotationRevision[]
+
+  payment?: string
 }
 
 // ── Offers (no coupon codes — offers apply automatically by date window) ──
