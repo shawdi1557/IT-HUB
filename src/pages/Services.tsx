@@ -45,12 +45,15 @@ import {
   repairEstimates,
   money,
   type ServiceCatalogItem,
+  type ServiceRequest,
 } from "../data/catalog"
 import {
   createServiceBooking,
   updateServiceQuoteDecision,
   maskServiceRequestForPublicTracking,
   checkServiceCoverage,
+  isUserTicketOwner,
+  fetchServiceRequestById,
   type SafePublicTracking,
 } from "../lib/services"
 import {
@@ -59,6 +62,7 @@ import {
   Button,
   Empty,
   Field,
+  Loading,
   Logo,
   Page,
   PageHeading,
@@ -67,6 +71,7 @@ import {
   buttonClass,
   secondaryClass,
 } from "../components/ui"
+import QuotationApprovalPanel from "../components/QuotationApprovalPanel"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. MAIN SERVICES LANDING PAGE
@@ -138,6 +143,7 @@ export function Services() {
   // Live Quick Tracker State
   const [trackQuery, setTrackQuery] = useState<string>("")
   const [searchedId, setSearchedId] = useState<string>("")
+  const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false)
 
   const matchedRequest = useMemo(() => {
     if (!searchedId.trim()) return null
@@ -147,18 +153,37 @@ export function Services() {
     )
   }, [searchedId, store.requests])
 
+  // Async fallback: fetch from Supabase if not found in local cache
+  useEffect(() => {
+    const cleanId = searchedId.trim()
+    if (cleanId && !matchedRequest && !isSearchingRemote) {
+      setIsSearchingRemote(true)
+      fetchServiceRequestById(cleanId)
+        .then((fetched) => {
+          if (fetched) {
+            store.set((prev) => {
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev
+              return { requests: [...prev.requests, fetched] }
+            })
+          }
+        })
+        .finally(() => setIsSearchingRemote(false))
+    }
+  }, [searchedId, matchedRequest, isSearchingRemote])
+
   const safeTrackData: SafePublicTracking | null = useMemo(() => {
     if (!matchedRequest) return null
-    const isOwner =
-      store.loggedIn &&
-      (store.profile.email === matchedRequest.email ||
-        store.profile.phone === matchedRequest.phone)
+    const isOwner = isUserTicketOwner(matchedRequest, store.profile, {
+      id: store.profile.id,
+      email: store.profile.email,
+      phone: store.profile.phone,
+    })
     return maskServiceRequestForPublicTracking(
       matchedRequest,
       isOwner,
       serviceStatuses,
     )
-  }, [matchedRequest, store.loggedIn, store.profile.email, store.profile.phone])
+  }, [matchedRequest, store.profile])
 
   // Filter Catalog Items
   const filteredCatalog = useMemo(() => {
@@ -829,7 +854,14 @@ export function Services() {
           {/* Quick Tracking Result Container */}
           {searchedId && (
             <div className="mt-6">
-              {safeTrackData ? (
+              {isSearchingRemote ? (
+                <div className="rounded-2xl border border-border bg-white p-8 text-center text-xs text-muted-foreground shadow-sm">
+                  <Loading />
+                  <p className="mt-2 font-medium">
+                    Looking up ticket {searchedId}...
+                  </p>
+                </div>
+              ) : safeTrackData && matchedRequest ? (
                 <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                     <div>
@@ -858,6 +890,15 @@ export function Services() {
                       current={safeTrackData.status}
                     />
                   </div>
+
+                  {/* Customer-facing Quotation Actions on Embedded Tracker */}
+                  {(matchedRequest.quote || matchedRequest.status >= 4) && (
+                    <QuotationApprovalPanel
+                      request={matchedRequest}
+                      safeData={safeTrackData}
+                      isEmbedded
+                    />
+                  )}
 
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-4 text-xs">
                     <div>
@@ -1608,16 +1649,34 @@ export function ServiceTracking() {
   const navigate = useNavigate()
   const store = useStore()
   const [query, setQuery] = useState(id || "")
+  const [isFetchingRemote, setIsFetchingRemote] = useState(false)
 
   const request = store.requests.find((item) => item.id === id)
 
-  const isOwnerOrAdmin = Boolean(
-    store.loggedIn &&
-      request &&
-      (store.profile.email === request.email ||
-        store.profile.phone === request.phone ||
-        (store.profile as any)?.role === "admin"),
-  )
+  // Fetch from Supabase if not in local store cache
+  useEffect(() => {
+    if (id && !request && !isFetchingRemote) {
+      setIsFetchingRemote(true)
+      fetchServiceRequestById(id)
+        .then((fetched) => {
+          if (fetched) {
+            store.set((prev) => {
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev
+              return { requests: [...prev.requests, fetched] }
+            })
+          }
+        })
+        .finally(() => setIsFetchingRemote(false))
+    }
+  }, [id, request, isFetchingRemote])
+
+  const isOwnerOrAdmin = useMemo(() => {
+    return isUserTicketOwner(request, store.profile, {
+      id: store.profile.id,
+      email: store.profile.email,
+      phone: store.profile.phone,
+    })
+  }, [request, store.profile])
 
   const safeData: SafePublicTracking | null = useMemo(() => {
     if (!request) return null
@@ -1627,29 +1686,6 @@ export function ServiceTracking() {
       serviceStatuses,
     )
   }, [request, isOwnerOrAdmin])
-
-  const handleQuoteDecision = async (decision: "approved" | "rejected") => {
-    if (!id || !request) return
-    await updateServiceQuoteDecision(id, decision)
-
-    store.set((prev) => ({
-      requests: prev.requests.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              quoteState: decision,
-              status: decision === "approved" ? 5 : 4,
-            }
-          : r,
-      ),
-    }))
-
-    store.notify(
-      decision === "approved"
-        ? "Repair quote approved. Bench work will proceed."
-        : "Quotation rejected. IT HUB will prepare device return.",
-    )
-  }
 
   return (
     <Page>
@@ -1678,7 +1714,14 @@ export function ServiceTracking() {
         </Button>
       </form>
 
-      {request && safeData ? (
+      {isFetchingRemote ? (
+        <div className="rounded-2xl border border-border bg-white p-12 text-center text-xs text-muted-foreground shadow-sm">
+          <Loading />
+          <p className="mt-3 font-medium">
+            Loading ticket details from workbench...
+          </p>
+        </div>
+      ) : request && safeData ? (
         <div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr]">
           <div className="rounded-2xl border border-border bg-white p-7 shadow-sm">
             <div className="mb-7 flex flex-wrap justify-between gap-3">
@@ -1751,75 +1794,8 @@ export function ServiceTracking() {
               )}
             </div>
 
-            {/* Quotation & Diagnosis Card */}
-            <div className="rounded-2xl border border-border bg-white p-7 shadow-sm">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <h3 className="font-bold text-foreground text-sm">
-                  Workbench Quotation & Approval
-                </h3>
-                <Badge
-                  tone={
-                    safeData.quoteState === "approved"
-                      ? "green"
-                      : safeData.quoteState === "rejected"
-                        ? "red"
-                        : "amber"
-                  }
-                >
-                  {safeData.quoteState.toUpperCase()}
-                </Badge>
-              </div>
-
-              <div className="mt-4 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Diagnostic Assessment:
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {money(Math.min(300, safeData.quote || 300))}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Parts & Labour:</span>
-                  <span className="font-semibold text-foreground">
-                    {money(Math.max(0, (safeData.quote || 1500) - 300))}
-                  </span>
-                </div>
-                {safeData.courierCharge && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      Courier Return Delivery:
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {money(safeData.courierCharge.returnDelivery)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-border pt-3 text-sm font-bold">
-                  <span>Total Amount:</span>
-                  <span className="text-primary text-base font-extrabold">
-                    {money(
-                      (safeData.quote || 1500) +
-                        (safeData.courierCharge?.returnDelivery || 0),
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {safeData.isOwnerOrAdmin && safeData.quoteState === "pending" && (
-                <div className="mt-6 flex gap-2">
-                  <Button onClick={() => handleQuoteDecision("approved")}>
-                    Approve Quotation
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleQuoteDecision("rejected")}
-                  >
-                    Decline Quote
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Quotation & Diagnosis Approval Panel */}
+            <QuotationApprovalPanel request={request} safeData={safeData} />
           </div>
         </div>
       ) : (

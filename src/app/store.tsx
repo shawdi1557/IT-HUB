@@ -61,6 +61,10 @@ import {
 import { resourceDefinitions, type AdminRecord } from "../data/admin"
 
 type Profile = {
+  id?: string
+
+  role?: string
+
   name: string
 
   email: string
@@ -487,6 +491,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               profile: {
                 ...prev.profile,
 
+                id: session.user.id,
+
+                role: profile?.role || "customer",
+
                 phone: session.user.phone || prev.profile.phone,
 
                 name: profile?.full_name || prev.profile.name,
@@ -514,6 +522,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
             profile: {
               ...prev.profile,
+
+              id: user.id,
+
+              role: profile?.role || "customer",
 
               phone: user.phone || prev.profile.phone,
 

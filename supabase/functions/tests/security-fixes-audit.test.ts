@@ -19,8 +19,8 @@ const MIGRATION_FILE_PATH =
 const schemaSql = await Deno.readTextFile(SCHEMA_FILE_PATH)
 const migrationSql = await Deno.readTextFile(MIGRATION_FILE_PATH)
 
-const schemaSqlLower = schemaSql.toLowerCase()
-const migrationSqlLower = migrationSql.toLowerCase()
+const schemaSqlLower = schemaSql.replace(/\r\n/g, "\n").toLowerCase()
+const migrationSqlLower = migrationSql.replace(/\r\n/g, "\n").toLowerCase()
 
 Deno.test("SQL-1. Fix A: protect_service_request() uses NULL-safe IS DISTINCT FROM for quote_state", () => {
   assertStringIncludes(

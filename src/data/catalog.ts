@@ -1817,6 +1817,8 @@ export type Order = {
 
   status: number
 
+  statusName?: string
+
   date: string
 
   payment: string
@@ -1826,6 +1828,8 @@ export type Order = {
 
 export type ServiceRequest = {
   id: string
+
+  userId?: string
 
   name: string
 
@@ -1848,6 +1852,8 @@ export type ServiceRequest = {
   time: string
 
   status: number
+
+  statusName?: string
 
   quote: number
 
