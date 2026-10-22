@@ -105,7 +105,10 @@ export function calculateQuotationTotals(
   const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee
 
   const courierFee = courierCharge?.returnDelivery || 0
-  const totalPayable = Math.max(0, subtotal - discountsTotal + diagnosticFee + courierFee)
+  const totalPayable = Math.max(
+    0,
+    subtotal - discountsTotal + diagnosticFee + courierFee,
+  )
 
   return {
     partsTotal,
@@ -121,6 +124,11 @@ export function calculateQuotationTotals(
   }
 }
 
+export interface ItemSelectionValidation {
+  valid: boolean
+  error?: string
+}
+
 /**
  * Validates selected items against required classifications and dependencies.
  */
@@ -128,7 +136,7 @@ export function validateItemSelection(
   items: QuotationItem[] = [],
   selectedItemIds: string[] = [],
   decision: "approved" | "rejected" = "approved",
-): { valid: boolean; error?: string } {
+): ItemSelectionValidation {
   if (decision === "rejected" || selectedItemIds.length === 0) {
     return { valid: true }
   }
@@ -147,7 +155,11 @@ export function validateItemSelection(
 
   // 2. Check dependencies
   for (const item of items) {
-    if (selectedSet.has(item.id) && item.dependsOn && item.dependsOn.length > 0) {
+    if (
+      selectedSet.has(item.id) &&
+      item.dependsOn &&
+      item.dependsOn.length > 0
+    ) {
       for (const depId of item.dependsOn) {
         if (!selectedSet.has(depId)) {
           const depItem = items.find((i) => i.id === depId)
@@ -256,15 +268,21 @@ export function mapDbServiceRequest(
   const statusMap: Record<string, number> = {
     Booked: 0,
     "Pickup scheduled": 1,
+    "Pickup Scheduled": 1,
     "Device received": 2,
+    "Device Received": 2,
     "Diagnosis Done": 3,
     Diagnosing: 3,
     "Awaiting Approval": 4,
+    "Awaiting approval": 4,
     Approved: 5,
     "In Progress": 6,
+    "In progress": 6,
     Repairing: 6,
     "Quality check": 7,
+    "Quality Check": 7,
     "Ready for delivery": 8,
+    "Ready for Delivery": 8,
     Delivered: 8,
     Returned: 9,
     Completed: 9,
@@ -295,13 +313,21 @@ export function mapDbServiceRequest(
       : undefined,
     quoteVersion: item.quote_version ? Number(item.quote_version) : 1,
     findings: Array.isArray(item.findings) ? item.findings : [],
-    quotationItems: Array.isArray(item.quotation_items) ? item.quotation_items : [],
-    approvedItems: Array.isArray(item.approved_items) ? item.approved_items : [],
-    declinedItems: Array.isArray(item.declined_items) ? item.declined_items : [],
+    quotationItems: Array.isArray(item.quotation_items)
+      ? item.quotation_items
+      : [],
+    approvedItems: Array.isArray(item.approved_items)
+      ? item.approved_items
+      : [],
+    declinedItems: Array.isArray(item.declined_items)
+      ? item.declined_items
+      : [],
     decisionNotes: item.decision_notes || undefined,
     decisionAt: item.decision_at || undefined,
     decisionActor: item.decision_actor || undefined,
-    quotationHistory: Array.isArray(item.quotation_history) ? item.quotation_history : [],
+    quotationHistory: Array.isArray(item.quotation_history)
+      ? item.quotation_history
+      : [],
   }
 }
 
@@ -447,8 +473,12 @@ export async function submitCustomerQuoteDecision(
       )
 
       if (!rpcError && rpcData && rpcData.ok) {
-        const nextStatus = rpcData.decision === "approved" && rpcData.approved_items?.length > 0 ? 5 : 4
-        const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+        const nextStatus =
+          rpcData.decision === "approved" && rpcData.approved_items?.length > 0
+            ? 5
+            : 4
+        const nextStatusLabel =
+          nextStatus === 5 ? "Approved" : "Awaiting approval"
         return {
           ok: true,
           decision: rpcData.decision,
@@ -462,7 +492,11 @@ export async function submitCustomerQuoteDecision(
       }
 
       // If RPC failed due to validation/auth, return its explicit error message
-      if (rpcError && !rpcError.message.includes("function") && !rpcError.message.includes("does not exist")) {
+      if (
+        rpcError &&
+        !rpcError.message.includes("function") &&
+        !rpcError.message.includes("does not exist")
+      ) {
         return { ok: false, error: rpcError.message }
       }
     } catch {
@@ -484,14 +518,17 @@ export async function submitCustomerQuoteDecision(
 
       const { data: existing, error: fetchErr } = await supabase
         .from("service_requests")
-        .select("id, user_id, status, quote, quote_state, quote_version, quotation_items, courier_charge_return_delivery")
+        .select(
+          "id, user_id, status, quote, quote_state, quote_version, quotation_items, courier_charge_return_delivery",
+        )
         .eq("id", requestId)
         .maybeSingle()
 
       if (fetchErr || !existing) {
         return {
           ok: false,
-          error: "Service request not found or you do not have permission to view it.",
+          error:
+            "Service request not found or you do not have permission to view it.",
         }
       }
 
@@ -509,14 +546,19 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      if (existing.quote_version && existing.quote_version !== expectedVersion) {
+      if (
+        existing.quote_version &&
+        existing.quote_version !== expectedVersion
+      ) {
         return {
           ok: false,
           error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
         }
       }
 
-      const items: QuotationItem[] = Array.isArray(existing.quotation_items) ? existing.quotation_items : []
+      const items: QuotationItem[] = Array.isArray(existing.quotation_items)
+        ? existing.quotation_items
+        : []
 
       // Validate selection
       const val = validateItemSelection(items, selectedItemIds, decision)
@@ -528,20 +570,40 @@ export async function submitCustomerQuoteDecision(
         ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
         : undefined
 
-      const effectiveSelectedIds = decision === "approved" ? selectedItemIds : []
-      const calc = calculateQuotationTotals(items, effectiveSelectedIds, courierCharge)
+      const effectiveSelectedIds =
+        decision === "approved" ? selectedItemIds : []
+      const calc = calculateQuotationTotals(
+        items,
+        effectiveSelectedIds,
+        courierCharge,
+      )
 
       const allItemIds = items.map((i) => i.id)
-      const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id))
+      const declinedItemIds = allItemIds.filter(
+        (id) => !effectiveSelectedIds.includes(id),
+      )
 
-      const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
-      const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+      const updatedItems = items.map((i) => {
+        if (effectiveSelectedIds.includes(i.id)) {
+          return { ...i, approvalState: "approved" as const }
+        }
+        if (decision === "approved" && i.canDefer) {
+          return { ...i, approvalState: "deferred" as const }
+        }
+        return { ...i, approvalState: "declined" as const }
+      })
+
+      const nextStatus =
+        decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
+      const nextStatusLabel =
+        nextStatus === 5 ? "Approved" : "Awaiting approval"
 
       const { error: updateErr } = await supabase
         .from("service_requests")
         .update({
           quote_state: decision,
           quote: calc.totalPayable,
+          quotation_items: updatedItems,
           approved_items: effectiveSelectedIds,
           declined_items: declinedItemIds,
           decision_notes: notes || null,
@@ -571,7 +633,9 @@ export async function submitCustomerQuoteDecision(
     } catch (err: any) {
       return {
         ok: false,
-        error: err?.message || "A network error occurred while submitting your decision.",
+        error:
+          err?.message ||
+          "A network error occurred while submitting your decision.",
       }
     }
   }
@@ -584,11 +648,28 @@ export async function submitCustomerQuoteDecision(
   }
 
   const effectiveSelectedIds = decision === "approved" ? selectedItemIds : []
-  const calc = calculateQuotationTotals(items, effectiveSelectedIds, currentRequest?.courierCharge)
+  const calc = calculateQuotationTotals(
+    items,
+    effectiveSelectedIds,
+    currentRequest?.courierCharge,
+  )
   const allItemIds = items.map((i) => i.id)
-  const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id))
+  const declinedItemIds = allItemIds.filter(
+    (id) => !effectiveSelectedIds.includes(id),
+  )
 
-  const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
+  const updatedItems = items.map((i) => {
+    if (effectiveSelectedIds.includes(i.id)) {
+      return { ...i, approvalState: "approved" as const }
+    }
+    if (decision === "approved" && i.canDefer) {
+      return { ...i, approvalState: "deferred" as const }
+    }
+    return { ...i, approvalState: "declined" as const }
+  })
+
+  const nextStatus =
+    decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
   const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
 
   return {
@@ -618,12 +699,19 @@ export async function adminPublishQuotation(
   adminNotes?: string,
   courierChargeReturnDelivery?: number,
   currentRequest?: ServiceRequest,
-): Promise<{ ok: boolean; newVersion?: number; totalAmount?: number; error?: string }> {
+): Promise<{
+  ok: boolean
+  newVersion?: number
+  totalAmount?: number
+  error?: string
+}> {
   const allItemIds = quotationItems.map((i) => i.id)
   const calc = calculateQuotationTotals(
     quotationItems,
     allItemIds,
-    courierChargeReturnDelivery ? { returnDelivery: courierChargeReturnDelivery } : undefined,
+    courierChargeReturnDelivery
+      ? { returnDelivery: courierChargeReturnDelivery }
+      : undefined,
   )
 
   const newVersion = (currentRequest?.quoteVersion || 1) + 1

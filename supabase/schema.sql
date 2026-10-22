@@ -828,15 +828,24 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_req record;
-  v_item record;
   v_items jsonb;
+  v_elem jsonb;
+  v_elem_id text;
+  v_part_cost numeric;
+  v_labour_cost numeric;
+  v_qty numeric;
+  v_discount numeric;
+  v_is_required boolean;
+  v_can_defer boolean;
+  v_depends_on jsonb;
+  v_dep_elem jsonb;
+  v_dep_text text;
+  v_updated_items jsonb := '[]'::jsonb;
   v_recalculated_total numeric(12, 2) := 0;
-  v_item_id text;
   v_approved_count int := 0;
-  v_dep_id text;
   v_new_status text;
   v_declined_items text[] := '{}';
 begin
@@ -876,41 +885,54 @@ begin
     p_approved_item_ids := '{}';
     v_new_status := 'Awaiting Approval';
 
-    for v_item in select * from jsonb_to_recordset(v_items) as x(id text) loop
-      v_declined_items := array_append(v_declined_items, v_item.id);
-    end loop;
+    if jsonb_typeof(v_items) = 'array' then
+      for v_elem in select * from jsonb_array_elements(v_items) loop
+        v_elem_id := v_elem->>'id';
+        if v_elem_id is not null then
+          v_declined_items := array_append(v_declined_items, v_elem_id);
+          v_updated_items := v_updated_items || jsonb_build_array(v_elem || jsonb_build_object('approvalState', 'rejected'));
+        end if;
+      end loop;
+    end if;
 
     v_recalculated_total := least(coalesce(v_req.quote, 300), 300);
   else
-    for v_item in select * from jsonb_to_recordset(v_items) as x(
-      id text,
-      part_cost numeric,
-      labour_cost numeric,
-      quantity numeric,
-      discount numeric,
-      is_required boolean,
-      depends_on text[]
-    ) loop
-      if v_item.id = any(p_approved_item_ids) then
-        v_approved_count := v_approved_count + 1;
-        v_recalculated_total := v_recalculated_total + (
-          (coalesce(v_item.part_cost, 0) + coalesce(v_item.labour_cost, 0)) * coalesce(v_item.quantity, 1) - coalesce(v_item.discount, 0)
-        );
+    if jsonb_typeof(v_items) = 'array' then
+      for v_elem in select * from jsonb_array_elements(v_items) loop
+        v_elem_id := v_elem->>'id';
+        v_part_cost := coalesce((v_elem->>'partCost')::numeric, (v_elem->>'part_cost')::numeric, 0);
+        v_labour_cost := coalesce((v_elem->>'labourCost')::numeric, (v_elem->>'labour_cost')::numeric, 0);
+        v_qty := coalesce((v_elem->>'quantity')::numeric, 1);
+        v_discount := coalesce((v_elem->>'discount')::numeric, 0);
+        v_is_required := coalesce((v_elem->>'isRequired')::boolean, (v_elem->>'is_required')::boolean, false);
+        v_can_defer := coalesce((v_elem->>'canDefer')::boolean, (v_elem->>'can_defer')::boolean, true);
+        v_depends_on := coalesce(v_elem->'dependsOn', v_elem->'depends_on', '[]'::jsonb);
 
-        if v_item.depends_on is not null then
-          foreach v_dep_id in array v_item.depends_on loop
-            if not (v_dep_id = any(p_approved_item_ids)) then
-              raise exception 'Dependency unsatisfied: Item % requires item % to be authorized', v_item.id, v_dep_id;
-            end if;
-          end loop;
+        if v_elem_id = any(p_approved_item_ids) then
+          v_approved_count := v_approved_count + 1;
+          v_recalculated_total := v_recalculated_total + (
+            (v_part_cost + v_labour_cost) * v_qty - v_discount
+          );
+
+          if jsonb_typeof(v_depends_on) = 'array' and jsonb_array_length(v_depends_on) > 0 then
+            for v_dep_elem in select * from jsonb_array_elements(v_depends_on) loop
+              v_dep_text := trim(both '"' from v_dep_elem::text);
+              if not (v_dep_text = any(p_approved_item_ids)) then
+                raise exception 'Dependency unsatisfied: Item % requires item % to be authorized', v_elem_id, v_dep_text;
+              end if;
+            end loop;
+          end if;
+
+          v_updated_items := v_updated_items || jsonb_build_array(v_elem || jsonb_build_object('approvalState', 'approved'));
+        else
+          if v_is_required then
+            raise exception 'Required repair omitted: Item % is essential for safe operation and cannot be declined', v_elem_id;
+          end if;
+          v_declined_items := array_append(v_declined_items, v_elem_id);
+          v_updated_items := v_updated_items || jsonb_build_array(v_elem || jsonb_build_object('approvalState', case when v_can_defer then 'deferred' else 'declined' end));
         end if;
-      else
-        if coalesce(v_item.is_required, false) then
-          raise exception 'Required repair omitted: Item % is essential for safe operation and cannot be declined', v_item.id;
-        end if;
-        v_declined_items := array_append(v_declined_items, v_item.id);
-      end if;
-    end loop;
+      end loop;
+    end if;
 
     if v_approved_count = 0 then
       p_decision := 'rejected';
@@ -930,6 +952,7 @@ begin
     quote_state = p_decision,
     quote = v_recalculated_total,
     status = v_new_status,
+    quotation_items = v_updated_items,
     approved_items = p_approved_item_ids,
     declined_items = v_declined_items,
     decision_notes = p_notes,
@@ -948,7 +971,7 @@ begin
     'version', v_req.quote_version
   );
 end;
-$;
+$$;
 
 grant execute on function public.submit_customer_quote_decision to authenticated;
 

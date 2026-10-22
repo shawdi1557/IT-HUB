@@ -171,6 +171,20 @@ export default function QuotationApprovalPanel({
     )
   }, [quotationItems, effectiveSelections, safeData.courierCharge])
 
+  const allPayable = useMemo(() => {
+    return calculateQuotationTotals(
+      quotationItems,
+      quotationItems.map((i) => i.id),
+      safeData.courierCharge,
+    ).totalPayable
+  }, [quotationItems, safeData.courierCharge])
+
+  const requiredCount = useMemo(
+    () => quotationItems.filter((i) => i.isRequired).length,
+    [quotationItems],
+  )
+  const optionalCount = quotationItems.length - requiredCount
+
   // Pre-submission validation
   const validation = useMemo(() => {
     return validateItemSelection(quotationItems, selectedItemIds, "approved")
@@ -372,23 +386,68 @@ export default function QuotationApprovalPanel({
 
       {/* 3. Itemized Quotation Lines with Individual Selection */}
       <div className="mt-5">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Layers size={13} className="text-primary" />
-            <span>Itemized Work Scope & Parts</span>
-          </h4>
-          {safeData.quoteState === "pending" && isOwner && (
-            <span className="text-[10px] text-muted-foreground">
-              Select repairs you wish to authorize
-            </span>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Layers size={13} className="text-primary" />
+              <span>Itemized Work Scope & Parts ({quotationItems.length})</span>
+            </h4>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Review faults and select eligible repairs to authorize. Mandatory
+              repairs are locked for safety.
+            </p>
+          </div>
+
+          {safeData.quoteState === "pending" &&
+            isOwner &&
+            quotationItems.length > 1 &&
+            optionalCount > 0 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError(null)
+                    setSelectedItemIds(quotationItems.map((i) => i.id))
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition ${
+                    selectedItemIds.length === quotationItems.length
+                      ? "border-primary bg-primary text-white"
+                      : "border-border bg-white text-muted-foreground hover:bg-secondary/40"
+                  }`}
+                >
+                  Select All ({quotationItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError(null)
+                    const requiredIds = quotationItems
+                      .filter((i) => i.isRequired)
+                      .map((i) => i.id)
+                    const toSelect =
+                      requiredIds.length > 0
+                        ? requiredIds
+                        : [quotationItems[0].id]
+                    setSelectedItemIds(toSelect)
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition ${
+                    selectedItemIds.length < quotationItems.length
+                      ? "border-primary bg-primary text-white"
+                      : "border-border bg-white text-muted-foreground hover:bg-secondary/40"
+                  }`}
+                >
+                  Essential Only ({requiredCount > 0 ? requiredCount : 1})
+                </button>
+              </div>
+            )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {quotationItems.map((item) => {
             const isChecked = selectedItemIds.includes(item.id)
             const isApproved = request.approvedItems?.includes(item.id)
             const isDeclined = request.declinedItems?.includes(item.id)
+            const linkedFinding = findings.find((f) => f.id === item.findingId)
 
             return (
               <div
@@ -400,17 +459,31 @@ export default function QuotationApprovalPanel({
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3 flex-1">
                     {safeData.quoteState === "pending" && isOwner ? (
-                      <input
-                        type="checkbox"
-                        id={`item-${item.id}`}
-                        checked={isChecked}
-                        onChange={() => handleToggleItem(item.id)}
-                        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                      />
+                      item.isRequired ? (
+                        <div
+                          className="mt-0.5 shrink-0"
+                          title="Mandatory core repair — locked"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={true}
+                            disabled={true}
+                            className="h-4 w-4 rounded border-border text-primary cursor-not-allowed opacity-80"
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          id={`item-${item.id}`}
+                          checked={isChecked}
+                          onChange={() => handleToggleItem(item.id)}
+                          className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer shrink-0"
+                        />
+                      )
                     ) : (
-                      <span className="mt-0.5">
+                      <span className="mt-0.5 shrink-0">
                         {isApproved ? (
                           <CheckCircle2
                             size={16}
@@ -424,38 +497,79 @@ export default function QuotationApprovalPanel({
                       </span>
                     )}
 
-                    <div>
-                      <label
-                        htmlFor={`item-${item.id}`}
-                        className={`font-bold block ${
-                          isChecked
-                            ? "text-foreground cursor-pointer"
-                            : "text-muted-foreground cursor-pointer"
-                        }`}
-                      >
-                        {item.title}
-                      </label>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {item.description}
-                      </p>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label
+                          htmlFor={`item-${item.id}`}
+                          className={`font-bold ${
+                            item.isRequired
+                              ? "text-foreground"
+                              : isChecked
+                                ? "text-foreground cursor-pointer"
+                                : "text-muted-foreground cursor-pointer"
+                          }`}
+                        >
+                          {item.title}
+                        </label>
 
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                        {/* Authorization Eligibility Badges */}
                         {item.isRequired ? (
-                          <span className="rounded bg-red-50 px-1.5 py-0.5 font-bold text-red-700">
-                            Required for Operation
+                          <span className="inline-flex items-center gap-1 rounded bg-red-100 text-red-800 px-1.5 py-0.5 font-bold text-[10px]">
+                            <Lock size={10} className="shrink-0" />
+                            Mandatory Core Repair (Locked)
                           </span>
                         ) : item.canDefer ? (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">
-                            Optional / Can be deferred
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700 text-[10px]">
+                            Optional / Safely Deferrable
                           </span>
                         ) : null}
 
                         {item.dependsOn && item.dependsOn.length > 0 && (
-                          <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800">
-                            Requires dependent repair
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800 text-[10px]">
+                            Requires prerequisite repair
                           </span>
                         )}
                       </div>
+
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {item.description}
+                      </p>
+
+                      {/* Linked Diagnosis Finding & Explanation */}
+                      {linkedFinding && (
+                        <div className="mt-2 rounded-lg bg-secondary/50 border border-border/50 p-2 text-[11px] space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5 font-semibold text-foreground">
+                            <span>Diagnosis: {linkedFinding.title}</span>
+                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                              {linkedFinding.source === "customer"
+                                ? "Customer Complaint"
+                                : "Technician Discovered"}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground text-[10px]">
+                            {linkedFinding.customerExplanation ||
+                              linkedFinding.description}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Locked or Deferral helper note */}
+                      {safeData.quoteState === "pending" && isOwner && (
+                        <p className="mt-1.5 text-[10px] italic">
+                          {item.isRequired ? (
+                            <span className="text-red-700 font-medium">
+                              * Essential core repair required for safety and
+                              functionality; cannot be deselected unless
+                              declining all repairs.
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-medium">
+                              * Eligible for individual approval. You may
+                              uncheck to defer or exclude this repair.
+                            </span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -564,11 +678,12 @@ export default function QuotationApprovalPanel({
       <div className="mt-5 border-t border-border pt-4">
         {/* State A: Finalized decision display */}
         {safeData.quoteState === "approved" ? (
-          <div className="rounded-xl bg-emerald-50 p-4 text-xs text-emerald-800 space-y-2">
+          <div className="rounded-xl bg-emerald-50 p-4 text-xs text-emerald-800 space-y-2.5">
             <div className="flex items-center gap-2 font-bold">
               <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
               <span>
-                Repair Authorized ({calc.selectedCount} item(s) approved)
+                Repair Scope Authorized ({calc.selectedCount} of{" "}
+                {quotationItems.length} item(s) approved)
               </span>
             </div>
             <p className="text-[11px] leading-relaxed">
@@ -576,10 +691,65 @@ export default function QuotationApprovalPanel({
               {request.declinedItems && request.declinedItems.length > 0 && (
                 <span>
                   {" "}
-                  (Deferred/declined items: {request.declinedItems.length}).
+                  ({request.declinedItems.length} repair item(s) safely
+                  deferred/excluded).
                 </span>
               )}
             </p>
+
+            <div className="pt-2 border-t border-emerald-200/60 grid gap-2 sm:grid-cols-2 text-[11px]">
+              <div>
+                <span className="font-bold text-emerald-900 block mb-1">
+                  Approved Repairs:
+                </span>
+                <ul className="list-disc pl-4 space-y-0.5 text-emerald-800">
+                  {quotationItems
+                    .filter((i) =>
+                      (request.approvedItems && request.approvedItems.length > 0
+                        ? request.approvedItems
+                        : selectedItemIds
+                      ).includes(i.id),
+                    )
+                    .map((i) => (
+                      <li key={i.id}>
+                        {i.title} ({money(i.lineTotal)})
+                      </li>
+                    ))}
+                </ul>
+              </div>
+
+              {quotationItems.some(
+                (i) =>
+                  !(
+                    request.approvedItems && request.approvedItems.length > 0
+                      ? request.approvedItems
+                      : selectedItemIds
+                  ).includes(i.id),
+              ) && (
+                <div>
+                  <span className="font-bold text-amber-900 block mb-1">
+                    Deferred / Skipped Repairs:
+                  </span>
+                  <ul className="list-disc pl-4 space-y-0.5 text-amber-800">
+                    {quotationItems
+                      .filter(
+                        (i) =>
+                          !(
+                            request.approvedItems &&
+                            request.approvedItems.length > 0
+                              ? request.approvedItems
+                              : selectedItemIds
+                          ).includes(i.id),
+                      )
+                      .map((i) => (
+                        <li key={i.id}>
+                          {i.title} ({money(i.lineTotal)}) [Deferred]
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
         ) : safeData.quoteState === "rejected" ? (
           <div className="rounded-xl bg-amber-50 p-4 text-xs text-amber-800 space-y-2">
@@ -748,8 +918,21 @@ export default function QuotationApprovalPanel({
                       <CheckCircle2 size={15} />
                       {selectedItemIds.length === quotationItems.length
                         ? `Authorize All Repairs (${money(calc.totalPayable)})`
-                        : `Authorize Selected Repairs (${selectedItemIds.length} item(s) · ${money(calc.totalPayable)})`}
+                        : `Authorize Selected Repairs (${selectedItemIds.length} of ${quotationItems.length} items · ${money(calc.totalPayable)})`}
                     </Button>
+
+                    {selectedItemIds.length < quotationItems.length && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setActionError(null)
+                          setSelectedItemIds(quotationItems.map((i) => i.id))
+                        }}
+                        className="text-xs"
+                      >
+                        Authorize All ({money(allPayable)})
+                      </Button>
+                    )}
 
                     <Button
                       variant="secondary"

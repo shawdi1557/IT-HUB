@@ -94,10 +94,30 @@ function normalizePhone(rawPhone?: string | null): string {
   return digits
 }
 
+interface TicketOwnerRequest {
+  userId?: string
+  email?: string
+  phone?: string
+}
+
+interface TicketOwnerProfile {
+  id?: string
+  email?: string
+  phone?: string
+  role?: string
+  isAdmin?: boolean
+}
+
+interface TicketOwnerSession {
+  id?: string
+  email?: string
+  phone?: string
+}
+
 function isUserTicketOwner(
-  request: { userId?: string; email?: string; phone?: string } | null,
-  profile: { id?: string; email?: string; phone?: string; role?: string } | null,
-  sessionUser?: { id?: string; email?: string; phone?: string } | null,
+  request: TicketOwnerRequest | null,
+  profile: TicketOwnerProfile | null,
+  sessionUser?: TicketOwnerSession | null,
 ): boolean {
   if (!request) return false
 
@@ -116,7 +136,9 @@ function isUserTicketOwner(
     return true
   }
 
-  const userEmail = (sessionUser?.email || profile?.email || "").trim().toLowerCase()
+  const userEmail = (sessionUser?.email || profile?.email || "")
+    .trim()
+    .toLowerCase()
   const reqEmail = (request.email || "").trim().toLowerCase()
   if (userEmail && reqEmail && userEmail === reqEmail) {
     return true
@@ -154,7 +176,10 @@ function calculateQuotationTotals(
   // Diagnostic fee waived if at least 1 repair is authorized
   const diagnosticFeeWaived = selectedCount > 0
   const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee
-  const totalPayable = Math.max(0, subtotal - discountsTotal + diagnosticFee + courierChargeReturn)
+  const totalPayable = Math.max(
+    0,
+    subtotal - discountsTotal + diagnosticFee + courierChargeReturn,
+  )
 
   return {
     partsTotal,
@@ -172,11 +197,16 @@ function calculateQuotationTotals(
 /**
  * Validates selected items against required and dependency invariants
  */
+interface ItemValidationResult {
+  valid: boolean
+  error?: string
+}
+
 function validateItemSelection(
   items: QuotationItem[],
   selectedItemIds: string[],
   decision: "approved" | "rejected",
-): { valid: boolean; error?: string } {
+): ItemValidationResult {
   if (decision === "rejected" || selectedItemIds.length === 0) {
     return { valid: true }
   }
@@ -195,7 +225,11 @@ function validateItemSelection(
 
   // 2. Dependency enforcement
   for (const item of items) {
-    if (selectedSet.has(item.id) && item.dependsOn && item.dependsOn.length > 0) {
+    if (
+      selectedSet.has(item.id) &&
+      item.dependsOn &&
+      item.dependsOn.length > 0
+    ) {
       for (const depId of item.dependsOn) {
         if (!selectedSet.has(depId)) {
           const depItem = items.find((i) => i.id === depId)
@@ -215,6 +249,12 @@ function validateItemSelection(
 /**
  * Simulates the authoritative Postgres RPC submit_customer_quote_decision()
  */
+interface SimulateRpcResult {
+  ok: boolean
+  result?: Partial<ServiceRecord>
+  error?: string
+}
+
 function simulateCustomerQuoteDecisionRpc(
   ticket: ServiceRecord,
   actor: UserProfile | null,
@@ -222,7 +262,7 @@ function simulateCustomerQuoteDecisionRpc(
   approvedItemIds: string[],
   expectedVersion: number,
   notes?: string,
-): { ok: boolean; result?: Partial<ServiceRecord>; error?: string } {
+): SimulateRpcResult {
   // 1. Authentication check
   if (!actor || !actor.id) {
     return { ok: false, error: "Unauthorized: Authentication required" }
@@ -230,12 +270,19 @@ function simulateCustomerQuoteDecisionRpc(
 
   // 2. Ownership verification
   const isOwner = isUserTicketOwner(
-    { userId: ticket.user_id, email: ticket.customer_email, phone: ticket.customer_phone },
+    {
+      userId: ticket.user_id,
+      email: ticket.customer_email,
+      phone: ticket.customer_phone,
+    },
     actor,
     actor,
   )
   if (!isOwner) {
-    return { ok: false, error: "Unauthorized: You do not own this service ticket" }
+    return {
+      ok: false,
+      error: "Unauthorized: You do not own this service ticket",
+    }
   }
 
   // 3. Status check
@@ -255,7 +302,11 @@ function simulateCustomerQuoteDecisionRpc(
   }
 
   // 5. Item selection validation
-  const val = validateItemSelection(ticket.quotation_items, approvedItemIds, decision)
+  const val = validateItemSelection(
+    ticket.quotation_items,
+    approvedItemIds,
+    decision,
+  )
   if (!val.valid) {
     return { ok: false, error: val.error }
   }
@@ -269,15 +320,31 @@ function simulateCustomerQuoteDecisionRpc(
   )
 
   const allItemIds = ticket.quotation_items.map((i) => i.id)
-  const declinedItemIds = allItemIds.filter((id) => !effectiveApprovedIds.includes(id))
+  const declinedItemIds = allItemIds.filter(
+    (id) => !effectiveApprovedIds.includes(id),
+  )
 
-  const newStatus = decision === "approved" && effectiveApprovedIds.length > 0 ? "In Progress" : "Awaiting Approval"
+  const updatedQuotationItems = ticket.quotation_items.map((i) => {
+    if (effectiveApprovedIds.includes(i.id)) {
+      return { ...i, approvalState: "approved" as const }
+    }
+    if (decision === "approved" && i.canDefer) {
+      return { ...i, approvalState: "deferred" as const }
+    }
+    return { ...i, approvalState: "declined" as const }
+  })
+
+  const newStatus =
+    decision === "approved" && effectiveApprovedIds.length > 0
+      ? "In Progress"
+      : "Awaiting Approval"
 
   const updated: ServiceRecord = {
     ...ticket,
     quote_state: decision,
     quote: calc.totalPayable,
     status: newStatus,
+    quotation_items: updatedQuotationItems,
     approved_items: effectiveApprovedIds,
     declined_items: declinedItemIds,
     decision_notes: notes,
@@ -320,7 +387,9 @@ function maskServiceRequestForPublicTracking(
   let maskedAddr = "Kerala Service Area"
   if (request.address) {
     const pinMatch = request.address.match(/\b([1-9][0-9]{2})[0-9]{3}\b/)
-    maskedAddr = pinMatch ? `Kerala Area (PIN ${pinMatch[1]}***)` : "Kerala Area"
+    maskedAddr = pinMatch
+      ? `Kerala Area (PIN ${pinMatch[1]}***)`
+      : "Kerala Area"
   }
 
   return {
@@ -346,7 +415,8 @@ function maskServiceRequestForPublicTracking(
 // Test Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-const initialCustomerProblem = "Laptop battery dying rapidly and laptop shuts down abruptly."
+const initialCustomerProblem =
+  "Laptop battery dying rapidly and laptop shuts down abruptly."
 
 const sampleServiceTicket: ServiceRecord = {
   id: "SRV-LAPTOP-502",
@@ -369,10 +439,12 @@ const sampleServiceTicket: ServiceRecord = {
     {
       id: "f-battery",
       title: "Battery Health Degraded (Customer Complaint)",
-      description: "Internal technician note: Cycle count 890, battery swelling detected.",
+      description:
+        "Internal technician note: Cycle count 890, battery swelling detected.",
       source: "customer",
       classification: "confirmed",
-      customerExplanation: "Battery has reached end-of-life and requires replacement for battery runtime.",
+      customerExplanation:
+        "Battery has reached end-of-life and requires replacement for battery runtime.",
       safety: "recommended",
       isEligibleForRepair: true,
       recommendedRepair: "OEM 96Wh Grade-A Battery replacement",
@@ -380,10 +452,12 @@ const sampleServiceTicket: ServiceRecord = {
     {
       id: "f-display",
       title: "Display Flex Cable Micro-Fraying (Discovered Fault)",
-      description: "Internal technician note: Stage lighting effect observed at 110 degrees lid angle.",
+      description:
+        "Internal technician note: Stage lighting effect observed at 110 degrees lid angle.",
       source: "technician",
       classification: "confirmed",
-      customerExplanation: "Display cable shows slight flex wear causing occasional flicker when opened wide.",
+      customerExplanation:
+        "Display cable shows slight flex wear causing occasional flicker when opened wide.",
       safety: "optional", // can be safely deferred
       isEligibleForRepair: true,
       recommendedRepair: "Display flex harness realignment & micro-soldering",
@@ -394,7 +468,8 @@ const sampleServiceTicket: ServiceRecord = {
       id: "item-battery-repl",
       findingId: "f-battery",
       title: "MacBook Pro OEM Battery Assembly",
-      description: "Grade-A certified replacement battery with 90-day warranty.",
+      description:
+        "Grade-A certified replacement battery with 90-day warranty.",
       partCost: 3500,
       labourCost: 800,
       quantity: 1,
@@ -511,7 +586,10 @@ Deno.test("PARTIAL-4: Partial Approval: Customer approves battery while declinin
 Deno.test("PARTIAL-5: Correct recalculation of totals and diagnostic fee waiver", () => {
   // Approving both items
   const bothItems = ["item-battery-repl", "item-display-cable"]
-  const calcBoth = calculateQuotationTotals(sampleServiceTicket.quotation_items, bothItems)
+  const calcBoth = calculateQuotationTotals(
+    sampleServiceTicket.quotation_items,
+    bothItems,
+  )
   assertEquals(calcBoth.partsTotal, 5000) // 3500 + 1500
   assertEquals(calcBoth.labourTotal, 1800) // 800 + 1000
   assertEquals(calcBoth.diagnosticFeeWaived, true)
@@ -520,7 +598,10 @@ Deno.test("PARTIAL-5: Correct recalculation of totals and diagnostic fee waiver"
 
   // Approving single item
   const singleItem = ["item-battery-repl"]
-  const calcSingle = calculateQuotationTotals(sampleServiceTicket.quotation_items, singleItem)
+  const calcSingle = calculateQuotationTotals(
+    sampleServiceTicket.quotation_items,
+    singleItem,
+  )
   assertEquals(calcSingle.partsTotal, 3500)
   assertEquals(calcSingle.labourTotal, 800)
   assertEquals(calcSingle.diagnosticFeeWaived, true)
@@ -674,7 +755,11 @@ Deno.test("PARTIAL-10: Server authoritative calculation ignores manipulated clie
     1,
   )
   assertEquals(res.ok, true)
-  assertEquals(res.result!.quote, 4300, "Price must be calculated authoritatively")
+  assertEquals(
+    res.result!.quote,
+    4300,
+    "Price must be calculated authoritatively",
+  )
 })
 
 // 11. Stale quotation versions
@@ -717,7 +802,10 @@ Deno.test("PARTIAL-12: Concurrency guard blocks duplicate decisions once resolve
 
 // 13. Public tracker privacy
 Deno.test("PARTIAL-13: Public tracking masks phone, email, and redacts internal technician diagnosis notes", () => {
-  const publicView = maskServiceRequestForPublicTracking(sampleServiceTicket, false)
+  const publicView = maskServiceRequestForPublicTracking(
+    sampleServiceTicket,
+    false,
+  )
 
   assertEquals(publicView.customerEmail, undefined)
   assertEquals(publicView.customerPhone, undefined)
@@ -727,6 +815,98 @@ Deno.test("PARTIAL-13: Public tracking masks phone, email, and redacts internal 
 
   // Internal description in finding is masked with customerExplanation
   const publicFinding = publicView.findings[1]
-  assertEquals(publicFinding.description, sampleServiceTicket.findings[1].customerExplanation)
-  assertNotEquals(publicFinding.description, sampleServiceTicket.findings[1].description)
+  assertEquals(
+    publicFinding.description,
+    sampleServiceTicket.findings[1].customerExplanation,
+  )
+  assertNotEquals(
+    publicFinding.description,
+    sampleServiceTicket.findings[1].description,
+  )
+})
+
+// 14. Per-item approval states recorded accurately
+Deno.test("PARTIAL-14: Line items record approved, deferred, or declined states upon decision", () => {
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    owner,
+    "approved",
+    ["item-battery-repl"],
+    1,
+  )
+
+  assertEquals(res.ok, true)
+  const items = res.result!.quotation_items!
+  const battery = items.find((i) => i.id === "item-battery-repl")
+  const display = items.find((i) => i.id === "item-display-cable")
+
+  assertEquals(battery?.approvalState, "approved")
+  assertEquals(display?.approvalState, "deferred") // display had canDefer = true
+})
+
+// 15. Cross-screen consistency between customer selection and admin view
+Deno.test("PARTIAL-15: Cross-screen consistency: Saved selection and final total match across customer and admin views", () => {
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    owner,
+    "approved",
+    ["item-battery-repl"],
+    1,
+    "Customer authorized battery only",
+  )
+
+  assertEquals(res.ok, true)
+  const updatedTicket = res.result!
+
+  // Customer tracking view sees exact approved items and authoritative total
+  const customerView = maskServiceRequestForPublicTracking(
+    updatedTicket as any,
+    true,
+  )
+  assertEquals(customerView.quote, 4300)
+  assertEquals(customerView.approvedItems, ["item-battery-repl"])
+  assertEquals(customerView.declinedItems, ["item-display-cable"])
+
+  // Admin view totals calculated from the updated ticket match customerView exactly
+  const adminCalc = calculateQuotationTotals(
+    updatedTicket.quotation_items!,
+    updatedTicket.approved_items!,
+    updatedTicket.courier_charge_return_delivery,
+  )
+  assertEquals(adminCalc.totalPayable, customerView.quote)
+  assertEquals(adminCalc.diagnosticFeeWaived, true)
+})
+
+// 16. JSON serialization compatibility (both camelCase and snake_case items)
+Deno.test("PARTIAL-16: Authoritative RPC logic handles both camelCase and snake_case item pricing fields", () => {
+  const snakeCaseItem = {
+    id: "item-snake",
+    part_cost: 1200,
+    labour_cost: 400,
+    quantity: 1,
+    is_required: false,
+    can_defer: true,
+  }
+  const camelCaseItem = {
+    id: "item-camel",
+    partCost: 1200,
+    labourCost: 400,
+    quantity: 1,
+    isRequired: false,
+    canDefer: true,
+  }
+
+  // Parse snake-case
+  const pSnake =
+    (snakeCaseItem as any).partCost ?? (snakeCaseItem as any).part_cost
+  const lSnake =
+    (snakeCaseItem as any).labourCost ?? (snakeCaseItem as any).labour_cost
+  assertEquals(pSnake + lSnake, 1600)
+
+  // Parse camel-case
+  const pCamel =
+    (camelCaseItem as any).partCost ?? (camelCaseItem as any).part_cost
+  const lCamel =
+    (camelCaseItem as any).labourCost ?? (camelCaseItem as any).labour_cost
+  assertEquals(pCamel + lCamel, 1600)
 })

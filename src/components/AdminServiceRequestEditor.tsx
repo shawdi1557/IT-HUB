@@ -734,43 +734,55 @@ export default function AdminServiceRequestEditor({
 
         {/* Line Items List */}
         <div className="space-y-2">
-          {quotationItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-border p-3.5 text-xs bg-card"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-foreground">
-                    {item.title}
-                  </span>
-                  {item.isRequired && <Badge tone="red">REQUIRED</Badge>}
-                  {item.canDefer && <Badge tone="gray">DEFERRABLE</Badge>}
-                  {item.dependsOn && item.dependsOn.length > 0 && (
-                    <Badge tone="amber">HAS DEPENDENCY</Badge>
-                  )}
+          {quotationItems.map((item) => {
+            const linkedFinding = findings.find((f) => f.id === item.findingId)
+            return (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border p-3.5 text-xs bg-card"
+              >
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-foreground">
+                      {item.title}
+                    </span>
+                    {item.isRequired && <Badge tone="red">REQUIRED</Badge>}
+                    {item.canDefer && <Badge tone="gray">DEFERRABLE</Badge>}
+                    {item.dependsOn && item.dependsOn.length > 0 && (
+                      <Badge tone="amber">HAS DEPENDENCY</Badge>
+                    )}
+                    {linkedFinding && (
+                      <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        Linked: {linkedFinding.title} (
+                        {linkedFinding.source === "customer"
+                          ? "Customer"
+                          : "Tech Found"}
+                        )
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Part: {money(item.partCost)} · Labour:{" "}
+                    {money(item.labourCost)} · Qty: {item.quantity}
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Part: {money(item.partCost)} · Labour:{" "}
-                  {money(item.labourCost)} · Qty: {item.quantity}
-                </p>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <span className="font-extrabold text-foreground text-sm">
-                  {money(item.lineTotal)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveQuotationItem(item.id)}
-                  className="text-red-500 hover:text-red-700 p-1"
-                  title="Remove quotation item"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className="font-extrabold text-foreground text-sm">
+                    {money(item.lineTotal)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveQuotationItem(item.id)}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    title="Remove quotation item"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Calculated Authoritative Total Summary */}
