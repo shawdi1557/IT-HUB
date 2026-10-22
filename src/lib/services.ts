@@ -1,5 +1,11 @@
 import { supabase, supabaseConfig } from "./supabase"
-import { checkWarranty, type ServiceRequest } from "../data/catalog"
+import {
+  checkWarranty,
+  type ServiceRequest,
+  type DiagnosisFinding,
+  type QuotationItem,
+  type QuotationRevision,
+} from "../data/catalog"
 
 export interface ServiceBookingInput {
   device: string
@@ -28,6 +34,7 @@ export interface SafePublicTracking {
   time: string
   quote: number
   quoteState: "pending" | "approved" | "rejected"
+  quoteVersion?: number
   courierCharge?: { returnDelivery: number }
   technicianPublic: string
   isOwnerOrAdmin: boolean
@@ -35,6 +42,10 @@ export interface SafePublicTracking {
   maskedAddress?: string
   notesPublic?: string
   createdAt?: string
+  findings?: DiagnosisFinding[]
+  quotationItems?: QuotationItem[]
+  approvedItems?: string[]
+  declinedItems?: string[]
 }
 
 export interface QuoteDecisionResult {
@@ -42,7 +53,115 @@ export interface QuoteDecisionResult {
   decision?: "approved" | "rejected"
   nextStatus?: number
   nextStatusLabel?: string
+  approvedItems?: string[]
+  declinedItems?: string[]
+  totalAmount?: number
+  version?: number
   error?: string
+}
+
+export interface QuotationCalculation {
+  partsTotal: number
+  labourTotal: number
+  subtotal: number
+  discountsTotal: number
+  diagnosticFee: number
+  diagnosticFeeWaived: boolean
+  courierFee: number
+  totalPayable: number
+  selectedCount: number
+  totalCount: number
+}
+
+/**
+ * Authoritatively calculates quotation item totals, labour, diagnostics, and courier fees.
+ */
+export function calculateQuotationTotals(
+  items: QuotationItem[] = [],
+  selectedItemIds: string[] = [],
+  courierCharge?: { returnDelivery: number },
+  baseDiagnosticFee: number = 300,
+): QuotationCalculation {
+  const selectedSet = new Set(selectedItemIds)
+  const selectedItems = items.filter((it) => selectedSet.has(it.id))
+
+  let partsTotal = 0
+  let labourTotal = 0
+  let discountsTotal = 0
+
+  for (const it of selectedItems) {
+    const qty = it.quantity || 1
+    partsTotal += (it.partCost || 0) * qty
+    labourTotal += (it.labourCost || 0) * qty
+    discountsTotal += it.discount || 0
+  }
+
+  const subtotal = partsTotal + labourTotal
+  const selectedCount = selectedItems.length
+
+  // Diagnostic fee is waived when customer approves at least one repair.
+  // If 0 repairs are approved (all declined or deferred), the standard diagnostic assessment fee applies.
+  const diagnosticFeeWaived = selectedCount > 0
+  const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee
+
+  const courierFee = courierCharge?.returnDelivery || 0
+  const totalPayable = Math.max(0, subtotal - discountsTotal + diagnosticFee + courierFee)
+
+  return {
+    partsTotal,
+    labourTotal,
+    subtotal,
+    discountsTotal,
+    diagnosticFee,
+    diagnosticFeeWaived,
+    courierFee,
+    totalPayable,
+    selectedCount,
+    totalCount: items.length,
+  }
+}
+
+/**
+ * Validates selected items against required classifications and dependencies.
+ */
+export function validateItemSelection(
+  items: QuotationItem[] = [],
+  selectedItemIds: string[] = [],
+  decision: "approved" | "rejected" = "approved",
+): { valid: boolean; error?: string } {
+  if (decision === "rejected" || selectedItemIds.length === 0) {
+    return { valid: true }
+  }
+
+  const selectedSet = new Set(selectedItemIds)
+
+  // 1. Check for required items
+  for (const item of items) {
+    if (item.isRequired && !selectedSet.has(item.id)) {
+      return {
+        valid: false,
+        error: `Required repair "${item.title}" is essential for device operation and cannot be deselected if proceeding with repairs.`,
+      }
+    }
+  }
+
+  // 2. Check dependencies
+  for (const item of items) {
+    if (selectedSet.has(item.id) && item.dependsOn && item.dependsOn.length > 0) {
+      for (const depId of item.dependsOn) {
+        if (!selectedSet.has(depId)) {
+          const depItem = items.find((i) => i.id === depId)
+          const depName = depItem ? depItem.title : depId
+          return {
+            valid: false,
+            error: `Repair "${item.title}" requires "${depName}" to be authorized.`,
+          }
+        }
+      }
+    }
+  }
+
+  return { valid: true }
 }
 
 export interface UserProfileIdentity {
@@ -174,6 +293,15 @@ export function mapDbServiceRequest(
     courierCharge: item.courier_charge_return_delivery
       ? { returnDelivery: Number(item.courier_charge_return_delivery) }
       : undefined,
+    quoteVersion: item.quote_version ? Number(item.quote_version) : 1,
+    findings: Array.isArray(item.findings) ? item.findings : [],
+    quotationItems: Array.isArray(item.quotation_items) ? item.quotation_items : [],
+    approvedItems: Array.isArray(item.approved_items) ? item.approved_items : [],
+    declinedItems: Array.isArray(item.declined_items) ? item.declined_items : [],
+    decisionNotes: item.decision_notes || undefined,
+    decisionAt: item.decision_at || undefined,
+    decisionActor: item.decision_actor || undefined,
+    quotationHistory: Array.isArray(item.quotation_history) ? item.quotation_history : [],
   }
 }
 
@@ -287,18 +415,62 @@ export async function fetchServiceRequestById(
  * - Protects status and price: strictly updates quote_state without tampering with status or quote amount,
  *   which satisfies the protect_service_request() trigger invariant.
  */
+/**
+ * Submits the customer's decision on a repair quotation.
+ * Supports partial repair approvals, dependency checks, and authoritative recalculation.
+ */
 export async function submitCustomerQuoteDecision(
   requestId: string,
   decision: "approved" | "rejected",
+  selectedItemIds: string[] = [],
+  expectedVersion: number = 1,
+  notes?: string,
   expectedQuoteAmount?: number,
+  currentRequest?: ServiceRequest,
 ): Promise<QuoteDecisionResult> {
   if (decision !== "approved" && decision !== "rejected") {
     return { ok: false, error: "Invalid quotation decision." }
   }
 
+  // 1. Try authoritative Supabase RPC first
   if (supabase && supabaseConfig.isConfigured) {
     try {
-      // 1. Verify user authentication
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        "submit_customer_quote_decision",
+        {
+          p_request_id: requestId,
+          p_decision: decision,
+          p_approved_item_ids: decision === "approved" ? selectedItemIds : [],
+          p_expected_version: expectedVersion,
+          p_notes: notes || null,
+        },
+      )
+
+      if (!rpcError && rpcData && rpcData.ok) {
+        const nextStatus = rpcData.decision === "approved" && rpcData.approved_items?.length > 0 ? 5 : 4
+        const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+        return {
+          ok: true,
+          decision: rpcData.decision,
+          nextStatus,
+          nextStatusLabel,
+          approvedItems: rpcData.approved_items,
+          declinedItems: rpcData.declined_items,
+          totalAmount: rpcData.total,
+          version: rpcData.version,
+        }
+      }
+
+      // If RPC failed due to validation/auth, return its explicit error message
+      if (rpcError && !rpcError.message.includes("function") && !rpcError.message.includes("does not exist")) {
+        return { ok: false, error: rpcError.message }
+      }
+    } catch {
+      // Fall through to table update fallback
+    }
+
+    try {
+      // 2. Fetch authoritative ticket to verify ownership, version, and pending status
       const {
         data: { user },
         error: authError,
@@ -310,29 +482,19 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      // 2. Fetch authoritative ticket to verify ownership, pending status, and quote amount
       const { data: existing, error: fetchErr } = await supabase
         .from("service_requests")
-        .select("id, user_id, status, quote, quote_state")
+        .select("id, user_id, status, quote, quote_state, quote_version, quotation_items, courier_charge_return_delivery")
         .eq("id", requestId)
         .maybeSingle()
 
-      if (fetchErr) {
+      if (fetchErr || !existing) {
         return {
           ok: false,
-          error: `Failed to load quotation: ${fetchErr.message}`,
+          error: "Service request not found or you do not have permission to view it.",
         }
       }
 
-      if (!existing) {
-        return {
-          ok: false,
-          error:
-            "Service request not found or you do not have permission to view it.",
-        }
-      }
-
-      // 3. Enforce ownership server-side
       if (existing.user_id !== user.id) {
         return {
           ok: false,
@@ -340,7 +502,6 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      // 4. Verify the quote is actively pending
       if (existing.quote_state !== "pending") {
         return {
           ok: false,
@@ -348,37 +509,47 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      if (
-        existing.quote === null ||
-        existing.quote === undefined ||
-        Number(existing.quote) <= 0
-      ) {
+      if (existing.quote_version && existing.quote_version !== expectedVersion) {
         return {
           ok: false,
-          error: "No active quotation amount is set for this ticket.",
+          error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
         }
       }
 
-      // 5. Prevent stale quotation submissions if technician updated price
-      if (
-        expectedQuoteAmount !== undefined &&
-        Math.abs(Number(existing.quote) - expectedQuoteAmount) > 0.01
-      ) {
-        return {
-          ok: false,
-          error:
-            "The quotation amount has changed. Please review the updated estimate before deciding.",
-        }
+      const items: QuotationItem[] = Array.isArray(existing.quotation_items) ? existing.quotation_items : []
+
+      // Validate selection
+      const val = validateItemSelection(items, selectedItemIds, decision)
+      if (!val.valid) {
+        return { ok: false, error: val.error }
       }
 
-      // 6. Mutate quote_state atomically under RLS and protect_service_request trigger
+      const courierCharge = existing.courier_charge_return_delivery
+        ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
+        : undefined
+
+      const effectiveSelectedIds = decision === "approved" ? selectedItemIds : []
+      const calc = calculateQuotationTotals(items, effectiveSelectedIds, courierCharge)
+
+      const allItemIds = items.map((i) => i.id)
+      const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id))
+
+      const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
+      const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+
       const { error: updateErr } = await supabase
         .from("service_requests")
         .update({
           quote_state: decision,
+          quote: calc.totalPayable,
+          approved_items: effectiveSelectedIds,
+          declined_items: declinedItemIds,
+          decision_notes: notes || null,
+          decision_at: new Date().toISOString(),
+          decision_actor: user.id,
         })
         .eq("id", requestId)
-        .eq("quote_state", "pending") // concurrency guard
+        .eq("quote_state", "pending")
 
       if (updateErr) {
         return {
@@ -387,32 +558,48 @@ export async function submitCustomerQuoteDecision(
         }
       }
 
-      const nextStatus = decision === "approved" ? 5 : 4
-      const nextStatusLabel =
-        decision === "approved" ? "Approved" : "Awaiting approval"
-
       return {
         ok: true,
         decision,
         nextStatus,
         nextStatusLabel,
+        approvedItems: effectiveSelectedIds,
+        declinedItems: declinedItemIds,
+        totalAmount: calc.totalPayable,
+        version: existing.quote_version || expectedVersion,
       }
     } catch (err: any) {
       return {
         ok: false,
-        error:
-          err?.message ||
-          "A network error occurred while submitting your decision.",
+        error: err?.message || "A network error occurred while submitting your decision.",
       }
     }
   }
 
-  // Fallback for offline prototype / demo mode
+  // Fallback for offline prototype / demo mode / Deno test harness
+  const items = currentRequest?.quotationItems || []
+  const val = validateItemSelection(items, selectedItemIds, decision)
+  if (!val.valid) {
+    return { ok: false, error: val.error }
+  }
+
+  const effectiveSelectedIds = decision === "approved" ? selectedItemIds : []
+  const calc = calculateQuotationTotals(items, effectiveSelectedIds, currentRequest?.courierCharge)
+  const allItemIds = items.map((i) => i.id)
+  const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id))
+
+  const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
+  const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+
   return {
     ok: true,
     decision,
-    nextStatus: decision === "approved" ? 5 : 4,
-    nextStatusLabel: decision === "approved" ? "Approved" : "Awaiting approval",
+    nextStatus,
+    nextStatusLabel,
+    approvedItems: effectiveSelectedIds,
+    declinedItems: declinedItemIds,
+    totalAmount: calc.totalPayable,
+    version: expectedVersion,
   }
 }
 
@@ -420,6 +607,70 @@ export async function submitCustomerQuoteDecision(
  * Backward compatibility alias for customer quote decisions.
  */
 export const updateServiceQuoteDecision = submitCustomerQuoteDecision
+
+/**
+ * Publishes an itemized quotation with diagnosis findings, incrementing version and resetting quote_state to pending.
+ */
+export async function adminPublishQuotation(
+  requestId: string,
+  findings: DiagnosisFinding[],
+  quotationItems: QuotationItem[],
+  adminNotes?: string,
+  courierChargeReturnDelivery?: number,
+  currentRequest?: ServiceRequest,
+): Promise<{ ok: boolean; newVersion?: number; totalAmount?: number; error?: string }> {
+  const allItemIds = quotationItems.map((i) => i.id)
+  const calc = calculateQuotationTotals(
+    quotationItems,
+    allItemIds,
+    courierChargeReturnDelivery ? { returnDelivery: courierChargeReturnDelivery } : undefined,
+  )
+
+  const newVersion = (currentRequest?.quoteVersion || 1) + 1
+
+  const revision: QuotationRevision = {
+    version: currentRequest?.quoteVersion || 1,
+    publishedAt: new Date().toISOString(),
+    publishedBy: "IT HUB Workshop Admin",
+    items: currentRequest?.quotationItems || [],
+    findings: currentRequest?.findings || [],
+    totalAmount: currentRequest?.quote || 0,
+    notes: currentRequest?.notes || "",
+  }
+
+  const newHistory = currentRequest?.quotationHistory
+    ? [...currentRequest.quotationHistory, revision]
+    : [revision]
+
+  if (supabase && supabaseConfig.isConfigured) {
+    try {
+      const { error } = await supabase
+        .from("service_requests")
+        .update({
+          status: "Awaiting Approval",
+          quote: calc.totalPayable,
+          quote_state: "pending",
+          quote_version: newVersion,
+          findings: findings as any,
+          quotation_items: quotationItems as any,
+          approved_items: [],
+          declined_items: [],
+          quotation_history: newHistory as any,
+          notes: adminNotes !== undefined ? adminNotes : currentRequest?.notes,
+        })
+        .eq("id", requestId)
+
+      if (error) {
+        return { ok: false, error: error.message }
+      }
+      return { ok: true, newVersion, totalAmount: calc.totalPayable }
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Failed to publish quotation" }
+    }
+  }
+
+  return { ok: true, newVersion, totalAmount: calc.totalPayable }
+}
 
 /**
  * Updates service request records from the Admin dashboard.
@@ -487,12 +738,17 @@ export function maskServiceRequestForPublicTracking(
       time: request.time,
       quote: request.quote,
       quoteState: request.quoteState,
+      quoteVersion: request.quoteVersion || 1,
       courierCharge: request.courierCharge,
       technicianPublic: request.technician || "IT HUB Bench Technician",
       isOwnerOrAdmin: true,
       customerMaskedName: request.name,
       maskedAddress: request.address,
       notesPublic: request.notes,
+      findings: request.findings || [],
+      quotationItems: request.quotationItems || [],
+      approvedItems: request.approvedItems || [],
+      declinedItems: request.declinedItems || [],
     }
   }
 
@@ -531,12 +787,20 @@ export function maskServiceRequestForPublicTracking(
     time: request.time,
     quote: request.quote,
     quoteState: request.quoteState,
+    quoteVersion: request.quoteVersion || 1,
     courierCharge: request.courierCharge,
     technicianPublic: "Assigned IT HUB Repair Specialist",
     isOwnerOrAdmin: false,
     customerMaskedName: maskedName,
     maskedAddress: maskedAddr,
     notesPublic: undefined, // internal staff notes are omitted
+    findings: (request.findings || []).map((f) => ({
+      ...f,
+      description: f.customerExplanation || f.title,
+    })),
+    quotationItems: request.quotationItems || [],
+    approvedItems: request.approvedItems || [],
+    declinedItems: request.declinedItems || [],
   }
 }
 

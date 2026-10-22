@@ -112,6 +112,8 @@ import {
 
 import { adminUpdateServiceRequest } from "../lib/services"
 
+import AdminServiceRequestEditor from "../components/AdminServiceRequestEditor"
+
 import { compatibility } from "./Builder"
 
 import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
@@ -2407,172 +2409,18 @@ export default function Admin() {
         onOpenChange={(open) => {
           if (!open) setRequestId("")
         }}
-        title={selectedRequest?.id || "Service details"}
+        size="max-w-4xl"
+        title={
+          selectedRequest
+            ? `Service Ticket: ${selectedRequest.id}`
+            : "Service details"
+        }
       >
         {selectedRequest && (
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-xl font-bold">{selectedRequest.model}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {selectedRequest.name} · {selectedRequest.email}
-              </p>
-              <p className="mt-3 text-sm">Issue: {selectedRequest.problem}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {selectedRequest.notes || "No additional notes"}
-              </p>
-            </div>
-            <Field label="Technician">
-              <select
-                className={fieldClass}
-                value={selectedRequest.technician}
-                onChange={(event) => {
-                  const technician = event.target.value
-
-                  adminUpdateServiceRequest(requestId, {
-                    technician_name: technician,
-                  })
-
-                  store.set({
-                    requests: store.requests.map((item) =>
-                      item.id === requestId ? { ...item, technician } : item,
-                    ),
-                  })
-
-                  store.log(`Technician assigned to ${requestId}`)
-
-                  store.notify("Technician assigned")
-                }}
-              >
-                {store.technicians.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Service status">
-              <select
-                className={fieldClass}
-                value={selectedRequest.status}
-                onChange={(event) => {
-                  const status = Number(event.target.value)
-
-                  if (
-                    status >= 5 &&
-                    selectedRequest.quoteState !== "approved"
-                  ) {
-                    setError(
-                      "The customer must approve the quotation before repair can proceed.",
-                    )
-
-                    return
-                  }
-
-                  setError("")
-
-                  adminUpdateServiceRequest(requestId, {
-                    status: serviceStatuses[status],
-                  })
-
-                  store.set((previous) => ({
-                    requests: previous.requests.map((item) =>
-                      item.id === requestId ? { ...item, status } : item,
-                    ),
-
-                    notifications: [
-                      `Service ${requestId}: ${serviceStatuses[status]}`,
-
-                      ...previous.notifications,
-                    ],
-                  }))
-
-                  store.log(`Service ${requestId}: ${serviceStatuses[status]}`)
-
-                  store.notify("Service status updated")
-                }}
-              >
-                {serviceStatuses.map((status, index) => (
-                  <option value={index} key={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {error && (
-              <p role="alert" className="text-xs text-red-600">
-                {error}
-              </p>
-            )}
-            <Field label="Quotation amount (₹, demo)">
-              <input
-                type="number"
-                min={1000}
-                step={1}
-                disabled={selectedRequest.quoteState !== "pending"}
-                value={selectedRequest.quote}
-                onChange={(event) =>
-                  store.set({
-                    requests: store.requests.map((item) =>
-                      item.id === requestId
-                        ? { ...item, quote: Number(event.target.value) }
-                        : item,
-                    ),
-                  })
-                }
-                className={fieldClass}
-              />
-            </Field>
-            <p className="text-xs text-muted-foreground">
-              Approval: <strong>{selectedRequest.quoteState}</strong>. Approved
-              quotations are locked.
-            </p>
-            <Button
-              onClick={async () => {
-                if (selectedRequest.quote < 1000) {
-                  setError(
-                    "Quote must be at least ₹1,000 for the sample labour line.",
-                  )
-
-                  return
-                }
-
-                const newStatus = Math.max(selectedRequest.status, 4)
-
-                await adminUpdateServiceRequest(requestId, {
-                  status: serviceStatuses[newStatus],
-
-                  quote: selectedRequest.quote,
-
-                  quote_state: "pending",
-                })
-
-                store.set((previous) => ({
-                  requests: previous.requests.map((item) =>
-                    item.id === requestId
-                      ? { ...item, status: newStatus, quoteState: "pending" }
-                      : item,
-                  ),
-
-                  notifications: [
-                    `Quotation ready for ${requestId}`,
-
-                    ...previous.notifications,
-                  ],
-                }))
-
-                store.log(`Quotation published for ${requestId}`)
-
-                store.notify("Quotation published for customer review")
-              }}
-            >
-              Publish quotation
-            </Button>
-            <ActionLink
-              secondary
-              to={`/track-service/${selectedRequest.id}`}
-              className="ml-3"
-            >
-              Customer view
-            </ActionLink>
-          </div>
+          <AdminServiceRequestEditor
+            request={selectedRequest}
+            onClose={() => setRequestId("")}
+          />
         )}
       </Modal>
       <Modal

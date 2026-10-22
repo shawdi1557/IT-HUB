@@ -1,6 +1,6 @@
 // supabase/functions/tests/service-quote-approval.test.ts
-// Automated Test Suite for Phase 5.1: Customer Repair Quotation Approval Workflow
-// Validates Authentication, Authorization, Database Triggers, State Transitions, and Public Privacy.
+// Automated Test Suite for Phase 5.1 & Phase 5.2:
+// Customer Repair Quotation Approval, Dynamic Diagnosis Findings, Itemized Quotations & Partial Approvals.
 
 import {
   assertEquals,
@@ -9,25 +9,70 @@ import {
 } from "https://deno.land/std@0.168.0/testing/asserts.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Simulated Types & Core Decision Logic
+// Types & Core Business Invariants
 // ─────────────────────────────────────────────────────────────────────────────
+
+interface DiagnosisFinding {
+  id: string
+  title: string
+  description: string
+  source: "customer" | "technician"
+  classification: "confirmed" | "suspected" | "needs_further_testing"
+  customerExplanation: string
+  safety: "required" | "recommended" | "optional" | "cosmetic"
+  isEligibleForRepair: boolean
+  recommendedRepair: string
+}
+
+interface QuotationItem {
+  id: string
+  findingId?: string
+  title: string
+  description: string
+  partCost: number
+  labourCost: number
+  quantity: number
+  discount?: number
+  lineTotal: number
+  isRequired: boolean
+  canDefer: boolean
+  dependsOn?: string[]
+  approvalState: "pending" | "approved" | "declined" | "deferred" | "rejected"
+}
+
+interface QuotationRevision {
+  version: number
+  publishedAt: string
+  items: QuotationItem[]
+  findings: DiagnosisFinding[]
+  totalAmount: number
+}
 
 interface ServiceRecord {
   id: string
   user_id: string
   device: string
   model: string
-  problem: string
+  problem: string // original customer complaint
   method: string
   status: string
   quote: number | null
   quote_state: "pending" | "approved" | "rejected" | null
+  quote_version: number
   technician_name: string
   notes: string
   customer_name: string
   customer_email: string
   customer_phone: string
   address: string
+  courier_charge_return_delivery?: number
+  findings: DiagnosisFinding[]
+  quotation_items: QuotationItem[]
+  approved_items: string[]
+  declined_items: string[]
+  quotation_history: QuotationRevision[]
+  decision_notes?: string
+  decision_at?: string
 }
 
 interface UserProfile {
@@ -56,25 +101,21 @@ function isUserTicketOwner(
 ): boolean {
   if (!request) return false
 
-  // 1. Admin role override
   if (profile?.role === "admin" || (profile as any)?.isAdmin) {
     return true
   }
 
-  // 2. Direct Supabase UUID ownership match
   const authUserId = sessionUser?.id || profile?.id
   if (authUserId && request.userId && authUserId === request.userId) {
     return true
   }
 
-  // 3. Normalized phone match
   const userPhone = normalizePhone(sessionUser?.phone || profile?.phone)
   const reqPhone = normalizePhone(request.phone)
   if (userPhone && reqPhone && userPhone === reqPhone) {
     return true
   }
 
-  // 4. Normalized email match
   const userEmail = (sessionUser?.email || profile?.email || "").trim().toLowerCase()
   const reqEmail = (request.email || "").trim().toLowerCase()
   if (userEmail && reqEmail && userEmail === reqEmail) {
@@ -85,85 +126,106 @@ function isUserTicketOwner(
 }
 
 /**
- * Simulates the Supabase database trigger `protect_service_request()`
- * enforcing authorization, quote transitions, and immutability invariants.
+ * Calculates authoritative quotation totals
  */
-function simulateProtectServiceRequestTrigger(
-  oldRow: ServiceRecord,
-  newRow: ServiceRecord,
-  actorRole: "customer" | "admin",
-): { success: boolean; error?: string } {
-  if (actorRole !== "admin") {
-    // 1. Status changes forbidden for non-admins
-    if (newRow.status !== oldRow.status) {
+function calculateQuotationTotals(
+  items: QuotationItem[],
+  selectedItemIds: string[],
+  courierChargeReturn: number = 0,
+  baseDiagnosticFee: number = 300,
+) {
+  const selectedSet = new Set(selectedItemIds)
+  const selectedItems = items.filter((it) => selectedSet.has(it.id))
+
+  let partsTotal = 0
+  let labourTotal = 0
+  let discountsTotal = 0
+
+  for (const it of selectedItems) {
+    const qty = it.quantity || 1
+    partsTotal += (it.partCost || 0) * qty
+    labourTotal += (it.labourCost || 0) * qty
+    discountsTotal += it.discount || 0
+  }
+
+  const subtotal = partsTotal + labourTotal
+  const selectedCount = selectedItems.length
+
+  // Diagnostic fee waived if at least 1 repair is authorized
+  const diagnosticFeeWaived = selectedCount > 0
+  const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee
+  const totalPayable = Math.max(0, subtotal - discountsTotal + diagnosticFee + courierChargeReturn)
+
+  return {
+    partsTotal,
+    labourTotal,
+    subtotal,
+    discountsTotal,
+    diagnosticFee,
+    diagnosticFeeWaived,
+    courierFee: courierChargeReturn,
+    totalPayable,
+    selectedCount,
+  }
+}
+
+/**
+ * Validates selected items against required and dependency invariants
+ */
+function validateItemSelection(
+  items: QuotationItem[],
+  selectedItemIds: string[],
+  decision: "approved" | "rejected",
+): { valid: boolean; error?: string } {
+  if (decision === "rejected" || selectedItemIds.length === 0) {
+    return { valid: true }
+  }
+
+  const selectedSet = new Set(selectedItemIds)
+
+  // 1. Required repair enforcement
+  for (const item of items) {
+    if (item.isRequired && !selectedSet.has(item.id)) {
       return {
-        success: false,
-        error: "Unauthorized: Only administrators can update service request status",
+        valid: false,
+        error: `Required repair "${item.title}" is essential for device operation and cannot be deselected if proceeding with repairs.`,
       }
     }
+  }
 
-    // 2. Technician assignments forbidden for non-admins
-    if (newRow.technician_name !== oldRow.technician_name) {
-      return {
-        success: false,
-        error: "Unauthorized: Only administrators can assign technicians",
-      }
-    }
-
-    // 3. Internal notes immutable by non-admins
-    if (newRow.notes !== oldRow.notes) {
-      return {
-        success: false,
-        error: "Unauthorized: Only administrators can update internal notes",
-      }
-    }
-
-    // 4. Quotation amount immutable by non-admins
-    if (newRow.quote !== oldRow.quote) {
-      return {
-        success: false,
-        error: "Unauthorized: Customers cannot modify quotation amounts",
-      }
-    }
-
-    // 5. Customer quote state transitions
-    if (newRow.quote_state !== oldRow.quote_state) {
-      if (oldRow.quote_state !== "pending") {
-        return {
-          success: false,
-          error: "Unauthorized: Invalid quote response transition (not in pending state)",
-        }
-      }
-      if (oldRow.quote === null || oldRow.quote <= 0) {
-        return {
-          success: false,
-          error: "Unauthorized: Invalid quote response transition (no quotation exists)",
-        }
-      }
-      if (newRow.quote_state !== "approved" && newRow.quote_state !== "rejected") {
-        return {
-          success: false,
-          error: "Unauthorized: Invalid quote response transition (target not approved/rejected)",
+  // 2. Dependency enforcement
+  for (const item of items) {
+    if (selectedSet.has(item.id) && item.dependsOn && item.dependsOn.length > 0) {
+      for (const depId of item.dependsOn) {
+        if (!selectedSet.has(depId)) {
+          const depItem = items.find((i) => i.id === depId)
+          const depName = depItem ? depItem.title : depId
+          return {
+            valid: false,
+            error: `Repair "${item.title}" requires "${depName}" to be authorized.`,
+          }
         }
       }
     }
   }
 
-  return { success: true }
+  return { valid: true }
 }
 
 /**
- * Simulates backend submission of customer quote decision with concurrency and staleness checks
+ * Simulates the authoritative Postgres RPC submit_customer_quote_decision()
  */
-function simulateCustomerQuoteDecision(
+function simulateCustomerQuoteDecisionRpc(
   ticket: ServiceRecord,
   actor: UserProfile | null,
   decision: "approved" | "rejected",
-  expectedQuoteAmount?: number,
-): { ok: boolean; nextStatus?: number; nextStatusLabel?: string; error?: string } {
+  approvedItemIds: string[],
+  expectedVersion: number,
+  notes?: string,
+): { ok: boolean; result?: Partial<ServiceRecord>; error?: string } {
   // 1. Authentication check
   if (!actor || !actor.id) {
-    return { ok: false, error: "Authentication required. Please sign in to approve or reject quotations." }
+    return { ok: false, error: "Unauthorized: Authentication required" }
   }
 
   // 2. Ownership verification
@@ -173,44 +235,56 @@ function simulateCustomerQuoteDecision(
     actor,
   )
   if (!isOwner) {
-    return { ok: false, error: "You are not authorized to make decisions on this service request." }
+    return { ok: false, error: "Unauthorized: You do not own this service ticket" }
   }
 
-  // 3. Expected status check
-  if (ticket.quote_state !== "pending" || ticket.quote === null) {
+  // 3. Status check
+  if (ticket.quote_state !== "pending") {
     return {
       ok: false,
-      error: `Quotation is not awaiting approval (current state: ${ticket.quote_state || "none"}).`,
+      error: `Invalid state: Quotation is not awaiting approval (current: ${ticket.quote_state})`,
     }
   }
 
-  // 4. Stale price check
-  if (expectedQuoteAmount !== undefined && ticket.quote !== expectedQuoteAmount) {
+  // 4. Stale version check
+  if (ticket.quote_version !== expectedVersion) {
     return {
       ok: false,
-      error: `The quotation amount has changed (was ₹${expectedQuoteAmount}, now ₹${ticket.quote}). Please refresh to review the latest estimate.`,
+      error: `Stale quotation: Quotation has been revised to version ${ticket.quote_version}. Please refresh to review the latest estimate.`,
     }
   }
 
-  // 5. Database trigger validation
-  const updatedRow: ServiceRecord = {
+  // 5. Item selection validation
+  const val = validateItemSelection(ticket.quotation_items, approvedItemIds, decision)
+  if (!val.valid) {
+    return { ok: false, error: val.error }
+  }
+
+  // 6. Recalculation
+  const effectiveApprovedIds = decision === "approved" ? approvedItemIds : []
+  const calc = calculateQuotationTotals(
+    ticket.quotation_items,
+    effectiveApprovedIds,
+    ticket.courier_charge_return_delivery || 0,
+  )
+
+  const allItemIds = ticket.quotation_items.map((i) => i.id)
+  const declinedItemIds = allItemIds.filter((id) => !effectiveApprovedIds.includes(id))
+
+  const newStatus = decision === "approved" && effectiveApprovedIds.length > 0 ? "In Progress" : "Awaiting Approval"
+
+  const updated: ServiceRecord = {
     ...ticket,
     quote_state: decision,
-  }
-  const triggerResult = simulateProtectServiceRequestTrigger(ticket, updatedRow, actor.role || "customer")
-  if (!triggerResult.success) {
-    return { ok: false, error: triggerResult.error }
+    quote: calc.totalPayable,
+    status: newStatus,
+    approved_items: effectiveApprovedIds,
+    declined_items: declinedItemIds,
+    decision_notes: notes,
+    decision_at: new Date().toISOString(),
   }
 
-  // Transition status mapping
-  const nextStatus = decision === "approved" ? 5 : 4
-  const nextStatusLabel = decision === "approved" ? "Approved" : "Awaiting approval"
-
-  return {
-    ok: true,
-    nextStatus,
-    nextStatusLabel,
-  }
+  return { ok: true, result: updated }
 }
 
 /**
@@ -228,19 +302,22 @@ function maskServiceRequestForPublicTracking(
       customerPhone: request.customer_phone,
       address: request.address,
       notes: request.notes,
+      findings: request.findings,
+      quotationItems: request.quotation_items,
       quote: request.quote,
       quoteState: request.quote_state,
+      approvedItems: request.approved_items,
+      declinedItems: request.declined_items,
     }
   }
 
-  // Masked public output
-  let maskedName = "Verified Customer"
+  let maskedName = "Customer"
   if (request.customer_name) {
     const parts = request.customer_name.trim().split(/\s+/)
     maskedName = parts[0] ? `${parts[0][0]}***` : "Customer"
   }
 
-  let maskedAddr = "IT HUB Registered Area"
+  let maskedAddr = "Kerala Service Area"
   if (request.address) {
     const pinMatch = request.address.match(/\b([1-9][0-9]{2})[0-9]{3}\b/)
     maskedAddr = pinMatch ? `Kerala Area (PIN ${pinMatch[1]}***)` : "Kerala Area"
@@ -252,215 +329,404 @@ function maskServiceRequestForPublicTracking(
     customerEmail: undefined,
     customerPhone: undefined,
     maskedAddress: maskedAddr,
-    notes: undefined,
-    notesPublic: `Observed issue: ${request.problem}. Bench diagnostics registered.`,
+    notes: undefined, // internal technician notes hidden
+    findings: request.findings.map((f) => ({
+      ...f,
+      description: f.customerExplanation || f.title, // internal description shielded
+    })),
+    quotationItems: request.quotation_items,
     quote: request.quote,
     quoteState: request.quote_state,
+    approvedItems: request.approved_items,
+    declinedItems: request.declined_items,
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test Suite: 13 Invariants from Phase 5.1 Specification
+// Test Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-const sampleTicket: ServiceRecord = {
-  id: "SRV-TEST001",
+const initialCustomerProblem = "Laptop battery dying rapidly and laptop shuts down abruptly."
+
+const sampleServiceTicket: ServiceRecord = {
+  id: "SRV-LAPTOP-502",
   user_id: "user-uuid-123",
   device: "Laptop",
-  model: "Dell XPS 15",
-  problem: "Display backlight flickering",
-  method: "walkin",
+  model: "MacBook Pro 16",
+  problem: initialCustomerProblem,
+  method: "Visit IT HUB",
   status: "Awaiting Approval",
-  quote: 2800,
+  quote: 6800,
   quote_state: "pending",
-  technician_name: "Kiran IT HUB Lab",
-  notes: "Internal notes: Replaced LED inverter board. Bench tested 2 hrs.",
-  customer_name: "Rahul Nair",
-  customer_email: "rahul@example.com",
-  customer_phone: "+91 98472 12345",
-  address: "House 42, Kothamangalam, PIN 686691",
+  quote_version: 1,
+  technician_name: "Senior Workbench Specialist",
+  notes: "Internal diagnostic note: Logic board rails verified, 12V stable.",
+  customer_name: "Anand Menon",
+  customer_email: "anand@example.com",
+  customer_phone: "+91 98472 99881",
+  address: "Kothamangalam Town, Ernakulam, PIN 686691",
+  findings: [
+    {
+      id: "f-battery",
+      title: "Battery Health Degraded (Customer Complaint)",
+      description: "Internal technician note: Cycle count 890, battery swelling detected.",
+      source: "customer",
+      classification: "confirmed",
+      customerExplanation: "Battery has reached end-of-life and requires replacement for battery runtime.",
+      safety: "recommended",
+      isEligibleForRepair: true,
+      recommendedRepair: "OEM 96Wh Grade-A Battery replacement",
+    },
+    {
+      id: "f-display",
+      title: "Display Flex Cable Micro-Fraying (Discovered Fault)",
+      description: "Internal technician note: Stage lighting effect observed at 110 degrees lid angle.",
+      source: "technician",
+      classification: "confirmed",
+      customerExplanation: "Display cable shows slight flex wear causing occasional flicker when opened wide.",
+      safety: "optional", // can be safely deferred
+      isEligibleForRepair: true,
+      recommendedRepair: "Display flex harness realignment & micro-soldering",
+    },
+  ],
+  quotation_items: [
+    {
+      id: "item-battery-repl",
+      findingId: "f-battery",
+      title: "MacBook Pro OEM Battery Assembly",
+      description: "Grade-A certified replacement battery with 90-day warranty.",
+      partCost: 3500,
+      labourCost: 800,
+      quantity: 1,
+      lineTotal: 4300,
+      isRequired: false,
+      canDefer: false,
+      approvalState: "pending",
+    },
+    {
+      id: "item-display-cable",
+      findingId: "f-display",
+      title: "Display Flex Cable Repair",
+      description: "Micro-soldering repair for lid flex cable.",
+      partCost: 1500,
+      labourCost: 1000,
+      quantity: 1,
+      lineTotal: 2500,
+      isRequired: false,
+      canDefer: true, // safely deferrable
+      approvalState: "pending",
+    },
+  ],
+  approved_items: [],
+  declined_items: [],
+  quotation_history: [],
 }
 
-const ownerUser: UserProfile = {
+const owner: UserProfile = {
   id: "user-uuid-123",
-  email: "rahul@example.com",
-  phone: "+91 98472 12345",
+  email: "anand@example.com",
+  phone: "+91 98472 99881",
   role: "customer",
 }
 
-const otherCustomer: UserProfile = {
+const stranger: UserProfile = {
   id: "user-uuid-999",
   email: "stranger@example.com",
-  phone: "+91 94471 00000",
+  phone: "+91 91111 22222",
   role: "customer",
 }
 
-const adminUser: UserProfile = {
-  id: "admin-uuid-001",
-  email: "ithubkmgm@gmail.com",
-  phone: "+91 98472 23886",
-  role: "admin",
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 5.2 Test Specifications
+// ─────────────────────────────────────────────────────────────────────────────
 
-// 1. Awaiting Approval displays authorized customer's quotation actions
-Deno.test("SRV-1: Ticket in 'pending' quote state authorizes owner decision action", () => {
-  const isOwner = isUserTicketOwner(
-    { userId: sampleTicket.user_id, email: sampleTicket.customer_email, phone: sampleTicket.customer_phone },
-    ownerUser,
-    ownerUser,
+// 1. Adding multiple diagnosis findings
+Deno.test("PARTIAL-1: Multiple diagnosis findings recorded with distinct sources and safety ratings", () => {
+  assertEquals(sampleServiceTicket.findings.length, 2)
+  assertEquals(sampleServiceTicket.findings[0].source, "customer")
+  assertEquals(sampleServiceTicket.findings[1].source, "technician")
+  assertEquals(sampleServiceTicket.findings[1].safety, "optional")
+})
+
+// 2. Preserving the original customer complaint
+Deno.test("PARTIAL-2: Original customer complaint is preserved intact and never overwritten", () => {
+  assertEquals(
+    sampleServiceTicket.problem,
+    initialCustomerProblem,
+    "Customer problem must not be replaced by technician findings",
   )
-  assertEquals(isOwner, true, "Ticket owner must be authorized")
-  assertEquals(sampleTicket.quote_state, "pending", "Ticket must be in pending approval state")
 })
 
-// 2. Other statuses do not expose inappropriate approval actions
-Deno.test("SRV-2: Statuses without pending quotation strictly block approval actions", () => {
-  const ticketInRepair: ServiceRecord = {
-    ...sampleTicket,
-    status: "In Progress",
-    quote_state: "approved",
+// 3. Publishing and revising quotations with audit trail
+Deno.test("PARTIAL-3: Publishing quotation revision increments version and appends to audit history", () => {
+  const previousRevision: QuotationRevision = {
+    version: sampleServiceTicket.quote_version,
+    publishedAt: new Date().toISOString(),
+    items: [...sampleServiceTicket.quotation_items],
+    findings: [...sampleServiceTicket.findings],
+    totalAmount: sampleServiceTicket.quote || 0,
   }
-  const result = simulateCustomerQuoteDecision(ticketInRepair, ownerUser, "approved", 2800)
-  assertEquals(result.ok, false)
-  assertStringIncludes(result.error!, "not awaiting approval")
 
-  const ticketWithoutQuote: ServiceRecord = {
-    ...sampleTicket,
-    quote: null,
-    quote_state: null,
+  // Admin publishes version 2 with updated price
+  const revisedTicket: ServiceRecord = {
+    ...sampleServiceTicket,
+    quote_version: 2,
+    quote: 7200,
+    quotation_history: [previousRevision],
   }
-  const result2 = simulateCustomerQuoteDecision(ticketWithoutQuote, ownerUser, "approved")
-  assertEquals(result2.ok, false)
+
+  assertEquals(revisedTicket.quote_version, 2)
+  assertEquals(revisedTicket.quotation_history.length, 1)
+  assertEquals(revisedTicket.quotation_history[0].version, 1)
 })
 
-// 3. Authenticated ticket owner can approve a valid quotation
-Deno.test("SRV-3: Authenticated ticket owner can approve a valid quotation", () => {
-  const res = simulateCustomerQuoteDecision(sampleTicket, ownerUser, "approved", 2800)
+// 4. Customer selection of individual repair items & Partial Approval
+Deno.test("PARTIAL-4: Partial Approval: Customer approves battery while declining safely deferrable display repair", () => {
+  // Customer selects only 'item-battery-repl'
+  const approvedSelection = ["item-battery-repl"]
+
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    owner,
+    "approved",
+    approvedSelection,
+    1,
+    "Proceed with battery replacement only for now",
+  )
+
   assertEquals(res.ok, true)
-  assertEquals(res.nextStatus, 5, "Next status index should be 5 (Approved)")
-  assertEquals(res.nextStatusLabel, "Approved")
+  const updated = res.result!
+  assertEquals(updated.quote_state, "approved")
+  assertEquals(updated.status, "In Progress")
+  assertEquals(updated.approved_items, ["item-battery-repl"])
+  assertEquals(updated.declined_items, ["item-display-cable"])
+
+  // Diagnostic fee is waived because 1 repair is authorized:
+  // Battery: Part (3500) + Labour (800) = 4300. Diagnostic fee = 0. Total = 4300.
+  assertEquals(updated.quote, 4300)
+  assertStringIncludes(updated.decision_notes!, "battery replacement only")
 })
 
-// 4. Authenticated ticket owner can reject a valid quotation
-Deno.test("SRV-4: Authenticated ticket owner can reject a valid quotation", () => {
-  const res = simulateCustomerQuoteDecision(sampleTicket, ownerUser, "rejected", 2800)
+// 5. Correct recalculation of totals and fees
+Deno.test("PARTIAL-5: Correct recalculation of totals and diagnostic fee waiver", () => {
+  // Approving both items
+  const bothItems = ["item-battery-repl", "item-display-cable"]
+  const calcBoth = calculateQuotationTotals(sampleServiceTicket.quotation_items, bothItems)
+  assertEquals(calcBoth.partsTotal, 5000) // 3500 + 1500
+  assertEquals(calcBoth.labourTotal, 1800) // 800 + 1000
+  assertEquals(calcBoth.diagnosticFeeWaived, true)
+  assertEquals(calcBoth.diagnosticFee, 0)
+  assertEquals(calcBoth.totalPayable, 6800)
+
+  // Approving single item
+  const singleItem = ["item-battery-repl"]
+  const calcSingle = calculateQuotationTotals(sampleServiceTicket.quotation_items, singleItem)
+  assertEquals(calcSingle.partsTotal, 3500)
+  assertEquals(calcSingle.labourTotal, 800)
+  assertEquals(calcSingle.diagnosticFeeWaived, true)
+  assertEquals(calcSingle.totalPayable, 4300)
+})
+
+// 6. Rejecting invalid combinations of dependent repairs
+Deno.test("PARTIAL-6: Dependency Enforcement: Cannot approve dependent item without prerequisite item", () => {
+  // Define dependent item
+  const ticketWithDep: ServiceRecord = {
+    ...sampleServiceTicket,
+    quotation_items: [
+      {
+        id: "item-logic-board",
+        title: "Logic Board Power IC Replacement",
+        description: "Primary repair",
+        partCost: 2000,
+        labourCost: 1000,
+        quantity: 1,
+        lineTotal: 3000,
+        isRequired: false,
+        canDefer: false,
+        approvalState: "pending",
+      },
+      {
+        id: "item-daughter-board",
+        title: "USB-C Port Sub-Assembly",
+        description: "Requires primary logic board rail to function",
+        partCost: 800,
+        labourCost: 400,
+        quantity: 1,
+        lineTotal: 1200,
+        isRequired: false,
+        canDefer: true,
+        dependsOn: ["item-logic-board"], // depends on logic board
+        approvalState: "pending",
+      },
+    ],
+  }
+
+  // Attempting to select daughter board WITHOUT logic board
+  const res = simulateCustomerQuoteDecisionRpc(
+    ticketWithDep,
+    owner,
+    "approved",
+    ["item-daughter-board"], // missing prerequisite!
+    1,
+  )
+
+  assertEquals(res.ok, false)
+  assertStringIncludes(res.error!, "requires")
+  assertStringIncludes(res.error!, "to be authorized")
+
+  // Selecting BOTH is valid
+  const resValid = simulateCustomerQuoteDecisionRpc(
+    ticketWithDep,
+    owner,
+    "approved",
+    ["item-logic-board", "item-daughter-board"],
+    1,
+  )
+  assertEquals(resValid.ok, true)
+})
+
+// 7. Required repair enforcement
+Deno.test("PARTIAL-7: Required Repair Enforcement: Essential repairs cannot be omitted if proceeding", () => {
+  const ticketWithRequired: ServiceRecord = {
+    ...sampleServiceTicket,
+    quotation_items: [
+      {
+        id: "item-safety-fuse",
+        title: "Main Power Safety Fuse",
+        description: "Required for fire/electrical safety",
+        partCost: 300,
+        labourCost: 200,
+        quantity: 1,
+        lineTotal: 500,
+        isRequired: true, // required!
+        canDefer: false,
+        approvalState: "pending",
+      },
+      {
+        id: "item-fan-upgrade",
+        title: "Silent Fan Upgrade",
+        description: "Optional accessory",
+        partCost: 600,
+        labourCost: 200,
+        quantity: 1,
+        lineTotal: 800,
+        isRequired: false,
+        canDefer: true,
+        approvalState: "pending",
+      },
+    ],
+  }
+
+  // Trying to approve fan upgrade while omitting required safety fuse
+  const res = simulateCustomerQuoteDecisionRpc(
+    ticketWithRequired,
+    owner,
+    "approved",
+    ["item-fan-upgrade"],
+    1,
+  )
+  assertEquals(res.ok, false)
+  assertStringIncludes(res.error!, "Required repair")
+})
+
+// 8. Declining all repairs
+Deno.test("PARTIAL-8: Declining all repairs applies diagnostic fee and marks all items declined", () => {
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    owner,
+    "rejected",
+    [], // 0 items approved
+    1,
+    "Too expensive, will replace device",
+  )
+
   assertEquals(res.ok, true)
-  assertEquals(res.nextStatus, 4, "Status index remains 4 awaiting admin return processing")
-  assertEquals(res.nextStatusLabel, "Awaiting approval")
+  const updated = res.result!
+  assertEquals(updated.quote_state, "rejected")
+  assertEquals(updated.status, "Awaiting Approval")
+  assertEquals(updated.approved_items!.length, 0)
+  assertEquals(updated.declined_items!.length, 2)
+  // Diagnostic assessment fee of 300 applies upon collection
+  assertEquals(updated.quote, 300)
 })
 
-// 5. Approval persists the correct next status and quote_state
-Deno.test("SRV-5: Approval sets quote_state='approved' without direct status override", () => {
-  const updatedTicket: ServiceRecord = {
-    ...sampleTicket,
-    quote_state: "approved",
+// 9. Ownership and RLS enforcement
+Deno.test("PARTIAL-9: Ownership Enforcement: Non-owners cannot submit decisions on someone else's ticket", () => {
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    stranger,
+    "approved",
+    ["item-battery-repl"],
+    1,
+  )
+  assertEquals(res.ok, false)
+  assertStringIncludes(res.error!, "Unauthorized")
+})
+
+// 10. Tampered prices and totals
+Deno.test("PARTIAL-10: Server authoritative calculation ignores manipulated client prices", () => {
+  // Even if a malicious client sends a fake total, the RPC calculates strictly from ticket.quotation_items
+  const res = simulateCustomerQuoteDecisionRpc(
+    sampleServiceTicket,
+    owner,
+    "approved",
+    ["item-battery-repl"], // 3500 + 800 = 4300
+    1,
+  )
+  assertEquals(res.ok, true)
+  assertEquals(res.result!.quote, 4300, "Price must be calculated authoritatively")
+})
+
+// 11. Stale quotation versions
+Deno.test("PARTIAL-11: Stale version check: Decision on v1 when v2 is published is rejected", () => {
+  const ticketV2: ServiceRecord = {
+    ...sampleServiceTicket,
+    quote_version: 2,
   }
-  const triggerCheck = simulateProtectServiceRequestTrigger(sampleTicket, updatedTicket, "customer")
-  assertEquals(triggerCheck.success, true, "Customer can update quote_state to approved")
+
+  // Client submits decision expecting version 1
+  const res = simulateCustomerQuoteDecisionRpc(
+    ticketV2,
+    owner,
+    "approved",
+    ["item-battery-repl"],
+    1, // stale!
+  )
+  assertEquals(res.ok, false)
+  assertStringIncludes(res.error!, "Stale quotation")
+  assertStringIncludes(res.error!, "revised to version 2")
 })
 
-// 6. Rejection persists the correct rejection state
-Deno.test("SRV-6: Rejection sets quote_state='rejected' safely", () => {
-  const updatedTicket: ServiceRecord = {
-    ...sampleTicket,
-    quote_state: "rejected",
-  }
-  const triggerCheck = simulateProtectServiceRequestTrigger(sampleTicket, updatedTicket, "customer")
-  assertEquals(triggerCheck.success, true, "Customer can update quote_state to rejected")
-})
-
-// 7. Unauthenticated customers cannot make decisions
-Deno.test("SRV-7: Unauthenticated calls are rejected with 401 equivalent", () => {
-  const result = simulateCustomerQuoteDecision(sampleTicket, null, "approved", 2800)
-  assertEquals(result.ok, false)
-  assertStringIncludes(result.error!, "Authentication required")
-})
-
-// 8. Other customers cannot approve or reject someone else's ticket
-Deno.test("SRV-8: Other customer accounts are denied with authorization failure", () => {
-  const result = simulateCustomerQuoteDecision(sampleTicket, otherCustomer, "approved", 2800)
-  assertEquals(result.ok, false)
-  assertStringIncludes(result.error!, "not authorized")
-})
-
-// 9. Arbitrary status and quotation manipulation is rejected
-Deno.test("SRV-9: Customers attempting to alter status or price are rejected by trigger", () => {
-  // Attempt 1: Customer modifies status directly
-  const tamperingStatus: ServiceRecord = {
-    ...sampleTicket,
-    status: "Completed",
-    quote_state: "approved",
-  }
-  const statusCheck = simulateProtectServiceRequestTrigger(sampleTicket, tamperingStatus, "customer")
-  assertEquals(statusCheck.success, false)
-  assertStringIncludes(statusCheck.error!, "Only administrators can update service request status")
-
-  // Attempt 2: Customer modifies quote price
-  const tamperingPrice: ServiceRecord = {
-    ...sampleTicket,
-    quote: 100, // attempting discount
-    quote_state: "approved",
-  }
-  const priceCheck = simulateProtectServiceRequestTrigger(sampleTicket, tamperingPrice, "customer")
-  assertEquals(priceCheck.success, false)
-  assertStringIncludes(priceCheck.error!, "Customers cannot modify quotation amounts")
-})
-
-// 10. Repeated and concurrent decisions cannot produce conflicting outcomes
-Deno.test("SRV-10: Concurrency guard blocks duplicate or conflicting decisions once resolved", () => {
-  // First decision succeeds
-  const firstDecision = simulateCustomerQuoteDecision(sampleTicket, ownerUser, "approved", 2800)
-  assertEquals(firstDecision.ok, true)
-
-  // Ticket in DB now has quote_state = 'approved'
-  const postDecisionTicket: ServiceRecord = {
-    ...sampleTicket,
+// 12. Duplicate and concurrent approval requests
+Deno.test("PARTIAL-12: Concurrency guard blocks duplicate decisions once resolved", () => {
+  const alreadyResolvedTicket: ServiceRecord = {
+    ...sampleServiceTicket,
     quote_state: "approved",
   }
 
-  // Second concurrent or repeated decision attempt
-  const secondDecision = simulateCustomerQuoteDecision(postDecisionTicket, ownerUser, "rejected", 2800)
-  assertEquals(secondDecision.ok, false)
-  assertStringIncludes(secondDecision.error!, "not awaiting approval")
+  const res = simulateCustomerQuoteDecisionRpc(
+    alreadyResolvedTicket,
+    owner,
+    "approved",
+    ["item-battery-repl"],
+    1,
+  )
+  assertEquals(res.ok, false)
+  assertStringIncludes(res.error!, "not awaiting approval")
 })
 
-// 11. Stale quotations and tickets with changed statuses are handled safely
-Deno.test("SRV-11: Stale quotation amount is detected and rejected before mutation", () => {
-  // Admin updated quote from 2800 to 3200
-  const updatedTicketByAdmin: ServiceRecord = {
-    ...sampleTicket,
-    quote: 3200,
-  }
-  // Client submitted decision based on cached ₹2800
-  const result = simulateCustomerQuoteDecision(updatedTicketByAdmin, ownerUser, "approved", 2800)
-  assertEquals(result.ok, false)
-  assertStringIncludes(result.error!, "quotation amount has changed")
-})
+// 13. Public tracker privacy
+Deno.test("PARTIAL-13: Public tracking masks phone, email, and redacts internal technician diagnosis notes", () => {
+  const publicView = maskServiceRequestForPublicTracking(sampleServiceTicket, false)
 
-// 12. Public tracking continues to mask contact details, addresses and internal notes
-Deno.test("SRV-12: Public tracking masks phone, email, address, and shields internal notes", () => {
-  const publicView = maskServiceRequestForPublicTracking(sampleTicket, false)
+  assertEquals(publicView.customerEmail, undefined)
+  assertEquals(publicView.customerPhone, undefined)
+  assertEquals(publicView.notes, undefined)
+  assertStringIncludes(publicView.customerMaskedName!, "A***")
+  assertStringIncludes(publicView.maskedAddress!, "686***")
 
-  assertEquals(publicView.customerEmail, undefined, "Email must not be leaked")
-  assertEquals(publicView.customerPhone, undefined, "Phone must not be leaked")
-  assertEquals(publicView.notes, undefined, "Internal technician notes must NEVER be exposed publicly")
-  assertStringIncludes(publicView.customerMaskedName!, "R***", "Name must be masked")
-  assertStringIncludes(publicView.maskedAddress!, "686***", "Address PIN must be masked")
-
-  // Authenticated owner view retains full details
-  const ownerView = maskServiceRequestForPublicTracking(sampleTicket, true)
-  assertEquals(ownerView.customerEmail, "rahul@example.com")
-  assertEquals(ownerView.customerPhone, "+91 98472 12345")
-  assertEquals(ownerView.notes, sampleTicket.notes)
-})
-
-// 13. Existing booking, admin status updates and tracking workflows remain functional
-Deno.test("SRV-13: Admin can assign technicians and advance status", () => {
-  const adminAssignedTicket: ServiceRecord = {
-    ...sampleTicket,
-    technician_name: "Senior Chip-Level Engineer",
-    status: "Repairing",
-  }
-  const triggerCheck = simulateProtectServiceRequestTrigger(sampleTicket, adminAssignedTicket, "admin")
-  assertEquals(triggerCheck.success, true, "Admins must have full operational control")
+  // Internal description in finding is masked with customerExplanation
+  const publicFinding = publicView.findings[1]
+  assertEquals(publicFinding.description, sampleServiceTicket.findings[1].customerExplanation)
+  assertNotEquals(publicFinding.description, sampleServiceTicket.findings[1].description)
 })

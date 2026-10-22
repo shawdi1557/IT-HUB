@@ -661,6 +661,15 @@ create table service_requests (
   technician_name text,               -- Internal info only; technicians are not app users
   notes text,
   courier_charge_return_delivery numeric(8, 2) check (courier_charge_return_delivery is null or courier_charge_return_delivery >= 0),
+  findings jsonb not null default '[]'::jsonb,
+  quotation_items jsonb not null default '[]'::jsonb,
+  quote_version integer not null default 1,
+  approved_items text[] not null default '{}',
+  declined_items text[] not null default '{}',
+  decision_notes text,
+  decision_at timestamptz,
+  decision_actor uuid references profiles (id),
+  quotation_history jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -698,6 +707,15 @@ begin
       end if;
       if new.courier_charge_return_delivery is not null then
         raise exception 'Unauthorized: Courier charges cannot be set by customer';
+      end if;
+      if new.findings is distinct from '[]'::jsonb then
+        raise exception 'Unauthorized: Diagnosis findings are managed by lab technicians';
+      end if;
+      if new.quotation_items is distinct from '[]'::jsonb then
+        raise exception 'Unauthorized: Quotation items are managed by staff';
+      end if;
+      if new.quote_version is distinct from 1 then
+        raise exception 'Unauthorized: Quotation version cannot be initialized by customer';
       end if;
       if trim(coalesce(new.device, '')) = '' then
         raise exception 'Device cannot be empty';
@@ -738,6 +756,18 @@ begin
       end if;
       if new.courier_charge_return_delivery is distinct from old.courier_charge_return_delivery then
         raise exception 'Unauthorized: Only administrators can modify courier return charges';
+      end if;
+      if new.findings is distinct from old.findings then
+        raise exception 'Unauthorized: Only administrators can modify diagnosis findings';
+      end if;
+      if new.quotation_items is distinct from old.quotation_items then
+        raise exception 'Unauthorized: Only administrators can modify quotation items';
+      end if;
+      if new.quote_version is distinct from old.quote_version then
+        raise exception 'Unauthorized: Only administrators can publish new quotation versions';
+      end if;
+      if new.quotation_history is distinct from old.quotation_history then
+        raise exception 'Unauthorized: Quotation history is immutable';
       end if;
 
       -- 4. Quote state transition:
@@ -785,6 +815,143 @@ $$;
 create trigger service_requests_protect
   before insert or update on service_requests
   for each row execute function protect_service_request();
+
+-- Atomic Customer Quote Decision RPC for partial repair approval & dependency checks
+create or replace function public.submit_customer_quote_decision(
+  p_request_id uuid,
+  p_decision text,
+  p_approved_item_ids text[],
+  p_expected_version integer,
+  p_notes text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_req record;
+  v_item record;
+  v_items jsonb;
+  v_recalculated_total numeric(12, 2) := 0;
+  v_item_id text;
+  v_approved_count int := 0;
+  v_dep_id text;
+  v_new_status text;
+  v_declined_items text[] := '{}';
+begin
+  if auth.uid() is null then
+    raise exception 'Unauthorized: Authentication required';
+  end if;
+
+  if p_decision not in ('approved', 'rejected') then
+    raise exception 'Invalid decision: Must be approved or rejected';
+  end if;
+
+  select * into v_req
+  from public.service_requests
+  where id = p_request_id
+  for update;
+
+  if not found then
+    raise exception 'Service request not found';
+  end if;
+
+  if v_req.user_id <> auth.uid() and not is_admin() then
+    raise exception 'Unauthorized: You do not own this service ticket';
+  end if;
+
+  if v_req.quote_state is distinct from 'pending' then
+    raise exception 'Invalid state: Quotation is not awaiting approval (current: %)', coalesce(v_req.quote_state, 'none');
+  end if;
+
+  if v_req.quote_version is distinct from p_expected_version then
+    raise exception 'Stale quotation: Quotation has been revised to version %. Please refresh to review the latest estimate.', v_req.quote_version;
+  end if;
+
+  v_items := coalesce(v_req.quotation_items, '[]'::jsonb);
+
+  if p_decision = 'rejected' or p_approved_item_ids is null or array_length(p_approved_item_ids, 1) is null or array_length(p_approved_item_ids, 1) = 0 then
+    p_decision := 'rejected';
+    p_approved_item_ids := '{}';
+    v_new_status := 'Awaiting Approval';
+
+    for v_item in select * from jsonb_to_recordset(v_items) as x(id text) loop
+      v_declined_items := array_append(v_declined_items, v_item.id);
+    end loop;
+
+    v_recalculated_total := least(coalesce(v_req.quote, 300), 300);
+  else
+    for v_item in select * from jsonb_to_recordset(v_items) as x(
+      id text,
+      part_cost numeric,
+      labour_cost numeric,
+      quantity numeric,
+      discount numeric,
+      is_required boolean,
+      depends_on text[]
+    ) loop
+      if v_item.id = any(p_approved_item_ids) then
+        v_approved_count := v_approved_count + 1;
+        v_recalculated_total := v_recalculated_total + (
+          (coalesce(v_item.part_cost, 0) + coalesce(v_item.labour_cost, 0)) * coalesce(v_item.quantity, 1) - coalesce(v_item.discount, 0)
+        );
+
+        if v_item.depends_on is not null then
+          foreach v_dep_id in array v_item.depends_on loop
+            if not (v_dep_id = any(p_approved_item_ids)) then
+              raise exception 'Dependency unsatisfied: Item % requires item % to be authorized', v_item.id, v_dep_id;
+            end if;
+          end loop;
+        end if;
+      else
+        if coalesce(v_item.is_required, false) then
+          raise exception 'Required repair omitted: Item % is essential for safe operation and cannot be declined', v_item.id;
+        end if;
+        v_declined_items := array_append(v_declined_items, v_item.id);
+      end if;
+    end loop;
+
+    if v_approved_count = 0 then
+      p_decision := 'rejected';
+      v_new_status := 'Awaiting Approval';
+      v_recalculated_total := 300;
+    else
+      v_new_status := 'In Progress';
+    end if;
+  end if;
+
+  if v_req.courier_charge_return_delivery is not null and v_req.courier_charge_return_delivery > 0 then
+    v_recalculated_total := v_recalculated_total + v_req.courier_charge_return_delivery;
+  end if;
+
+  update public.service_requests
+  set
+    quote_state = p_decision,
+    quote = v_recalculated_total,
+    status = v_new_status,
+    approved_items = p_approved_item_ids,
+    declined_items = v_declined_items,
+    decision_notes = p_notes,
+    decision_at = now(),
+    decision_actor = auth.uid(),
+    updated_at = now()
+  where id = p_request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'decision', p_decision,
+    'approved_items', p_approved_item_ids,
+    'declined_items', v_declined_items,
+    'total', v_recalculated_total,
+    'status', v_new_status,
+    'version', v_req.quote_version
+  );
+end;
+$;
+
+grant execute on function public.submit_customer_quote_decision to authenticated;
+
 
 create table warranty_checks (
   id uuid primary key default gen_random_uuid(),

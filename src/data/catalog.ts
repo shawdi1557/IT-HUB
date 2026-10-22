@@ -1826,6 +1826,52 @@ export type Order = {
   delivery: string
 }
 
+export type FindingSource = "customer" | "technician"
+export type FindingClassification = "confirmed" | "suspected" | "needs_further_testing"
+export type RepairSafety = "required" | "recommended" | "optional" | "cosmetic"
+
+export interface DiagnosisFinding {
+  id: string
+  title: string
+  description: string
+  source: FindingSource
+  classification: FindingClassification
+  customerExplanation: string
+  attachments?: string[]
+  recommendedRepair: string
+  safety: RepairSafety
+  isEligibleForRepair: boolean
+  createdAt: string
+}
+
+export type QuotationItemState = "pending" | "approved" | "declined" | "deferred" | "rejected"
+
+export interface QuotationItem {
+  id: string
+  findingId?: string
+  title: string
+  description: string
+  partCost: number
+  labourCost: number
+  quantity: number
+  discount?: number
+  lineTotal: number
+  isRequired: boolean
+  canDefer: boolean
+  dependsOn?: string[]
+  approvalState: QuotationItemState
+}
+
+export interface QuotationRevision {
+  version: number
+  publishedAt: string
+  publishedBy: string
+  items: QuotationItem[]
+  findings: DiagnosisFinding[]
+  totalAmount: number
+  notes?: string
+}
+
 export type ServiceRequest = {
   id: string
 
@@ -1859,18 +1905,29 @@ export type ServiceRequest = {
 
   quoteState: "pending" | "approved" | "rejected"
 
+  quoteVersion?: number
+
   technician: string
 
   notes: string
 
-  /**
-   * Courier charges for "Courier to IT HUB" method.
-   * Customer ships the device to IT HUB at their own cost (no inbound charge).
-   * IT HUB charges only for the return delivery leg.
-   * On quote rejection this becomes the "diagnosis & return fee".
-   */
-
   courierCharge?: { returnDelivery: number }
+
+  findings?: DiagnosisFinding[]
+
+  quotationItems?: QuotationItem[]
+
+  approvedItems?: string[]
+
+  declinedItems?: string[]
+
+  decisionNotes?: string
+
+  decisionAt?: string
+
+  decisionActor?: string
+
+  quotationHistory?: QuotationRevision[]
 }
 
 // ── Offers (no coupon codes — offers apply automatically by date window) ──
