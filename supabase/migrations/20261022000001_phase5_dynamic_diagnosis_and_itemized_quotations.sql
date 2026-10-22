@@ -304,5 +304,7 @@ $$;
 
 grant execute on function public.submit_customer_quote_decision to authenticated;
 
+notify pgrst, 'reload schema';
+
 commit;
 
