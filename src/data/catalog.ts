@@ -56,6 +56,10 @@ export type Product = {
   secondHand?: boolean
 
   condition?: ProductCondition
+
+  handle?: string
+
+  variantId?: string
 }
 
 export const photo = (id: string, width = 700) => `/images/${id}.jpg`
@@ -1796,6 +1800,8 @@ export type CartItem = {
   quantity: number
 
   productId?: string
+
+  variantId?: string
 
   build?: Build
 }

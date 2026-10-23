@@ -13,6 +13,7 @@ import {
   Search,
   Tag,
   ShieldCheck,
+  LoaderCircle,
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
@@ -31,6 +32,7 @@ import {
   verifyCheckoutCallback,
 } from "../lib/payments"
 import WarrantyCheck from "../components/WarrantyCheck"
+import { shopifyConfig, createShopifyCart } from "../lib/shopify"
 import {
   ActionLink,
   Badge,
@@ -75,6 +77,32 @@ export function Cart() {
       </Page>
     )
   }
+  const navigate = useNavigate()
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+
+  const handleCheckout = async () => {
+    if (shopifyConfig.isConfigured) {
+      setCheckingOut(true)
+      setCheckoutError(null)
+      const lines = store.cart.map((item) => ({
+        merchandiseId: item.variantId || item.id,
+        quantity: item.quantity,
+      }))
+      const res = await createShopifyCart(lines)
+      if (res.cart?.checkoutUrl) {
+        window.location.href = res.cart.checkoutUrl
+        return
+      }
+      setCheckoutError(
+        res.error || "Unable to initiate Shopify checkout. Please check cart items.",
+      )
+      setCheckingOut(false)
+    } else {
+      navigate("/checkout")
+    }
+  }
+
   const { subtotal, discount, applied } = offerTotals(store)
   const hasInsufficientStock = store.cart.some((item) => {
     if (!item.productId) return false
@@ -265,14 +293,43 @@ export function Cart() {
                   proceeding.
                 </p>
               </div>
+            ) : shopifyConfig.isConfigured ? (
+              <div className="mt-6">
+                <Button
+                  onClick={handleCheckout}
+                  disabled={checkingOut}
+                  className="w-full"
+                >
+                  {checkingOut ? (
+                    <>
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      Opening Shopify Checkout...
+                    </>
+                  ) : (
+                    <>
+                      Proceed to checkout <ArrowRight size={16} />
+                    </>
+                  )}
+                </Button>
+                {checkoutError && (
+                  <p className="mt-2 text-center text-xs font-medium text-red-600">
+                    {checkoutError}
+                  </p>
+                )}
+                <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
+                  <LockKeyhole size={12} className="text-emerald-600" /> Secure checkout powered by Shopify
+                </p>
+              </div>
             ) : (
-              <ActionLink to="/checkout" className="mt-6 w-full">
-                Proceed to checkout <ArrowRight size={16} />
-              </ActionLink>
+              <>
+                <ActionLink to="/checkout" className="mt-6 w-full">
+                  Proceed to checkout <ArrowRight size={16} />
+                </ActionLink>
+                <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
+                  <LockKeyhole size={12} /> Demo checkout · no real payment
+                </p>
+              </>
             )}
-            <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
-              <LockKeyhole size={12} /> Demo checkout · no real payment
-            </p>
           </div>
         </div>
       )}

@@ -55,19 +55,19 @@ export interface ShopifyStorefrontConfig {
 // Read public environment variables safely
 const rawDomain = (
   (typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_SHOPIFY_STORE_DOMAIN) ||
+    (import.meta as any).env?.VITE_SHOPIFY_STORE_DOMAIN) ||
   ""
 ).trim()
 
 const rawToken = (
   (typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN) ||
+    (import.meta as any).env?.VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN) ||
   ""
 ).trim()
 
 const rawVersion = (
   (typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_SHOPIFY_API_VERSION) ||
+    (import.meta as any).env?.VITE_SHOPIFY_API_VERSION) ||
   "2026-01"
 ).trim()
 
@@ -508,6 +508,104 @@ export async function fetchShopifyProductByHandle(
   }
 
   return { product: mapShopifyProductToCatalog(result.data.product) }
+}
+
+/**
+ * Fetches single product by ID or GID from Shopify Storefront API.
+ */
+export async function fetchShopifyProductById(
+  idOrGid: string,
+): Promise<{ product: Product | null; error?: string }> {
+  if (!shopifyConfig.isConfigured || !idOrGid) {
+    return { product: null, error: "Unconfigured or invalid ID." }
+  }
+
+  const gid = toProductGid(idOrGid)
+  const query = `
+    query getProductById($id: ID!) {
+      node(id: $id) {
+        ... on Product {
+          id
+          title
+          handle
+          description
+          descriptionHtml
+          vendor
+          productType
+          tags
+          availableForSale
+          featuredImage {
+            url
+            altText
+          }
+          images(first: 10) {
+            edges {
+              node {
+                url
+                altText
+              }
+            }
+          }
+          variants(first: 20) {
+            edges {
+              node {
+                id
+                title
+                sku
+                availableForSale
+                quantityAvailable
+                price {
+                  amount
+                  currencyCode
+                }
+                compareAtPrice {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          metafields(
+            identifiers: [
+              { namespace: "custom", key: "condition" }
+              { namespace: "custom", key: "warranty_summary" }
+              { namespace: "custom", key: "hsn_code" }
+            ]
+          ) {
+            namespace
+            key
+            value
+            type
+          }
+        }
+      }
+    }
+  `
+
+  const result = await storefrontFetch<{ node: ShopifyProductNode | null }>(
+    query,
+    { id: gid },
+  )
+
+  if (!result.ok || !result.data?.node) {
+    return { product: null, error: result.error || "Product not found." }
+  }
+
+  return { product: mapShopifyProductToCatalog(result.data.node) }
+}
+
+/**
+ * Universal product resolver: resolves by ID, GID, or handle.
+ */
+export async function fetchShopifyProduct(
+  idOrHandle: string,
+): Promise<{ product: Product | null; error?: string }> {
+  if (!idOrHandle) return { product: null, error: "Missing identifier." }
+  if (/^\d+$/.test(idOrHandle) || idOrHandle.startsWith("gid://")) {
+    const byId = await fetchShopifyProductById(idOrHandle)
+    if (byId.product) return byId
+  }
+  return fetchShopifyProductByHandle(idOrHandle)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

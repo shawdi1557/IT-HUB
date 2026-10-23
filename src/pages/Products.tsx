@@ -534,7 +534,7 @@ export function Products() {
                       products
                       {store.catalogLive ? (
                         <span className="ml-2 inline-flex items-center font-medium text-emerald-600">
-                          · Live Catalog
+                          · {store.catalogSource === "shopify" ? "Shopify Storefront" : "Live Catalog"}
                         </span>
                       ) : null}
                     </p>

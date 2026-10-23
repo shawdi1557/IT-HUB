@@ -222,6 +222,8 @@ export function mapShopifyProductToCatalog(
     condition,
     tag: compareAtPrice > sellingPrice ? "Deal" : undefined,
     status: "Active",
+    handle: node.handle,
+    variantId: variantNode?.id,
   }
 }
 
