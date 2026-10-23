@@ -195,12 +195,28 @@ export function mapShopifyProductToCatalog(
     getMetafield(node.metafields, "custom", "warranty_summary") ||
     (condition === "New" ? "1-Year Official Manufacturer Warranty" : "90-Day IT HUB Testing Warranty")
 
-  // Primary image
+  // Collect all unique product imagery from Shopify (variants, featured, and gallery edges)
+  const rawImageUrls: string[] = []
+  if (variantNode?.image?.url && !rawImageUrls.includes(variantNode.image.url)) {
+    rawImageUrls.push(variantNode.image.url)
+  }
+  if (node.featuredImage?.url && !rawImageUrls.includes(node.featuredImage.url)) {
+    rawImageUrls.push(node.featuredImage.url)
+  }
+  if (node.images?.edges && Array.isArray(node.images.edges)) {
+    for (const edge of node.images.edges) {
+      const u = edge?.node?.url
+      if (u && !rawImageUrls.includes(u)) {
+        rawImageUrls.push(u)
+      }
+    }
+  }
+
   const primaryImage =
-    variantNode?.image?.url ||
-    node.featuredImage?.url ||
-    node.images.edges[0]?.node?.url ||
+    rawImageUrls[0] ||
     "/assets/placeholder-product.png"
+
+  const productImages = rawImageUrls.length > 0 ? rawImageUrls : [primaryImage]
 
   const specs = parseProductSpecs(node.tags, node.metafields)
 
@@ -216,11 +232,13 @@ export function mapShopifyProductToCatalog(
     price: sellingPrice,
     original,
     image: primaryImage,
+    images: productImages,
     stock: variantNode?.quantityAvailable ?? (isAvailable ? 10 : 0),
     rating: 4.8, // Baseline verified store rating
     specs,
     sku: variantNode?.sku || undefined,
-    description: node.description,
+    description: node.description || undefined,
+    descriptionHtml: node.descriptionHtml || undefined,
     warranty: warrantyMeta,
     secondHand: isSecondHand,
     condition,

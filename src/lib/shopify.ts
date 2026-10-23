@@ -302,7 +302,7 @@ const PRODUCTS_QUERY = `
             width
             height
           }
-          images(first: 8) {
+          images(first: 20) {
             edges {
               node {
                 url
@@ -454,7 +454,7 @@ export async function fetchShopifyProductByHandle(
           url
           altText
         }
-        images(first: 10) {
+        images(first: 20) {
           edges {
             node {
               url
@@ -476,6 +476,10 @@ export async function fetchShopifyProductByHandle(
               compareAtPrice {
                 amount
                 currencyCode
+              }
+              image {
+                url
+                altText
               }
             }
           }
@@ -536,7 +540,7 @@ export async function fetchShopifyProductById(
             url
             altText
           }
-          images(first: 10) {
+          images(first: 20) {
             edges {
               node {
                 url
@@ -558,6 +562,10 @@ export async function fetchShopifyProductById(
                 compareAtPrice {
                   amount
                   currencyCode
+                }
+                image {
+                  url
+                  altText
                 }
               }
             }

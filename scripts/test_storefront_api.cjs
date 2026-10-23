@@ -173,8 +173,19 @@ async function runDiagnostic() {
             availableForSale
             productType
             vendor
+            description
+            descriptionHtml
             featuredImage {
               url
+              altText
+            }
+            images(first: 20) {
+              edges {
+                node {
+                  url
+                  altText
+                }
+              }
             }
             variants(first: 10) {
               edges {
@@ -233,6 +244,12 @@ async function runDiagnostic() {
     console.log(`    Available For Sale:  ${lenovoMatch.availableForSale}`)
     console.log(`    Catalog Status:      ${lenovoMatch.availableForSale ? "In Stock (Available)" : "Out of Stock"}`)
     console.log(`    Primary Image:       ${lenovoMatch.featuredImage?.url || "None"}`)
+    const galleryUrls = (lenovoMatch.images?.edges || []).map((e) => e.node.url)
+    console.log(`    Gallery Images:      ${galleryUrls.length} image(s)`)
+    galleryUrls.forEach((url, i) => console.log(`      [${i + 1}] ${url}`))
+    const descPreview = lenovoMatch.description ? lenovoMatch.description.slice(0, 80) + "..." : "(No description)"
+    console.log(`    Description:         ${descPreview}`)
+    console.log(`    Has HTML Desc:       ${Boolean(lenovoMatch.descriptionHtml)}`)
 
     const variants = lenovoMatch.variants.edges.map((e) => e.node)
     console.log(`    Variants Count:      ${variants.length}`)

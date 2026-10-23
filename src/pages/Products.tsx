@@ -38,6 +38,8 @@ import {
   offerHeadline,
   type Product,
 } from "../data/catalog"
+import { fetchShopifyProduct, shopifyConfig } from "../lib/shopify"
+import { sanitizeHtml } from "../lib/sanitize"
 import ProductCard, { ProductImage } from "../components/ProductCard"
 import SellYourItem from "../components/SellYourItem"
 import {
@@ -640,8 +642,9 @@ export function ProductDetail() {
 
   const product = useMemo(() => {
     return (
-      store.products.find((item) => item.id === id || item.sku === id) ||
-      directProduct
+      store.products.find(
+        (item) => item.id === id || item.sku === id || item.handle === id || item.variantId === id,
+      ) || directProduct
     )
   }, [store.products, directProduct, id])
 
@@ -649,16 +652,28 @@ export function ProductDetail() {
     if (!product && id) {
       let isMounted = true
       setFetchingDirect(true)
-      fetchProductById(id)
-        .then((fetched) => {
+
+      const loadDirectProduct = async () => {
+        try {
+          if (shopifyConfig.isConfigured) {
+            const shopifyRes = await fetchShopifyProduct(id)
+            if (isMounted && shopifyRes.product) {
+              setDirectProduct(shopifyRes.product)
+              setFetchingDirect(false)
+              return
+            }
+          }
+          const dbProduct = await fetchProductById(id)
           if (isMounted) {
-            setDirectProduct(fetched)
+            setDirectProduct(dbProduct)
             setFetchingDirect(false)
           }
-        })
-        .catch(() => {
+        } catch {
           if (isMounted) setFetchingDirect(false)
-        })
+        }
+      }
+
+      loadDirectProduct()
       return () => {
         isMounted = false
       }
@@ -682,10 +697,17 @@ export function ProductDetail() {
     }
   }, [product?.id])
 
+  useEffect(() => {
+    setActiveImageIndex(0)
+  }, [product?.id, product?.handle])
+
   const allImages = useMemo(() => {
+    if (product?.images && product.images.length > 0) {
+      return product.images
+    }
     if (galleryImages.length > 0) return galleryImages
     return [product?.image || DEFAULT_IMAGE_FALLBACK]
-  }, [galleryImages, product?.image])
+  }, [product?.images, galleryImages, product?.image])
 
   const activeImage = allImages[activeImageIndex] || allImages[0]
 
@@ -785,8 +807,8 @@ export function ProductDetail() {
             <div className="mt-4 flex flex-wrap gap-3">
               {allImages.map((imgUrl, index) => (
                 <button
-                  aria-label={`View photo ${index + 1}`}
-                  key={imgUrl}
+                  aria-label={`View photo ${index + 1} of ${product.name}`}
+                  key={`${imgUrl}-${index}`}
                   onClick={() => setActiveImageIndex(index)}
                   className={`relative h-20 w-24 overflow-hidden rounded-xl border bg-muted p-1 transition duration-200 ${
                     activeImageIndex === index
@@ -1008,16 +1030,24 @@ export function ProductDetail() {
         </div>
         <div className="min-h-44 py-7 text-sm leading-7">
           {tab === "Overview" && (
-            <>
-              <h3 className="mb-3 text-lg font-bold">
-                Designed for your next upgrade.
-              </h3>
-              <p className="max-w-3xl text-muted-foreground">
-                Explore {product.name} at IT HUB. Get personal assistance
-                choosing the right {product.category.toLowerCase()} for your
-                setup, with local product and service support.
-              </p>
-            </>
+            <div className="max-w-3xl space-y-4">
+              {product.descriptionHtml ? (
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtml(product.descriptionHtml),
+                  }}
+                />
+              ) : product.description ? (
+                <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
+                  {product.description}
+                </div>
+              ) : (
+                <p className="text-muted-foreground italic">
+                  No product description has been provided yet.
+                </p>
+              )}
+            </div>
           )}
           {tab === "Specifications" && (
             <div className="max-w-2xl">

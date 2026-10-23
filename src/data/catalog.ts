@@ -43,6 +43,8 @@ export type Product = {
 
   description?: string
 
+  descriptionHtml?: string
+
   costPrice?: number
 
   lowStockThreshold?: number
@@ -62,6 +64,8 @@ export type Product = {
   variantId?: string
 
   availableForSale?: boolean
+
+  images?: string[]
 }
 
 export const photo = (id: string, width = 700) => `/images/${id}.jpg`

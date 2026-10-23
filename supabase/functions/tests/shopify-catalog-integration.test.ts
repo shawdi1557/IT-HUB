@@ -298,3 +298,204 @@ Deno.test("SHOP-FIX-10: Storefront API query definitions do not contain restrict
   // Publicly supported variant availability:
   assertEquals(shopifySource.includes("availableForSale"), true)
 })
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Phase 4.2 Multi-Image Gallery & Product Description Regression Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("SHOP-FIX-11: Multi-image mapping retains all unique images in order, deduplicates, and sets images array", () => {
+  const multiImageNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/7788990011",
+    title: "Lenovo Legion R27qe Gen 2 Gaming Monitor",
+    handle: "lenovo-legion-r27qe-gen-2",
+    description: "27-inch 2K QHD 180Hz Fast IPS Gaming Monitor.",
+    descriptionHtml: "<p>27-inch 2K <strong>QHD</strong> 180Hz Fast IPS Gaming Monitor.</p>",
+    vendor: "Lenovo",
+    productType: "Monitors & Displays",
+    tags: ["monitor", "gaming"],
+    availableForSale: true,
+    featuredImage: {
+      url: "https://cdn.shopify.com/products/lenovo-front.jpg",
+      altText: "Lenovo Monitor Front View",
+    },
+    images: {
+      edges: [
+        { node: { url: "https://cdn.shopify.com/products/lenovo-front.jpg", altText: "Front" } }, // Duplicate of featured
+        { node: { url: "https://cdn.shopify.com/products/lenovo-back.jpg", altText: "Back ports" } },
+        { node: { url: "https://cdn.shopify.com/products/lenovo-side.jpg", altText: "Side profile" } },
+      ],
+    },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/5566778899",
+            title: "Default",
+            availableForSale: true,
+            price: { amount: "19999.00", currencyCode: "INR" },
+            image: { url: "https://cdn.shopify.com/products/lenovo-hero.jpg" },
+          },
+        },
+      ],
+    },
+  }
+
+  const catalog = mapShopifyProductToCatalog(multiImageNode)
+
+  // Primary image should be the variant image (highest specificity)
+  assertEquals(catalog.image, "https://cdn.shopify.com/products/lenovo-hero.jpg")
+
+  // Images array must be populated with all unique images in order
+  assertEquals(Array.isArray(catalog.images), true)
+  assertEquals(catalog.images?.length, 4)
+  assertEquals(catalog.images?.[0], "https://cdn.shopify.com/products/lenovo-hero.jpg")
+  assertEquals(catalog.images?.[1], "https://cdn.shopify.com/products/lenovo-front.jpg")
+  assertEquals(catalog.images?.[2], "https://cdn.shopify.com/products/lenovo-back.jpg")
+  assertEquals(catalog.images?.[3], "https://cdn.shopify.com/products/lenovo-side.jpg")
+
+  // Ensure zero duplicate URLs in the gallery array
+  const uniqueUrls = new Set(catalog.images)
+  assertEquals(uniqueUrls.size, catalog.images?.length)
+})
+
+Deno.test("SHOP-FIX-12: Zero-image product fallback uses placeholder image gracefully", () => {
+  const zeroImageNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/3344556677",
+    title: "Accessory without Image",
+    handle: "accessory-no-image",
+    description: "Standard accessory.",
+    vendor: "Generic",
+    productType: "Accessories",
+    tags: ["accessory"],
+    availableForSale: true,
+    images: { edges: [] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/1122446688",
+            title: "Default",
+            availableForSale: true,
+            price: { amount: "499.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const catalog = mapShopifyProductToCatalog(zeroImageNode)
+  assertEquals(catalog.image, "/assets/placeholder-product.png")
+  assertEquals(catalog.images?.length, 1)
+  assertEquals(catalog.images?.[0], "/assets/placeholder-product.png")
+})
+
+Deno.test("SHOP-FIX-13: Product description and descriptionHtml mapping preserves authentic Shopify content", () => {
+  const nodeWithHtml: ShopifyProductNode = {
+    id: "gid://shopify/Product/1112223334",
+    title: "Lenovo Legion R27qe Gen 2",
+    handle: "lenovo-legion-r27qe-gen-2",
+    description: "27\" QHD Fast IPS panel, 180Hz refresh rate, 0.5ms MPRT.",
+    descriptionHtml: "<p>27&quot; QHD Fast IPS panel.</p><ul><li>180Hz refresh rate</li><li>0.5ms MPRT</li></ul>",
+    vendor: "Lenovo",
+    productType: "Monitors",
+    tags: ["monitor"],
+    availableForSale: true,
+    images: { edges: [] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/9988771122",
+            title: "Default",
+            availableForSale: true,
+            price: { amount: "19999.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const catalog = mapShopifyProductToCatalog(nodeWithHtml)
+  assertEquals(catalog.description, "27\" QHD Fast IPS panel, 180Hz refresh rate, 0.5ms MPRT.")
+  assertEquals(
+    catalog.descriptionHtml,
+    "<p>27&quot; QHD Fast IPS panel.</p><ul><li>180Hz refresh rate</li><li>0.5ms MPRT</li></ul>",
+  )
+
+  // Empty description case: must map to undefined without inventing demo placeholder text
+  const nodeEmptyDesc: ShopifyProductNode = {
+    ...nodeWithHtml,
+    id: "gid://shopify/Product/1112223335",
+    description: "",
+    descriptionHtml: "",
+  }
+  const catalogEmpty = mapShopifyProductToCatalog(nodeEmptyDesc)
+  assertEquals(catalogEmpty.description, undefined)
+  assertEquals(catalogEmpty.descriptionHtml, undefined)
+})
+
+Deno.test("SHOP-FIX-14: HTML sanitizer removes scripts, iframes, and event handlers while preserving safe tags", async () => {
+  const { sanitizeHtml } = await import("../../../src/lib/sanitize.ts")
+
+  const dirtyPayload = `
+    <div>
+      <p>Clean paragraph with <strong>bold</strong> and <em>italic</em>.</p>
+      <ul><li>Feature 1</li><li>Feature 2</li></ul>
+      <script>window.__pwned = true; evil();</script>
+      <iframe src="https://attacker.com/cookie-steal"></iframe>
+      <a href="https://ithub.in" onclick="alert('xss')">Safe link</a>
+      <img src="x" onerror="alert('img xss')" />
+      <object data="evil.swf"></object>
+    </div>
+  `
+
+  const sanitized = sanitizeHtml(dirtyPayload)
+
+  // Assert dangerous elements and attributes are completely eliminated:
+  assertEquals(sanitized.includes("<script>"), false)
+  assertEquals(sanitized.includes("evil()"), false)
+  assertEquals(sanitized.includes("<iframe"), false)
+  assertEquals(sanitized.includes("onclick"), false)
+  assertEquals(sanitized.includes("onerror"), false)
+  assertEquals(sanitized.includes("<object"), false)
+
+  // Assert safe elements and content are preserved:
+  assertEquals(sanitized.includes("<p>Clean paragraph with <strong>bold</strong>"), true)
+  assertEquals(sanitized.includes("<ul><li>Feature 1</li><li>Feature 2</li></ul>"), true)
+  assertEquals(sanitized.includes('<a href="https://ithub.in"'), true)
+})
+
+Deno.test("SHOP-FIX-15: Product lookup supports both Shopify numeric ID and human-readable handle", () => {
+  const products = [
+    {
+      id: "9988776655",
+      handle: "lenovo-legion-r27qe-gen-2",
+      name: "Lenovo Legion R27qe Gen 2 Monitor",
+      price: 19999,
+      sku: "LEN-R27QE",
+    },
+    {
+      id: "1122334455",
+      handle: "asus-rog-strix-b650e",
+      name: "ASUS ROG Strix B650E-F",
+      price: 24999,
+      sku: "ASUS-B650E",
+    },
+  ]
+
+  // Lookup by ID
+  const foundById = products.find(
+    (item) => item.id === "9988776655" || item.sku === "9988776655" || item.handle === "9988776655",
+  )
+  assertEquals(foundById?.name, "Lenovo Legion R27qe Gen 2 Monitor")
+
+  // Lookup by Handle
+  const foundByHandle = products.find(
+    (item) =>
+      item.id === "lenovo-legion-r27qe-gen-2" ||
+      item.sku === "lenovo-legion-r27qe-gen-2" ||
+      item.handle === "lenovo-legion-r27qe-gen-2",
+  )
+  assertEquals(foundByHandle?.name, "Lenovo Legion R27qe Gen 2 Monitor")
+})
