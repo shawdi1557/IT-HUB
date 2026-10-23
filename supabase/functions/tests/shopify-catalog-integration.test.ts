@@ -499,3 +499,85 @@ Deno.test("SHOP-FIX-15: Product lookup supports both Shopify numeric ID and huma
   )
   assertEquals(foundByHandle?.name, "Lenovo Legion R27qe Gen 2 Monitor")
 })
+
+
+Deno.test("SHOP-FIX-16: Regression: resolveProductDescription maps HTML, plain text, and empty descriptions to UI structure accurately", async () => {
+  const { resolveProductDescription } = await import("../../../src/lib/sanitize.ts")
+
+  // Case 1: Populated HTML description
+  const htmlProduct = {
+    description: "27-inch 2K QHD 180Hz Fast IPS Monitor",
+    descriptionHtml: "<p>27-inch 2K <strong>QHD</strong> 180Hz Fast IPS Monitor.</p><ul><li>0.5ms MPRT</li><li>99% sRGB</li></ul>",
+  }
+  const resHtml = resolveProductDescription(htmlProduct)
+  assertEquals(resHtml.type, "html")
+  assertEquals(resHtml.content.includes("<strong>QHD</strong>"), true)
+  assertEquals(resHtml.content.includes("<li>0.5ms MPRT</li>"), true)
+
+  // Case 2: Plain-text only description (no HTML)
+  const textProduct = {
+    description: "High-performance gaming monitor with 180Hz refresh rate and Fast IPS panel.",
+    descriptionHtml: undefined,
+  }
+  const resText = resolveProductDescription(textProduct)
+  assertEquals(resText.type, "text")
+  assertEquals(resText.content, "High-performance gaming monitor with 180Hz refresh rate and Fast IPS panel.")
+
+  // Case 3: Empty description (empty strings or undefined)
+  const emptyProduct = {
+    description: "",
+    descriptionHtml: "",
+  }
+  const resEmpty = resolveProductDescription(emptyProduct)
+  assertEquals(resEmpty.type, "empty")
+  assertEquals(resEmpty.content, "No product description has been provided for this product yet.")
+
+  // Case 4: Empty HTML tags (<p><br></p>) with plain-text fallback
+  const tagOnlyProduct = {
+    description: "Fallback plain description text.",
+    descriptionHtml: "<p><br></p>",
+  }
+  const resTagOnly = resolveProductDescription(tagOnlyProduct)
+  assertEquals(resTagOnly.type, "text")
+  assertEquals(resTagOnly.content, "Fallback plain description text.")
+
+  // Case 5: End-to-End Shopify response -> mapper -> resolveProductDescription
+  const rawShopifyNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/9876543210",
+    title: "Lenovo Legion {Smartchoice} R27qe Gen 2",
+    handle: "lenovo-legion-smartchoice-r27qe-gen-2",
+    description: "Official Lenovo 27-inch QHD 180Hz Gaming Monitor.",
+    descriptionHtml: "<p>Official Lenovo 27-inch <strong>QHD 180Hz</strong> Gaming Monitor.</p>",
+    vendor: "Lenovo",
+    productType: "Monitors & Displays",
+    tags: ["monitor", "gaming"],
+    availableForSale: true,
+    images: { edges: [] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/123459876",
+            title: "Default",
+            availableForSale: true,
+            price: { amount: "19999.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  // 1. Map from Shopify GraphQL node
+  const catalogProduct = mapShopifyProductToCatalog(rawShopifyNode)
+  assertEquals(catalogProduct.name, "Lenovo Legion {Smartchoice} R27qe Gen 2")
+  assertEquals(catalogProduct.description, "Official Lenovo 27-inch QHD 180Hz Gaming Monitor.")
+  assertEquals(
+    catalogProduct.descriptionHtml,
+    "<p>Official Lenovo 27-inch <strong>QHD 180Hz</strong> Gaming Monitor.</p>",
+  )
+
+  // 2. Resolve for UI
+  const uiDesc = resolveProductDescription(catalogProduct)
+  assertEquals(uiDesc.type, "html")
+  assertEquals(uiDesc.content.includes("<strong>QHD 180Hz</strong>"), true)
+})

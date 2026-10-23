@@ -39,7 +39,7 @@ import {
   type Product,
 } from "../data/catalog"
 import { fetchShopifyProduct, shopifyConfig } from "../lib/shopify"
-import { sanitizeHtml } from "../lib/sanitize"
+import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize"
 import ProductCard, { ProductImage } from "../components/ProductCard"
 import SellYourItem from "../components/SellYourItem"
 import {
@@ -641,10 +641,22 @@ export function ProductDetail() {
   const [fetchingDirect, setFetchingDirect] = useState(false)
 
   const product = useMemo(() => {
+    if (!id) return directProduct
+    const searchKey = decodeURIComponent(id).trim().toLowerCase()
     return (
-      store.products.find(
-        (item) => item.id === id || item.sku === id || item.handle === id || item.variantId === id,
-      ) || directProduct
+      store.products.find((item) => {
+        if (!item) return false
+        const itemId = String(item.id || "").toLowerCase()
+        const itemSku = String(item.sku || "").toLowerCase()
+        const itemHandle = String(item.handle || "").toLowerCase()
+        const itemVariant = String(item.variantId || "").toLowerCase()
+        return (
+          itemId === searchKey ||
+          itemSku === searchKey ||
+          itemHandle === searchKey ||
+          itemVariant === searchKey
+        )
+      }) || directProduct
     )
   }, [store.products, directProduct, id])
 
@@ -721,7 +733,7 @@ export function ProductDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id])
   const [quantity, setQuantity] = useState(1)
-  const [tab, setTab] = useState("Overview")
+  const [tab, setTab] = useState("Description")
 
   if (!product && (store.catalogLoading || fetchingDirect)) {
     return (
@@ -850,6 +862,11 @@ export function ProductDetail() {
               Static product rating
             </span>
           </p>
+          {product.description && (
+            <p className="mt-3 text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+              {product.description}
+            </p>
+          )}
           {(() => {
             const deal = bestOffer(store.offers, product)
             const shown = deal ? deal.price : product.price
@@ -893,14 +910,26 @@ export function ProductDetail() {
           })()}
           <Badge
             tone={
-              product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray"
+              product.availableForSale !== undefined
+                ? product.availableForSale
+                  ? "green"
+                  : "gray"
+                : product.stock > 5
+                  ? "green"
+                  : product.stock > 0
+                    ? "amber"
+                    : "gray"
             }
           >
-            {product.stock > 5
-              ? `In stock · ${product.stock} available`
-              : product.stock > 0
-                ? `Only ${product.stock} left in stock!`
-                : "Out of stock"}
+            {product.availableForSale !== undefined
+              ? product.availableForSale
+                ? "In stock"
+                : "Currently Out of Stock"
+              : product.stock > 5
+                ? `In stock · ${product.stock} available`
+                : product.stock > 0
+                  ? `Only ${product.stock} left in stock!`
+                  : "Out of stock"}
           </Badge>
           {product.secondHand && (
             <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
@@ -1008,7 +1037,7 @@ export function ProductDetail() {
       <div className="mt-14">
         <div className="flex overflow-x-auto border-b border-border">
           {[
-            "Overview",
+            "Description",
             "Specifications",
             "Features",
             "Warranty",
@@ -1019,7 +1048,7 @@ export function ProductDetail() {
               key={value}
               onClick={() => setTab(value)}
               className={`shrink-0 border-b-2 px-5 py-4 text-sm font-medium ${
-                tab === value
+                tab === value || (value === "Description" && tab === "Overview")
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground"
               }`}
@@ -1029,26 +1058,38 @@ export function ProductDetail() {
           ))}
         </div>
         <div className="min-h-44 py-7 text-sm leading-7">
-          {tab === "Overview" && (
-            <div className="max-w-3xl space-y-4">
-              {product.descriptionHtml ? (
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeHtml(product.descriptionHtml),
-                  }}
-                />
-              ) : product.description ? (
-                <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
-                  {product.description}
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic">
-                  No product description has been provided yet.
-                </p>
-              )}
-            </div>
-          )}
+          {(tab === "Description" || tab === "Overview") && (() => {
+            const desc = resolveProductDescription(product)
+            return (
+              <section
+                aria-labelledby="product-description-heading"
+                className="max-w-3xl space-y-4"
+              >
+                <h3
+                  id="product-description-heading"
+                  className="text-lg font-bold text-foreground"
+                >
+                  Product Description
+                </h3>
+                {desc.type === "html" ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80"
+                    dangerouslySetInnerHTML={{
+                      __html: desc.content,
+                    }}
+                  />
+                ) : desc.type === "text" ? (
+                  <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
+                    {desc.content}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic">
+                    {desc.content}
+                  </p>
+                )}
+              </section>
+            )
+          })()}
           {tab === "Specifications" && (
             <div className="max-w-2xl">
               {Object.entries(product.specs).map(([key, value]) => (

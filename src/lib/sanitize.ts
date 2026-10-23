@@ -77,3 +77,52 @@ export function sanitizeHtml(rawHtml: string): string {
     .replace(/on\w+\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, "")
     .replace(/javascript\s*:/gi, "")
 }
+
+export interface ResolvedProductDescription {
+  type: "html" | "text" | "empty"
+  content: string
+}
+
+/**
+ * Resolves the appropriate product description to render for the UI.
+ * Prioritizes rich descriptionHtml when valid non-empty content exists,
+ * falls back to plain text description, or returns a graceful empty notice.
+ */
+export function resolveProductDescription(product?: {
+  description?: string | null
+  descriptionHtml?: string | null
+}): ResolvedProductDescription {
+  if (!product) {
+    return {
+      type: "empty",
+      content: "No product description has been provided for this product yet.",
+    }
+  }
+
+  if (product.descriptionHtml && typeof product.descriptionHtml === "string") {
+    const sanitized = sanitizeHtml(product.descriptionHtml)
+    const textContent = sanitized.replace(/<[^>]*>/g, "").trim()
+    if (textContent.length > 0) {
+      return {
+        type: "html",
+        content: sanitized,
+      }
+    }
+  }
+
+  if (
+    product.description &&
+    typeof product.description === "string" &&
+    product.description.trim().length > 0
+  ) {
+    return {
+      type: "text",
+      content: product.description.trim(),
+    }
+  }
+
+  return {
+    type: "empty",
+    content: "No product description has been provided for this product yet.",
+  }
+}
