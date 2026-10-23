@@ -1,6 +1,15 @@
 // src/lib/shopify.ts
 // Production-Ready Shopify Storefront API Client & Environment Configuration
-// IT HUB — Kerala, India
+// IT HUB — Kerala, India (Phase 4)
+
+import type { Product, ComponentOption } from "../data/catalog.ts"
+import {
+  mapShopifyProductToCatalog,
+  mapShopifyVariantToPcComponent,
+  toVariantGid,
+  toProductGid,
+  type ShopifyProductNode,
+} from "./shopify-schema.ts"
 
 /**
  * Validates whether a store domain follows Shopify domain conventions.
@@ -247,5 +256,443 @@ export async function checkShopifyStorefrontHealth(): Promise<{
     connected: true,
     shopName: result.data.shop.name,
     currency: result.data.shop.paymentSettings?.currencyCode,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Storefront GraphQL Operations: Products & Collections
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRODUCTS_QUERY = `
+  query getProducts(
+    $first: Int!
+    $after: String
+    $query: String
+    $sortKey: ProductSortKeys
+    $reverse: Boolean
+  ) {
+    products(
+      first: $first
+      after: $after
+      query: $query
+      sortKey: $sortKey
+      reverse: $reverse
+    ) {
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          description
+          descriptionHtml
+          vendor
+          productType
+          tags
+          availableForSale
+          featuredImage {
+            url
+            altText
+            width
+            height
+          }
+          images(first: 8) {
+            edges {
+              node {
+                url
+                altText
+              }
+            }
+          }
+          variants(first: 10) {
+            edges {
+              node {
+                id
+                title
+                sku
+                availableForSale
+                quantityAvailable
+                price {
+                  amount
+                  currencyCode
+                }
+                compareAtPrice {
+                  amount
+                  currencyCode
+                }
+                selectedOptions {
+                  name
+                  value
+                }
+                image {
+                  url
+                }
+              }
+            }
+          }
+          metafields(
+            identifiers: [
+              { namespace: "custom", key: "condition" }
+              { namespace: "custom", key: "warranty_summary" }
+              { namespace: "custom", key: "hsn_code" }
+              { namespace: "pc_builder", key: "socket" }
+              { namespace: "pc_builder", key: "ram_generation" }
+              { namespace: "pc_builder", key: "watts" }
+              { namespace: "pc_builder", key: "capacity_watts" }
+              { namespace: "pc_builder", key: "gpu_length_mm" }
+              { namespace: "pc_builder", key: "cabinet_clearance_mm" }
+              { namespace: "pc_builder", key: "storage_interface" }
+              { namespace: "pc_builder", key: "wifi" }
+              { namespace: "pc_builder", key: "bios_update_required" }
+            ]
+          ) {
+            namespace
+            key
+            value
+            type
+          }
+        }
+      }
+    }
+  }
+`
+
+export interface ShopifyCatalogOptions {
+  first?: number
+  after?: string
+  query?: string
+  sortKey?: "TITLE" | "PRICE" | "CREATED_AT" | "BEST_SELLING" | "RELEVANCE"
+  reverse?: boolean
+}
+
+export interface ShopifyCatalogResult {
+  products: Product[]
+  hasNextPage: boolean
+  endCursor?: string
+  isLive: boolean
+  error?: string
+}
+
+/**
+ * Fetches products from Shopify Storefront API and maps them to catalog Product models.
+ */
+export async function fetchShopifyCatalog(
+  options: ShopifyCatalogOptions = {},
+): Promise<ShopifyCatalogResult> {
+  if (!shopifyConfig.isConfigured) {
+    return {
+      products: [],
+      hasNextPage: false,
+      isLive: false,
+      error: "Shopify Storefront is not configured.",
+    }
+  }
+
+  const variables = {
+    first: options.first || 24,
+    after: options.after || null,
+    query: options.query || null,
+    sortKey: options.sortKey || "RELEVANCE",
+    reverse: Boolean(options.reverse),
+  }
+
+  const result = await storefrontFetch<{
+    products: {
+      pageInfo: { hasNextPage: boolean; endCursor?: string }
+      edges: Array<{ cursor: string; node: ShopifyProductNode }>
+    }
+  }>(PRODUCTS_QUERY, variables)
+
+  if (!result.ok || !result.data?.products) {
+    return {
+      products: [],
+      hasNextPage: false,
+      isLive: false,
+      error: result.error || "Failed to load products from Shopify.",
+    }
+  }
+
+  const edges = result.data.products.edges
+  const mappedProducts = edges.map((e) => mapShopifyProductToCatalog(e.node))
+
+  return {
+    products: mappedProducts,
+    hasNextPage: result.data.products.pageInfo.hasNextPage,
+    endCursor: result.data.products.pageInfo.endCursor,
+    isLive: true,
+  }
+}
+
+/**
+ * Fetches single product by handle from Shopify Storefront API.
+ */
+export async function fetchShopifyProductByHandle(
+  handle: string,
+): Promise<{ product: Product | null; error?: string }> {
+  if (!shopifyConfig.isConfigured || !handle) {
+    return { product: null, error: "Unconfigured or invalid handle." }
+  }
+
+  const query = `
+    query getProductByHandle($handle: String!) {
+      product(handle: $handle) {
+        id
+        title
+        handle
+        description
+        descriptionHtml
+        vendor
+        productType
+        tags
+        availableForSale
+        featuredImage {
+          url
+          altText
+        }
+        images(first: 10) {
+          edges {
+            node {
+              url
+              altText
+            }
+          }
+        }
+        variants(first: 20) {
+          edges {
+            node {
+              id
+              title
+              sku
+              availableForSale
+              quantityAvailable
+              price {
+                amount
+                currencyCode
+              }
+              compareAtPrice {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        metafields(
+          identifiers: [
+            { namespace: "custom", key: "condition" }
+            { namespace: "custom", key: "warranty_summary" }
+            { namespace: "custom", key: "hsn_code" }
+          ]
+        ) {
+          namespace
+          key
+          value
+          type
+        }
+      }
+    }
+  `
+
+  const result = await storefrontFetch<{ product: ShopifyProductNode | null }>(
+    query,
+    { handle },
+  )
+
+  if (!result.ok || !result.data?.product) {
+    return { product: null, error: result.error || "Product not found." }
+  }
+
+  return { product: mapShopifyProductToCatalog(result.data.product) }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Storefront GraphQL Operations: Native Cart & Hosted Checkout
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ShopifyCartLineInput {
+  merchandiseId: string
+  quantity: number
+  attributes?: Array<{ key: string; value: string }>
+}
+
+export interface ShopifyCartSnapshot {
+  id: string
+  checkoutUrl: string
+  totalQuantity: number
+  subtotal: number
+  total: number
+  currency: string
+}
+
+const CART_CREATE_MUTATION = `
+  mutation cartCreate($input: CartInput!) {
+    cartCreate(input: $input) {
+      cart {
+        id
+        checkoutUrl
+        totalQuantity
+        cost {
+          subtotalAmount {
+            amount
+            currencyCode
+          }
+          totalAmount {
+            amount
+            currencyCode
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`
+
+/**
+ * Creates a native Shopify cart with line items, returning authoritative checkout URL.
+ */
+export async function createShopifyCart(
+  lines: ShopifyCartLineInput[],
+): Promise<{ cart: ShopifyCartSnapshot | null; error?: string }> {
+  if (!shopifyConfig.isConfigured) {
+    return { cart: null, error: "Shopify Storefront is not configured." }
+  }
+
+  // Ensure merchandise IDs have the required GID format
+  const formattedLines = lines.map((line) => ({
+    merchandiseId: toVariantGid(line.merchandiseId),
+    quantity: line.quantity,
+    attributes: line.attributes || [],
+  }))
+
+  const result = await storefrontFetch<{
+    cartCreate: {
+      cart: {
+        id: string
+        checkoutUrl: string
+        totalQuantity: number
+        cost: {
+          subtotalAmount: { amount: string; currencyCode: string }
+          totalAmount: { amount: string; currencyCode: string }
+        }
+      } | null
+      userErrors: Array<{ field: string[]; message: string }>
+    }
+  }>(CART_CREATE_MUTATION, { input: { lines: formattedLines } })
+
+  if (!result.ok || !result.data?.cartCreate) {
+    return { cart: null, error: result.error || "Failed to create Shopify cart." }
+  }
+
+  const { cart, userErrors } = result.data.cartCreate
+
+  if (userErrors && userErrors.length > 0) {
+    return { cart: null, error: userErrors.map((e) => e.message).join("; ") }
+  }
+
+  if (!cart) {
+    return { cart: null, error: "Empty cart response from Shopify." }
+  }
+
+  return {
+    cart: {
+      id: cart.id,
+      checkoutUrl: cart.checkoutUrl,
+      totalQuantity: cart.totalQuantity,
+      subtotal: parseFloat(cart.cost.subtotalAmount.amount),
+      total: parseFloat(cart.cost.totalAmount.amount),
+      currency: cart.cost.totalAmount.currencyCode,
+    },
+  }
+}
+
+const CART_LINES_ADD_MUTATION = `
+  mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+    cartLinesAdd(cartId: $cartId, lines: $lines) {
+      cart {
+        id
+        checkoutUrl
+        totalQuantity
+        cost {
+          subtotalAmount {
+            amount
+            currencyCode
+          }
+          totalAmount {
+            amount
+            currencyCode
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`
+
+/**
+ * Appends line items to an existing Shopify cart.
+ */
+export async function addShopifyCartLines(
+  cartId: string,
+  lines: ShopifyCartLineInput[],
+): Promise<{ cart: ShopifyCartSnapshot | null; error?: string }> {
+  if (!shopifyConfig.isConfigured || !cartId) {
+    return { cart: null, error: "Unconfigured or invalid cartId." }
+  }
+
+  const formattedLines = lines.map((line) => ({
+    merchandiseId: toVariantGid(line.merchandiseId),
+    quantity: line.quantity,
+    attributes: line.attributes || [],
+  }))
+
+  const result = await storefrontFetch<{
+    cartLinesAdd: {
+      cart: {
+        id: string
+        checkoutUrl: string
+        totalQuantity: number
+        cost: {
+          subtotalAmount: { amount: string; currencyCode: string }
+          totalAmount: { amount: string; currencyCode: string }
+        }
+      } | null
+      userErrors: Array<{ field: string[]; message: string }>
+    }
+  }>(CART_LINES_ADD_MUTATION, { cartId, lines: formattedLines })
+
+  if (!result.ok || !result.data?.cartLinesAdd) {
+    return { cart: null, error: result.error || "Failed to update cart." }
+  }
+
+  const { cart, userErrors } = result.data.cartLinesAdd
+
+  if (userErrors && userErrors.length > 0) {
+    return { cart: null, error: userErrors.map((e) => e.message).join("; ") }
+  }
+
+  if (!cart) {
+    return { cart: null, error: "Empty cart response from Shopify." }
+  }
+
+  return {
+    cart: {
+      id: cart.id,
+      checkoutUrl: cart.checkoutUrl,
+      totalQuantity: cart.totalQuantity,
+      subtotal: parseFloat(cart.cost.subtotalAmount.amount),
+      total: parseFloat(cart.cost.totalAmount.amount),
+      currency: cart.cost.totalAmount.currencyCode,
+    },
   }
 }
