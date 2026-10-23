@@ -171,7 +171,6 @@ async function runDiagnostic() {
             title
             handle
             availableForSale
-            totalInventory
             productType
             vendor
             featuredImage {
@@ -184,7 +183,6 @@ async function runDiagnostic() {
                   title
                   sku
                   availableForSale
-                  quantityAvailable
                   price {
                     amount
                     currencyCode
@@ -233,7 +231,7 @@ async function runDiagnostic() {
     console.log(`    Product GID:         ${lenovoMatch.id}`)
     console.log(`    Vendor:              ${lenovoMatch.vendor || "Lenovo"}`)
     console.log(`    Available For Sale:  ${lenovoMatch.availableForSale}`)
-    console.log(`    Total Inventory:     ${lenovoMatch.totalInventory ?? "Not reported / Untracked"}`)
+    console.log(`    Catalog Status:      ${lenovoMatch.availableForSale ? "In Stock (Available)" : "Out of Stock"}`)
     console.log(`    Primary Image:       ${lenovoMatch.featuredImage?.url || "None"}`)
 
     const variants = lenovoMatch.variants.edges.map((e) => e.node)
@@ -243,10 +241,10 @@ async function runDiagnostic() {
       console.log(`        Price:             ₹${v.price.amount} ${v.price.currencyCode}`)
       console.log(`        Compare At MRP:    ${v.compareAtPrice ? "₹" + v.compareAtPrice.amount : "None"}`)
       console.log(`        Available:         ${v.availableForSale}`)
-      console.log(`        Quantity:          ${v.quantityAvailable ?? "Untracked"}`)
+      console.log(`        Status:            ${v.availableForSale ? "In Stock (Available)" : "Out of Stock"}`)
     })
 
-    if (!lenovoMatch.availableForSale || (variants[0] && variants[0].quantityAvailable === 0)) {
+    if (!lenovoMatch.availableForSale || !variants[0]?.availableForSale) {
       console.log("\n  [QA NOTICE: INVENTORY IS ZERO]")
       console.log("  The monitor is visible, but current available inventory is 0.")
       console.log("  To make it purchasable for end-to-end checkout testing:")
@@ -334,3 +332,4 @@ async function runDiagnostic() {
 }
 
 runDiagnostic().catch((e) => console.error("Unhandled error:", e))
+

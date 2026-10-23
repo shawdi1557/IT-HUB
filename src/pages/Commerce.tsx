@@ -107,7 +107,7 @@ export function Cart() {
   const hasInsufficientStock = store.cart.some((item) => {
     if (!item.productId) return false
     const product = store.products.find((row) => row.id === item.productId)
-    return product ? item.quantity > product.stock : false
+    return product ? (product.availableForSale !== undefined ? !product.availableForSale : item.quantity > product.stock) : false
   })
   return (
     <Page>
@@ -129,9 +129,9 @@ export function Cart() {
               const product = item.productId
                 ? store.products.find((row) => row.id === item.productId)
                 : undefined
-              const isOutOfStock = Boolean(product && product.stock <= 0)
+              const isOutOfStock = Boolean(product && (product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0))
               const isOverStock = Boolean(
-                product && product.stock > 0 && item.quantity > product.stock,
+                product && product.availableForSale === undefined && product.stock > 0 && item.quantity > product.stock,
               )
 
               return (

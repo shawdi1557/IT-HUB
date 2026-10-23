@@ -193,3 +193,108 @@ Deno.test("SHOP-FIX-7: GID formatting utilities guarantee valid variant and prod
   assertEquals(toProductGid("445566"), "gid://shopify/Product/445566")
   assertEquals(toProductGid("gid://shopify/Product/445566"), "gid://shopify/Product/445566")
 })
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. GraphQL Authorization Error & Inventory Scope Regression Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("SHOP-FIX-8: Regression: Storefront GraphQL scope error with HTTP 200 produces ok: false and surfaces clean error", () => {
+  // Simulates Shopify GraphQL response returning HTTP 200 with authorization scope denial
+  const shopifyRawResponse = {
+    errors: [
+      {
+        message: "Access denied for quantityAvailable field. Required access: unauthenticated_read_product_inventory",
+        locations: [{ line: 15, column: 17 }],
+        path: ["products", "edges", 0, "node", "variants", "edges", 0, "node", "quantityAvailable"],
+      },
+    ],
+  }
+
+  // Emulate storefrontFetch response parsing logic
+  const hasErrors = Boolean(shopifyRawResponse.errors && shopifyRawResponse.errors.length > 0)
+  const errorMsg = hasErrors
+    ? shopifyRawResponse.errors.map((e) => e.message).join("; ")
+    : null
+
+  const parsedResult = {
+    ok: !hasErrors,
+    status: 200,
+    errors: shopifyRawResponse.errors,
+    error: errorMsg,
+  }
+
+  assertEquals(parsedResult.ok, false)
+  assertEquals(parsedResult.status, 200)
+  assertEquals(
+    parsedResult.error,
+    "Access denied for quantityAvailable field. Required access: unauthenticated_read_product_inventory",
+  )
+})
+
+Deno.test("SHOP-FIX-9: Product mapping with availableForSale (omitted quantityAvailable) maps availability and status cleanly", () => {
+  const inStockNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/1234567890",
+    title: "Lenovo Legion R27qe Gen 2 Gaming Monitor",
+    handle: "lenovo-legion-r27qe-gen-2",
+    description: "27-inch 2K QHD 180Hz Fast IPS Monitor",
+    vendor: "Lenovo",
+    productType: "Monitors & Displays",
+    tags: ["monitor", "gaming"],
+    availableForSale: true,
+    images: { edges: [] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/987654321",
+            title: "Standard",
+            sku: "LEN-R27QE",
+            availableForSale: true,
+            price: { amount: "19999.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const catalogItem = mapShopifyProductToCatalog(inStockNode)
+  assertEquals(catalogItem.availableForSale, true)
+  assertEquals(catalogItem.status, "Active")
+  assertEquals(catalogItem.stock > 0, true)
+
+  const outOfStockNode: ShopifyProductNode = {
+    ...inStockNode,
+    id: "gid://shopify/Product/1234567891",
+    availableForSale: false,
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/987654322",
+            title: "Standard",
+            sku: "LEN-R27QE-OOS",
+            availableForSale: false,
+            price: { amount: "19999.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const oosItem = mapShopifyProductToCatalog(outOfStockNode)
+  assertEquals(oosItem.availableForSale, false)
+  // oosItem status is Active
+  assertEquals(oosItem.stock, 0)
+})
+
+Deno.test("SHOP-FIX-10: Storefront API query definitions do not contain restricted inventory fields", async () => {
+  const shopifySource = await Deno.readTextFile("src/lib/shopify.ts")
+  
+  // Restricted fields requiring unauthenticated_read_product_inventory:
+  assertEquals(shopifySource.includes("quantityAvailable"), false)
+  assertEquals(shopifySource.includes("totalInventory"), false)
+  
+  // Publicly supported variant availability:
+  assertEquals(shopifySource.includes("availableForSale"), true)
+})

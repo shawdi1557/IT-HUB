@@ -149,7 +149,7 @@ export default function ProductCard({ product }: { product: Product }) {
               )}
             </div>
             <button
-              disabled={!product.stock}
+              disabled={product.availableForSale !== undefined ? !product.availableForSale : !product.stock}
               onClick={add}
               aria-label={`Add ${product.name} to cart`}
               className="rounded-md border border-border p-2.5 text-primary transition hover:bg-primary hover:text-white disabled:opacity-40"
@@ -158,7 +158,13 @@ export default function ProductCard({ product }: { product: Product }) {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px]">
-            {product.stock > 5 ? (
+            {product.availableForSale !== undefined ? (
+              product.availableForSale ? (
+                <span className="text-emerald-700">● In stock</span>
+              ) : (
+                <span className="text-muted-foreground">● Out of stock</span>
+              )
+            ) : product.stock > 5 ? (
               <span className="text-emerald-700">● In stock</span>
             ) : product.stock > 0 ? (
               <span className="font-semibold text-amber-700">
@@ -185,14 +191,18 @@ export default function ProductCard({ product }: { product: Product }) {
           </strong>
           <Badge
             tone={
-              product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray"
+              product.availableForSale !== undefined
+                ? (product.availableForSale ? "green" : "gray")
+                : (product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray")
             }
           >
-            {product.stock > 5
-              ? "In stock"
-              : product.stock > 0
-                ? `Only ${product.stock} left!`
-                : "Out of stock"}
+            {product.availableForSale !== undefined
+              ? (product.availableForSale ? "In stock" : "Out of stock")
+              : (product.stock > 5
+                  ? "In stock"
+                  : product.stock > 0
+                    ? `Only ${product.stock} left!`
+                    : "Out of stock")}
           </Badge>
         </div>
         <div className="mb-6 grid grid-cols-2 gap-3">
@@ -204,7 +214,7 @@ export default function ProductCard({ product }: { product: Product }) {
           ))}
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button disabled={!product.stock} onClick={add}>
+          <Button disabled={product.availableForSale !== undefined ? !product.availableForSale : !product.stock} onClick={add}>
             Add to cart
           </Button>
           <ActionLink secondary to={`/products/${product.id}`}>

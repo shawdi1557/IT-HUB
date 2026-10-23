@@ -842,7 +842,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     if (
       item.productId &&
-      (!product || existingQuantity + quantity > product.stock)
+      (!product || (product.availableForSale !== undefined ? !product.availableForSale : existingQuantity + quantity > product.stock))
     ) {
       notify("Not enough stock available. Please adjust your cart.")
 

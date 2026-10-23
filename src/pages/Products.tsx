@@ -137,7 +137,7 @@ export function Products() {
                 ].includes(product.category))) &&
             (!brand || product.brand === brand) &&
             product.price <= max &&
-            (!available || product.stock > 0) &&
+            (!available || (product.availableForSale !== undefined ? product.availableForSale : product.stock > 0)) &&
             product.rating >= rating &&
             `${product.name} ${product.brand} ${product.category} ${Object.values(product.specs).join(" ")}`
               .toLowerCase()
@@ -910,18 +910,18 @@ export function ProductDetail() {
             <div className="flex items-center rounded-md border border-border">
               <button
                 aria-label="Decrease quantity"
-                disabled={quantity <= 1 || product.stock <= 0}
+                disabled={quantity <= 1 || (product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0)}
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 className="p-3 disabled:opacity-40"
               >
                 <Minus size={15} />
               </button>
               <span className="w-7 text-center text-sm">
-                {product.stock <= 0 ? 0 : quantity}
+                {(product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0) ? 0 : quantity}
               </span>
               <button
                 aria-label="Increase quantity"
-                disabled={quantity >= product.stock || product.stock <= 0}
+                disabled={product.availableForSale !== undefined ? !product.availableForSale || quantity >= 10 : quantity >= product.stock || product.stock <= 0}
                 onClick={() => setQuantity(quantity + 1)}
                 className="p-3 disabled:opacity-40"
               >
@@ -929,7 +929,7 @@ export function ProductDetail() {
               </button>
             </div>
             <Button
-              disabled={!product.stock || product.stock <= 0}
+              disabled={product.availableForSale !== undefined ? !product.availableForSale : (!product.stock || product.stock <= 0)}
               onClick={add}
               className="flex-1"
             >
@@ -952,7 +952,7 @@ export function ProductDetail() {
           </div>
           <Button
             variant="secondary"
-            disabled={!product.stock || product.stock <= 0}
+            disabled={product.availableForSale !== undefined ? !product.availableForSale : (!product.stock || product.stock <= 0)}
             onClick={() => {
               add()
               navigate("/checkout")

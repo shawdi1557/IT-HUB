@@ -165,3 +165,37 @@ git checkout migration/shopify-integration
 git branch -D fix/shopify-catalog-integration
 ```
 All original implementations remain intact on `migration/shopify-integration` at commit `0a738c5`.
+
+
+
+---
+
+## 9. Resolution of Storefront API Inventory Scope Error (`quantityAvailable`)
+
+### Problem & Observed Error
+When querying the live catalog from `it-hub-m8tzfjd.myshopify.com`, the storefront displayed:
+```
+Failed to load live catalog
+Access denied for quantityAvailable field. Required access: unauthenticated_read_product_inventory
+```
+Even though the HTTP status code was 200 OK, the GraphQL response returned `errors` with the message above.
+
+### Root Cause Analysis
+1. Public Shopify Storefront Access Tokens (created under the Headless sales channel) are granted `unauthenticated_read_product_listings` by default.
+2. The `quantityAvailable` field on `ProductVariant` and `totalInventory` on `Product` require a privileged scope: `unauthenticated_read_product_inventory`.
+3. Shopify restricts exact stock count numbers on public endpoints to prevent competitor inventory scraping.
+4. The storefront does not require exact inventory quantities for customer browsing; it only needs to know boolean purchase availability (`availableForSale: boolean`). Authoritative inventory validation is enforced by Shopify at the cart and checkout boundary.
+
+### Implemented Fix
+1. **Query Optimization in [`src/lib/shopify.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify.ts)**:
+   - Removed restricted `quantityAvailable` and `totalInventory` from `PRODUCTS_QUERY`, `fetchShopifyProductByHandle()`, and `fetchShopifyProductById()`.
+   - Kept standard, unrestricted `availableForSale` on `ProductVariant` and `Product`.
+2. **Schema & Product Mapping in [`src/lib/shopify-schema.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify-schema.ts) & [`src/data/catalog.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/data/catalog.ts)**:
+   - Added typed `availableForSale?: boolean` to the application `Product` interface.
+   - `mapShopifyProductToCatalog()` maps `availableForSale` directly from the variant/product node.
+   - When available, stock maps safely without inventing fake stock quantities ("Only 1 left!").
+3. **UI Availability Handling in [`src/components/ProductCard.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/components/ProductCard.tsx) & [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx)**:
+   - Evaluates `availableForSale`: renders "In stock" (green) when available, or "Out of stock" (gray) when unavailable.
+   - Preserves legacy fallback for Supabase products without breaking changes.
+4. **Automated Regression Tests**:
+   - Added `SHOP-FIX-8`, `SHOP-FIX-9`, `SHOP-FIX-10` to [`supabase/functions/tests/shopify-catalog-integration.test.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/functions/tests/shopify-catalog-integration.test.ts).

@@ -60,6 +60,8 @@ export type Product = {
   handle?: string
 
   variantId?: string
+
+  availableForSale?: boolean
 }
 
 export const photo = (id: string, width = 700) => `/images/${id}.jpg`

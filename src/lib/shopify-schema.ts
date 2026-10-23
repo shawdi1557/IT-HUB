@@ -204,6 +204,10 @@ export function mapShopifyProductToCatalog(
 
   const specs = parseProductSpecs(node.tags, node.metafields)
 
+  const isAvailable = variantNode
+    ? Boolean(variantNode.availableForSale)
+    : Boolean(node.availableForSale ?? true)
+
   return {
     id: parseShopifyGid(node.id),
     name: node.title,
@@ -212,7 +216,7 @@ export function mapShopifyProductToCatalog(
     price: sellingPrice,
     original,
     image: primaryImage,
-    stock: variantNode?.quantityAvailable ?? (variantNode?.availableForSale ? 10 : 0),
+    stock: variantNode?.quantityAvailable ?? (isAvailable ? 10 : 0),
     rating: 4.8, // Baseline verified store rating
     specs,
     sku: variantNode?.sku || undefined,
@@ -224,6 +228,7 @@ export function mapShopifyProductToCatalog(
     status: "Active",
     handle: node.handle,
     variantId: variantNode?.id,
+    availableForSale: isAvailable,
   }
 }
 

@@ -317,7 +317,6 @@ const PRODUCTS_QUERY = `
                 title
                 sku
                 availableForSale
-                quantityAvailable
                 price {
                   amount
                   currencyCode
@@ -470,7 +469,6 @@ export async function fetchShopifyProductByHandle(
               title
               sku
               availableForSale
-              quantityAvailable
               price {
                 amount
                 currencyCode
@@ -553,7 +551,6 @@ export async function fetchShopifyProductById(
                 title
                 sku
                 availableForSale
-                quantityAvailable
                 price {
                   amount
                   currencyCode
