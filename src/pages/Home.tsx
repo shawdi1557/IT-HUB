@@ -182,6 +182,13 @@ export default function Home() {
                 </ActionLink>
                 <ActionLink
                   secondary
+                  to="/pc-builder"
+                  className="h-11 bg-white/80 backdrop-blur hover:bg-white"
+                >
+                  <Cpu size={16} /> PC Builder
+                </ActionLink>
+                <ActionLink
+                  secondary
                   to="/services"
                   className="h-11 bg-white/80 backdrop-blur hover:bg-white"
                 >
@@ -196,10 +203,12 @@ export default function Home() {
           items={[
             "Laptops",
             "Mobiles",
+            "Custom PC Builds",
             "Printers",
             "Laptop Repair",
             "Monitors",
             "On-Site Service",
+            "Technology Blog",
             "Accessories",
             "Warranty Support",
           ]}
@@ -482,27 +491,32 @@ export default function Home() {
         </div>
       </section>
       <section className={`${containerClass} pb-14`}>
-        <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-5 rounded-2xl border border-primary/25 bg-gradient-to-r from-card via-card to-primary/5 p-6 sm:flex-row sm:items-center shadow-xs">
           <img
             src={images.pc}
             alt="Custom desktop PC assembled at IT HUB"
-            className="h-24 w-full rounded-xl object-cover sm:w-32"
+            className="h-24 w-full rounded-xl object-cover sm:w-32 border border-border/80"
             loading="lazy"
           />
           <div className="flex-1">
-            <p className="text-[10px] font-bold tracking-[.14em] text-primary">
-              PC SERVICES
-            </p>
-            <h2 className="mt-1 text-lg font-bold">
-              Build Your PC With IT HUB
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
+                Interactive Tool
+              </span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Live Compatibility Check
+              </span>
+            </div>
+            <h2 className="mt-1.5 text-lg font-bold">
+              Build Your Custom PC With IT HUB
             </h2>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
               Choose your components and get an estimated configuration price.
-              Our team can help finalize your build.
+              Our team in Kothamangalam helps verify compatibility, finalize parts, and assemble your dream rig.
             </p>
           </div>
-          <ActionLink secondary to="/pc-builder">
-            Start PC Builder <Cpu size={15} />
+          <ActionLink to="/pc-builder" className="shrink-0 group">
+            Start PC Builder <Cpu size={15} className="transition-transform group-hover:scale-110" />
           </ActionLink>
         </div>
       </section>

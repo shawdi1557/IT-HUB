@@ -36,6 +36,7 @@ import GooeyNav, { type GooeyNavItem } from "./GooeyNav"
 
 const nav = [
   { name: "Products", to: "/products" },
+  { name: "PC Builder", to: "/pc-builder" },
   { name: "Services", to: "/services" },
   { name: "Blog", to: "/blog" },
   { name: "Help & Support", to: "/support" },
@@ -45,6 +46,7 @@ const nav = [
 const navItems: GooeyNavItem[] = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
+  { label: "PC Builder", href: "/pc-builder" },
   { label: "Services", href: "/services" },
   { label: "Blog", href: "/blog" },
   { label: "Help & Support", href: "/support" },
@@ -130,10 +132,11 @@ export default function Layout() {
     const p = location.pathname
     if (p === "/") return 0
     if (p.startsWith("/products")) return 1
-    if (p.startsWith("/services")) return 2
-    if (p.startsWith("/blog")) return 3
-    if (p.startsWith("/support")) return 4
-    if (p.startsWith("/about")) return 5
+    if (p.startsWith("/pc-builder")) return 2
+    if (p.startsWith("/services")) return 3
+    if (p.startsWith("/blog")) return 4
+    if (p.startsWith("/support")) return 5
+    if (p.startsWith("/about")) return 6
     return -1
   })()
   return (

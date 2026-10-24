@@ -1344,21 +1344,21 @@ Deno.test("PH5-BLOG-4: Blog category filtering and search accurately filter arti
   assertEquals(batteryMatches.length > 0, true)
 })
 
-Deno.test("PH5-BLOG-5: Primary customer navigation presents Blog while preserving PC Builder route", () => {
+Deno.test("PH5-BLOG-5: Primary customer navigation presents both PC Builder and Blog while preserving all routes", () => {
   const primaryNav = [
     { name: "Products", to: "/products" },
+    { name: "PC Builder", to: "/pc-builder" },
     { name: "Services", to: "/services" },
     { name: "Blog", to: "/blog" },
     { name: "Help & Support", to: "/support" },
     { name: "About", to: "/about" },
   ]
 
-  // Primary customer navigation contains Blog
+  // Primary customer navigation contains both Blog and PC Builder prominently
   assertEquals(primaryNav.some((n) => n.name === "Blog" && n.to === "/blog"), true)
-  // Customer-facing primary navigation does NOT feature PC Builder
-  assertEquals(primaryNav.some((n) => n.name === "PC Builder"), false)
+  assertEquals(primaryNav.some((n) => n.name === "PC Builder" && n.to === "/pc-builder"), true)
 
-  // Route registry preserves both routes
+  // Route registry preserves all routes
   const routes = [
     { path: "blog" },
     { path: "blog/:slug" },
