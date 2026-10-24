@@ -36,6 +36,8 @@ const CATEGORIES = [
   "Industry News",
 ] as const
 
+const ARTICLES_PER_PAGE = 6
+
 /**
  * Blog Landing Page component
  */
@@ -45,6 +47,7 @@ export default function Blog() {
   const [error, setError] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     let isMounted = true
@@ -66,6 +69,11 @@ export default function Blog() {
     }
   }, [])
 
+  // Reset to first page when category or search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedCategory, searchQuery])
+
   const filteredArticles = useMemo(() => {
     return articles.filter((article) => {
       const matchesCategory =
@@ -82,6 +90,11 @@ export default function Blog() {
 
   const featuredArticle = filteredArticles[0]
   const remainingArticles = filteredArticles.slice(1)
+  const totalPages = Math.max(1, Math.ceil(remainingArticles.length / ARTICLES_PER_PAGE))
+  const paginatedArticles = useMemo(() => {
+    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE
+    return remainingArticles.slice(startIndex, startIndex + ARTICLES_PER_PAGE)
+  }, [remainingArticles, currentPage])
 
   return (
     <Page>
@@ -233,58 +246,85 @@ export default function Blog() {
 
       {/* Articles Grid */}
       {!loading && !error && remainingArticles.length > 0 && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {remainingArticles.map((article) => (
-            <article
-              key={article.id}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs transition hover:border-primary/40 hover:shadow-md"
-            >
-              <Link to={`/blog/${article.slug}`} className="relative h-48 overflow-hidden bg-muted">
-                <img
-                  src={article.image}
-                  alt={article.imageAlt}
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span className="absolute left-3 top-3">
-                  <Badge tone="blue">{article.category}</Badge>
-                </span>
-              </Link>
-              <div className="flex flex-1 flex-col justify-between p-5">
-                <div>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} /> {article.publishedAt}
-                    </span>
-                    <span>·</span>
-                    <span className="flex items-center gap-1">
-                      <Clock size={12} /> {article.readTimeMinutes} min read
-                    </span>
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {paginatedArticles.map((article) => (
+              <article
+                key={article.id}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs transition hover:border-primary/40 hover:shadow-md"
+              >
+                <Link to={`/blog/${article.slug}`} className="relative h-48 overflow-hidden bg-muted">
+                  <img
+                    src={article.image}
+                    alt={article.imageAlt}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span className="absolute left-3 top-3">
+                    <Badge tone="blue">{article.category}</Badge>
+                  </span>
+                </Link>
+                <div className="flex flex-1 flex-col justify-between p-5">
+                  <div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} /> {article.publishedAt}
+                      </span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} /> {article.readTimeMinutes} min read
+                      </span>
+                    </div>
+                    <Link to={`/blog/${article.slug}`}>
+                      <h3 className="mt-2 text-base font-bold leading-snug text-foreground group-hover:text-primary transition line-clamp-2">
+                        {article.title}
+                      </h3>
+                    </Link>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground line-clamp-3">
+                      {article.excerpt}
+                    </p>
                   </div>
-                  <Link to={`/blog/${article.slug}`}>
-                    <h3 className="mt-2 text-base font-bold leading-snug text-foreground group-hover:text-primary transition line-clamp-2">
-                      {article.title}
-                    </h3>
-                  </Link>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground line-clamp-3">
-                    {article.excerpt}
-                  </p>
-                </div>
 
-                <div className="mt-5 flex items-center justify-between pt-3 border-t border-border/40 text-xs">
-                  <span className="text-[11px] font-medium text-foreground">{article.author}</span>
-                  <Link
-                    to={`/blog/${article.slug}`}
-                    className="font-semibold text-primary flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition"
-                  >
-                    Read <ArrowRight size={12} />
-                  </Link>
+                  <div className="mt-5 flex items-center justify-between pt-3 border-t border-border/40 text-xs">
+                    <span className="text-[11px] font-medium text-foreground">{article.author}</span>
+                    <Link
+                      to={`/blog/${article.slug}`}
+                      className="font-semibold text-primary flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition"
+                    >
+                      Read <ArrowRight size={12} />
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-3">
+              <Button
+                variant="secondary"
+                disabled={currentPage <= 1}
+                className="text-xs px-3 py-1.5"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                <ArrowLeft size={13} className="mr-1 inline" /> Previous
+              </Button>
+              <span className="text-xs font-medium text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={currentPage >= totalPages}
+                className="text-xs px-3 py-1.5"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next <ArrowRight size={13} className="ml-1 inline" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </Page>
   )

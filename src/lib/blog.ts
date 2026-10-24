@@ -158,3 +158,4 @@ export async function fetchBlogArticleBySlug(slug: string): Promise<BlogArticle 
     null
   )
 }
+
