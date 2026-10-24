@@ -3,6 +3,13 @@
 // IT HUB — Kerala, India (Phase 4)
 
 import type { Product, ComponentOption } from "../data/catalog.ts"
+export {
+  mapShopifyProductToCatalog,
+  mapShopifyVariantToPcComponent,
+  toVariantGid,
+  toProductGid,
+  type ShopifyProductNode,
+} from "./shopify-schema.ts"
 import {
   mapShopifyProductToCatalog,
   mapShopifyVariantToPcComponent,
@@ -709,6 +716,20 @@ export async function createShopifyCart(
     quantity: line.quantity,
     attributes: line.attributes || [],
   }))
+
+  // Pre-validate that all requested variants are available for sale before initiating checkout
+  const merchandiseIds = formattedLines.map((l) => l.merchandiseId)
+  const availability = await checkShopifyAvailability(merchandiseIds)
+  if (!availability.allAvailable && availability.unavailableIds.length > 0) {
+    return {
+      cart: null,
+      error: "Sorry, this item is currently sold out.",
+      userErrors: availability.unavailableIds.map((id) => ({
+        message: "The requested item is currently sold out.",
+        field: ["lines"],
+      })),
+    }
+  }
 
   // Construct return_to_store attribute pointing to current IT HUB origin if browser window exists
   const defaultAttributes: Array<{ key: string; value: string }> = []

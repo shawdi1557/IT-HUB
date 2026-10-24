@@ -78,13 +78,42 @@ All 225 automated tests pass, TypeScript compiler reports 0 errors, and the prod
   - Customer remains securely on the IT HUB cart page with full visibility into which item changed.
   - The system never silently removes items or alters order totals without informing the customer.
 
-### 3.4. Shopify-Hosted Checkout Limitation
-- Once the customer navigates to `https://it-hub-m8tzfjd.myshopify.com/checkouts/...`, browser execution shifts to Shopify's secure PCI-compliant environment.
-- IT HUB cannot inject arbitrary client-side JavaScript into Shopify's hosted checkout domain without Shopify Plus Checkout Extensibility.
-- **Remediation**:
-  - We inject `return_to_store: window.location.origin + "/cart"` into cart attributes.
-  - In Shopify Admin -> Settings -> Checkout -> Header & Navigation, configure the store logo and header link to point back to the IT HUB storefront origin.
-  - Any error occurring before navigation is 100% intercepted and resolved inside IT HUB.
+### 3.4. Shopify Hosted Checkout "Return to store" Navigation & Theme Redirect
+
+In Shopify's architecture:
+1. **Hosted Checkout Breadcrumbs**: The "Return to store" / "Return to cart" button inside Shopify Hosted Checkout (and inside Shopify's Out of Stock modal) is generated server-side by Shopify's core checkout application. It links to the Online Store `/cart` route of your primary shop domain (`https://it-hub-m8tzfzjd.myshopify.com/cart`).
+2. **Line Item vs. Cart Attributes**:
+   - `lines[].attributes` are customer-facing line item customizations (e.g. monogramming). Adding `return_to_store` to line items caused Shopify checkout to render `return_to_store: http://localhost:8443/...` directly beneath the product title in the checkout dialog.
+   - **Resolution**: Removed `attributes` from all line item inputs in `Products.tsx` and `Commerce.tsx`. Cart-level attributes (`options.attributes`) are preserved on the cart entity without polluting line item presentation.
+3. **Headless Theme Redirect Implementation**:
+   - In any headless Shopify architecture (Hydrogen, Next.js, Vite), the backend theme (e.g., Dawn) must include a client-side redirect script in `layout/theme.liquid` so any customer clicking "Return to store" or visiting `https://it-hub-m8tzfzjd.myshopify.com/cart` is instantly returned to the headless IT HUB storefront.
+
+#### Shopify Admin Setup Instructions:
+In **Shopify Admin** (`https://admin.shopify.com`):
+1. Navigate to **Online Store** → **Themes**.
+2. Click the **...** (three dots) next to **Customize** on your active theme (e.g. Dawn) and select **Edit code**.
+3. Under **Layout**, select `layout/theme.liquid`.
+4. Right after the `<head>` tag, add the following redirect snippet:
+
+```liquid
+<!-- IT HUB Headless Storefront Return Route -->
+<script>
+  (function() {
+    // Configured headless storefront origin (use http://localhost:8443 for dev, or your production URL)
+    var HEADLESS_ORIGIN = "{{ settings.headless_storefront_url | default: 'http://localhost:8443' }}";
+    var pathname = window.location.pathname;
+    
+    // Redirect checkout returnees and cart visitors back to IT HUB catalog
+    if (pathname.indexOf('/cart') !== -1 || pathname === '/' || pathname === '') {
+      window.location.replace(HEADLESS_ORIGIN + '/products');
+    }
+  })();
+</script>
+```
+
+5. Click **Save**.
+
+Now, whenever a user clicks **"Return to store"** in checkout, Shopify routes them to `/cart`, which immediately and seamlessly redirects them back to `http://localhost:8443/products`!
 
 ---
 
@@ -149,3 +178,4 @@ Result: Clean compilation in 11.81s. All 40 assets generated successfully in `di
    - Click **Proceed to checkout →**.
    - If an item is sold out, observe the item card border turn red with the *"Sold Out"* badge and *"Remove item"* action.
    - Confirm the checkout button is disabled with explanation, and customer remains on `/cart`.
+

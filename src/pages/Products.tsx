@@ -47,6 +47,7 @@ import {
   shopifyConfig,
   createShopifyCart,
   checkShopifyAvailability,
+  toVariantGid,
 } from "../lib/shopify"
 import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize"
 import ProductCard, { ProductImage } from "../components/ProductCard"
@@ -918,17 +919,23 @@ export function ProductDetail() {
       try {
         const variantId = product.variantId || product.id
         const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`
+
+        // Real-time pre-flight availability check before creating checkout URL
+        const availability = await checkShopifyAvailability([variantId])
+        const gid = toVariantGid(variantId)
+        const info =
+          availability.availability[gid] || availability.availability[variantId]
+        if (info && !info.availableForSale) {
+          setBuyNowError("Sorry, this item is currently sold out.")
+          setBuyingNow(false)
+          return
+        }
+
         const res = await createShopifyCart(
           [
             {
               merchandiseId: variantId,
               quantity,
-              attributes: [
-                {
-                  key: "return_to_store",
-                  value: returnUrl,
-                },
-              ],
             },
           ],
           {

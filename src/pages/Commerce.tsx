@@ -129,17 +129,11 @@ export function Cart() {
         // Proceed if network error during pre-check
       }
 
-      // 2. Build lines with merchandiseId, quantity, and return_to_store attribute
+      // 2. Build lines with merchandiseId and quantity
       const returnUrl = `${window.location.origin}/cart`
       const lines = store.cart.map((item) => ({
         merchandiseId: item.variantId || item.id,
         quantity: item.quantity,
-        attributes: [
-          {
-            key: "return_to_store",
-            value: returnUrl,
-          },
-        ],
       }))
 
       const res = await createShopifyCart(lines, {

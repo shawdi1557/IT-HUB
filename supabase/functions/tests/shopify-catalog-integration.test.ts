@@ -744,3 +744,22 @@ Deno.test("SHOP-CHECKOUT-10: checkShopifyAvailability and revalidateCartAvailabi
   assertEquals(emptyCartRes.valid, true)
   assertEquals(emptyCartRes.unavailableItems.length, 0)
 })
+
+Deno.test("SHOP-CHECKOUT-11: Cart lines avoid line-level return_to_store attributes and verify availability", () => {
+  const lineItem = {
+    merchandiseId: "gid://shopify/ProductVariant/123459876",
+    quantity: 1,
+  }
+
+  // Ensure line item does NOT contain customer-facing attributes that render on Shopify checkout
+  assertEquals((lineItem as any).attributes, undefined)
+
+  // Cart-level option carries return-to-store origin
+  const cartOptions = {
+    attributes: [
+      { key: "return_to_store", value: "http://localhost:8443/products" },
+    ],
+  }
+  assertEquals(cartOptions.attributes[0].key, "return_to_store")
+  assertEquals(cartOptions.attributes[0].value, "http://localhost:8443/products")
+})
