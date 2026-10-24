@@ -37,7 +37,7 @@ import GooeyNav, { type GooeyNavItem } from "./GooeyNav"
 const nav = [
   { name: "Products", to: "/products" },
   { name: "Services", to: "/services" },
-  { name: "PC Builder", to: "/pc-builder" },
+  { name: "Blog", to: "/blog" },
   { name: "Help & Support", to: "/support" },
   { name: "About", to: "/about" },
 ]
@@ -46,7 +46,7 @@ const navItems: GooeyNavItem[] = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
   { label: "Services", href: "/services" },
-  { label: "PC Builder", href: "/pc-builder" },
+  { label: "Blog", href: "/blog" },
   { label: "Help & Support", href: "/support" },
   { label: "About", href: "/about" },
 ]
@@ -131,7 +131,7 @@ export default function Layout() {
     if (p === "/") return 0
     if (p.startsWith("/products")) return 1
     if (p.startsWith("/services")) return 2
-    if (p.startsWith("/pc-builder")) return 3
+    if (p.startsWith("/blog")) return 3
     if (p.startsWith("/support")) return 4
     if (p.startsWith("/about")) return 5
     return -1
@@ -486,6 +486,7 @@ export default function Layout() {
               title: "COMPANY",
               items: [
                 "About IT HUB",
+                "Technology Blog",
                 "Contact",
                 "Offers",
                 "Help & Support",
@@ -494,6 +495,7 @@ export default function Layout() {
               ],
               links: [
                 "/about",
+                "/blog",
                 "/contact",
                 "/offers",
                 "/support",

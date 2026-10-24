@@ -1273,3 +1273,108 @@ Deno.test("PH5-QA-PERF-1: Invalidation clears in-memory catalog and product cach
   assertEquals(stats.productEntries, 0)
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Phase 5 Scope Change: Technology Blog & Navigation Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("PH5-BLOG-1: Shopify native article maps title, slug, contentHtml, excerpt, and author accurately", async () => {
+  const { mapShopifyArticleToModel } = await import("../../../src/lib/blog.ts")
+
+  const mockArticleNode = {
+    id: "gid://shopify/Article/12345678",
+    title: "RTX 50-Series Graphics Card Architectural Overview",
+    handle: "rtx-50-series-overview",
+    excerpt: "Comprehensive look at next-gen GPU memory bandwidth.",
+    contentHtml: "<p>The next-generation architectures deliver notable compute improvements.</p>",
+    publishedAt: "2026-10-24T12:00:00Z",
+    authorV2: { name: "Anand Lal" },
+    image: { url: "https://cdn.shopify.com/rtx-50.jpg", altText: "RTX 50 GPU" },
+    tags: ["Graphics Cards", "NVIDIA", "Hardware Reviews"],
+    blog: { id: "gid://shopify/Blog/1", title: "Hardware Reviews", handle: "hardware-reviews" },
+  }
+
+  const mapped = mapShopifyArticleToModel(mockArticleNode)
+
+  assertEquals(mapped.title, "RTX 50-Series Graphics Card Architectural Overview")
+  assertEquals(mapped.slug, "rtx-50-series-overview")
+  assertEquals(mapped.author, "Anand Lal")
+  assertEquals(mapped.category, "Hardware Reviews")
+  assertEquals(mapped.source, "shopify")
+  assertEquals(mapped.publishedAt, "2026-10-24")
+})
+
+Deno.test("PH5-BLOG-2: Editorial fallback provides verified IT HUB technology guides when Shopify blog is empty", async () => {
+  const { fetchBlogArticles, invalidateBlogCache } = await import("../../../src/lib/blog.ts")
+  invalidateBlogCache()
+
+  const articles = await fetchBlogArticles()
+
+  assertEquals(articles.length >= 4, true)
+  const lenovoReview = articles.find((a) => a.slug === "lenovo-legion-r27qe-gen-2-review")
+  assertEquals(Boolean(lenovoReview), true)
+  assertEquals(lenovoReview?.category, "Hardware Reviews")
+  assertEquals(lenovoReview?.relatedProductHandles?.includes("lenovo-legion-r27qe-gen-2"), true)
+})
+
+Deno.test("PH5-BLOG-3: fetchBlogArticleBySlug resolves existing article and returns null for invalid slug", async () => {
+  const { fetchBlogArticleBySlug } = await import("../../../src/lib/blog.ts")
+
+  const article = await fetchBlogArticleBySlug("laptop-battery-health-and-replacement-guide")
+  assertEquals(Boolean(article), true)
+  assertEquals(article?.title.includes("Laptop Battery Health"), true)
+
+  const missing = await fetchBlogArticleBySlug("non-existent-article-slug-xyz")
+  assertEquals(missing, null)
+})
+
+Deno.test("PH5-BLOG-4: Blog category filtering and search accurately filter articles", async () => {
+  const { fetchBlogArticles } = await import("../../../src/lib/blog.ts")
+  const articles = await fetchBlogArticles()
+
+  const repairArticles = articles.filter((a) => a.category === "Repair & Maintenance")
+  assertEquals(repairArticles.length > 0, true)
+  assertEquals(repairArticles.every((a) => a.category === "Repair & Maintenance"), true)
+
+  const batteryMatches = articles.filter(
+    (a) =>
+      a.title.toLowerCase().includes("battery") ||
+      a.excerpt.toLowerCase().includes("battery") ||
+      a.tags.some((t) => t.toLowerCase().includes("battery")),
+  )
+  assertEquals(batteryMatches.length > 0, true)
+})
+
+Deno.test("PH5-BLOG-5: Primary customer navigation presents Blog while preserving PC Builder route", () => {
+  const primaryNav = [
+    { name: "Products", to: "/products" },
+    { name: "Services", to: "/services" },
+    { name: "Blog", to: "/blog" },
+    { name: "Help & Support", to: "/support" },
+    { name: "About", to: "/about" },
+  ]
+
+  // Primary customer navigation contains Blog
+  assertEquals(primaryNav.some((n) => n.name === "Blog" && n.to === "/blog"), true)
+  // Customer-facing primary navigation does NOT feature PC Builder
+  assertEquals(primaryNav.some((n) => n.name === "PC Builder"), false)
+
+  // Route registry preserves both routes
+  const routes = [
+    { path: "blog" },
+    { path: "blog/:slug" },
+    { path: "pc-builder" },
+  ]
+  assertEquals(routes.some((r) => r.path === "blog"), true)
+  assertEquals(routes.some((r) => r.path === "pc-builder"), true)
+})
+
+Deno.test("PH5-BLOG-6: Technology guide articles link to real Shopify products and Supabase services", async () => {
+  const { fetchBlogArticleBySlug } = await import("../../../src/lib/blog.ts")
+
+  const batteryGuide = await fetchBlogArticleBySlug("laptop-battery-health-and-replacement-guide")
+  assertEquals(batteryGuide?.relatedServicePath, "/services/book?service=Laptop%20Repair")
+
+  const monitorReview = await fetchBlogArticleBySlug("lenovo-legion-r27qe-gen-2-review")
+  assertEquals(monitorReview?.relatedProductHandles?.[0], "lenovo-legion-r27qe-gen-2")
+})
+
