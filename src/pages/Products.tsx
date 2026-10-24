@@ -917,7 +917,20 @@ export function ProductDetail() {
     if (shopifyConfig.isConfigured) {
       setBuyingNow(true)
       try {
-        const variantId = product.variantId || product.id
+        let variantId = product.variantId
+        if (!variantId && (product.handle || product.id)) {
+          const fresh = await fetchShopifyProduct(product.handle || product.id)
+          if (fresh.product?.variantId) {
+            variantId = fresh.product.variantId
+          }
+        }
+
+        if (!variantId) {
+          setBuyNowError("Unable to resolve Shopify product variant for checkout. Please refresh the page.")
+          setBuyingNow(false)
+          return
+        }
+
         const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`
 
         // Real-time pre-flight availability check before creating checkout URL

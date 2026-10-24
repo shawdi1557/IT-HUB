@@ -797,6 +797,14 @@ export async function createShopifyCart(
     return { cart: null, error: "Empty cart response from Shopify." }
   }
 
+  if (cart.totalQuantity === 0) {
+    return {
+      cart: null,
+      error: "Sorry, this item is currently unavailable for online checkout.",
+      userErrors: [{ message: "Item unavailable for online checkout.", field: ["lines"] }],
+    }
+  }
+
   return {
     cart: {
       id: cart.id,
@@ -1036,7 +1044,7 @@ const CART_LINES_ADD_MUTATION = `
 export async function addShopifyCartLines(
   cartId: string,
   lines: ShopifyCartLineInput[],
-): Promise<{ cart: ShopifyCartSnapshot | null; error?: string }> {
+): Promise<CreateShopifyCartResult> {
   if (!shopifyConfig.isConfigured || !cartId) {
     return { cart: null, error: "Unconfigured or invalid cartId." }
   }
@@ -1074,6 +1082,14 @@ export async function addShopifyCartLines(
 
   if (!cart) {
     return { cart: null, error: "Empty cart response from Shopify." }
+  }
+
+  if (cart.totalQuantity === 0) {
+    return {
+      cart: null,
+      error: "Sorry, this item is currently unavailable for online checkout.",
+      userErrors: [{ message: "Item unavailable for online checkout.", field: ["lines"] }],
+    }
   }
 
   return {

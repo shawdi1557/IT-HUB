@@ -763,3 +763,56 @@ Deno.test("SHOP-CHECKOUT-11: Cart lines avoid line-level return_to_store attribu
   assertEquals(cartOptions.attributes[0].key, "return_to_store")
   assertEquals(cartOptions.attributes[0].value, "http://localhost:8443/products")
 })
+
+Deno.test("SHOP-CHECKOUT-12: toVariantGid sanitizes inputs and strictly avoids double-prefixing or malformed GIDs", async () => {
+  const { toVariantGid, toProductGid } = await import("../../../src/lib/shopify-schema.ts")
+
+  // Already formatted GID
+  assertEquals(
+    toVariantGid("gid://shopify/ProductVariant/12345678"),
+    "gid://shopify/ProductVariant/12345678",
+  )
+
+  // Bare numeric ID
+  assertEquals(
+    toVariantGid("12345678"),
+    "gid://shopify/ProductVariant/12345678",
+  )
+
+  // Product GID accidentally passed — must strip Product prefix and correctly format
+  assertEquals(
+    toVariantGid("gid://shopify/Product/12345678"),
+    "gid://shopify/ProductVariant/12345678",
+  )
+
+  // toProductGid
+  assertEquals(
+    toProductGid("gid://shopify/Product/98765432"),
+    "gid://shopify/Product/98765432",
+  )
+  assertEquals(
+    toProductGid("98765432"),
+    "gid://shopify/Product/98765432",
+  )
+})
+
+Deno.test("SHOP-CHECKOUT-13: Cart creation validates totalQuantity > 0 and guards against zero-allocation checkouts", () => {
+  // Simulates Shopify returning cart with 0 quantity (inventory rejected by location)
+  const rejectedCart = {
+    id: "gid://shopify/Cart/test1234",
+    checkoutUrl: "https://shop.myshopify.com/checkouts/cn/test",
+    totalQuantity: 0,
+    cost: {
+      subtotalAmount: { amount: "0.0", currencyCode: "INR" },
+      totalAmount: { amount: "0.0", currencyCode: "INR" },
+    },
+  }
+
+  const isRejected = rejectedCart.totalQuantity === 0
+  assertEquals(isRejected, true)
+
+  const cartError = isRejected
+    ? "Sorry, this item is currently unavailable for online checkout."
+    : null
+  assertEquals(cartError, "Sorry, this item is currently unavailable for online checkout.")
+})

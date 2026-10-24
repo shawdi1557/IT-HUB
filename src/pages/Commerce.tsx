@@ -129,12 +129,20 @@ export function Cart() {
         // Proceed if network error during pre-check
       }
 
-      // 2. Build lines with merchandiseId and quantity
+      // 2. Build lines with validated merchandiseId (variantId) and quantity
       const returnUrl = `${window.location.origin}/cart`
-      const lines = store.cart.map((item) => ({
-        merchandiseId: item.variantId || item.id,
-        quantity: item.quantity,
-      }))
+      const lines = store.cart.map((item) => {
+        const resolvedVariantId =
+          item.variantId ||
+          store.products.find((p) => p.id === item.productId || p.id === item.id)?.variantId
+        if (!resolvedVariantId) {
+          throw new Error(`Unable to resolve Shopify variant for item "${item.name}".`)
+        }
+        return {
+          merchandiseId: resolvedVariantId,
+          quantity: item.quantity,
+        }
+      })
 
       const res = await createShopifyCart(lines, {
         attributes: [

@@ -14,17 +14,24 @@ export function parseShopifyGid(gid: string): string {
 }
 
 export function toVariantGid(id: string | number): string {
-  const str = String(id)
-  return str.startsWith("gid://shopify/ProductVariant/")
-    ? str
-    : `gid://shopify/ProductVariant/${str}`
+  if (!id) return ""
+  const str = String(id).trim()
+  if (str.startsWith("gid://shopify/ProductVariant/")) {
+    return str
+  }
+  // Sanitize if a Product GID was mistakenly passed
+  const cleanId = parseShopifyGid(str)
+  return `gid://shopify/ProductVariant/${cleanId}`
 }
 
 export function toProductGid(id: string | number): string {
-  const str = String(id)
-  return str.startsWith("gid://shopify/Product/")
-    ? str
-    : `gid://shopify/Product/${str}`
+  if (!id) return ""
+  const str = String(id).trim()
+  if (str.startsWith("gid://shopify/Product/")) {
+    return str
+  }
+  const cleanId = parseShopifyGid(str)
+  return `gid://shopify/Product/${cleanId}`
 }
 
 /**
