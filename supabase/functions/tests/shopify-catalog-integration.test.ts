@@ -1088,3 +1088,188 @@ Deno.test("PH5-INTACT-1: Supabase repair and sell service workflows remain intac
   assertEquals(sampleServiceRequest.quoted_price, 4500)
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Phase 5 QA Fix: Shopify Catalog Performance & Category Accuracy Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("PH5-QA-CAT-1: Product with taxonomy category different from productType preserves taxonomy distinctly", () => {
+  const iphoneNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/7788990011",
+    title: "iPhone 17 Sage Green 256GB",
+    handle: "iphone-17-sage-green",
+    description: "Next-gen A19 Bionic powerhouse in Sage Green.",
+    vendor: "Apple",
+    productType: "Flagship Smartphones",
+    tags: ["apple", "iphone", "5g", "sage-green"],
+    availableForSale: true,
+    category: {
+      id: "gid://shopify/TaxonomyCategory/el-1-1-1",
+      name: "Smart Phones",
+      ancestors: [{ id: "gid://shopify/TaxonomyCategory/el-1-1", name: "Mobile & Smart Phones" }],
+    },
+    collections: {
+      edges: [
+        { node: { id: "gid://shopify/Collection/1", title: "Apple Mobiles", handle: "apple-mobiles" } },
+      ],
+    },
+    images: { edges: [{ node: { url: "https://cdn.shopify.com/iphone-17.jpg" } }] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/701",
+            title: "Sage Green / 256GB",
+            availableForSale: true,
+            price: { amount: "89999.00", currencyCode: "INR" },
+            compareAtPrice: { amount: "94999.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const mapped = mapShopifyProductToCatalog(iphoneNode)
+
+  assertEquals(mapped.name, "iPhone 17 Sage Green 256GB")
+  assertEquals(mapped.brand, "Apple")
+  assertEquals(mapped.category, "Smart Phones")
+  assertEquals(mapped.categorySource, "taxonomy")
+  assertEquals(mapped.productType, "Flagship Smartphones")
+  assertEquals(mapped.taxonomyCategory?.name, "Smart Phones")
+  assertEquals(mapped.taxonomyCategory?.fullName, "Smart Phones in Mobile & Smart Phones")
+  assertEquals(mapped.collections, ["Apple Mobiles"])
+})
+
+Deno.test("PH5-QA-CAT-2: Product without taxonomy category honestly falls back to productType", () => {
+  const monitorNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/9988776655",
+    title: "Lenovo Legion R27qe Gen 2",
+    handle: "lenovo-legion-r27qe-gen-2",
+    description: "27-inch 2K QHD 180Hz Fast IPS.",
+    vendor: "Lenovo",
+    productType: "Monitors & Displays",
+    tags: ["monitor", "gaming"],
+    availableForSale: true,
+    category: null,
+    images: { edges: [{ node: { url: "https://cdn.shopify.com/lenovo-r27qe.jpg" } }] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/501",
+            title: "Default Title",
+            availableForSale: true,
+            price: { amount: "15000.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const mapped = mapShopifyProductToCatalog(monitorNode)
+
+  assertEquals(mapped.brand, "Lenovo")
+  assertEquals(mapped.category, "Monitors & Displays")
+  assertEquals(mapped.categorySource, "productType")
+  assertEquals(mapped.taxonomyCategory, undefined)
+  assertNotEquals(mapped.category, "Hardware & Electronics")
+})
+
+Deno.test("PH5-QA-CAT-3: Product without category and productType falls back to collection", () => {
+  const accessoryNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/111222333",
+    title: "MagSafe Silicone Case",
+    handle: "magsafe-silicone-case",
+    description: "Protective case.",
+    vendor: "Apple",
+    productType: "",
+    tags: ["case", "accessory"],
+    availableForSale: true,
+    category: null,
+    collections: {
+      edges: [
+        { node: { id: "gid://shopify/Collection/2", title: "Accessories", handle: "accessories" } },
+      ],
+    },
+    images: { edges: [{ node: { url: "https://cdn.shopify.com/case.jpg" } }] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/601",
+            title: "Default Title",
+            availableForSale: true,
+            price: { amount: "4900.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const mapped = mapShopifyProductToCatalog(accessoryNode)
+
+  assertEquals(mapped.category, "Accessories")
+  assertEquals(mapped.categorySource, "collection")
+  assertEquals(mapped.taxonomyCategory, undefined)
+})
+
+Deno.test("PH5-QA-CAT-4: Product missing all taxonomy/type/collection honestly defaults to Uncategorized", () => {
+  const bareNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/444555666",
+    title: "Generic USB Cable",
+    handle: "generic-usb-cable",
+    description: "Standard USB-C to USB-C cable.",
+    vendor: "",
+    productType: "",
+    tags: [],
+    availableForSale: true,
+    category: null,
+    collections: { edges: [] },
+    images: { edges: [{ node: { url: "https://cdn.shopify.com/cable.jpg" } }] },
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/801",
+            title: "Default Title",
+            availableForSale: true,
+            price: { amount: "299.00", currencyCode: "INR" },
+          },
+        },
+      ],
+    },
+  }
+
+  const mapped = mapShopifyProductToCatalog(bareNode)
+
+  assertEquals(mapped.category, "Uncategorized")
+  assertEquals(mapped.categorySource, "fallback")
+  assertEquals(mapped.taxonomyCategory, undefined)
+  assertNotEquals(mapped.category, "Hardware & Electronics")
+})
+
+Deno.test("PH5-QA-CAT-5: Dynamic store category list generates distinct accurate categories", () => {
+  const products = [
+    { id: "1", name: "iPhone 17", brand: "Apple", category: "Smart Phones" },
+    { id: "2", name: "Lenovo Monitor", brand: "Lenovo", category: "Monitors & Displays" },
+  ]
+
+  const liveCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean)))
+  const storeCategories = ["All", ...liveCategories.filter((c) => c !== "All")]
+
+  assertEquals(storeCategories, ["All", "Smart Phones", "Monitors & Displays"])
+  assertNotEquals(storeCategories, ["All", "Hardware & Electronics"])
+})
+
+Deno.test("PH5-QA-PERF-1: Invalidation clears in-memory catalog and product cache", async () => {
+  const { invalidateShopifyCatalogCache, getShopifyCacheStats } = await import(
+    "../../../src/lib/shopify.ts"
+  )
+
+  invalidateShopifyCatalogCache()
+  const stats = getShopifyCacheStats()
+
+  assertEquals(stats.catalogEntries, 0)
+  assertEquals(stats.productEntries, 0)
+})
+

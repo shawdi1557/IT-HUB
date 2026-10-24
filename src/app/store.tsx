@@ -326,7 +326,7 @@ type Store = State & {
 
   log: (action: string) => void
 
-  refreshCatalog: () => Promise<void>
+  refreshCatalog: (options?: { force?: boolean }) => Promise<void>
 }
 
 // Keep one context instance across hot updates; otherwise an edited store
@@ -550,14 +550,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const refreshCatalog = async () => {
-    setState((prev) => ({ ...prev, catalogLoading: true }))
+  const refreshCatalog = async (options: { force?: boolean } = {}) => {
+    setState((prev) =>
+      prev.products.length === 0 || options.force
+        ? { ...prev, catalogLoading: true }
+        : prev,
+    )
 
     try {
       if (shopifyConfig.isConfigured) {
         // Shopify is the authoritative source for commerce products
         const [shopifyRes, offersRes, couponsRes] = await Promise.allSettled([
-          fetchShopifyCatalog({ first: 100 }),
+          fetchShopifyCatalog({ first: 100, force: options.force }),
           fetchActiveOffersDetailed(),
           fetchActiveCouponsDetailed(),
         ])
@@ -776,9 +780,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }))
       })
 
+    let lastFocusSync = Date.now()
+
     const handleFocusSync = () => {
       if (document.visibilityState === "visible") {
-        refreshCatalog()
+        const now = Date.now()
+        // Throttle background focus revalidation to at most once per 60 seconds
+        if (now - lastFocusSync >= 60_000) {
+          lastFocusSync = now
+          refreshCatalog({ force: true })
+        }
       }
     }
 

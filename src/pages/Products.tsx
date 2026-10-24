@@ -503,7 +503,9 @@ export function Products() {
                     Loading products from IT HUB catalog...
                   </h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Fetching verified inventory from Supabase
+                    {shopifyConfig.isConfigured
+                      ? "Fetching verified inventory from Shopify Storefront"
+                      : "Fetching verified inventory from Supabase"}
                   </p>
                 </div>
               ) : store.catalogError && store.products.length === 0 ? (
@@ -729,7 +731,7 @@ export function ProductDetail() {
 
   useEffect(() => {
     let isMounted = true
-    if (product?.id) {
+    if (product?.id && (!product.images || product.images.length <= 1)) {
       fetchProductGallery(product.id).then((imgs) => {
         if (isMounted && imgs && imgs.length > 0) {
           setGalleryImages(imgs)
@@ -739,7 +741,7 @@ export function ProductDetail() {
     return () => {
       isMounted = false
     }
-  }, [product?.id])
+  }, [product?.id, product?.images])
 
   useEffect(() => {
     setActiveImageIndex(0)

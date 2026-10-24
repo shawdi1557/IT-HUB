@@ -23,6 +23,19 @@ export type Product = {
 
   category: string
 
+  categorySource?: "taxonomy" | "productType" | "collection" | "fallback"
+
+  taxonomyCategory?: {
+    id?: string
+    name: string
+    fullName?: string
+    ancestors?: string[]
+  }
+
+  productType?: string
+
+  collections?: string[]
+
   price: number
 
   original: number

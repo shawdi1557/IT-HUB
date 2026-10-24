@@ -303,6 +303,23 @@ const PRODUCTS_QUERY = `
           productType
           tags
           availableForSale
+          category {
+            id
+            name
+            ancestors {
+              id
+              name
+            }
+          }
+          collections(first: 5) {
+            edges {
+              node {
+                id
+                title
+                handle
+              }
+            }
+          }
           options {
             id
             name
@@ -314,7 +331,7 @@ const PRODUCTS_QUERY = `
             width
             height
           }
-          images(first: 20) {
+          images(first: 6) {
             edges {
               node {
                 url
@@ -380,6 +397,7 @@ export interface ShopifyCatalogOptions {
   query?: string
   sortKey?: "TITLE" | "PRICE" | "CREATED_AT" | "BEST_SELLING" | "RELEVANCE"
   reverse?: boolean
+  force?: boolean
 }
 
 export interface ShopifyCatalogResult {
@@ -390,8 +408,52 @@ export interface ShopifyCatalogResult {
   error?: string
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance & Caching Layer: In-flight deduplication & 60s bounded cache
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface CacheEntry<T> {
+  data: T
+  timestamp: number
+}
+
+const CATALOG_CACHE_TTL_MS = 60_000 // 60s bounded TTL
+const PRODUCT_CACHE_TTL_MS = 60_000 // 60s bounded TTL
+
+const catalogCache = new Map<string, CacheEntry<ShopifyCatalogResult>>()
+const inFlightCatalogRequests = new Map<string, Promise<ShopifyCatalogResult>>()
+
+const productCache = new Map<string, CacheEntry<{ product: Product | null; error?: string }>>()
+const inFlightProductRequests = new Map<string, Promise<{ product: Product | null; error?: string }>>()
+
+/**
+ * Manually invalidates the in-memory Shopify catalog and product caches.
+ */
+export function invalidateShopifyCatalogCache(): void {
+  catalogCache.clear()
+  productCache.clear()
+}
+
+/**
+ * Returns cache diagnostics for testing and observability.
+ */
+export function getShopifyCacheStats(): {
+  catalogEntries: number
+  productEntries: number
+  inFlightCatalog: number
+  inFlightProducts: number
+} {
+  return {
+    catalogEntries: catalogCache.size,
+    productEntries: productCache.size,
+    inFlightCatalog: inFlightCatalogRequests.size,
+    inFlightProducts: inFlightProductRequests.size,
+  }
+}
+
 /**
  * Fetches products from Shopify Storefront API and maps them to catalog Product models.
+ * Includes in-flight request deduplication and a 60-second bounded cache.
  */
 export async function fetchShopifyCatalog(
   options: ShopifyCatalogOptions = {},
@@ -405,49 +467,97 @@ export async function fetchShopifyCatalog(
     }
   }
 
-  const variables = {
+  const cacheKey = JSON.stringify({
     first: options.first || 24,
     after: options.after || null,
     query: options.query || null,
     sortKey: options.sortKey || "RELEVANCE",
     reverse: Boolean(options.reverse),
-  }
+  })
 
-  const result = await storefrontFetch<{
-    products: {
-      pageInfo: { hasNextPage: boolean; endCursor?: string }
-      edges: Array<{ cursor: string; node: ShopifyProductNode }>
-    }
-  }>(PRODUCTS_QUERY, variables)
-
-  if (!result.ok || !result.data?.products) {
-    return {
-      products: [],
-      hasNextPage: false,
-      isLive: false,
-      error: result.error || "Failed to load products from Shopify.",
+  // Return cached result if fresh and force refresh not requested
+  if (!options.force) {
+    const cached = catalogCache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+      return cached.data
     }
   }
 
-  const edges = result.data.products.edges
-  const mappedProducts = edges.map((e) => mapShopifyProductToCatalog(e.node))
-
-  return {
-    products: mappedProducts,
-    hasNextPage: result.data.products.pageInfo.hasNextPage,
-    endCursor: result.data.products.pageInfo.endCursor,
-    isLive: true,
+  // Deduplicate concurrent in-flight requests with identical options
+  if (inFlightCatalogRequests.has(cacheKey)) {
+    return inFlightCatalogRequests.get(cacheKey)!
   }
+
+  const requestPromise = (async (): Promise<ShopifyCatalogResult> => {
+    try {
+      const variables = {
+        first: options.first || 24,
+        after: options.after || null,
+        query: options.query || null,
+        sortKey: options.sortKey || "RELEVANCE",
+        reverse: Boolean(options.reverse),
+      }
+
+      const result = await storefrontFetch<{
+        products: {
+          pageInfo: { hasNextPage: boolean; endCursor?: string }
+          edges: Array<{ cursor: string; node: ShopifyProductNode }>
+        }
+      }>(PRODUCTS_QUERY, variables)
+
+      if (!result.ok || !result.data?.products) {
+        return {
+          products: [],
+          hasNextPage: false,
+          isLive: false,
+          error: result.error || "Failed to load products from Shopify.",
+        }
+      }
+
+      const edges = result.data.products.edges
+      const mappedProducts = edges.map((e) => mapShopifyProductToCatalog(e.node))
+
+      const output: ShopifyCatalogResult = {
+        products: mappedProducts,
+        hasNextPage: result.data.products.pageInfo.hasNextPage,
+        endCursor: result.data.products.pageInfo.endCursor,
+        isLive: true,
+      }
+
+      catalogCache.set(cacheKey, { data: output, timestamp: Date.now() })
+      return output
+    } finally {
+      inFlightCatalogRequests.delete(cacheKey)
+    }
+  })()
+
+  inFlightCatalogRequests.set(cacheKey, requestPromise)
+  return requestPromise
 }
 
 /**
  * Fetches single product by handle from Shopify Storefront API.
+ * Includes in-flight deduplication and 60-second bounded cache.
  */
 export async function fetchShopifyProductByHandle(
   handle: string,
+  options: { force?: boolean } = {},
 ): Promise<{ product: Product | null; error?: string }> {
   if (!shopifyConfig.isConfigured || !handle) {
     return { product: null, error: "Unconfigured or invalid handle." }
+  }
+
+  const normalizedKey = `handle:${handle.trim().toLowerCase()}`
+
+  if (!options.force) {
+    const cached = productCache.get(normalizedKey)
+    if (cached && Date.now() - cached.timestamp < PRODUCT_CACHE_TTL_MS) {
+      return cached.data
+    }
+  }
+
+  if (inFlightProductRequests.has(normalizedKey)) {
+    return inFlightProductRequests.get(normalizedKey)!
   }
 
   const query = `
@@ -462,6 +572,23 @@ export async function fetchShopifyProductByHandle(
         productType
         tags
         availableForSale
+        category {
+          id
+          name
+          ancestors {
+            id
+            name
+          }
+        }
+        collections(first: 5) {
+          edges {
+            node {
+              id
+              title
+              handle
+            }
+          }
+        }
         options {
           id
           name
@@ -521,29 +648,58 @@ export async function fetchShopifyProductByHandle(
     }
   `
 
-  const result = await storefrontFetch<{ product: ShopifyProductNode | null }>(
-    query,
-    { handle },
-  )
+  const requestPromise = (async () => {
+    try {
+      const result = await storefrontFetch<{ product: ShopifyProductNode | null }>(
+        query,
+        { handle },
+      )
 
-  if (!result.ok || !result.data?.product) {
-    return { product: null, error: result.error || "Product not found." }
-  }
+      if (!result.ok || !result.data?.product) {
+        return { product: null, error: result.error || "Product not found." }
+      }
 
-  return { product: mapShopifyProductToCatalog(result.data.product) }
+      const output = { product: mapShopifyProductToCatalog(result.data.product) }
+      productCache.set(normalizedKey, { data: output, timestamp: Date.now() })
+      if (output.product?.id) {
+        productCache.set(`id:${output.product.id}`, { data: output, timestamp: Date.now() })
+      }
+      return output
+    } finally {
+      inFlightProductRequests.delete(normalizedKey)
+    }
+  })()
+
+  inFlightProductRequests.set(normalizedKey, requestPromise)
+  return requestPromise
 }
 
 /**
  * Fetches single product by ID or GID from Shopify Storefront API.
+ * Includes in-flight deduplication and 60-second bounded cache.
  */
 export async function fetchShopifyProductById(
   idOrGid: string,
+  options: { force?: boolean } = {},
 ): Promise<{ product: Product | null; error?: string }> {
   if (!shopifyConfig.isConfigured || !idOrGid) {
     return { product: null, error: "Unconfigured or invalid ID." }
   }
 
   const gid = toProductGid(idOrGid)
+  const normalizedKey = `id:${gid}`
+
+  if (!options.force) {
+    const cached = productCache.get(normalizedKey)
+    if (cached && Date.now() - cached.timestamp < PRODUCT_CACHE_TTL_MS) {
+      return cached.data
+    }
+  }
+
+  if (inFlightProductRequests.has(normalizedKey)) {
+    return inFlightProductRequests.get(normalizedKey)!
+  }
+
   const query = `
     query getProductById($id: ID!) {
       node(id: $id) {
@@ -557,6 +713,23 @@ export async function fetchShopifyProductById(
           productType
           tags
           availableForSale
+          category {
+            id
+            name
+            ancestors {
+              id
+              name
+            }
+          }
+          collections(first: 5) {
+            edges {
+              node {
+                id
+                title
+                handle
+              }
+            }
+          }
           options {
             id
             name
@@ -617,16 +790,33 @@ export async function fetchShopifyProductById(
     }
   `
 
-  const result = await storefrontFetch<{ node: ShopifyProductNode | null }>(
-    query,
-    { id: gid },
-  )
+  const requestPromise = (async () => {
+    try {
+      const result = await storefrontFetch<{ node: ShopifyProductNode | null }>(
+        query,
+        { id: gid },
+      )
 
-  if (!result.ok || !result.data?.node) {
-    return { product: null, error: result.error || "Product not found." }
-  }
+      if (!result.ok || !result.data?.node) {
+        return { product: null, error: result.error || "Product not found." }
+      }
 
-  return { product: mapShopifyProductToCatalog(result.data.node) }
+      const output = { product: mapShopifyProductToCatalog(result.data.node) }
+      productCache.set(normalizedKey, { data: output, timestamp: Date.now() })
+      if (output.product?.handle) {
+        productCache.set(
+          `handle:${output.product.handle.toLowerCase()}`,
+          { data: output, timestamp: Date.now() },
+        )
+      }
+      return output
+    } finally {
+      inFlightProductRequests.delete(normalizedKey)
+    }
+  })()
+
+  inFlightProductRequests.set(normalizedKey, requestPromise)
+  return requestPromise
 }
 
 /**
@@ -634,13 +824,14 @@ export async function fetchShopifyProductById(
  */
 export async function fetchShopifyProduct(
   idOrHandle: string,
+  options: { force?: boolean } = {},
 ): Promise<{ product: Product | null; error?: string }> {
   if (!idOrHandle) return { product: null, error: "Missing identifier." }
   if (/^\d+$/.test(idOrHandle) || idOrHandle.startsWith("gid://")) {
-    const byId = await fetchShopifyProductById(idOrHandle)
+    const byId = await fetchShopifyProductById(idOrHandle, options)
     if (byId.product) return byId
   }
-  return fetchShopifyProductByHandle(idOrHandle)
+  return fetchShopifyProductByHandle(idOrHandle, options)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

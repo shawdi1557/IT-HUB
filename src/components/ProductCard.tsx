@@ -42,6 +42,7 @@ export function ProductImage({
       onError={() => setFailed(true)}
       className={`object-contain ${className}`}
       loading="lazy"
+      decoding="async"
     />
   )
 }
@@ -112,7 +113,10 @@ export default function ProductCard({ product }: { product: Product }) {
           </button>
         </div>
         <div className="p-4 md:p-5">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p
+            title={product.taxonomyCategory?.fullName || product.category}
+            className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate"
+          >
             {product.brand} · {product.category}
           </p>
           <Link

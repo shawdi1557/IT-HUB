@@ -62,6 +62,18 @@ export interface ShopifyProductOption {
   values: string[]
 }
 
+export interface ShopifyTaxonomyCategory {
+  id?: string
+  name: string
+  ancestors?: Array<{ id?: string; name: string }>
+}
+
+export interface ShopifyCollectionNode {
+  id: string
+  title: string
+  handle: string
+}
+
 export interface ShopifyProductVariantNode {
   id: string
   title: string
@@ -85,6 +97,10 @@ export interface ShopifyProductNode {
   productType: string
   tags: string[]
   availableForSale: boolean
+  category?: ShopifyTaxonomyCategory | null
+  collections?: {
+    edges: Array<{ node: ShopifyCollectionNode }>
+  }
   options?: ShopifyProductOption[]
   featuredImage?: ShopifyImage | null
   images: {
@@ -182,6 +198,83 @@ export function resolveProductCondition(
 }
 
 /**
+ * Resolves product category, preserving taxonomy category, productType, and collections distinctly.
+ * - Authoritative category: Shopify Standard Product Taxonomy (category.name).
+ *   If ancestors are present, builds a full hierarchical name (e.g. "Smart Phones in Mobile & Smart Phones").
+ * - Honest fallback: productType if present, then first non-empty collection, then "Uncategorized".
+ * - Never claims a fallback is an official taxonomy category.
+ */
+export function resolveShopifyCategory(node: ShopifyProductNode): {
+  category: string
+  categorySource: "taxonomy" | "productType" | "collection" | "fallback"
+  taxonomyCategory?: {
+    id?: string
+    name: string
+    fullName?: string
+    ancestors?: string[]
+  }
+  productType?: string
+  collections?: string[]
+} {
+  const collectionList = (node.collections?.edges || [])
+    .map((e) => e.node?.title?.trim())
+    .filter(Boolean) as string[]
+
+  const trimmedProductType = (node.productType || "").trim()
+  const taxCat = node.category
+
+  if (taxCat && taxCat.name && taxCat.name.trim()) {
+    const catName = taxCat.name.trim()
+    const ancestorNames = (taxCat.ancestors || [])
+      .map((a) => a.name?.trim())
+      .filter(Boolean) as string[]
+    const immediateParent = ancestorNames.length > 0 ? ancestorNames[0] : undefined
+    const fullName = immediateParent ? `${catName} in ${immediateParent}` : catName
+
+    return {
+      category: catName,
+      categorySource: "taxonomy",
+      taxonomyCategory: {
+        id: taxCat.id,
+        name: catName,
+        fullName,
+        ancestors: ancestorNames,
+      },
+      productType: trimmedProductType || undefined,
+      collections: collectionList.length > 0 ? collectionList : undefined,
+    }
+  }
+
+  if (trimmedProductType) {
+    return {
+      category: trimmedProductType,
+      categorySource: "productType",
+      taxonomyCategory: undefined,
+      productType: trimmedProductType,
+      collections: collectionList.length > 0 ? collectionList : undefined,
+    }
+  }
+
+  if (collectionList.length > 0) {
+    return {
+      category: collectionList[0],
+      categorySource: "collection",
+      taxonomyCategory: undefined,
+      productType: undefined,
+      collections: collectionList,
+    }
+  }
+
+  return {
+    category: "Uncategorized",
+    categorySource: "fallback",
+    taxonomyCategory: undefined,
+    productType: undefined,
+    collections: undefined,
+  }
+}
+
+/**
  * Maps a Shopify Product + Variant node into IT HUB's frontend Product interface.
  * Preserves MRP (original), condition, genuine warranty badges, and category classifications.
  */
@@ -273,11 +366,17 @@ export function mapShopifyProductToCatalog(
     }
   })
 
+  const categoryInfo = resolveShopifyCategory(node)
+
   return {
     id: parseShopifyGid(node.id),
     name: node.title,
-    brand: node.vendor || "IT HUB",
-    category: node.productType || "Hardware & Electronics",
+    brand: (node.vendor || "").trim() || "IT HUB",
+    category: categoryInfo.category,
+    categorySource: categoryInfo.categorySource,
+    taxonomyCategory: categoryInfo.taxonomyCategory,
+    productType: categoryInfo.productType,
+    collections: categoryInfo.collections,
     price: sellingPrice,
     original,
     image: primaryImage,
