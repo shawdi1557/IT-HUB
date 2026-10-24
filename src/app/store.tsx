@@ -840,13 +840,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         )
       : null
 
-    if (
-      item.productId &&
-      (!product || (product.availableForSale !== undefined ? !product.availableForSale : existingQuantity + quantity > product.stock))
-    ) {
-      notify("Not enough stock available. Please adjust your cart.")
+    if (item.productId) {
+      const isSoldOut = product
+        ? product.availableForSale !== undefined
+          ? !product.availableForSale
+          : product.stock <= 0
+        : false
 
-      return
+      if (!product || isSoldOut) {
+        notify("Sorry, this item is currently sold out.")
+        return
+      }
+
+      if (
+        product.availableForSale === undefined &&
+        existingQuantity + quantity > product.stock
+      ) {
+        notify("Not enough stock available. Please adjust your cart.")
+        return
+      }
     }
 
     set((previous) => {

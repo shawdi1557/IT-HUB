@@ -14,6 +14,7 @@ import {
   Tag,
   ShieldCheck,
   LoaderCircle,
+  AlertTriangle,
 } from "lucide-react"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
@@ -32,7 +33,11 @@ import {
   verifyCheckoutCallback,
 } from "../lib/payments"
 import WarrantyCheck from "../components/WarrantyCheck"
-import { shopifyConfig, createShopifyCart } from "../lib/shopify"
+import {
+  shopifyConfig,
+  createShopifyCart,
+  revalidateCartAvailability,
+} from "../lib/shopify"
 import {
   ActionLink,
   Badge,
@@ -80,22 +85,110 @@ export function Cart() {
   const navigate = useNavigate()
   const [checkingOut, setCheckingOut] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [unavailableIds, setUnavailableIds] = useState<string[]>([])
+
+  useEffect(() => {
+    if (shopifyConfig.isConfigured && store.cart.length > 0) {
+      revalidateCartAvailability(store.cart)
+        .then((reval) => {
+          if (!reval.valid) {
+            setUnavailableIds(reval.unavailableItems.map((u) => u.cartItemId))
+          } else {
+            setUnavailableIds([])
+          }
+        })
+        .catch(() => {})
+    } else {
+      setUnavailableIds([])
+    }
+  }, [store.cart.length])
 
   const handleCheckout = async () => {
     if (shopifyConfig.isConfigured) {
       setCheckingOut(true)
       setCheckoutError(null)
+
+      // 1. Pre-flight real-time Storefront availability check
+      try {
+        const reval = await revalidateCartAvailability(store.cart)
+        if (!reval.valid) {
+          const flagged = reval.unavailableItems.map((u) => u.cartItemId)
+          setUnavailableIds(flagged)
+          const names = reval.unavailableItems.map((u) => `"${u.name}"`).join(", ")
+          setCheckoutError(
+            `Sorry, ${names} ${
+              reval.unavailableItems.length === 1 ? "is" : "are"
+            } currently sold out. Please remove ${
+              reval.unavailableItems.length === 1 ? "it" : "them"
+            } to proceed.`,
+          )
+          setCheckingOut(false)
+          return
+        }
+      } catch {
+        // Proceed if network error during pre-check
+      }
+
+      // 2. Build lines with merchandiseId, quantity, and return_to_store attribute
+      const returnUrl = `${window.location.origin}/cart`
       const lines = store.cart.map((item) => ({
         merchandiseId: item.variantId || item.id,
         quantity: item.quantity,
+        attributes: [
+          {
+            key: "return_to_store",
+            value: returnUrl,
+          },
+        ],
       }))
-      const res = await createShopifyCart(lines)
+
+      const res = await createShopifyCart(lines, {
+        attributes: [
+          {
+            key: "return_to_store",
+            value: returnUrl,
+          },
+        ],
+      })
+
       if (res.cart?.checkoutUrl) {
         window.location.href = res.cart.checkoutUrl
         return
       }
+
+      // 3. Handle Shopify rejection or race conditions (e.g. inventory became 0 during cart creation)
+      if (res.userErrors && res.userErrors.length > 0) {
+        const newlyUnavailable: string[] = []
+        res.userErrors.forEach((err) => {
+          if (err.lineIndex !== undefined && store.cart[err.lineIndex]) {
+            newlyUnavailable.push(store.cart[err.lineIndex].id)
+          }
+        })
+
+        if (newlyUnavailable.length > 0) {
+          setUnavailableIds((prev) =>
+            Array.from(new Set([...prev, ...newlyUnavailable])),
+          )
+        }
+
+        const rawMsg = res.error || "Unable to proceed to checkout."
+        const isStock =
+          rawMsg.toLowerCase().includes("sold out") ||
+          rawMsg.toLowerCase().includes("not available") ||
+          rawMsg.toLowerCase().includes("out of stock")
+
+        setCheckoutError(
+          isStock
+            ? "Inventory updated: One or more items in your cart just became sold out. Please remove them or adjust quantity before checkout."
+            : rawMsg,
+        )
+        setCheckingOut(false)
+        return
+      }
+
       setCheckoutError(
-        res.error || "Unable to initiate Shopify checkout. Please check cart items.",
+        res.error ||
+          "Unable to initiate Shopify checkout. Please check cart items.",
       )
       setCheckingOut(false)
     } else {
@@ -104,17 +197,50 @@ export function Cart() {
   }
 
   const { subtotal, discount, applied } = offerTotals(store)
-  const hasInsufficientStock = store.cart.some((item) => {
-    if (!item.productId) return false
-    const product = store.products.find((row) => row.id === item.productId)
-    return product ? (product.availableForSale !== undefined ? !product.availableForSale : item.quantity > product.stock) : false
-  })
+  const hasInsufficientStock =
+    unavailableIds.length > 0 ||
+    store.cart.some((item) => {
+      if (!item.productId) return false
+      const product = store.products.find((row) => row.id === item.productId)
+      return product
+        ? product.availableForSale !== undefined
+          ? !product.availableForSale
+          : item.quantity > product.stock
+        : false
+    })
   return (
     <Page>
       <PageHeading
         title="Your shopping bag."
         description={`${store.cart.reduce((sum, item) => sum + item.quantity, 0)} items, one step closer to your next upgrade.`}
       />
+      {checkoutError && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50/90 p-4 text-xs text-red-900 shadow-xs">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-2">
+              <p className="font-semibold text-sm leading-snug">
+                {checkoutError}
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <Link
+                  to="/products"
+                  className="font-semibold text-red-800 underline hover:text-red-950"
+                >
+                  Continue shopping in catalog →
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutError(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {!store.cart.length ? (
         <Empty
           title="Your cart is empty"
@@ -129,9 +255,18 @@ export function Cart() {
               const product = item.productId
                 ? store.products.find((row) => row.id === item.productId)
                 : undefined
-              const isOutOfStock = Boolean(product && (product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0))
+              const isOutOfStock = Boolean(
+                unavailableIds.includes(item.id) ||
+                  (product &&
+                    (product.availableForSale !== undefined
+                      ? !product.availableForSale
+                      : product.stock <= 0)),
+              )
               const isOverStock = Boolean(
-                product && product.availableForSale === undefined && product.stock > 0 && item.quantity > product.stock,
+                product &&
+                  product.availableForSale === undefined &&
+                  product.stock > 0 &&
+                  item.quantity > product.stock,
               )
 
               return (
@@ -139,7 +274,7 @@ export function Cart() {
                   key={item.id}
                   className={`flex flex-wrap items-center gap-5 rounded-lg border p-5 ${
                     isOutOfStock
-                      ? "border-red-300 bg-red-50/20"
+                      ? "border-red-300 bg-red-50/30"
                       : isOverStock
                         ? "border-amber-300 bg-amber-50/20"
                         : "border-border"
@@ -179,9 +314,37 @@ export function Cart() {
                       </p>
                     )}
                     {isOutOfStock && (
-                      <p className="mt-2 text-xs font-semibold text-red-600">
-                        Item is now out of stock. Please remove to proceed.
-                      </p>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
+                          <AlertTriangle size={13} />
+                          <span>Sorry, this item is currently sold out.</span>
+                        </div>
+                        <div className="flex items-center gap-3 pt-0.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              store.set({
+                                cart: store.cart.filter(
+                                  (row) => row.id !== item.id,
+                                ),
+                              })
+                              setUnavailableIds((prev) =>
+                                prev.filter((id) => id !== item.id),
+                              )
+                              store.notify(`Removed ${item.name} from cart`)
+                            }}
+                            className="font-medium text-red-700 underline hover:text-red-900"
+                          >
+                            Remove item
+                          </button>
+                          <Link
+                            to="/products"
+                            className="font-medium text-muted-foreground underline hover:text-foreground"
+                          >
+                            Continue shopping →
+                          </Link>
+                        </div>
+                      </div>
                     )}
                     {isOverStock && (
                       <p className="mt-2 text-xs font-semibold text-amber-700">
@@ -189,17 +352,24 @@ export function Cart() {
                         to {product!.stock}.
                       </p>
                     )}
-                    <button
-                      onClick={() => {
-                        store.set({
-                          cart: store.cart.filter((row) => row.id !== item.id),
-                        })
-                        store.notify("Removed from cart")
-                      }}
-                      className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-red-600"
-                    >
-                      <Trash2 size={12} /> Remove
-                    </button>
+                    {!isOutOfStock && (
+                      <button
+                        onClick={() => {
+                          store.set({
+                            cart: store.cart.filter(
+                              (row) => row.id !== item.id,
+                            ),
+                          })
+                          setUnavailableIds((prev) =>
+                            prev.filter((id) => id !== item.id),
+                          )
+                          store.notify("Removed from cart")
+                        }}
+                        className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-red-600"
+                      >
+                        <Trash2 size={12} /> Remove
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center rounded-md border border-border">
                     <button
@@ -289,7 +459,7 @@ export function Cart() {
                   Proceed to checkout <ArrowRight size={16} />
                 </Button>
                 <p className="mt-2 text-center text-xs font-medium text-red-600">
-                  Please adjust cart quantities to match available stock before
+                  Please adjust cart quantities or remove sold-out items before
                   proceeding.
                 </p>
               </div>

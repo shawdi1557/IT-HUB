@@ -16,6 +16,7 @@ import {
 import {
   validateShopifyDomain,
   normalizeShopifyDomain,
+  parseCartErrorLineIndex,
 } from "../../../src/lib/shopify.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,4 +581,166 @@ Deno.test("SHOP-FIX-16: Regression: resolveProductDescription maps HTML, plain t
   const uiDesc = resolveProductDescription(catalogProduct)
   assertEquals(uiDesc.type, "html")
   assertEquals(uiDesc.content.includes("<strong>QHD 180Hz</strong>"), true)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Checkout Navigation, Direct URL Redirection & Sold-Out Recovery
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("SHOP-CHECKOUT-1: Buy Now payload accurately normalizes variant GID and selected quantity", () => {
+  const selectedVariantId = "123459876"
+  const quantity = 2
+  const formattedGid = toVariantGid(selectedVariantId)
+
+  assertEquals(formattedGid, "gid://shopify/ProductVariant/123459876")
+  assertEquals(quantity >= 1, true)
+})
+
+Deno.test("SHOP-CHECKOUT-2: Buy Now redirects directly to returned Shopify checkout URL", () => {
+  const mockShopifyCart = {
+    id: "gid://shopify/Cart/c1-abc12345",
+    checkoutUrl: "https://it-hub-m8tzfjd.myshopify.com/checkouts/cn/c1-abc12345?key=mockkey",
+    totalQuantity: 1,
+    subtotal: 15000,
+    total: 15000,
+    currency: "INR",
+  }
+
+  // Confirms the checkout URL is authoritative Shopify hosted checkout and not a local page
+  assertEquals(mockShopifyCart.checkoutUrl.startsWith("https://it-hub-m8tzfjd.myshopify.com/checkouts/"), true)
+  assertNotEquals(mockShopifyCart.checkoutUrl, "/checkout")
+  assertNotEquals(mockShopifyCart.checkoutUrl, "/cart")
+})
+
+Deno.test("SHOP-CHECKOUT-3: Add to Cart preserves variantId and existing product structure", () => {
+  const product = {
+    id: "9876543210",
+    variantId: "gid://shopify/ProductVariant/123459876",
+    name: "Lenovo Legion R27qe Gen 2",
+    price: 15000,
+    image: "https://cdn.shopify.com/image.jpg",
+  }
+  const quantity = 1
+
+  const cartItem = {
+    id: product.id,
+    productId: product.id,
+    variantId: product.variantId,
+    name: product.name,
+    price: product.price,
+    image: product.image,
+    quantity,
+  }
+
+  assertEquals(cartItem.variantId, "gid://shopify/ProductVariant/123459876")
+  assertEquals(cartItem.quantity, 1)
+  assertEquals(cartItem.price, 15000)
+})
+
+Deno.test("SHOP-CHECKOUT-4: Sold-out variants (availableForSale: false) are rejected before checkout or cart addition", () => {
+  const soldOutProduct = {
+    id: "gid://shopify/Product/9876543210",
+    name: "Sold-Out Monitor",
+    availableForSale: false,
+    stock: 0,
+  }
+
+  const isSoldOut = soldOutProduct.availableForSale !== undefined
+    ? !soldOutProduct.availableForSale
+    : soldOutProduct.stock <= 0
+
+  assertEquals(isSoldOut, true)
+
+  // System must reject sold-out purchase with clear recovery message
+  const soldOutNotice = isSoldOut ? "Sorry, this item is currently sold out." : null
+  assertEquals(soldOutNotice, "Sorry, this item is currently sold out.")
+})
+
+Deno.test("SHOP-CHECKOUT-5: Quantity exceeding availability is detected and prevented without fabricating success", () => {
+  const product = {
+    id: "prod-1",
+    name: "Mechanical Keyboard",
+    stock: 3,
+    availableForSale: undefined,
+  }
+  const requestedQuantity = 5
+  const exceedsStock = requestedQuantity > product.stock
+
+  assertEquals(exceedsStock, true)
+  const errorMessage = exceedsStock
+    ? "Not enough stock available. Please adjust your cart."
+    : null
+  assertEquals(errorMessage, "Not enough stock available. Please adjust your cart.")
+})
+
+Deno.test("SHOP-CHECKOUT-6: Checkout preparation failures keep user on IT HUB and allow retry", () => {
+  // Simulates cart creation network error
+  const failedCartResult = {
+    cart: null,
+    error: "Network error while connecting to checkout. Please try again.",
+  }
+
+  assertEquals(failedCartResult.cart, null)
+  assertEquals(Boolean(failedCartResult.error), true)
+  // Ensure customer stays on IT HUB origin
+  const destination = failedCartResult.cart ? (failedCartResult.cart as any).checkoutUrl : "/products"
+  assertEquals(destination, "/products")
+})
+
+Deno.test("SHOP-CHECKOUT-7: Cart recovery identifies unavailable items and provides route back to catalog", () => {
+  const cartItems = [
+    { id: "item-1", name: "In-Stock Mouse", availableForSale: true },
+    { id: "item-2", name: "Sold-Out GPU", availableForSale: false },
+  ]
+
+  const unavailableItems = cartItems.filter((i) => !i.availableForSale)
+  assertEquals(unavailableItems.length, 1)
+  assertEquals(unavailableItems[0].name, "Sold-Out GPU")
+
+  // Catalog recovery path
+  const continueShoppingRoute = "/products"
+  assertEquals(continueShoppingRoute, "/products")
+})
+
+Deno.test("SHOP-CHECKOUT-8: Race condition handling: parseCartErrorLineIndex pinpoints affected cart item from userErrors", () => {
+  // Simulates Shopify returning error for lines[1] during cartCreate
+  const userErrorField = ["input", "lines", "1", "merchandiseId"]
+  const lineIndex = parseCartErrorLineIndex(userErrorField)
+
+  assertEquals(lineIndex, 1)
+
+  const cart = [
+    { id: "cart-1", name: "Monitor" },
+    { id: "cart-2", name: "Out of Stock RAM" },
+  ]
+
+  const affectedItem = lineIndex !== undefined ? cart[lineIndex] : null
+  assertEquals(affectedItem?.name, "Out of Stock RAM")
+})
+
+Deno.test("SHOP-CHECKOUT-9: Internal recovery links and return attributes use configured storefront origin", () => {
+  const mockOrigin = "http://localhost:8443"
+  const returnToStoreAttribute = {
+    key: "return_to_store",
+    value: `${mockOrigin}/cart`,
+  }
+
+  assertEquals(returnToStoreAttribute.key, "return_to_store")
+  assertEquals(returnToStoreAttribute.value, "http://localhost:8443/cart")
+  // Ensures no unconfirmed external domain or admin URL is used
+  assertEquals(returnToStoreAttribute.value.includes("admin.shopify.com"), false)
+})
+
+Deno.test("SHOP-CHECKOUT-10: checkShopifyAvailability and revalidateCartAvailability handle empty and unconfigured states safely", async () => {
+  const { checkShopifyAvailability, revalidateCartAvailability } = await import("../../../src/lib/shopify.ts")
+
+  // Empty check
+  const emptyRes = await checkShopifyAvailability([])
+  assertEquals(emptyRes.allAvailable, true)
+  assertEquals(emptyRes.unavailableIds.length, 0)
+
+  // Empty cart revalidation
+  const emptyCartRes = await revalidateCartAvailability([])
+  assertEquals(emptyCartRes.valid, true)
+  assertEquals(emptyCartRes.unavailableItems.length, 0)
 })

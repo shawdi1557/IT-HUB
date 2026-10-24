@@ -42,7 +42,12 @@ import {
   offerHeadline,
   type Product,
 } from "../data/catalog"
-import { fetchShopifyProduct, shopifyConfig } from "../lib/shopify"
+import {
+  fetchShopifyProduct,
+  shopifyConfig,
+  createShopifyCart,
+  checkShopifyAvailability,
+} from "../lib/shopify"
 import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize"
 import ProductCard, { ProductImage } from "../components/ProductCard"
 import SellYourItem from "../components/SellYourItem"
@@ -663,6 +668,8 @@ export function ProductDetail() {
   const [formTitle, setFormTitle] = useState("")
   const [formComment, setFormComment] = useState("")
   const [formSubmitting, setFormSubmitting] = useState(false)
+  const [buyingNow, setBuyingNow] = useState(false)
+  const [buyNowError, setBuyNowError] = useState<string | null>(null)
 
   const product = useMemo(() => {
     if (!id) return directProduct
@@ -870,17 +877,100 @@ export function ProductDetail() {
         />
       </Page>
     )
-  const add = () =>
+  const isSoldOut =
+    product.availableForSale !== undefined
+      ? !product.availableForSale
+      : !product.stock || product.stock <= 0
+
+  const add = () => {
+    if (isSoldOut) {
+      store.notify("Sorry, this item is currently sold out.")
+      return
+    }
     store.addCart(
       {
         id: product.id,
         productId: product.id,
+        variantId: product.variantId,
         name: product.name,
         price: product.price,
         image: activeImage,
       },
       quantity,
     )
+  }
+
+  const handleBuyNow = async () => {
+    setBuyNowError(null)
+
+    if (isSoldOut) {
+      setBuyNowError("Sorry, this item is currently sold out.")
+      return
+    }
+
+    if (quantity < 1) {
+      setBuyNowError("Please select a valid quantity (at least 1).")
+      return
+    }
+
+    if (shopifyConfig.isConfigured) {
+      setBuyingNow(true)
+      try {
+        const variantId = product.variantId || product.id
+        const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`
+        const res = await createShopifyCart(
+          [
+            {
+              merchandiseId: variantId,
+              quantity,
+              attributes: [
+                {
+                  key: "return_to_store",
+                  value: returnUrl,
+                },
+              ],
+            },
+          ],
+          {
+            attributes: [
+              {
+                key: "return_to_store",
+                value: returnUrl,
+              },
+            ],
+          },
+        )
+
+        if (res.cart?.checkoutUrl) {
+          window.location.href = res.cart.checkoutUrl
+          return
+        }
+
+        const rawError =
+          res.error || "Unable to initiate Shopify checkout. Please try again."
+        const isStockIssue =
+          rawError.toLowerCase().includes("sold out") ||
+          rawError.toLowerCase().includes("not available") ||
+          rawError.toLowerCase().includes("out of stock")
+
+        setBuyNowError(
+          isStockIssue
+            ? "Sorry, this item is currently sold out or the requested quantity is unavailable."
+            : rawError,
+        )
+      } catch (err: any) {
+        setBuyNowError(
+          err.message ||
+            "Network error while connecting to checkout. Please try again.",
+        )
+      } finally {
+        setBuyingNow(false)
+      }
+    } else {
+      add()
+      navigate("/checkout")
+    }
+  }
   return (
     <Page>
       <div className="mb-8 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1112,15 +1202,49 @@ export function ProductDetail() {
           </div>
           <Button
             variant="secondary"
-            disabled={product.availableForSale !== undefined ? !product.availableForSale : (!product.stock || product.stock <= 0)}
-            onClick={() => {
-              add()
-              navigate("/checkout")
-            }}
+            disabled={buyingNow || isSoldOut}
+            onClick={handleBuyNow}
             className="mt-3 w-full"
           >
-            Buy now <ArrowRight size={16} />
+            {buyingNow ? (
+              <>
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                Preparing checkout...
+              </>
+            ) : (
+              <>
+                Buy now <ArrowRight size={16} />
+              </>
+            )}
           </Button>
+          {buyNowError && (
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50/90 p-3.5 text-xs text-red-900 shadow-xs">
+              <div className="flex items-start gap-2">
+                <AlertTriangle
+                  size={15}
+                  className="text-red-600 shrink-0 mt-0.5"
+                />
+                <div className="flex-1 space-y-1.5">
+                  <p className="font-semibold">{buyNowError}</p>
+                  <div className="flex items-center gap-3 pt-0.5">
+                    <Link
+                      to="/products"
+                      className="font-medium text-red-700 underline hover:text-red-900"
+                    >
+                      Continue shopping →
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setBuyNowError(null)}
+                      className="font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="mt-6 space-y-3 text-xs text-muted-foreground">
             <p className="flex gap-2">
               <Truck size={15} className="text-primary" /> All Kerala delivery

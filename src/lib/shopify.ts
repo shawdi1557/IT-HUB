@@ -632,6 +632,38 @@ export interface ShopifyCartSnapshot {
   currency: string
 }
 
+export interface ShopifyCartUserError {
+  field?: string[]
+  message: string
+  code?: string
+  lineIndex?: number
+}
+
+export interface CreateShopifyCartOptions {
+  attributes?: Array<{ key: string; value: string }>
+  note?: string
+}
+
+export interface CreateShopifyCartResult {
+  cart: ShopifyCartSnapshot | null
+  error?: string
+  userErrors?: ShopifyCartUserError[]
+}
+
+/**
+ * Extracts the 0-indexed line position from a Shopify cart error field path.
+ * e.g. ["input", "lines", "0", "merchandiseId"] -> 0
+ */
+export function parseCartErrorLineIndex(field?: string[]): number | undefined {
+  if (!field || !Array.isArray(field)) return undefined
+  const linesIdx = field.findIndex((f) => f === "lines")
+  if (linesIdx !== -1 && field[linesIdx + 1] !== undefined) {
+    const num = parseInt(field[linesIdx + 1], 10)
+    if (!isNaN(num)) return num
+  }
+  return undefined
+}
+
 const CART_CREATE_MUTATION = `
   mutation cartCreate($input: CartInput!) {
     cartCreate(input: $input) {
@@ -653,6 +685,7 @@ const CART_CREATE_MUTATION = `
       userErrors {
         field
         message
+        code
       }
     }
   }
@@ -660,10 +693,12 @@ const CART_CREATE_MUTATION = `
 
 /**
  * Creates a native Shopify cart with line items, returning authoritative checkout URL.
+ * Automatically injects return-to-store attribute for seamless navigation back to IT HUB.
  */
 export async function createShopifyCart(
   lines: ShopifyCartLineInput[],
-): Promise<{ cart: ShopifyCartSnapshot | null; error?: string }> {
+  options?: CreateShopifyCartOptions,
+): Promise<CreateShopifyCartResult> {
   if (!shopifyConfig.isConfigured) {
     return { cart: null, error: "Shopify Storefront is not configured." }
   }
@@ -674,6 +709,32 @@ export async function createShopifyCart(
     quantity: line.quantity,
     attributes: line.attributes || [],
   }))
+
+  // Construct return_to_store attribute pointing to current IT HUB origin if browser window exists
+  const defaultAttributes: Array<{ key: string; value: string }> = []
+  if (typeof window !== "undefined" && window.location?.origin) {
+    defaultAttributes.push({
+      key: "return_to_store",
+      value: `${window.location.origin}/cart`,
+    })
+  }
+
+  const mergedAttributes = [
+    ...defaultAttributes,
+    ...(options?.attributes || []),
+  ]
+
+  const cartInput: Record<string, any> = {
+    lines: formattedLines,
+  }
+
+  if (mergedAttributes.length > 0) {
+    cartInput.attributes = mergedAttributes
+  }
+
+  if (options?.note) {
+    cartInput.note = options.note
+  }
 
   const result = await storefrontFetch<{
     cartCreate: {
@@ -686,9 +747,9 @@ export async function createShopifyCart(
           totalAmount: { amount: string; currencyCode: string }
         }
       } | null
-      userErrors: Array<{ field: string[]; message: string }>
+      userErrors: Array<{ field: string[]; message: string; code?: string }>
     }
-  }>(CART_CREATE_MUTATION, { input: { lines: formattedLines } })
+  }>(CART_CREATE_MUTATION, { input: cartInput })
 
   if (!result.ok || !result.data?.cartCreate) {
     return { cart: null, error: result.error || "Failed to create Shopify cart." }
@@ -696,8 +757,19 @@ export async function createShopifyCart(
 
   const { cart, userErrors } = result.data.cartCreate
 
-  if (userErrors && userErrors.length > 0) {
-    return { cart: null, error: userErrors.map((e) => e.message).join("; ") }
+  const parsedUserErrors: ShopifyCartUserError[] = (userErrors || []).map((e) => ({
+    field: e.field,
+    message: e.message,
+    code: e.code,
+    lineIndex: parseCartErrorLineIndex(e.field),
+  }))
+
+  if (parsedUserErrors.length > 0) {
+    return {
+      cart: null,
+      error: parsedUserErrors.map((e) => e.message).join("; "),
+      userErrors: parsedUserErrors,
+    }
   }
 
   if (!cart) {
@@ -713,6 +785,201 @@ export async function createShopifyCart(
       total: parseFloat(cart.cost.totalAmount.amount),
       currency: cart.cost.totalAmount.currencyCode,
     },
+  }
+}
+
+export interface VariantAvailabilityInfo {
+  id: string
+  availableForSale: boolean
+  title?: string
+  productTitle?: string
+  productHandle?: string
+}
+
+export interface AvailabilityCheckResult {
+  availability: Record<string, VariantAvailabilityInfo>
+  allAvailable: boolean
+  unavailableIds: string[]
+  error?: string
+}
+
+const CHECK_AVAILABILITY_QUERY = `
+  query checkVariantsAvailability($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on ProductVariant {
+        id
+        availableForSale
+        title
+        product {
+          id
+          title
+          handle
+          availableForSale
+        }
+      }
+      ... on Product {
+        id
+        availableForSale
+        title
+        handle
+        variants(first: 20) {
+          edges {
+            node {
+              id
+              availableForSale
+              title
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
+/**
+ * Checks real-time availability of one or more variants or products via Storefront API.
+ * Uses public availableForSale field requiring zero privileged tokens.
+ */
+export async function checkShopifyAvailability(
+  ids: string[],
+): Promise<AvailabilityCheckResult> {
+  if (!shopifyConfig.isConfigured || !ids || ids.length === 0) {
+    return {
+      availability: {},
+      allAvailable: true,
+      unavailableIds: [],
+      error: !shopifyConfig.isConfigured ? "Shopify Storefront is not configured." : undefined,
+    }
+  }
+
+  const gids = Array.from(
+    new Set(
+      ids.map((id) => (id.startsWith("gid://shopify/") ? id : toVariantGid(id))),
+    ),
+  )
+
+  const result = await storefrontFetch<{ nodes: Array<any | null> }>(
+    CHECK_AVAILABILITY_QUERY,
+    { ids: gids },
+  )
+
+  if (!result.ok || !result.data?.nodes) {
+    return {
+      availability: {},
+      allAvailable: true,
+      unavailableIds: [],
+      error: result.error || "Failed to check inventory availability.",
+    }
+  }
+
+  const availabilityMap: Record<string, VariantAvailabilityInfo> = {}
+  const unavailable: string[] = []
+
+  result.data.nodes.forEach((node, index) => {
+    if (!node) {
+      const queriedId = gids[index]
+      availabilityMap[queriedId] = {
+        id: queriedId,
+        availableForSale: false,
+      }
+      unavailable.push(queriedId)
+      return
+    }
+
+    if (node.product !== undefined || node.variants === undefined) {
+      // ProductVariant node
+      const isAvailable = Boolean(
+        node.availableForSale && (node.product?.availableForSale !== false),
+      )
+      availabilityMap[node.id] = {
+        id: node.id,
+        availableForSale: isAvailable,
+        title: node.title,
+        productTitle: node.product?.title,
+        productHandle: node.product?.handle,
+      }
+      if (!isAvailable) {
+        unavailable.push(node.id)
+      }
+    } else {
+      // Product node
+      const isAvailable = Boolean(node.availableForSale)
+      availabilityMap[node.id] = {
+        id: node.id,
+        availableForSale: isAvailable,
+        title: node.title,
+        productTitle: node.title,
+        productHandle: node.handle,
+      }
+      if (!isAvailable) {
+        unavailable.push(node.id)
+      }
+    }
+  })
+
+  return {
+    availability: availabilityMap,
+    allAvailable: unavailable.length === 0,
+    unavailableIds: unavailable,
+  }
+}
+
+export interface CartAvailabilityRevalidation {
+  valid: boolean
+  unavailableItems: Array<{
+    cartItemId: string
+    name: string
+    variantId?: string
+    reason: string
+  }>
+}
+
+/**
+ * Revalidates availability for an array of cart items before checkout or during cart view.
+ */
+export async function revalidateCartAvailability(
+  cartItems: Array<{
+    id: string
+    name: string
+    productId?: string
+    variantId?: string
+    quantity: number
+  }>,
+): Promise<CartAvailabilityRevalidation> {
+  if (!shopifyConfig.isConfigured || !cartItems || cartItems.length === 0) {
+    return { valid: true, unavailableItems: [] }
+  }
+
+  const merchandiseIds = cartItems
+    .map((item) => item.variantId || item.productId || item.id)
+    .filter(Boolean)
+
+  const check = await checkShopifyAvailability(merchandiseIds)
+
+  if (check.allAvailable) {
+    return { valid: true, unavailableItems: [] }
+  }
+
+  const unavailableItems: CartAvailabilityRevalidation["unavailableItems"] = []
+
+  for (const item of cartItems) {
+    const rawId = item.variantId || item.productId || item.id
+    const gid = toVariantGid(rawId)
+    const info = check.availability[gid] || check.availability[rawId]
+
+    if (info && !info.availableForSale) {
+      unavailableItems.push({
+        cartItemId: item.id,
+        name: item.name,
+        variantId: rawId,
+        reason: "Item is currently sold out.",
+      })
+    }
+  }
+
+  return {
+    valid: unavailableItems.length === 0,
+    unavailableItems,
   }
 }
 
