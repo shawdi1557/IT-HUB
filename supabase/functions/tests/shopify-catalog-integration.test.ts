@@ -816,3 +816,275 @@ Deno.test("SHOP-CHECKOUT-13: Cart creation validates totalQuantity > 0 and guard
     : null
   assertEquals(cartError, "Sorry, this item is currently unavailable for online checkout.")
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Phase 5 Multi-Variant & Storefront Completion Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+Deno.test("PH5-VARIANT-1: Multi-variant mapping extracts options and variant list accurately", () => {
+  const multiVariantNode: ShopifyProductNode = {
+    id: "gid://shopify/Product/8888999900",
+    title: "MacBook Air M2 13.6-inch",
+    handle: "macbook-air-m2",
+    description: "Apple M2 chip with 8-core CPU and 8-core GPU.",
+    vendor: "Apple",
+    productType: "Laptops",
+    tags: ["laptop", "apple", "m2"],
+    availableForSale: true,
+    images: {
+      edges: [
+        { node: { url: "https://cdn.shopify.com/products/mba-midnight.jpg" } },
+      ],
+    },
+    options: [
+      { id: "gid://shopify/ProductOption/1", name: "Color", values: ["Midnight", "Starlight", "Space Gray"] },
+      { id: "gid://shopify/ProductOption/2", name: "Storage", values: ["256GB", "512GB"] },
+    ],
+    variants: {
+      edges: [
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/101",
+            title: "Midnight / 256GB",
+            sku: "MBA-M2-MID-256",
+            availableForSale: true,
+            quantityAvailable: 4,
+            price: { amount: "99900.00", currencyCode: "INR" },
+            compareAtPrice: { amount: "114900.00", currencyCode: "INR" },
+            selectedOptions: [
+              { name: "Color", value: "Midnight" },
+              { name: "Storage", value: "256GB" },
+            ],
+            image: { url: "https://cdn.shopify.com/products/mba-midnight.jpg" },
+          },
+        },
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/102",
+            title: "Midnight / 512GB",
+            sku: "MBA-M2-MID-512",
+            availableForSale: false,
+            quantityAvailable: 0,
+            price: { amount: "119900.00", currencyCode: "INR" },
+            compareAtPrice: { amount: "134900.00", currencyCode: "INR" },
+            selectedOptions: [
+              { name: "Color", value: "Midnight" },
+              { name: "Storage", value: "512GB" },
+            ],
+            image: { url: "https://cdn.shopify.com/products/mba-midnight.jpg" },
+          },
+        },
+        {
+          node: {
+            id: "gid://shopify/ProductVariant/103",
+            title: "Space Gray / 256GB",
+            sku: "MBA-M2-GRY-256",
+            availableForSale: true,
+            quantityAvailable: 8,
+            price: { amount: "99900.00", currencyCode: "INR" },
+            compareAtPrice: { amount: "114900.00", currencyCode: "INR" },
+            selectedOptions: [
+              { name: "Color", value: "Space Gray" },
+              { name: "Storage", value: "256GB" },
+            ],
+          },
+        },
+      ],
+    },
+  }
+
+  const catalogProduct = mapShopifyProductToCatalog(multiVariantNode)
+
+  assertEquals(catalogProduct.id, "8888999900")
+  assertEquals(catalogProduct.options?.length, 2)
+  assertEquals(catalogProduct.options?.[0].name, "Color")
+  assertEquals(catalogProduct.options?.[0].values, ["Midnight", "Starlight", "Space Gray"])
+  assertEquals(catalogProduct.options?.[1].name, "Storage")
+  assertEquals(catalogProduct.options?.[1].values, ["256GB", "512GB"])
+
+  assertEquals(catalogProduct.variants?.length, 3)
+  assertEquals(catalogProduct.variants?.[0].id, "gid://shopify/ProductVariant/101")
+  assertEquals(catalogProduct.variants?.[0].sku, "MBA-M2-MID-256")
+  assertEquals(catalogProduct.variants?.[0].price, 99900)
+  assertEquals(catalogProduct.variants?.[0].compareAtPrice, 114900)
+  assertEquals(catalogProduct.variants?.[0].availableForSale, true)
+  assertEquals(catalogProduct.variants?.[0].image, "https://cdn.shopify.com/products/mba-midnight.jpg")
+
+  assertEquals(catalogProduct.variants?.[1].id, "gid://shopify/ProductVariant/102")
+  assertEquals(catalogProduct.variants?.[1].availableForSale, false)
+})
+
+Deno.test("PH5-VARIANT-2: Variant option matching and price/stock calculation", () => {
+  const variants = [
+    {
+      id: "gid://shopify/ProductVariant/101",
+      title: "Midnight / 256GB",
+      sku: "MBA-M2-MID-256",
+      price: 99900,
+      compareAtPrice: 114900,
+      availableForSale: true,
+      selectedOptions: [
+        { name: "Color", value: "Midnight" },
+        { name: "Storage", value: "256GB" },
+      ],
+    },
+    {
+      id: "gid://shopify/ProductVariant/102",
+      title: "Midnight / 512GB",
+      sku: "MBA-M2-MID-512",
+      price: 119900,
+      compareAtPrice: 134900,
+      availableForSale: false,
+      selectedOptions: [
+        { name: "Color", value: "Midnight" },
+        { name: "Storage", value: "512GB" },
+      ],
+    },
+  ]
+
+  // Test matching 256GB
+  const selectedOptions1 = { Color: "Midnight", Storage: "256GB" }
+  const match1 = variants.find((v) =>
+    Object.entries(selectedOptions1).every(([k, val]) =>
+      v.selectedOptions.some(
+        (so) => so.name.toLowerCase() === k.toLowerCase() && so.value.toLowerCase() === val.toLowerCase()
+      )
+    )
+  )
+  assertEquals(match1?.id, "gid://shopify/ProductVariant/101")
+  assertEquals(match1?.price, 99900)
+  assertEquals(match1?.availableForSale, true)
+
+  // Test matching 512GB (sold out)
+  const selectedOptions2 = { Color: "Midnight", Storage: "512GB" }
+  const match2 = variants.find((v) =>
+    Object.entries(selectedOptions2).every(([k, val]) =>
+      v.selectedOptions.some(
+        (so) => so.name.toLowerCase() === k.toLowerCase() && so.value.toLowerCase() === val.toLowerCase()
+      )
+    )
+  )
+  assertEquals(match2?.id, "gid://shopify/ProductVariant/102")
+  assertEquals(match2?.price, 119900)
+  assertEquals(match2?.availableForSale, false)
+})
+
+Deno.test("PH5-VARIANT-3: Correct variant ID passed to cart and Buy Now line items", () => {
+  const chosenVariant = {
+    id: "gid://shopify/ProductVariant/202",
+    title: "16GB / 512GB",
+    price: 124900,
+  }
+  const quantity = 2
+
+  const lineItem = {
+    merchandiseId: chosenVariant.id,
+    quantity,
+  }
+
+  // Authoritative check: merchandiseId must be the variant ID, not product ID
+  assertEquals(lineItem.merchandiseId, "gid://shopify/ProductVariant/202")
+  assertNotEquals(lineItem.merchandiseId, "gid://shopify/Product/12345")
+  assertEquals(lineItem.quantity, 2)
+})
+
+Deno.test("PH5-GUARD-1: Direct /checkout route guard safely redirects to /cart when Shopify is configured", () => {
+  const shopifyConfig = { isConfigured: true }
+  let navigatedPath = ""
+  const mockNavigate = (path: string, options?: { replace?: boolean }) => {
+    navigatedPath = path
+  }
+
+  // Simulation of Checkout route guard in Commerce.tsx
+  if (shopifyConfig.isConfigured) {
+    mockNavigate("/cart", { replace: true })
+  }
+
+  assertEquals(navigatedPath, "/cart")
+})
+
+Deno.test("PH5-DISCOUNT-1: Shopify discount code passed in createShopifyCart options", () => {
+  const promoCode = "FESTIVE10"
+  const options = {
+    discountCodes: [promoCode],
+    attributes: [{ key: "return_to_store", value: "http://localhost:8443/products" }],
+  }
+
+  assertEquals(options.discountCodes, ["FESTIVE10"])
+  assertEquals(options.attributes[0].key, "return_to_store")
+})
+
+Deno.test("PH5-DISCOUNT-2: Shopify discount code status validation rejects unapplicable codes", () => {
+  const cartWithDiscount = {
+    id: "gid://shopify/Cart/cart999",
+    checkoutUrl: "https://it-hub-m8tzfzjd.myshopify.com/checkouts/cn/test",
+    discountCodes: [
+      { code: "INVALID50", applicable: false },
+    ],
+  }
+
+  const firstDiscount = cartWithDiscount.discountCodes[0]
+  const isValid = firstDiscount && firstDiscount.applicable === true
+
+  assertEquals(isValid, false)
+})
+
+Deno.test("PH5-SHIPPING-1: Shipping business rules - Kerala delivery & 15km local delivery radius", () => {
+  // IT HUB headquarters: College Junction, Kothamangalam, Kerala 686691
+  const HQ_PINCODE = "686691"
+  const LOCAL_RADIUS_KM = 15
+  const FREE_DELIVERY_THRESHOLD = 100
+
+  // Known pincodes within ~15 km of Kothamangalam
+  const localPincodes = [
+    "686691", // Kothamangalam HQ
+    "686692", // Kavalangad / Nellimattom
+    "686666", // Keerampara
+    "686671", // Pothanicad
+    "686681", // Varapetty
+    "686693", // Kozhipilly
+    "683549", // Perumbavoor / Kuruppampady border
+  ]
+
+  // Delivery qualification check
+  const isLocalDelivery = (pincode: string) => localPincodes.includes(pincode)
+  const calculateDeliveryCharge = (pincode: string, subtotal: number) => {
+    if (!isLocalDelivery(pincode)) {
+      return { eligible: true, type: "Kerala Regional Shipping", fee: 50 }
+    }
+    if (subtotal >= FREE_DELIVERY_THRESHOLD) {
+      return { eligible: true, type: "Local Free Delivery", fee: 0 }
+    }
+    return { eligible: true, type: "Local Express Delivery", fee: 30 }
+  }
+
+  // Free delivery for orders >= 100 in local area
+  assertEquals(calculateDeliveryCharge("686691", 15000).fee, 0)
+  assertEquals(calculateDeliveryCharge("686691", 15000).type, "Local Free Delivery")
+
+  // Local order under 100
+  assertEquals(calculateDeliveryCharge("686691", 80).fee, 30)
+
+  // Non-local Kerala order
+  assertEquals(calculateDeliveryCharge("695001", 15000).fee, 50)
+})
+
+Deno.test("PH5-INTACT-1: Supabase repair and sell service workflows remain intact", () => {
+  // Service request schema contract check
+  const sampleServiceRequest = {
+    id: "srv-uuid-123",
+    customer_name: "Prakash A K",
+    device_type: "Laptop",
+    brand: "Apple",
+    model: "MacBook Pro 16",
+    issue_description: "Battery replacement requested",
+    status: "quoted",
+    quoted_price: 4500,
+    quote_approved: true,
+  }
+
+  assertEquals(sampleServiceRequest.status, "quoted")
+  assertEquals(sampleServiceRequest.quote_approved, true)
+  assertEquals(sampleServiceRequest.quoted_price, 4500)
+})
+

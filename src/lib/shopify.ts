@@ -303,6 +303,11 @@ const PRODUCTS_QUERY = `
           productType
           tags
           availableForSale
+          options {
+            id
+            name
+            values
+          }
           featuredImage {
             url
             altText
@@ -457,6 +462,11 @@ export async function fetchShopifyProductByHandle(
         productType
         tags
         availableForSale
+        options {
+          id
+          name
+          values
+        }
         featuredImage {
           url
           altText
@@ -483,6 +493,10 @@ export async function fetchShopifyProductByHandle(
               compareAtPrice {
                 amount
                 currencyCode
+              }
+              selectedOptions {
+                name
+                value
               }
               image {
                 url
@@ -543,6 +557,11 @@ export async function fetchShopifyProductById(
           productType
           tags
           availableForSale
+          options {
+            id
+            name
+            values
+          }
           featuredImage {
             url
             altText
@@ -569,6 +588,10 @@ export async function fetchShopifyProductById(
                 compareAtPrice {
                   amount
                   currencyCode
+                }
+                selectedOptions {
+                  name
+                  value
                 }
                 image {
                   url
@@ -630,6 +653,11 @@ export interface ShopifyCartLineInput {
   attributes?: Array<{ key: string; value: string }>
 }
 
+export interface ShopifyCartDiscountCode {
+  code: string
+  applicable: boolean
+}
+
 export interface ShopifyCartSnapshot {
   id: string
   checkoutUrl: string
@@ -637,6 +665,7 @@ export interface ShopifyCartSnapshot {
   subtotal: number
   total: number
   currency: string
+  discountCodes?: ShopifyCartDiscountCode[]
 }
 
 export interface ShopifyCartUserError {
@@ -649,6 +678,7 @@ export interface ShopifyCartUserError {
 export interface CreateShopifyCartOptions {
   attributes?: Array<{ key: string; value: string }>
   note?: string
+  discountCodes?: string[]
 }
 
 export interface CreateShopifyCartResult {
@@ -678,6 +708,10 @@ const CART_CREATE_MUTATION = `
         id
         checkoutUrl
         totalQuantity
+        discountCodes {
+          code
+          applicable
+        }
         cost {
           subtotalAmount {
             amount
@@ -757,12 +791,17 @@ export async function createShopifyCart(
     cartInput.note = options.note
   }
 
+  if (options?.discountCodes && options.discountCodes.length > 0) {
+    cartInput.discountCodes = options.discountCodes
+  }
+
   const result = await storefrontFetch<{
     cartCreate: {
       cart: {
         id: string
         checkoutUrl: string
         totalQuantity: number
+        discountCodes?: Array<{ code: string; applicable: boolean }>
         cost: {
           subtotalAmount: { amount: string; currencyCode: string }
           totalAmount: { amount: string; currencyCode: string }
@@ -813,6 +852,109 @@ export async function createShopifyCart(
       subtotal: parseFloat(cart.cost.subtotalAmount.amount),
       total: parseFloat(cart.cost.totalAmount.amount),
       currency: cart.cost.totalAmount.currencyCode,
+      discountCodes: cart.discountCodes || [],
+    },
+  }
+}
+
+const CART_DISCOUNT_CODES_UPDATE_MUTATION = `
+  mutation cartDiscountCodesUpdate($cartId: ID!, $discountCodes: [String!]) {
+    cartDiscountCodesUpdate(cartId: $cartId, discountCodes: $discountCodes) {
+      cart {
+        id
+        checkoutUrl
+        totalQuantity
+        discountCodes {
+          code
+          applicable
+        }
+        cost {
+          subtotalAmount {
+            amount
+            currencyCode
+          }
+          totalAmount {
+            amount
+            currencyCode
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`
+
+/**
+ * Updates discount codes applied to an active Shopify cart.
+ * Authoritative: verifies discount application directly against Shopify.
+ */
+export async function updateShopifyCartDiscountCodes(
+  cartId: string,
+  discountCodes: string[],
+): Promise<CreateShopifyCartResult> {
+  if (!shopifyConfig.isConfigured || !cartId) {
+    return {
+      cart: null,
+      error: "Shopify Storefront is not configured or invalid cartId.",
+    }
+  }
+
+  const result = await storefrontFetch<{
+    cartDiscountCodesUpdate: {
+      cart: {
+        id: string
+        checkoutUrl: string
+        totalQuantity: number
+        discountCodes?: Array<{ code: string; applicable: boolean }>
+        cost: {
+          subtotalAmount: { amount: string; currencyCode: string }
+          totalAmount: { amount: string; currencyCode: string }
+        }
+      } | null
+      userErrors: Array<{ field: string[]; message: string; code?: string }>
+    }
+  }>(CART_DISCOUNT_CODES_UPDATE_MUTATION, { cartId, discountCodes })
+
+  if (!result.ok || !result.data?.cartDiscountCodesUpdate) {
+    return {
+      cart: null,
+      error: result.error || "Failed to update discount codes on Shopify cart.",
+    }
+  }
+
+  const { cart, userErrors } = result.data.cartDiscountCodesUpdate
+
+  const parsedUserErrors: ShopifyCartUserError[] = (userErrors || []).map((e) => ({
+    field: e.field,
+    message: e.message,
+    code: e.code,
+  }))
+
+  if (parsedUserErrors.length > 0) {
+    return {
+      cart: null,
+      error: parsedUserErrors.map((e) => e.message).join("; "),
+      userErrors: parsedUserErrors,
+    }
+  }
+
+  if (!cart) {
+    return { cart: null, error: "Empty cart response from Shopify." }
+  }
+
+  return {
+    cart: {
+      id: cart.id,
+      checkoutUrl: cart.checkoutUrl,
+      totalQuantity: cart.totalQuantity,
+      subtotal: parseFloat(cart.cost.subtotalAmount.amount),
+      total: parseFloat(cart.cost.totalAmount.amount),
+      currency: cart.cost.totalAmount.currencyCode,
+      discountCodes: cart.discountCodes || [],
     },
   }
 }

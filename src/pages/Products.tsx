@@ -878,10 +878,139 @@ export function ProductDetail() {
         />
       </Page>
     )
-  const isSoldOut =
-    product.availableForSale !== undefined
+  // Multi-variant state & resolution
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
+
+  // Initialize selectedOptions when product changes
+  useEffect(() => {
+    if (!product) return
+    if (product.variants && product.variants.length > 0) {
+      const preferredVariant =
+        product.variants.find((v) => v.availableForSale) || product.variants[0]
+      const map: Record<string, string> = {}
+      if (preferredVariant?.selectedOptions) {
+        for (const opt of preferredVariant.selectedOptions) {
+          map[opt.name] = opt.value
+        }
+      }
+      setSelectedOptions(map)
+    } else {
+      setSelectedOptions({})
+    }
+  }, [product?.id, product?.handle])
+
+  // Resolve active variant from selectedOptions
+  const activeVariant = useMemo(() => {
+    if (!product?.variants || product.variants.length === 0) return null
+    const optionKeys = Object.keys(selectedOptions)
+    if (optionKeys.length === 0) return product.variants[0] || null
+
+    return (
+      product.variants.find((variant) => {
+        return optionKeys.every((key) => {
+          const matching = variant.selectedOptions.find(
+            (so) => so.name.toLowerCase() === key.toLowerCase(),
+          )
+          return (
+            matching &&
+            matching.value.toLowerCase() === selectedOptions[key].toLowerCase()
+          )
+        })
+      }) || product.variants[0]
+    )
+  }, [product?.variants, selectedOptions])
+
+  // Sync image when active variant specifies an image
+  useEffect(() => {
+    if (activeVariant?.image) {
+      const idx = allImages.findIndex((img) => img === activeVariant.image)
+      if (idx !== -1) {
+        setActiveImageIndex(idx)
+      }
+    }
+  }, [activeVariant?.image, allImages])
+
+  const activePrice = activeVariant ? activeVariant.price : product.price
+  const activeOriginal = activeVariant
+    ? (activeVariant.compareAtPrice && activeVariant.compareAtPrice > activeVariant.price
+        ? activeVariant.compareAtPrice
+        : activeVariant.price)
+    : product.original
+  const activeSku = activeVariant?.sku || product.sku
+  const isSoldOut = activeVariant
+    ? !activeVariant.availableForSale
+    : product.availableForSale !== undefined
       ? !product.availableForSale
       : !product.stock || product.stock <= 0
+  const selectedVariantId = activeVariant?.id || product.variantId
+
+  // Option compatibility and availability checks
+  const getOptionValueAvailability = (optionName: string, optionValue: string) => {
+    if (!product?.variants) return { exists: false, available: false }
+    const matchingVariants = product.variants.filter((v) => {
+      const hasThisValue = v.selectedOptions.some(
+        (so) =>
+          so.name.toLowerCase() === optionName.toLowerCase() &&
+          so.value.toLowerCase() === optionValue.toLowerCase(),
+      )
+      if (!hasThisValue) return false
+      return Object.entries(selectedOptions).every(([k, vVal]) => {
+        if (k.toLowerCase() === optionName.toLowerCase()) return true
+        const match = v.selectedOptions.find(
+          (so) => so.name.toLowerCase() === k.toLowerCase(),
+        )
+        return match ? match.value.toLowerCase() === vVal.toLowerCase() : true
+      })
+    })
+
+    if (matchingVariants.length === 0) {
+      const anyExists = product.variants.some((v) =>
+        v.selectedOptions.some(
+          (so) =>
+            so.name.toLowerCase() === optionName.toLowerCase() &&
+            so.value.toLowerCase() === optionValue.toLowerCase(),
+        ),
+      )
+      return { exists: anyExists, available: false }
+    }
+
+    return {
+      exists: true,
+      available: matchingVariants.some((v) => v.availableForSale),
+    }
+  }
+
+  const handleSelectOption = (name: string, value: string) => {
+    if (!product?.variants) return
+    const nextSelections = { ...selectedOptions, [name]: value }
+    const exactMatch = product.variants.find((v) =>
+      Object.entries(nextSelections).every(([k, val]) =>
+        v.selectedOptions.some(
+          (so) =>
+            so.name.toLowerCase() === k.toLowerCase() &&
+            so.value.toLowerCase() === val.toLowerCase(),
+        ),
+      ),
+    )
+    if (exactMatch) {
+      setSelectedOptions(nextSelections)
+      return
+    }
+    const fallbackVariant = product.variants.find((v) =>
+      v.selectedOptions.some(
+        (so) =>
+          so.name.toLowerCase() === name.toLowerCase() &&
+          so.value.toLowerCase() === value.toLowerCase(),
+      ),
+    )
+    if (fallbackVariant) {
+      const newMap: Record<string, string> = {}
+      fallbackVariant.selectedOptions.forEach((so) => {
+        newMap[so.name] = so.value
+      })
+      setSelectedOptions(newMap)
+    }
+  }
 
   const add = () => {
     if (isSoldOut) {
@@ -890,11 +1019,16 @@ export function ProductDetail() {
     }
     store.addCart(
       {
-        id: product.id,
+        id: activeVariant?.id || product.id,
         productId: product.id,
-        variantId: product.variantId,
-        name: product.name,
-        price: product.price,
+        variantId: selectedVariantId,
+        name:
+          activeVariant &&
+          activeVariant.title &&
+          activeVariant.title !== "Default Title"
+            ? `${product.name} - ${activeVariant.title}`
+            : product.name,
+        price: activePrice,
         image: activeImage,
       },
       quantity,
@@ -917,7 +1051,7 @@ export function ProductDetail() {
     if (shopifyConfig.isConfigured) {
       setBuyingNow(true)
       try {
-        let variantId = product.variantId
+        let variantId = selectedVariantId
         if (!variantId && (product.handle || product.id)) {
           const fresh = await fetchShopifyProduct(product.handle || product.id)
           if (fresh.product?.variantId) {
@@ -926,7 +1060,9 @@ export function ProductDetail() {
         }
 
         if (!variantId) {
-          setBuyNowError("Unable to resolve Shopify product variant for checkout. Please refresh the page.")
+          setBuyNowError(
+            "Unable to resolve Shopify product variant for checkout. Please refresh the page.",
+          )
           setBuyingNow(false)
           return
         }
@@ -1098,7 +1234,8 @@ export function ProductDetail() {
           </button>
           {(() => {
             const deal = bestOffer(store.offers, product)
-            const shown = deal ? deal.price : product.price
+            const shown = deal ? deal.price : activePrice
+            const originalPrice = activeOriginal > shown ? activeOriginal : 0
             return (
               <div className="my-6">
                 {deal && (
@@ -1113,20 +1250,20 @@ export function ProductDetail() {
                   </p>
                   <div className="flex flex-wrap items-center gap-3">
                     <strong className="text-3xl">{money(shown)}</strong>
-                    {product.original > shown && (
+                    {originalPrice > shown && (
                       <Badge tone="green">
-                        {Math.round((1 - shown / product.original) * 100)}% OFF
+                        {Math.round((1 - shown / originalPrice) * 100)}% OFF
                       </Badge>
                     )}
                   </div>
-                  {product.original > shown && (
+                  {originalPrice > shown && (
                     <p className="text-sm text-muted-foreground">
                       MRP{" "}
                       <span className="line-through">
-                        {money(product.original)}
+                        {money(originalPrice)}
                       </span>
                       <span className="ml-2 font-semibold text-emerald-700">
-                        You save {money(product.original - shown)}
+                        You save {money(originalPrice - shown)}
                       </span>
                     </p>
                   )}
@@ -1139,26 +1276,34 @@ export function ProductDetail() {
           })()}
           <Badge
             tone={
-              product.availableForSale !== undefined
-                ? product.availableForSale
+              activeVariant
+                ? activeVariant.availableForSale
                   ? "green"
                   : "gray"
-                : product.stock > 5
-                  ? "green"
-                  : product.stock > 0
-                    ? "amber"
+                : product.availableForSale !== undefined
+                  ? product.availableForSale
+                    ? "green"
                     : "gray"
+                  : product.stock > 5
+                    ? "green"
+                    : product.stock > 0
+                      ? "amber"
+                      : "gray"
             }
           >
-            {product.availableForSale !== undefined
-              ? product.availableForSale
+            {activeVariant
+              ? activeVariant.availableForSale
                 ? "In stock"
                 : "Currently Out of Stock"
-              : product.stock > 5
-                ? `In stock · ${product.stock} available`
-                : product.stock > 0
-                  ? `Only ${product.stock} left in stock!`
-                  : "Out of stock"}
+              : product.availableForSale !== undefined
+                ? product.availableForSale
+                  ? "In stock"
+                  : "Currently Out of Stock"
+                : product.stock > 5
+                  ? `In stock · ${product.stock} available`
+                  : product.stock > 0
+                    ? `Only ${product.stock} left in stock!`
+                    : "Out of stock"}
           </Badge>
           {product.secondHand && (
             <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
@@ -1176,22 +1321,81 @@ export function ProductDetail() {
               </p>
             </div>
           )}
+          {/* Multi-Variant Selector */}
+          {product.options && product.options.length > 0 && product.variants && product.variants.length > 1 && (
+            <div className="my-5 space-y-4 rounded-xl border border-border/80 bg-secondary/30 p-4">
+              {product.options.map((option) => {
+                const currentSelected = selectedOptions[option.name] || ""
+                return (
+                  <div key={option.name} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-foreground">
+                        {option.name}:{" "}
+                        <span className="font-normal text-muted-foreground">
+                          {currentSelected}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {option.values.map((val) => {
+                        const isSelected =
+                          currentSelected.toLowerCase() === val.toLowerCase()
+                        const { exists, available } =
+                          getOptionValueAvailability(option.name, val)
+                        return (
+                          <button
+                            type="button"
+                            key={val}
+                            onClick={() => handleSelectOption(option.name, val)}
+                            disabled={!exists}
+                            className={`relative rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
+                              isSelected
+                                ? "border-2 border-primary bg-primary/10 text-primary font-semibold shadow-xs"
+                                : exists
+                                  ? available
+                                    ? "border border-border bg-background hover:border-primary/50 text-foreground cursor-pointer"
+                                    : "border border-border/60 bg-muted/40 text-muted-foreground hover:border-border line-through cursor-pointer"
+                                  : "border border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed line-through"
+                            }`}
+                            aria-pressed={isSelected}
+                            title={!available ? `${val} (Sold out)` : val}
+                          >
+                            {val}
+                            {!available && exists && (
+                              <span className="ml-1.5 text-[10px] text-muted-foreground font-normal no-underline">
+                                (Sold out)
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+              {activeSku && (
+                <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+                  SKU: <span className="font-mono text-foreground">{activeSku}</span>
+                </p>
+              )}
+            </div>
+          )}
           <div className="my-6 flex flex-wrap gap-3">
             <div className="flex items-center rounded-md border border-border">
               <button
                 aria-label="Decrease quantity"
-                disabled={quantity <= 1 || (product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0)}
+                disabled={quantity <= 1 || isSoldOut}
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
                 className="p-3 disabled:opacity-40"
               >
                 <Minus size={15} />
               </button>
               <span className="w-7 text-center text-sm">
-                {(product.availableForSale !== undefined ? !product.availableForSale : product.stock <= 0) ? 0 : quantity}
+                {isSoldOut ? 0 : quantity}
               </span>
               <button
                 aria-label="Increase quantity"
-                disabled={product.availableForSale !== undefined ? !product.availableForSale || quantity >= 10 : quantity >= product.stock || product.stock <= 0}
+                disabled={isSoldOut || quantity >= 10}
                 onClick={() => setQuantity(quantity + 1)}
                 className="p-3 disabled:opacity-40"
               >
@@ -1199,7 +1403,7 @@ export function ProductDetail() {
               </button>
             </div>
             <Button
-              disabled={product.availableForSale !== undefined ? !product.availableForSale : (!product.stock || product.stock <= 0)}
+              disabled={isSoldOut}
               onClick={add}
               className="flex-1"
             >

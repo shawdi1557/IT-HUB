@@ -56,6 +56,12 @@ export interface ShopifyMetafield {
   type: string
 }
 
+export interface ShopifyProductOption {
+  id?: string
+  name: string
+  values: string[]
+}
+
 export interface ShopifyProductVariantNode {
   id: string
   title: string
@@ -79,6 +85,7 @@ export interface ShopifyProductNode {
   productType: string
   tags: string[]
   availableForSale: boolean
+  options?: ShopifyProductOption[]
   featuredImage?: ShopifyImage | null
   images: {
     edges: Array<{ node: ShopifyImage }>
@@ -231,6 +238,41 @@ export function mapShopifyProductToCatalog(
     ? Boolean(variantNode.availableForSale)
     : Boolean(node.availableForSale ?? true)
 
+  // Map product options (filter out single dummy option "Title: Default Title")
+  const productOptions = (node.options || [])
+    .filter(
+      (opt) =>
+        !(
+          opt.name === "Title" &&
+          opt.values.length === 1 &&
+          opt.values[0] === "Default Title"
+        ),
+    )
+    .map((opt) => ({
+      id: opt.id,
+      name: opt.name,
+      values: opt.values || [],
+    }))
+
+  // Map all variants for multi-variant selection
+  const mappedVariants = (node.variants?.edges || []).map((e) => {
+    const v = e.node
+    const vPrice = parseFloat(v.price.amount)
+    const vCompareAt = v.compareAtPrice
+      ? parseFloat(v.compareAtPrice.amount)
+      : vPrice
+    return {
+      id: v.id,
+      title: v.title,
+      price: vPrice,
+      compareAtPrice: vCompareAt,
+      sku: v.sku || undefined,
+      availableForSale: Boolean(v.availableForSale),
+      selectedOptions: v.selectedOptions || [],
+      image: v.image?.url || undefined,
+    }
+  })
+
   return {
     id: parseShopifyGid(node.id),
     name: node.title,
@@ -254,6 +296,8 @@ export function mapShopifyProductToCatalog(
     handle: node.handle,
     variantId: variantNode?.id,
     availableForSale: isAvailable,
+    options: productOptions.length > 0 ? productOptions : undefined,
+    variants: mappedVariants.length > 0 ? mappedVariants : undefined,
   }
 }
 

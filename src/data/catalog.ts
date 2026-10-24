@@ -66,6 +66,19 @@ export type Product = {
   availableForSale?: boolean
 
   images?: string[]
+
+  options?: Array<{ id?: string; name: string; values: string[] }>
+
+  variants?: Array<{
+    id: string
+    title: string
+    price: number
+    compareAtPrice?: number
+    sku?: string
+    availableForSale: boolean
+    selectedOptions: Array<{ name: string; value: string }>
+    image?: string
+  }>
 }
 
 export const photo = (id: string, width = 700) => `/images/${id}.jpg`

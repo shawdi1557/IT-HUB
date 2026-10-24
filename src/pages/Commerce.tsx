@@ -86,6 +86,10 @@ export function Cart() {
   const [checkingOut, setCheckingOut] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [unavailableIds, setUnavailableIds] = useState<string[]>([])
+  const [promoInput, setPromoInput] = useState("")
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null)
+  const [promoError, setPromoError] = useState<string | null>(null)
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (shopifyConfig.isConfigured && store.cart.length > 0) {
@@ -151,9 +155,22 @@ export function Cart() {
             value: returnUrl,
           },
         ],
+        discountCodes: appliedPromo ? [appliedPromo] : undefined,
       })
 
       if (res.cart?.checkoutUrl) {
+        if (appliedPromo && res.cart.discountCodes) {
+          const codeInfo = res.cart.discountCodes.find(
+            (d) => d.code.toUpperCase() === appliedPromo.toUpperCase(),
+          )
+          if (codeInfo && !codeInfo.applicable) {
+            setCheckoutError(
+              `Notice: Promo code "${appliedPromo}" is not valid or not applicable to items in your cart.`,
+            )
+            setCheckingOut(false)
+            return
+          }
+        }
         window.location.href = res.cart.checkoutUrl
         return
       }
@@ -452,6 +469,72 @@ export function Cart() {
                 <span>{money(subtotal - discount)}</span>
               </div>
             </div>
+
+            {shopifyConfig.isConfigured && (
+              <div className="mt-5 border-t border-border pt-4">
+                <label className="mb-1.5 block text-xs font-semibold text-foreground">
+                  Shopify Promo / Discount Code
+                </label>
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <Tag size={13} className="text-emerald-700" /> {appliedPromo}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedPromo(null)
+                        setPromoSuccess(null)
+                        setPromoError(null)
+                      }}
+                      className="font-medium text-muted-foreground underline hover:text-red-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => {
+                        setPromoInput(e.target.value)
+                        setPromoError(null)
+                      }}
+                      placeholder="e.g. FESTIVE10"
+                      className={`${fieldClass} text-xs uppercase`}
+                    />
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const trimmed = promoInput.trim().toUpperCase()
+                        if (!trimmed) {
+                          setPromoError("Please enter a discount code.")
+                          return
+                        }
+                        setAppliedPromo(trimmed)
+                        setPromoSuccess(
+                          `Code "${trimmed}" will be verified & applied by Shopify at checkout.`,
+                        )
+                        setPromoError(null)
+                        setPromoInput("")
+                      }}
+                      className="shrink-0 px-3 text-xs"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                )}
+                {promoSuccess && (
+                  <p className="mt-1.5 text-[11px] text-emerald-700">
+                    {promoSuccess}
+                  </p>
+                )}
+                {promoError && (
+                  <p className="mt-1.5 text-[11px] text-red-600">{promoError}</p>
+                )}
+              </div>
+            )}
             {hasInsufficientStock ? (
               <div className="mt-6">
                 <Button
@@ -511,6 +594,29 @@ export function Cart() {
 export function Checkout() {
   const store = useStore()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    // Phase 5 Route Guard: Direct navigation to /checkout is intercepted when Shopify is active.
+    // Redirects safely to /cart so the customer can review their shopping bag and proceed to Shopify Hosted Checkout.
+    if (shopifyConfig.isConfigured) {
+      navigate("/cart", { replace: true })
+    }
+  }, [navigate])
+
+  if (shopifyConfig.isConfigured) {
+    return (
+      <Page>
+        <div className="flex min-h-[50vh] flex-col items-center justify-center p-8 text-center">
+          <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+          <h2 className="mt-4 text-base font-semibold">Redirecting to shopping bag...</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Commerce checkout is powered by Shopify.
+          </p>
+        </div>
+      </Page>
+    )
+  }
+
   const [step, setStep] = useState(0)
   useEffect(
     () => track("Checkout Started", { items: String(store.cart.length) }),
