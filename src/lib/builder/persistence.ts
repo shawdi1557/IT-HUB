@@ -246,6 +246,38 @@ export async function submitQuotationRequest(
 
   try {
     if (supabase) {
+      // 1. Attempt authoritative Edge Function verification
+      try {
+        const { data: edgeData, error: edgeErr } = await supabase.functions.invoke(
+          "verify-and-submit-pc-quotation",
+          {
+            body: {
+              buildName: build.name || "Custom PC Build",
+              parts: partsPayload,
+              estimatedPrice,
+              compatibility: compatibilityPayload,
+              customerInfo: {
+                name: customerInfo?.name?.trim() || null,
+                phone: customerInfo?.phone?.trim() || null,
+                email: customerInfo?.email?.trim() || null,
+              },
+            },
+          },
+        )
+
+        if (!edgeErr && edgeData && edgeData.success) {
+          return {
+            success: true,
+            referenceId: edgeData.referenceId || referenceId,
+            id: edgeData.buildId,
+            estimatedPrice: edgeData.authoritativePrice || estimatedPrice,
+          }
+        }
+      } catch {
+        // Fall back to direct RPC
+      }
+
+      // 2. Direct RPC fallback
       const { data, error } = await supabase.rpc("submit_pc_quotation_request", {
         p_build_name: build.name || "Custom PC Build",
         p_reference_id: referenceId,
