@@ -644,7 +644,7 @@ export function matchShopifyProductToComponent(
     tdpWatts: tdp,
     hasWifi: allTags.includes("wifi") || normCleaned.includes("wifi"),
     includesCooler: normCleaned.includes("12400") || normCleaned.includes("5600"),
-    provenance: hasMetafields ? "supplier_spec" : "unverified",
+    provenance: (pSpecs.provenance as any) || (hasMetafields ? "supplier_spec" : "unverified"),
   }
 
   return {

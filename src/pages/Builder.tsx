@@ -52,6 +52,7 @@ import {
   submitQuotationRequest,
   generateWhatsAppQuotation,
   generateDynamicCatalogRecommendations,
+  getBudgetShortfallInfo,
   type CanonicalBuild,
   type CanonicalBuildComponent,
   type ComponentSlotId,
@@ -1907,6 +1908,10 @@ function SmartBuilder() {
     step === 2
       ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget)
       : []
+  const shortfallInfo =
+    step === 2 && recommendations.length === 0
+      ? getBudgetShortfallInfo(store.componentCatalog, answers, budget)
+      : null
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
   const missingSlots = essentialSlots.filter(
     (slot) => !answers.owned.includes(slot) && (!store.componentCatalog[slot] || store.componentCatalog[slot].length === 0),
@@ -2255,7 +2260,25 @@ function SmartBuilder() {
                       <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
                         BUILD 0{index + 1}
                       </span>
-                      <Badge>{build.tradeoff}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge>{build.tradeoff}</Badge>
+                        {build.confidenceBadge === "certified" && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
+                            title="All component specifications verified against official manufacturer datasheets."
+                          >
+                            <CheckCircle2 size={11} className="text-emerald-600" /> Certified
+                          </span>
+                        )}
+                        {build.confidenceBadge === "high" && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                            title="Core components verified against manufacturer specifications."
+                          >
+                            <AlertTriangle size={11} className="text-amber-600" /> High Confidence
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <h2 className="mt-3 text-xl font-bold">{build.name}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -2323,6 +2346,46 @@ function SmartBuilder() {
                 </Button>
                 <a
                   href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(`Hi IT HUB, I'm looking for a custom PC configuration for ${basedOn || 'custom use'} with budget ${budget?.label || 'custom'}. Could you assist with component availability?`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"
+                >
+                  <WhatsAppIcon size={16} /> Contact on WhatsApp
+                </a>
+              </div>
+            </div>
+          ) : shortfallInfo ? (
+            <div className="mt-8 rounded-3xl border border-blue-200 bg-blue-50/70 p-8 text-center text-slate-900">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700 mb-3">
+                <SlidersHorizontal size={22} />
+              </div>
+              <h2 className="text-xl font-bold">
+                No complete compatible PC found within {budget?.label || "selected budget"}
+              </h2>
+              <p className="mt-2 text-sm text-slate-700 max-w-xl mx-auto">
+                The closest complete compatible configuration available in our live store starts at{" "}
+                <strong className="text-foreground">{money(shortfallInfo.closestBuild.price)}</strong>{" "}
+                (Budget shortfall: <strong className="text-primary">{money(shortfallInfo.shortfallAmount)}</strong>).
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button
+                  onClick={() => {
+                    setDetail(shortfallInfo.closestBuild)
+                    scrollTop()
+                  }}
+                >
+                  Show Closest Build ({money(shortfallInfo.closestBuild.price)}) <ArrowRight size={15} />
+                </Button>
+                <Button variant="secondary" onClick={() => go(1)}>
+                  <RotateCcw size={14} /> Adjust Budget
+                </Button>
+                <Button variant="secondary" onClick={() => setMode("expert")}>
+                  <Wrench size={14} /> Open Expert Mode
+                </Button>
+                <a
+                  href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                    `Hi IT HUB, I was looking for a custom PC for ${basedOn || "custom use"} with budget ${budget?.label || "custom"}. The closest build starts at ${money(shortfallInfo.closestBuild.price)} (Shortfall: ${money(shortfallInfo.shortfallAmount)}). Could you assist with component sourcing or custom pricing?`
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"

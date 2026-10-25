@@ -88,7 +88,12 @@ export interface TechnicalSpecs {
   maxTdpRatingWatts?: number
 
   // Metadata & Provenance
-  provenance?: "manufacturer_verified" | "supplier_spec" | "internal_verified" | "unverified"
+  provenance?:
+    | SpecVerificationStatus
+    | "manufacturer_verified"
+    | "supplier_spec"
+    | "internal_verified"
+    | "unverified"
   lastVerifiedAt?: string
 }
 
