@@ -63,6 +63,7 @@ export interface TechnicalSpecs {
   powerWatts?: number
   recommendedPsuWatts?: number
   requiredPciePins?: string
+  requiredPcieConnectors?: string[]
 
   // Storage
   storageInterface?: "M.2 NVMe" | "SATA SSD" | "SATA HDD" | string
@@ -73,6 +74,7 @@ export interface TechnicalSpecs {
   ratedWattage?: number
   efficiencyRating?: string
   psuFormFactor?: "ATX" | "SFX" | string
+  pciePowerConnectors?: string[]
 
   // Computer Case (Cabinet)
   maxGpuLengthMm?: number
@@ -135,6 +137,8 @@ export interface CompatibilitySummary {
   powerHeadroomWatts: number
   powerHeadroomStatus: "adequate" | "limited" | "deficit" | "unknown"
   valid: boolean // true when no 'error' severity exists
+  validForAutomatedRecommendation: boolean // true when valid and NO blocking unknowns exist
+  hasBlockingUnknowns: boolean
   complete: boolean // true when all strictly required slots are populated
 }
 

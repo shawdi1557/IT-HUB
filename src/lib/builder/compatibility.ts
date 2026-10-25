@@ -14,6 +14,7 @@ import type {
 export interface CheckCompatibilityOptions {
   workload?: "gaming" | "creation" | "work" | "general"
   budgetInr?: number
+  mode?: "automated" | "manual"
 }
 
 /**
@@ -279,6 +280,16 @@ export function checkCompatibility(
           explanation: "Graphics card dimensions fit cleanly within cabinet internal clearances.",
         })
       }
+    } else if (gpuLength > 0 && !caseMaxGpu) {
+      items.push({
+        ruleId: "RULE_D_GPU_CLEARANCE_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["GPU", "Cabinet"],
+        label: "Chassis GPU clearance unverified",
+        explanation: `Unable to verify whether ${gpu.title} (${gpuLength}mm) fits ${cabinet.title} (clearance unspecified).`,
+        suggestedResolution: "Check chassis manufacturer dimensions.",
+      })
     }
   }
 
@@ -288,7 +299,17 @@ export function checkCompatibility(
   const power = calculateSystemPower(components)
 
   if (psu) {
-    if (power.powerHeadroomStatus === "deficit") {
+    if (!psu.specs.ratedWattage) {
+      items.push({
+        ruleId: "RULE_E_PSU_WATTAGE_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["PSU"],
+        label: "PSU rated wattage unverified",
+        explanation: "Unable to calculate power headroom because the PSU rated wattage is unspecified.",
+        suggestedResolution: "Confirm PSU wattage specifications before ordering.",
+      })
+    } else if (power.powerHeadroomStatus === "deficit") {
       items.push({
         ruleId: "RULE_E_PSU_WATTAGE_DEFICIT",
         severity: "error",
@@ -317,6 +338,69 @@ export function checkCompatibility(
         label: `PSU has adequate power headroom (${psu.specs.ratedWattage}W)`,
         explanation: `Sufficient wattage for all components with healthy power headroom.`,
       })
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Rule F — PCIe Auxiliary Power Connector Requirements
+    // ─────────────────────────────────────────────────────────────────────────
+    if (gpu) {
+      const gpuTdp = gpu.specs.powerWatts || gpu.specs.tdpWatts || 0
+      const gpuNeedsAux =
+        gpuTdp > 75 ||
+        Boolean(gpu.specs.requiredPciePins || gpu.specs.requiredPcieConnectors?.length)
+      const psuConnectors = psu.specs.pciePowerConnectors
+
+      if (!gpuNeedsAux) {
+        items.push({
+          ruleId: "RULE_F_PCIE_POWER_NOT_REQUIRED",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["GPU"],
+          label: "PCIe slot power sufficient (≤75W)",
+          explanation: `${gpu.title} draws ≤75W and does not require dedicated auxiliary PCIe power cables from the power supply.`,
+        })
+      } else if (psuConnectors && psuConnectors.length > 0) {
+        const requiredCount = gpu.specs.requiredPcieConnectors?.length || (gpuTdp > 225 ? 2 : 1)
+        if (psuConnectors.length < requiredCount) {
+          items.push({
+            ruleId: "RULE_F_PCIE_POWER_INSUFFICIENT",
+            severity: "error",
+            status: "incompatible",
+            affectedSlots: ["GPU", "PSU"],
+            label: "Insufficient PCIe power cables",
+            explanation: `${gpu.title} requires ${requiredCount} PCIe power cable(s), but ${psu.title} only provides ${psuConnectors.length}.`,
+            suggestedResolution: "Select a power supply with sufficient dedicated PCIe power connectors.",
+          })
+        } else {
+          items.push({
+            ruleId: "RULE_F_PCIE_POWER_MATCH",
+            severity: "info",
+            status: "compatible",
+            affectedSlots: ["GPU", "PSU"],
+            label: "PCIe power connectors compatible",
+            explanation: `${psu.title} provides adequate PCIe power cables (${psuConnectors.length} available) for ${gpu.title}.`,
+          })
+        }
+      } else if (!psu.specs.ratedWattage) {
+        items.push({
+          ruleId: "RULE_F_PCIE_POWER_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
+          affectedSlots: ["GPU", "PSU"],
+          label: "PCIe power connector compatibility unverified",
+          explanation: `Unable to verify PCIe auxiliary power connectors on ${psu.title} for ${gpu.title}.`,
+          suggestedResolution: "Verify PSU cable configuration with IT HUB technical support.",
+        })
+      } else {
+        items.push({
+          ruleId: "RULE_F_PCIE_POWER_ADVISORY",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["GPU", "PSU"],
+          label: "Standard PCIe auxiliary power supported",
+          explanation: `${psu.title} (${psu.specs.ratedWattage}W) provides standard PCIe auxiliary power cables for ${gpu.title}.`,
+        })
+      }
     }
   }
 
@@ -400,13 +484,45 @@ export function checkCompatibility(
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Rule J — Specification Provenance & Transparency
+  // ───────────────────────────────────────────────────────────────────────────
+  const unverifiedParts = Object.values(components).filter(
+    (c) =>
+      c &&
+      (c.isVerified === false ||
+        c.specs?.provenance === "unverified" ||
+        (c.specs?.provenance as any) === "ambiguous_unverified"),
+  )
+  if (unverifiedParts.length > 0) {
+    items.push({
+      ruleId: "RULE_J_SPEC_UNVERIFIED",
+      severity: "warning",
+      status: "conditional",
+      affectedSlots: unverifiedParts.map((p) => p.slot),
+      label: "Component specifications preliminary / unverified",
+      explanation: `${unverifiedParts.length} component(s) have preliminary merchant catalog specifications. IT HUB technicians inspect physical clearances before assembly.`,
+      suggestedResolution: "Our technical team reviews all custom specifications prior to order fulfillment.",
+    })
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Build Completeness & Overall Validity
   // ───────────────────────────────────────────────────────────────────────────
   const hasErrors = items.some((i) => i.severity === "error")
   const hasWarnings = items.some((i) => i.severity === "warning")
+  const hasBlockingUnknowns =
+    items.some(
+      (i) =>
+        i.status === "unknown" &&
+        (i.ruleId === "RULE_A_SOCKET_UNKNOWN" ||
+          i.ruleId === "RULE_B_RAM_UNKNOWN" ||
+          i.ruleId === "RULE_E_PSU_WATTAGE_UNKNOWN" ||
+          i.ruleId === "RULE_F_PCIE_POWER_UNKNOWN"),
+    ) || Boolean(psu && !psu.specs.ratedWattage)
 
   let overallStatus: CompatibilityStatus = "compatible"
   if (hasErrors) overallStatus = "incompatible"
+  else if (hasBlockingUnknowns) overallStatus = "unknown"
   else if (hasWarnings) overallStatus = "conditional"
 
   // Core essential slots
@@ -417,6 +533,8 @@ export function checkCompatibility(
   const gpuSatisfied = Boolean(gpu || cpu?.specs.hasIntegratedGraphics !== false)
   const complete = requiredPopulated && coolerSatisfied && gpuSatisfied
 
+  const validForAutomatedRecommendation = !hasErrors && !hasBlockingUnknowns
+
   return {
     status: overallStatus,
     items,
@@ -424,7 +542,9 @@ export function checkCompatibility(
     recommendedPsuWatts: power.recommendedPsuWatts,
     powerHeadroomWatts: power.powerHeadroomWatts,
     powerHeadroomStatus: power.powerHeadroomStatus,
-    valid: !hasErrors,
+    valid: options.mode === "automated" ? validForAutomatedRecommendation : !hasErrors,
+    validForAutomatedRecommendation,
+    hasBlockingUnknowns,
     complete,
   }
 }
