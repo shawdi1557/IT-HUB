@@ -108,3 +108,4 @@ export const ESSENTIAL_SLOTS: ComponentSlotId[] = [
 export function getSlotDefinition(slotId: ComponentSlotId): SlotDefinition | undefined {
   return COMPONENT_SLOTS.find((s) => s.id === slotId)
 }
+

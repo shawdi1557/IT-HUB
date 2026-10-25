@@ -41,13 +41,22 @@ export async function prepareShopifyCheckout(
     missingVariantCount++
   }
 
+  // If any non-owned components could not be resolved to authentic Shopify variants
+  if (missingVariantCount > 0) {
+    return {
+      success: false,
+      missingCount: missingVariantCount,
+      error: `This configuration includes ${missingVariantCount} component(s) that are in-store or distributor-sourced items without an active Shopify online catalog listing. Direct Shopify checkout requires all parts to be listed. You can request an itemized quotation via WhatsApp.`,
+    }
+  }
+
   // If no lines could be resolved to live Shopify variants
   if (lines.length === 0) {
     return {
       success: false,
       missingCount: missingVariantCount,
       error:
-        "One or more configured components are custom catalog items requiring manual availability confirmation from IT HUB.",
+        "No components in this configuration are available for online Shopify checkout.",
     }
   }
 
@@ -143,3 +152,4 @@ export function generateWhatsAppQuotation(
     whatsappUrl,
   }
 }
+

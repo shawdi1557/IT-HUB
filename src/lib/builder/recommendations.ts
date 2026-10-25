@@ -19,8 +19,22 @@ export function generateRecommendations(
   const owned = new Set(answers.ownedParts || [])
   const candidates: RecommendationCandidate[] = []
 
-  // Helper to pick part by key substring
+  // Helper to match component by model key, product ID, or title keywords
+  const matches = (c: CanonicalBuildComponent, ...keys: string[]): boolean => {
+    const normTitle = c.title.toLowerCase()
+    const pId = c.productId.toLowerCase()
+    const mKey = (c.matchedModelKey || "").toLowerCase()
+    return keys.some((k) => {
+      const lk = k.toLowerCase()
+      const bare = lk.replace(/^[a-z]+-/, "")
+      return pId.includes(lk) || mKey === lk || (bare.length > 2 && mKey.includes(bare)) || (bare.length > 2 && normTitle.includes(bare))
+    })
+  }
+
+  // Helper to pick part, prioritizing authentic Shopify live products
   const getPart = (slot: ComponentSlotId, matcher: (c: CanonicalBuildComponent) => boolean): CanonicalBuildComponent | undefined => {
+    const liveMatch = catalog[slot]?.find((c) => c.isShopifyLive && matcher(c))
+    if (liveMatch) return liveMatch
     return catalog[slot]?.find(matcher) || catalog[slot]?.[0]
   }
 
@@ -29,15 +43,15 @@ export function generateRecommendations(
   // AMD AM4 (Ryzen 5 5600) + B550M + 16GB DDR4 + RX 7600/GTX or i5-12400F
   // ───────────────────────────────────────────────────────────────────────────
   const valueParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
-  valueParts.CPU = getPart("CPU", (c) => c.productId.includes("r5-5600") || c.productId.includes("12400f"))
-  valueParts.Motherboard = getPart("Motherboard", (c) => c.productId.includes("b550m") || c.productId.includes("b760m"))
-  valueParts.RAM = getPart("RAM", (c) => c.productId.includes("16gb-ddr4"))
-  valueParts.Storage = getPart("Storage", (c) => c.productId.includes("500gb") || c.productId.includes("1tb"))
-  valueParts.PSU = getPart("PSU", (c) => c.productId.includes("550w"))
-  valueParts.Cabinet = getPart("Cabinet", (c) => c.productId.includes("case-matx"))
+  valueParts.CPU = getPart("CPU", (c) => matches(c, "r5-5600", "5600", "12400f"))
+  valueParts.Motherboard = getPart("Motherboard", (c) => matches(c, "b550m", "b760m", "b550"))
+  valueParts.RAM = getPart("RAM", (c) => matches(c, "16gb-ddr4", "ddr4"))
+  valueParts.Storage = getPart("Storage", (c) => matches(c, "500gb", "1tb"))
+  valueParts.PSU = getPart("PSU", (c) => matches(c, "550w", "550"))
+  valueParts.Cabinet = getPart("Cabinet", (c) => matches(c, "case-matx", "matx"))
 
   if (answers.purpose === "gaming" || answers.purpose === "creation") {
-    valueParts.GPU = getPart("GPU", (c) => c.productId.includes("rx7600") || c.productId.includes("rtx4060"))
+    valueParts.GPU = getPart("GPU", (c) => matches(c, "rx7600", "rtx4060", "rx6600"))
   }
 
   const valueBuild = createBuildFromParts(
@@ -68,16 +82,16 @@ export function generateRecommendations(
   // AMD AM5 (Ryzen 5 7600) + B650M + 16GB/32GB DDR5 + RTX 4060
   // ───────────────────────────────────────────────────────────────────────────
   const balancedParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
-  balancedParts.CPU = getPart("CPU", (c) => c.productId.includes("r5-7600"))
-  balancedParts.Motherboard = getPart("Motherboard", (c) => c.productId.includes("b650m"))
-  balancedParts.RAM = getPart("RAM", (c) => c.productId.includes("16gb-ddr5") || c.productId.includes("32gb-ddr5"))
-  balancedParts.Storage = getPart("Storage", (c) => c.productId.includes("1tb"))
-  balancedParts.PSU = getPart("PSU", (c) => c.productId.includes("550w") || c.productId.includes("650w"))
-  balancedParts.Cabinet = getPart("Cabinet", (c) => c.productId.includes("case-atx") || c.productId.includes("case-matx"))
-  balancedParts.Cooler = getPart("Cooler", (c) => c.productId.includes("ag400"))
+  balancedParts.CPU = getPart("CPU", (c) => matches(c, "r5-7600", "7600"))
+  balancedParts.Motherboard = getPart("Motherboard", (c) => matches(c, "b650m", "b650"))
+  balancedParts.RAM = getPart("RAM", (c) => matches(c, "16gb-ddr5", "32gb-ddr5", "ddr5"))
+  balancedParts.Storage = getPart("Storage", (c) => matches(c, "1tb"))
+  balancedParts.PSU = getPart("PSU", (c) => matches(c, "550w", "650w", "550", "650"))
+  balancedParts.Cabinet = getPart("Cabinet", (c) => matches(c, "case-atx", "case-matx"))
+  balancedParts.Cooler = getPart("Cooler", (c) => matches(c, "ag400"))
 
   if (answers.purpose === "gaming" || answers.purpose === "creation") {
-    balancedParts.GPU = getPart("GPU", (c) => c.productId.includes("rtx4060"))
+    balancedParts.GPU = getPart("GPU", (c) => matches(c, "rtx4060", "4060"))
   }
 
   const balancedBuild = createBuildFromParts(
@@ -107,14 +121,14 @@ export function generateRecommendations(
   // AMD AM5 (Ryzen 7 9700X) + B650M / Z790 + 32GB DDR5 + RTX 4070 Super + 750W PSU
   // ───────────────────────────────────────────────────────────────────────────
   const enthusiastParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
-  enthusiastParts.CPU = getPart("CPU", (c) => c.productId.includes("r7-9700x") || c.productId.includes("14600k"))
-  enthusiastParts.Motherboard = getPart("Motherboard", (c) => c.productId.includes("b650m") || c.productId.includes("z790"))
-  enthusiastParts.RAM = getPart("RAM", (c) => c.productId.includes("32gb-ddr5"))
-  enthusiastParts.GPU = getPart("GPU", (c) => c.productId.includes("rtx4070-super") || c.productId.includes("rtx4060"))
-  enthusiastParts.Storage = getPart("Storage", (c) => c.productId.includes("1tb"))
-  enthusiastParts.PSU = getPart("PSU", (c) => c.productId.includes("750w"))
-  enthusiastParts.Cabinet = getPart("Cabinet", (c) => c.productId.includes("case-atx"))
-  enthusiastParts.Cooler = getPart("Cooler", (c) => c.productId.includes("le520") || c.productId.includes("ag400"))
+  enthusiastParts.CPU = getPart("CPU", (c) => matches(c, "r7-9700x", "14600k", "9700x"))
+  enthusiastParts.Motherboard = getPart("Motherboard", (c) => matches(c, "b650m", "z790"))
+  enthusiastParts.RAM = getPart("RAM", (c) => matches(c, "32gb-ddr5", "ddr5"))
+  enthusiastParts.GPU = getPart("GPU", (c) => matches(c, "rtx4070-super", "4070", "rtx4060"))
+  enthusiastParts.Storage = getPart("Storage", (c) => matches(c, "1tb"))
+  enthusiastParts.PSU = getPart("PSU", (c) => matches(c, "750w", "750"))
+  enthusiastParts.Cabinet = getPart("Cabinet", (c) => matches(c, "case-atx"))
+  enthusiastParts.Cooler = getPart("Cooler", (c) => matches(c, "le520", "ag400"))
 
   const enthusiastBuild = createBuildFromParts(
     "High-Performance Creator & Gaming Beast",

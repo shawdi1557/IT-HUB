@@ -10,6 +10,7 @@ import { track } from "../lib/analytics"
 
 import { supabase } from "../lib/supabase"
 import { shopifyConfig, fetchShopifyCatalog } from "../lib/shopify"
+import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog"
 
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
 
@@ -599,6 +600,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (liveBrands.length > 0) {
                 updates.brands = liveBrands
               }
+
+              // Synchronize PC Builder catalog with authentic Shopify products
+              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts, prev.componentCatalog)
+              updates.componentCatalog = syncResult.componentCatalog
             }
           } else {
             updates.catalogError =

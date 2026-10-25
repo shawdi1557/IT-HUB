@@ -50,6 +50,8 @@ export type Product = {
 
   tag?: string
 
+  tags?: string[]
+
   sku?: string
 
   subcategory?: string
@@ -1396,8 +1398,25 @@ export type ComponentOption = {
   wifi?: boolean
 
   /** Units in IT HUB inventory; undefined = available, 0 = out of stock */
-
   stock?: number
+
+  /** Authoritative Shopify ProductVariant GID */
+  variantId?: string
+
+  /** True if this component is backed by live Shopify Storefront product */
+  isShopifyLive?: boolean
+
+  /** True if physical & electrical specifications have been verified against hardware datasheets */
+  isVerified?: boolean
+
+  /** Specification source provenance */
+  provenance?: string
+
+  /** Reason when component specs cannot be verified */
+  unverifiedReason?: string
+
+  /** Internal model key for mapping with build templates */
+  matchedModelKey?: string
 }
 
 export const componentOptions: Record<string, ComponentOption[]> = {

@@ -109,6 +109,9 @@ export interface CanonicalBuildComponent {
   availability: AvailabilityStatus
   quantity: number
   retrievedAt: string
+  isShopifyLive?: boolean
+  isVerified?: boolean
+  matchedModelKey?: string
 }
 
 export type CompatibilityStatus = "compatible" | "incompatible" | "conditional" | "unknown"
@@ -211,3 +214,4 @@ export interface QuotationRecord {
   status: QuotationStatus
   createdAt: string
 }
+

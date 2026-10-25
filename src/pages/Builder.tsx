@@ -68,7 +68,7 @@ function toCanonicalRecord(parts: Record<string, ComponentOption>): Partial<Reco
     canonicalParts[slot] = {
       slot,
       productId: part.id || `part-${key}`,
-      variantId: (part as any).variantId || `gid://shopify/ProductVariant/mock-${part.id || key}`,
+      variantId: part.variantId || "",
       title: part.name || `${key} component`,
       price: part.price || 0,
       currency: "INR",
@@ -87,10 +87,14 @@ function toCanonicalRecord(parts: Record<string, ComponentOption>): Partial<Reco
         requiresBiosUpdateForRyzen5000: part.bios,
         includesCooler: (part as any).includesCooler,
         hasIntegratedGraphics: (part as any).hasIntegratedGraphics ?? (key === "CPU" ? (part.name?.includes("G") || part.socket === "AM5") : undefined),
+        provenance: part.provenance as any || (part.isVerified === false ? "unverified" : "manufacturer_verified"),
       },
-      availability: "available",
+      availability: part.stock === 0 ? "unavailable" : "available",
       quantity: 1,
       retrievedAt: new Date().toISOString(),
+      isShopifyLive: Boolean(part.variantId),
+      isVerified: part.isVerified !== false,
+      matchedModelKey: part.matchedModelKey,
     }
   }
   return canonicalParts
@@ -510,8 +514,29 @@ function ExpertBuilder({
                   store.notify("PC component added")
                 }}
               >
-                <div>
-                  <h3 className="text-sm font-semibold">{item.name}</h3>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
+                    {item.isShopifyLive ? (
+                      <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                        Shopify Live
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                        In-Store Quote
+                      </span>
+                    )}
+                    {item.isVerified === false && (
+                      <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Unverified Specs
+                      </span>
+                    )}
+                    {item.stock === 0 && (
+                      <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                        Out of Stock
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {[
                       item.socket,
@@ -835,10 +860,31 @@ function findPart(
   type: string,
   id: string,
 ) {
-  return (
-    catalog[type]?.find((item) => item.id === id) ||
-    componentOptions[type]?.find((item) => item.id === id)
-  )
+  const normId = id.toLowerCase()
+  const bareId = normId.replace(/^[a-z]+-/, "")
+
+  // 1. Direct ID match
+  const direct = catalog[type]?.find((item) => item.id === id)
+  if (direct) return direct
+
+  // 2. Prioritize authentic live Shopify products matching model key or name
+  const liveMatch = catalog[type]?.find((item) => {
+    if (!item.isShopifyLive) return false
+    if (item.matchedModelKey && (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))) return true
+    if (item.name.toLowerCase().includes(bareId)) return true
+    return false
+  })
+  if (liveMatch) return liveMatch
+
+  // 3. Reference catalog model match
+  const keyMatch = catalog[type]?.find((item) => {
+    if (item.matchedModelKey && (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))) return true
+    if (item.name.toLowerCase().includes(bareId)) return true
+    return false
+  })
+  if (keyMatch) return keyMatch
+
+  return componentOptions[type]?.find((item) => item.id === id)
 }
 const sumParts = (parts: Record<string, ComponentOption>) =>
   Object.values(parts).reduce((sum, item) => sum + item.price, 0)
@@ -1655,6 +1701,12 @@ function SmartBuilder() {
       }
     })
   }, [])
+
+  useEffect(() => {
+    if (store.products.length === 0 && !store.catalogLoading) {
+      store.refreshCatalog()
+    }
+  }, [store.products.length, store.catalogLoading])
 
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next })
   const templates = store.buildTemplates.length

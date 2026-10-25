@@ -394,6 +394,7 @@ export function mapShopifyProductToCatalog(
     status: "Active",
     handle: node.handle,
     variantId: variantNode?.id,
+    tags: node.tags || [],
     availableForSale: isAvailable,
     options: productOptions.length > 0 ? productOptions : undefined,
     variants: mappedVariants.length > 0 ? mappedVariants : undefined,
