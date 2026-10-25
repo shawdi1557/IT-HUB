@@ -43,83 +43,57 @@ import {
 } from "../data/buildTemplates"
 import { Badge, Button, Modal, Page, PageHeading } from "../components/ui"
 
-export function compatibility(parts: Record<string, ComponentOption>) {
-  const result: {
-    label: string
-    state: "ok" | "warning" | "error"
-  }[] = []
-  const { CPU, Motherboard, RAM, GPU, PSU, Cabinet, Cooler, Storage } = parts
-  const watts =
-    (CPU?.watts || 0) + (GPU?.watts || 0) + (Object.keys(parts).length ? 80 : 0)
-  const recommended = Math.ceil((watts * 1.35) / 50) * 50
-  if (CPU && Motherboard) {
-    result.push({
-      label:
-        CPU.socket === Motherboard.socket
-          ? `CPU + motherboard · ${CPU.socket}`
-          : "CPU & motherboard sockets are incompatible",
-      state: CPU.socket === Motherboard.socket ? "ok" : "error",
-    })
-    if (CPU.id === "r7" && Motherboard.bios)
-      result.push({
-        label: "Motherboard BIOS update may be required",
-        state: "warning",
-      })
+import {
+  checkCompatibility,
+  compatibility,
+  fetchBuilderComponents,
+  saveBuild,
+  loadSavedBuilds,
+  deleteSavedBuild,
+  prepareShopifyCheckout,
+  generateWhatsAppQuotation,
+  type CanonicalBuild,
+  type CanonicalBuildComponent,
+  type ComponentSlotId,
+  type CompatibilitySummary,
+} from "../lib/builder"
+
+export { compatibility }
+
+function toCanonicalRecord(parts: Record<string, ComponentOption>): Partial<Record<ComponentSlotId, CanonicalBuildComponent>> {
+  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
+  for (const [key, part] of Object.entries(parts)) {
+    if (!part) continue
+    const slot = key as ComponentSlotId
+    canonicalParts[slot] = {
+      slot,
+      productId: part.id || `part-${key}`,
+      variantId: (part as any).variantId || `gid://shopify/ProductVariant/mock-${part.id || key}`,
+      title: part.name || `${key} component`,
+      price: part.price || 0,
+      currency: "INR",
+      specs: {
+        socket: part.socket,
+        supportedRamGeneration: part.ram,
+        ramGeneration: part.ram,
+        tdpWatts: part.watts,
+        powerWatts: part.watts,
+        ratedWattage: part.capacity,
+        lengthMm: part.length,
+        maxGpuLengthMm: part.clearance,
+        maxCoolerHeightMm: part.clearance,
+        coolerHeightMm: (part as any).height,
+        hasWifi: part.wifi,
+        requiresBiosUpdateForRyzen5000: part.bios,
+        includesCooler: (part as any).includesCooler,
+        hasIntegratedGraphics: (part as any).hasIntegratedGraphics ?? (key === "CPU" ? (part.name?.includes("G") || part.socket === "AM5") : undefined),
+      },
+      availability: "available",
+      quantity: 1,
+      retrievedAt: new Date().toISOString(),
+    }
   }
-  if (RAM && Motherboard)
-    result.push({
-      label:
-        RAM.ram === Motherboard.ram
-          ? `Motherboard + RAM · ${RAM.ram}`
-          : "RAM generation incompatible with motherboard",
-      state: RAM.ram === Motherboard.ram ? "ok" : "error",
-    })
-  if (GPU && Cabinet)
-    result.push({
-      label:
-        (GPU.length || 0) <= (Cabinet.clearance || 0)
-          ? "GPU fits cabinet clearance"
-          : "GPU is too long for this cabinet",
-      state: (GPU.length || 0) <= (Cabinet.clearance || 0) ? "ok" : "error",
-    })
-  if (PSU)
-    result.push({
-      label:
-        (PSU.capacity || 0) < watts
-          ? "PSU capacity below estimated consumption"
-          : (PSU.capacity || 0) < recommended
-            ? "Power headroom is limited"
-            : "PSU has adequate power headroom",
-      state:
-        (PSU.capacity || 0) < watts
-          ? "error"
-          : (PSU.capacity || 0) < recommended
-            ? "warning"
-            : "ok",
-    })
-  if (CPU && Cooler)
-    result.push({
-      label:
-        (CPU.watts || 0) <= (Cooler.capacity || 0)
-          ? "Cooler thermal capacity is sufficient"
-          : "CPU cooler thermal capacity is insufficient",
-      state: (CPU.watts || 0) <= (Cooler.capacity || 0) ? "ok" : "error",
-    })
-  if (Storage && Motherboard)
-    result.push({
-      label:
-        Storage.interface === Motherboard.interface
-          ? "Storage interface supported"
-          : "Storage interface not supported",
-      state: Storage.interface === Motherboard.interface ? "ok" : "error",
-    })
-  return {
-    result,
-    watts,
-    recommended,
-    valid: !result.some((check) => check.state === "error"),
-    complete: Object.keys(parts).length === 8,
-  }
+  return canonicalParts
 }
 function ExpertBuilder({
   initialParts,
@@ -140,46 +114,71 @@ function ExpertBuilder({
   const [name, setName] = useState(initialName)
   const [filter, setFilter] = useState("")
   const [ready, setReady] = useState(false)
+  const [savingBuild, setSavingBuild] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const total = Object.values(parts).reduce((sum, item) => sum + item.price, 0)
   const { result, watts, recommended, valid, complete } = compatibility(parts)
-  const createBuild = () => ({
-    id: crypto.randomUUID(),
+
+  const createCanonical = (): CanonicalBuild => ({
+    id: savedId || crypto.randomUUID(),
+    userId: store.profile?.id,
     name: name.trim() || "My custom PC",
-    parts: { ...parts },
-    price: total,
+    mode: "expert",
+    currency: "INR",
+    components: toCanonicalRecord(parts),
+    compatibility: compatibility(parts).summary,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   })
-  const save = () => {
+
+  const save = async () => {
     if (!store.loggedIn) {
       store.notify("Please log in to save your build")
       store.setAuthOpen(true)
       return
     }
-    const build = createBuild()
-    if (savedId && store.builds.some((item) => item.id === savedId)) {
-      store.set((previous) => ({
-        builds: previous.builds.map((item) =>
-          item.id === savedId ? { ...item, ...build, id: savedId } : item,
-        ),
-      }))
-    } else store.set((previous) => ({ builds: [build, ...previous.builds] }))
-    track("PC Build Saved", { build: build.name })
-    store.log(`PC build saved: ${build.name}`)
-    store.notify("Your PC build is saved")
-    setReady(true)
+    setSavingBuild(true)
+    const canonical = createCanonical()
+    const res = await saveBuild(canonical)
+    setSavingBuild(false)
+
+    if (res.success) {
+      const build = {
+        id: res.id,
+        name: canonical.name,
+        parts: { ...parts },
+        price: total,
+      }
+      if (savedId && store.builds.some((item) => item.id === savedId)) {
+        store.set((previous) => ({
+          builds: previous.builds.map((item) =>
+            item.id === savedId ? { ...item, ...build, id: savedId } : item,
+          ),
+        }))
+      } else {
+        store.set((previous) => ({ builds: [build, ...previous.builds] }))
+      }
+      track("PC Build Saved", { build: canonical.name })
+      store.log(`PC build saved: ${canonical.name}`)
+      store.notify("Your PC build is saved to My Account")
+      setReady(true)
+    } else {
+      store.notify(res.error || "Failed to save build")
+    }
   }
+
   const partList = Object.keys(store.componentCatalog)
     .filter((type) => parts[type])
     .map((type) => ({ type, name: parts[type].name, price: parts[type].price }))
+
   const enquire = () => {
-    const message = `Hello IT HUB,\n\nI would like to enquire about this PC configuration.\n\n${partList
-      .map((part) => `${part.type}: ${part.name}`)
-      .join(
-        "\n",
-      )}\n\nEstimated Price: ${money(total)}\n\nPlease confirm availability and the final quotation.`
+    const canonical = createCanonical()
+    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp)
     store.set((previous) => ({
       pcEnquiries: [
         {
-          id: crypto.randomUUID(),
+          id: quote.referenceId,
           summary: name.trim() || "My custom PC",
           parts: partList,
           estimate: total,
@@ -189,24 +188,24 @@ function ExpertBuilder({
         ...previous.pcEnquiries,
       ],
     }))
-    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || "My custom PC"}`)
-    track("Contact/WhatsApp Action", { context: "PC Builder enquiry" })
-    window.open(
-      `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    )
+    store.log(`PC quotation requested: ${quote.referenceId}`)
+    track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: quote.referenceId })
+    window.open(quote.whatsappUrl, "_blank", "noopener,noreferrer")
   }
-  const add = () => {
-    const build = createBuild()
-    store.addCart({
-      id: build.id,
-      name: build.name,
-      price: build.price,
-      image: images.pc,
-      build,
-    })
-    navigate("/cart")
+
+  const add = async () => {
+    setCheckingOut(true)
+    setCheckoutError(null)
+    const canonical = createCanonical()
+    const res = await prepareShopifyCheckout(canonical)
+    setCheckingOut(false)
+
+    if (res.success && res.checkoutUrl) {
+      window.location.href = res.checkoutUrl
+    } else {
+      setCheckoutError(res.error || "Unable to proceed to direct Shopify checkout. You can request a WhatsApp quotation below.")
+      setReady(true)
+    }
   }
   return (
     <Page>
@@ -345,28 +344,28 @@ function ExpertBuilder({
                 disabled={!complete || !valid}
                 onClick={() => setReady(true)}
               >
-                Complete configuration <CheckCircle2 size={15} />
+                Request IT HUB Quotation <CheckCircle2 size={15} />
               </Button>
               <Button
-                disabled={!complete || !valid}
+                disabled={!complete || !valid || checkingOut}
                 variant="secondary"
                 onClick={add}
               >
-                Add build to cart <ShoppingBag size={15} />
+                {checkingOut ? "Preparing Shopify Cart…" : "Checkout with Shopify"} <ShoppingBag size={15} />
               </Button>
               <Button
-                disabled={!complete || !valid}
+                disabled={!complete || !valid || savingBuild}
                 variant="secondary"
                 onClick={save}
               >
-                Save build <Save size={15} />
+                {savingBuild ? "Saving to Account…" : "Save build"} <Save size={15} />
               </Button>
             </div>
             {(!complete || !valid) && (
               <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
                 {!complete
-                  ? "Select all 8 components to save or purchase your build."
-                  : "Resolve compatibility errors before saving or purchasing."}
+                  ? "Select essential components (CPU, Motherboard, RAM, Storage, PSU, Cabinet) to complete your build."
+                  : "Resolve compatibility errors before requesting quotation or purchasing."}
               </p>
             )}
           </div>
@@ -431,10 +430,19 @@ function ExpertBuilder({
       </div>
       <Modal
         open={ready}
-        onOpenChange={setReady}
+        onOpenChange={(open) => {
+          setReady(open)
+          if (!open) setCheckoutError(null)
+        }}
         title="Preview your PC configuration"
         description="Send this configuration to IT HUB on WhatsApp to confirm availability and get your final quotation."
       >
+        {checkoutError && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 leading-relaxed">
+            <p className="font-semibold text-amber-950 mb-0.5">Shopify Checkout Notice</p>
+            {checkoutError}
+          </div>
+        )}
         <div className="space-y-2 rounded-lg bg-muted p-4 text-xs">
           {partList.map((part) => (
             <p key={part.type} className="flex justify-between gap-3">
@@ -1097,6 +1105,9 @@ function BuildDetail({
   const [customizing, setCustomizing] = useState(startCustomizing)
   const [selection, setSelection] = useState("")
   const [breakdown, setBreakdown] = useState(false)
+  const [savingBuild, setSavingBuild] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const priced: Record<string, ComponentOption> = { ...parts }
   owned.forEach((type) => delete priced[type])
   const componentTotal = sumParts(priced)
@@ -1139,58 +1150,68 @@ function BuildDetail({
           : ""
       : "",
   ].filter(Boolean)
+
   const swap = (type: string, item: ComponentOption) => {
     setParts({ ...parts, [type]: item })
     setOwned(owned.filter((value) => value !== type))
     store.notify(`${partLabels[type] || type} updated — estimate recalculated`)
   }
-  const save = () => {
+
+  const createCanonical = (): CanonicalBuild => ({
+    id: savedId || crypto.randomUUID(),
+    userId: store.profile?.id,
+    name: name.trim() || initial.name,
+    mode: "guided",
+    currency: "INR",
+    components: toCanonicalRecord(parts),
+    compatibility: compatibility(parts).summary,
+    designedFor: initial.designedFor,
+    templateId: initial.templateId,
+    ownedSlots: owned as any,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
+
+  const save = async () => {
     if (!store.loggedIn) {
       store.notify("Please log in to save your build")
       store.setAuthOpen(true)
       return
     }
-    const build = {
-      id: savedId || crypto.randomUUID(),
-      name: name.trim() || initial.name,
-      parts: { ...parts },
-      price: componentTotal,
-      designedFor: initial.designedFor,
-      templateId: initial.templateId,
-      owned,
+    setSavingBuild(true)
+    const canonical = createCanonical()
+    const res = await saveBuild(canonical)
+    setSavingBuild(false)
+
+    if (res.success) {
+      const build = {
+        id: res.id,
+        name: canonical.name,
+        parts: { ...parts },
+        price: componentTotal,
+        designedFor: initial.designedFor,
+        templateId: initial.templateId,
+        owned,
+      }
+      store.set((previous) => ({
+        builds: previous.builds.some((item) => item.id === build.id)
+          ? previous.builds.map((item) => (item.id === build.id ? build : item))
+          : [build, ...previous.builds],
+      }))
+      store.log(`PC build saved: ${canonical.name}`)
+      store.notify("Saved to My Account → PC Builds")
+    } else {
+      store.notify(res.error || "Failed to save build")
     }
-    store.set((previous) => ({
-      builds: previous.builds.some((item) => item.id === build.id)
-        ? previous.builds.map((item) => (item.id === build.id ? build : item))
-        : [build, ...previous.builds],
-    }))
-    store.log(`PC build saved: ${build.name}`)
-    store.notify("Saved to My Account → PC Builds")
   }
+
   const enquire = () => {
-    const line = (type: string) =>
-      `${partLabels[type] || type}:\n${display(type)}`
-    const message = [
-      "Hello IT HUB,",
-      "I would like to enquire about the following PC build:",
-      `Build:\n${name.trim() || initial.name}`,
-      ...[
-        "CPU",
-        "GPU",
-        "RAM",
-        "Storage",
-        "Motherboard",
-        "PSU",
-        "Cabinet",
-        "Cooler",
-      ].map(line),
-      `Estimated Price:\n${money(total)}`,
-      "Please confirm availability and provide the final quotation.",
-    ].join("\n\n")
+    const canonical = createCanonical()
+    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp)
     store.set((previous) => ({
       pcEnquiries: [
         {
-          id: crypto.randomUUID(),
+          id: quote.referenceId,
           summary: name.trim() || initial.name,
           parts: partOrder
             .filter((type) => priced[type])
@@ -1206,13 +1227,23 @@ function BuildDetail({
         ...previous.pcEnquiries,
       ],
     }))
-    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || initial.name}`)
-    track("Contact/WhatsApp Action", { context: "PC Builder enquiry" })
-    window.open(
-      `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    )
+    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || initial.name} (${quote.referenceId})`)
+    track("Contact/WhatsApp Action", { context: "PC Builder enquiry", ref: quote.referenceId })
+    window.open(quote.whatsappUrl, "_blank", "noopener,noreferrer")
+  }
+
+  const handleShopifyCheckout = async () => {
+    setCheckingOut(true)
+    setCheckoutError(null)
+    const canonical = createCanonical()
+    const res = await prepareShopifyCheckout(canonical)
+    setCheckingOut(false)
+
+    if (res.success && res.checkoutUrl) {
+      window.location.href = res.checkoutUrl
+    } else {
+      setCheckoutError(res.error || "Unable to proceed to Shopify checkout. You can request a WhatsApp quotation below.")
+    }
   }
   return (
     <div>
@@ -1453,7 +1484,13 @@ function BuildDetail({
               {DISCLAIMER}
             </p>
             <div className="mt-6 grid gap-3">
-              <p className="text-sm font-bold">Talk to IT HUB</p>
+              <p className="text-sm font-bold">Purchase or Confirm with IT HUB</p>
+              {checkoutError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 leading-relaxed">
+                  <p className="font-semibold text-amber-950 mb-0.5">Shopify Checkout Notice</p>
+                  {checkoutError}
+                </div>
+              )}
               <button
                 onClick={enquire}
                 disabled={!checks.valid}
@@ -1463,17 +1500,24 @@ function BuildDetail({
               </button>
               <Button
                 variant="secondary"
-                onClick={save}
-                disabled={!checks.valid}
+                onClick={handleShopifyCheckout}
+                disabled={!checks.valid || checkingOut}
               >
-                <Save size={15} /> {savedId ? "Save Changes" : "Save Build"}
+                {checkingOut ? "Preparing Shopify Cart…" : "Checkout with Shopify"} <ShoppingBag size={15} />
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={save}
+                disabled={!checks.valid || savingBuild}
+              >
+                <Save size={15} /> {savingBuild ? "Saving to Account…" : savedId ? "Save Changes" : "Save Build"}
               </Button>
               {!customizing && (
                 <Button
                   variant="secondary"
-                  onClick={() => setCustomizing(true)}
+                  onClick={() => onExpert(parts, name)}
                 >
-                  <SlidersHorizontal size={15} /> Customize This Build
+                  <SlidersHorizontal size={15} /> Customize in Expert Mode
                 </Button>
               )}
               {!checks.valid && (
@@ -1589,6 +1633,29 @@ function SmartBuilder() {
         }
       : null,
   )
+
+  useEffect(() => {
+    loadSavedBuilds().then((savedBuilds) => {
+      if (savedBuilds.length > 0) {
+        store.set((prev) => {
+          const existingIds = new Set(prev.builds.map((b) => b.id))
+          const fresh = savedBuilds
+            .filter((b) => !existingIds.has(b.id))
+            .map((b) => ({
+              id: b.id,
+              name: b.name,
+              parts: b.components as any,
+              price: Object.values(b.components).reduce((sum, c) => sum + (c?.price || 0), 0),
+              designedFor: b.designedFor,
+              templateId: b.templateId,
+              owned: b.ownedSlots as any,
+            }))
+          return fresh.length ? { builds: [...prev.builds, ...fresh] } : {}
+        })
+      }
+    })
+  }, [])
+
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next })
   const templates = store.buildTemplates.length
     ? store.buildTemplates
@@ -1701,6 +1768,42 @@ function SmartBuilder() {
             </div>
           ))}
         </div>
+        {store.builds.length > 0 && (
+          <div className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Your Saved Configurations</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Resume editing or request an updated quotation</p>
+              </div>
+              <Badge tone="blue">{store.builds.length} Saved</Badge>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {store.builds.map((b) => (
+                <div key={b.id} className="flex flex-col justify-between rounded-xl border border-border/80 p-4 bg-muted/20 hover:border-primary/40 transition">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground line-clamp-1">{b.name}</h3>
+                    <p className="text-xs text-primary font-bold mt-1">{money(b.price)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {Object.keys(b.parts || {}).length} components selected
+                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      className="text-xs flex-1 py-1"
+                      onClick={() => {
+                        setExpertSeed({ parts: b.parts, name: b.name, savedId: b.id })
+                        setMode("expert")
+                      }}
+                    >
+                      Open in Expert Mode
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Page>
     )
 
