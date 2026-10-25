@@ -203,8 +203,76 @@ export interface QuotationSubmissionResult {
   estimatedPrice?: number
   error?: string
   isRateLimited?: boolean
+  requiresAuth?: boolean
   technicianReviewRequired?: boolean
   priceDivergence?: number
+}
+
+export const PENDING_QUOTATION_STORAGE_KEY = "ithub_pending_pc_quotation"
+
+export interface PendingQuotation {
+  mode: "wizard" | "customise"
+  build: CanonicalBuild
+  parts: Record<string, any>
+  name: string
+  intent?: any
+  ownedSlots?: string[]
+  timestamp: string
+}
+
+function getStorage(): Storage | null {
+  if (typeof window !== "undefined" && window.localStorage) return window.localStorage
+  if (typeof globalThis !== "undefined" && (globalThis as any).localStorage) return (globalThis as any).localStorage
+  return null
+}
+
+/**
+ * Preserves a pending PC quotation build and customer preferences in localStorage
+ * when an unauthenticated guest requests a quotation.
+ */
+export function savePendingQuotation(data: Omit<PendingQuotation, "timestamp">): void {
+  try {
+    const storage = getStorage()
+    if (storage) {
+      const payload: PendingQuotation = {
+        ...data,
+        timestamp: new Date().toISOString(),
+      }
+      storage.setItem(PENDING_QUOTATION_STORAGE_KEY, JSON.stringify(payload))
+    }
+  } catch {
+    // LocalStorage quota safe
+  }
+}
+
+/**
+ * Retrieves any saved pending PC quotation build awaiting customer review upon login.
+ */
+export function getPendingQuotation(): PendingQuotation | null {
+  try {
+    const storage = getStorage()
+    if (storage) {
+      const raw = storage.getItem(PENDING_QUOTATION_STORAGE_KEY)
+      if (raw) return JSON.parse(raw) as PendingQuotation
+    }
+  } catch {
+    // Ignore parse error
+  }
+  return null
+}
+
+/**
+ * Clears the saved pending PC quotation after explicit customer confirmation or dismissal.
+ */
+export function clearPendingQuotation(): void {
+  try {
+    const storage = getStorage()
+    if (storage) {
+      storage.removeItem(PENDING_QUOTATION_STORAGE_KEY)
+    }
+  } catch {
+    // Ignore
+  }
 }
 
 export function generateQuotationReference(): string {
@@ -216,10 +284,11 @@ export function generateQuotationReference(): string {
 /**
  * Submits an official PC Build Quotation Request to IT HUB.
  * Uses the authoritative Supabase Edge Function `verify-and-submit-pc-quotation` which:
+ * - Requires mandatory authentication with valid customer JWT
  * - Recalculates authoritative prices server-side from Shopify variant IDs
  * - Distributed rate-limits requests (5 requests / 60 seconds per IP)
  * - Flags price tampering (> ₹100 divergence) for technician review
- * - Safely binds authenticated user_id or permits guest requests with null user_id
+ * - Derives customer user_id authoritatively from validated JWT identity
  * - Terminal error handling: never falls back to unverified client-side RPCs or bypasses verification
  */
 export async function submitQuotationRequest(
@@ -252,6 +321,22 @@ export async function submitQuotationRequest(
 
   try {
     if (activeSupabase) {
+      // 0. Client-Side Pre-Check: Authentication is mandatory for quotation submission
+      if (activeSupabase.auth && typeof activeSupabase.auth.getUser === "function") {
+        try {
+          const { data: authData } = await activeSupabase.auth.getUser()
+          if (!authData?.user) {
+            return {
+              success: false,
+              error: "Authentication required to submit a PC quotation request. Please sign in.",
+              requiresAuth: true,
+            }
+          }
+        } catch {
+          // If auth check throws, let Edge Function perform authoritative JWT validation
+        }
+      }
+
       // Authoritative Edge Function verification is the SOLE live submission pathway
       let edgeData: any = null
       let edgeErr: any = null
@@ -279,9 +364,44 @@ export async function submitQuotationRequest(
         edgeErr = invokeErr
       }
 
-      // 1. Detect Distributed Rate Limiting (HTTP 429)
-      let isRateLimited = false
+      // 1. Detect Authentication Required (HTTP 401)
+      let isAuthRequired = false
       let errorMessage = edgeErr?.message
+
+      if (edgeErr) {
+        try {
+          if (edgeErr.context && typeof edgeErr.context.json === "function") {
+            const errBody = await edgeErr.context.json()
+            if (errBody?.error) errorMessage = errBody.error
+            if (errBody?.requiresAuth || edgeErr.context.status === 401) {
+              isAuthRequired = true
+            }
+          } else if (edgeErr.context?.status === 401 || edgeErr.status === 401) {
+            isAuthRequired = true
+          }
+        } catch {
+          // Context already consumed or not JSON
+        }
+      }
+
+      if (
+        edgeData?.requiresAuth ||
+        (typeof edgeData?.error === "string" && edgeData.error.toLowerCase().includes("authentication required")) ||
+        (typeof errorMessage === "string" && errorMessage.toLowerCase().includes("authentication required"))
+      ) {
+        isAuthRequired = true
+      }
+
+      if (isAuthRequired) {
+        return {
+          success: false,
+          error: "Authentication required to submit a PC quotation request. Please sign in.",
+          requiresAuth: true,
+        }
+      }
+
+      // 2. Detect Distributed Rate Limiting (HTTP 429)
+      let isRateLimited = false
 
       if (edgeErr) {
         try {
@@ -315,7 +435,7 @@ export async function submitQuotationRequest(
         }
       }
 
-      // 2. Network or invocation failure — Return terminal error (NO fallback to unverified RPC)
+      // 3. Network or invocation failure — Return terminal error (NO fallback to unverified RPC)
       if (edgeErr) {
         return {
           success: false,
@@ -323,17 +443,18 @@ export async function submitQuotationRequest(
         }
       }
 
-      // 3. Edge Function logical rejection
+      // 4. Edge Function logical rejection
       if (edgeData && edgeData.success === false) {
         return {
           success: false,
           error: edgeData.error || "Quotation verification failed.",
+          requiresAuth: Boolean(edgeData.requiresAuth),
           technicianReviewRequired: Boolean(edgeData.technicianReviewRequired),
           priceDivergence: edgeData.priceDivergence,
         }
       }
 
-      // 4. Successful authoritative quotation verification
+      // 5. Successful authoritative quotation verification
       if (edgeData && edgeData.success) {
         return {
           success: true,

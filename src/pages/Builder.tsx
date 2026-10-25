@@ -50,6 +50,9 @@ import {
   loadSavedBuilds,
   deleteSavedBuild,
   submitQuotationRequest,
+  savePendingQuotation,
+  getPendingQuotation,
+  clearPendingQuotation,
   generateWhatsAppQuotation,
   generateDynamicCatalogRecommendations,
   getBudgetShortfallInfo,
@@ -131,6 +134,7 @@ function ExpertBuilder({
   const [filter, setFilter] = useState("")
   const [savingBuild, setSavingBuild] = useState(false)
   const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [pendingRestored, setPendingRestored] = useState(false)
   const [quoteResult, setQuoteResult] = useState<{
     referenceId: string
     estimatedPrice: number
@@ -139,6 +143,22 @@ function ExpertBuilder({
   } | null>(null)
   const total = Object.values(parts).reduce((sum, item) => sum + item.price, 0)
   const { result, watts, recommended, valid, complete } = compatibility(parts)
+
+  // Restore any pending quotation saved before guest login
+  useEffect(() => {
+    if (store.loggedIn) {
+      const pending = getPendingQuotation()
+      if (pending && pending.mode === "wizard") {
+        if (pending.parts && Object.keys(pending.parts).length > 0) {
+          setParts(pending.parts)
+        }
+        if (pending.name) {
+          setName(pending.name)
+        }
+        setPendingRestored(true)
+      }
+    }
+  }, [store.loggedIn])
 
   const createCanonical = (): CanonicalBuild => ({
     id: savedId || crypto.randomUUID(),
@@ -196,6 +216,20 @@ function ExpertBuilder({
       store.notify("Please select all essential components and resolve any compatibility issues.")
       return
     }
+
+    if (!store.loggedIn) {
+      const canonical = createCanonical()
+      savePendingQuotation({
+        mode: "wizard",
+        build: canonical,
+        parts,
+        name: name.trim() || "My custom PC",
+      })
+      store.notify("Please sign in to submit your official quotation request. Your build has been saved!")
+      store.setAuthOpen(true)
+      return
+    }
+
     setSubmittingQuote(true)
     const canonical = createCanonical()
     const res = await submitQuotationRequest(canonical, {
@@ -205,7 +239,21 @@ function ExpertBuilder({
     })
     setSubmittingQuote(false)
 
+    if (res.requiresAuth) {
+      savePendingQuotation({
+        mode: "wizard",
+        build: canonical,
+        parts,
+        name: name.trim() || "My custom PC",
+      })
+      store.notify("Please sign in to submit your official quotation request.")
+      store.setAuthOpen(true)
+      return
+    }
+
     if (res.success && res.referenceId) {
+      clearPendingQuotation()
+      setPendingRestored(false)
       setQuoteResult({
         referenceId: res.referenceId,
         estimatedPrice: res.estimatedPrice ?? total,
@@ -363,6 +411,39 @@ function ExpertBuilder({
               pricing, configuration changes, assembly/service requirements and
               customer requirements.
             </p>
+            {pendingRestored && (
+              <div className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <CheckCircle2 size={14} /> Restored Build Ready for Review
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  Welcome back! Please review your build details and click <strong>Confirm &amp; Submit Quotation</strong> below to submit your official request.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!complete || !valid || submittingQuote}
+                    onClick={async () => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                      await handleRequestQuotation()
+                    }}
+                  >
+                    {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mt-6 grid gap-3">
               <Button
                 disabled={!complete || !valid || submittingQuote}
@@ -1221,12 +1302,32 @@ function BuildDetail({
   const [savingBuild, setSavingBuild] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
   const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [pendingRestored, setPendingRestored] = useState(false)
   const [quoteResult, setQuoteResult] = useState<{
     referenceId: string
     estimatedPrice: number
     parts: Array<{ type: string; name: string; price: number }>
     buildName: string
   } | null>(null)
+
+  // Restore any pending quotation saved before guest login
+  useEffect(() => {
+    if (store.loggedIn) {
+      const pending = getPendingQuotation()
+      if (pending && pending.mode === "customise") {
+        if (pending.parts && Object.keys(pending.parts).length > 0) {
+          setParts(pending.parts)
+        }
+        if (pending.name) {
+          setName(pending.name)
+        }
+        if (pending.ownedSlots) {
+          setOwned(pending.ownedSlots)
+        }
+        setPendingRestored(true)
+      }
+    }
+  }, [store.loggedIn])
   const priced: Record<string, ComponentOption> = { ...parts }
   owned.forEach((type) => delete priced[type])
   const componentTotal = sumParts(priced)
@@ -1356,6 +1457,21 @@ function BuildDetail({
       store.notify("Please resolve compatibility issues before requesting a quotation.")
       return
     }
+
+    if (!store.loggedIn) {
+      const canonical = createCanonical()
+      savePendingQuotation({
+        mode: "customise",
+        build: canonical,
+        parts,
+        name: name.trim() || initial.name,
+        ownedSlots: owned,
+      })
+      store.notify("Please sign in to submit your official quotation request. Your build has been saved!")
+      store.setAuthOpen(true)
+      return
+    }
+
     setSubmittingQuote(true)
     const canonical = createCanonical()
     const res = await submitQuotationRequest(canonical, {
@@ -1365,7 +1481,22 @@ function BuildDetail({
     })
     setSubmittingQuote(false)
 
+    if (res.requiresAuth) {
+      savePendingQuotation({
+        mode: "customise",
+        build: canonical,
+        parts,
+        name: name.trim() || initial.name,
+        ownedSlots: owned,
+      })
+      store.notify("Please sign in to submit your official quotation request.")
+      store.setAuthOpen(true)
+      return
+    }
+
     if (res.success && res.referenceId) {
+      clearPendingQuotation()
+      setPendingRestored(false)
       const summaryParts = partOrder
         .filter((type) => priced[type])
         .map((type) => ({
@@ -1637,6 +1768,39 @@ function BuildDetail({
             <p className="mt-4 text-[11px] leading-5 text-muted-foreground">
               {DISCLAIMER}
             </p>
+            {pendingRestored && (
+              <div className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <CheckCircle2 size={14} /> Restored Build Ready for Review
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  Welcome back! Please review your custom build and click <strong>Confirm &amp; Submit Quotation</strong> below to submit your official request.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!checks.valid || submittingQuote}
+                    onClick={async () => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                      await handleRequestQuotation()
+                    }}
+                  >
+                    {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mt-6 grid gap-3">
               <p className="text-sm font-bold">Request Official Quotation</p>
               <Button

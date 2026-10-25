@@ -52,26 +52,103 @@ export async function handleQuotationVerification(
 
     const supabase = deps?.supabaseClient ?? (supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null)
 
-    // 2. Authoritative User Identity Derivation
-    let userId: string | null = null
+    // 2. Authoritative User Identity Derivation & Mandatory Authentication
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
-    if (authHeader && supabase) {
-      const token = authHeader.replace(/^Bearer\s+/i, "").trim()
-      if (
-        token &&
-        token !== serviceKey &&
-        token !== Deno.env.get("SUPABASE_ANON_KEY") &&
-        token !== Deno.env.get("VITE_SUPABASE_ANON_KEY")
-      ) {
-        try {
-          const { data: userData } = await supabase.auth.getUser(token)
-          if (userData?.user?.id) {
-            userId = userData.user.id
-          }
-        } catch {
-          // Token invalid or expired: proceed as guest (userId = null)
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Authentication required to submit a PC quotation request. Please sign in.",
+          requiresAuth: true,
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "WWW-Authenticate": 'Bearer realm="IT HUB PC Builder Quotation"',
+          },
+        },
+      )
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim()
+    if (
+      !token ||
+      token === serviceKey ||
+      token === Deno.env.get("SUPABASE_ANON_KEY") ||
+      token === Deno.env.get("VITE_SUPABASE_ANON_KEY")
+    ) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Valid customer session token required. Anonymous quotation submissions are not permitted.",
+          requiresAuth: true,
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "WWW-Authenticate": 'Bearer error="invalid_token"',
+          },
+        },
+      )
+    }
+
+    let userId: string | null = null
+    if (supabase) {
+      try {
+        const { data: userData, error: userErr } = await supabase.auth.getUser(token)
+        if (userErr || !userData?.user?.id) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "Invalid or expired session. Please sign in again to submit your quotation.",
+              requiresAuth: true,
+            }),
+            {
+              status: 401,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/json",
+                "WWW-Authenticate": 'Bearer error="invalid_token"',
+              },
+            },
+          )
         }
+        userId = userData.user.id
+      } catch {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Authentication verification failed. Please sign in again.",
+            requiresAuth: true,
+          }),
+          {
+            status: 401,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          },
+        )
       }
+    } else {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Authentication service unavailable.",
+          requiresAuth: true,
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
+      )
     }
 
     // 3. Distributed Rate Limit Check (5 requests per 60 seconds)
@@ -252,7 +329,8 @@ export async function handleQuotationVerification(
         clientEstimatedPrice: clientPrice,
         priceDivergence,
         technicianReviewRequired,
-        isGuest: userId === null,
+        userId,
+        isGuest: false,
       }),
       {
         status: 200,

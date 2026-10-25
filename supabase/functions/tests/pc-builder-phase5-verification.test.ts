@@ -3,7 +3,12 @@
 // Rigorous verification covering TEST-SEC-1 (Anti-Tampering) and TEST-SEC-4 (Distributed Rate Limiting).
 
 import { assertEquals, assertNotEquals, assertMatch } from "https://deno.land/std@0.224.0/assert/mod.ts"
-import { submitQuotationRequest } from "../../../src/lib/builder/persistence.ts"
+import {
+  submitQuotationRequest,
+  savePendingQuotation,
+  getPendingQuotation,
+  clearPendingQuotation,
+} from "../../../src/lib/builder/persistence.ts"
 
 const { handleQuotationVerification } = await import(
   "../verify-and-submit-pc-quotation/index.ts"
@@ -55,13 +60,36 @@ Deno.test("TEST-SEC-1: Client-Side Price Tampering is authoritatively rejected a
     }
   }
 
+  const mockAuthClient = {
+    auth: {
+      getUser: async (token: string) => ({
+        data: { user: { id: "00000000-0000-0000-0000-000000000001" } },
+        error: null,
+      }),
+    },
+    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
+    from: (_table: string) => ({
+      select: () => ({ in: async () => ({ data: [], error: null }) }),
+      insert: () => ({
+        select: () => ({
+          single: async () => ({ data: { id: "quote-tamper-uuid" }, error: null }),
+        }),
+      }),
+    }),
+  }
+
   const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-forwarded-for": "192.168.1.101" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer valid-auth-token",
+      "x-forwarded-for": "192.168.1.101",
+    },
     body: JSON.stringify(tamperedPayload),
   })
 
   const res = await handleQuotationVerification(req, {
+    supabaseClient: mockAuthClient as any,
     shopifyFetch: mockShopifyFetch,
   })
 
@@ -84,6 +112,12 @@ Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute thre
   const ipStore = new Map<string, { count: number; start: number }>()
 
   const mockSupabaseClient = {
+    auth: {
+      getUser: async () => ({
+        data: { user: { id: "00000000-0000-0000-0000-000000000002" } },
+        error: null,
+      }),
+    },
     rpc: async (func: string, params: any) => {
       if (func === "check_distributed_rate_limit") {
         const { p_ip_hash, p_max_requests = 5, p_window_seconds = 60 } = params
@@ -124,7 +158,11 @@ Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute thre
   for (let i = 1; i <= 5; i++) {
     const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.99" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer valid-auth-token",
+        "x-forwarded-for": "10.0.0.99",
+      },
       body: JSON.stringify(payload),
     })
 
@@ -137,7 +175,11 @@ Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute thre
   // Request 6 from the same IP MUST be rejected with HTTP 429
   const req6 = new Request("http://localhost/verify-and-submit-pc-quotation", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.99" },
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer valid-auth-token",
+      "x-forwarded-for": "10.0.0.99",
+    },
     body: JSON.stringify(payload),
   })
 
@@ -320,71 +362,59 @@ Deno.test("TEST-SEC-8: submitQuotationRequest never falls back to legacy RPC on 
   assertEquals(rpcCallCount, 0)
 })
 
-Deno.test("TEST-SEC-9: Authoritative Edge Function preserves guest quotations safely without client tampering", async () => {
-  let recordedInsert: any = null
-
+Deno.test("TEST-SEC-9: Unauthenticated guest requests to Edge Function are rejected with HTTP 401", async () => {
   const mockSupabase = {
-    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
-    from: (table: string) => {
-      return {
-        select: (_cols?: string) => ({
-          in: async () => ({ data: [], error: null }),
-        }),
-        insert: (record: any) => {
-          recordedInsert = record
-          return {
-            select: () => ({
-              single: async () => ({ data: { id: "quote-guest-verified-uuid" }, error: null }),
-            }),
-          }
-        },
-      }
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: new Error("No token provided") }),
     },
+    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
   }
 
   const guestPayload = {
-    buildName: "Guest Safe Rig",
+    buildName: "Guest Exploit Rig",
     estimatedPrice: 9000,
     parts: {
       CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
     },
-    customerInfo: { name: "Guest User", phone: "9876543210" },
+    customerInfo: { name: "Unauthenticated Guest", phone: "9876543210" },
   }
 
-  const mockShopify = async (_q: string, vars: any) => ({
-    data: {
-      nodes: vars.ids.map((id: string) => ({
-        id,
-        price: { amount: "9000.00", currencyCode: "INR" },
-        availableForSale: true,
-      })),
-    },
-  })
-
-  // No authorization header -> Guest
-  const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
+  // Request WITHOUT Authorization header -> MUST be rejected with HTTP 401
+  const reqNoAuth = new Request("http://localhost/verify-and-submit-pc-quotation", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-forwarded-for": "172.16.0.42" },
     body: JSON.stringify(guestPayload),
   })
 
-  const res = await handleQuotationVerification(req, {
+  const resNoAuth = await handleQuotationVerification(reqNoAuth, {
     supabaseClient: mockSupabase as any,
-    shopifyFetch: mockShopify,
   })
 
-  assertEquals(res.status, 200)
-  const body = await res.json()
-  assertEquals(body.success, true)
-  assertEquals(body.isGuest, true)
-  assertMatch(body.referenceId, /^ITH-PC-\d{8}-[A-Z0-9]+$/)
-  assertEquals(body.authoritativePrice, 9000)
+  assertEquals(resNoAuth.status, 401)
+  const bodyNoAuth = await resNoAuth.json()
+  assertEquals(bodyNoAuth.success, false)
+  assertEquals(bodyNoAuth.requiresAuth, true)
+  assertEquals(bodyNoAuth.error?.includes("Authentication required"), true)
 
-  // Verify database record has user_id = null and enquiry_status = 'New'
-  assertEquals(recordedInsert.user_id, null)
-  assertEquals(recordedInsert.enquiry_status, "New")
-  assertEquals(recordedInsert.customer_name, "Guest User")
-  assertEquals(recordedInsert.authoritative_price, 9000)
+  // Request with anonymous key token -> MUST be rejected with HTTP 401
+  const reqAnonKey = new Request("http://localhost/verify-and-submit-pc-quotation", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS",
+      "x-forwarded-for": "172.16.0.42",
+    },
+    body: JSON.stringify(guestPayload),
+  })
+
+  const resAnonKey = await handleQuotationVerification(reqAnonKey, {
+    supabaseClient: mockSupabase as any,
+  })
+
+  assertEquals(resAnonKey.status, 401)
+  const bodyAnonKey = await resAnonKey.json()
+  assertEquals(bodyAnonKey.success, false)
+  assertEquals(bodyAnonKey.requiresAuth, true)
 })
 
 Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id from verified JWT token", async () => {
@@ -456,9 +486,130 @@ Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id 
   const body = await res.json()
   assertEquals(body.success, true)
   assertEquals(body.isGuest, false)
+  assertEquals(body.userId, "00000000-0000-0000-0000-000000000001")
 
   // Verify database record has user_id = authenticated user ID
   assertEquals(recordedInsert.user_id, "00000000-0000-0000-0000-000000000001")
 })
+
+Deno.test("TEST-SEC-11: Expired or invalid JWT tokens are rejected by Edge Function with HTTP 401", async () => {
+  const mockSupabase = {
+    auth: {
+      getUser: async (token: string) => {
+        // Simulate token expiration / invalid signature
+        return { data: { user: null }, error: new Error("JWT expired or signature verification failed") }
+      },
+    },
+    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
+  }
+
+  const payload = {
+    buildName: "Expired Token Rig",
+    estimatedPrice: 9000,
+    parts: {
+      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+    },
+  }
+
+  const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer expired-jwt-token-12345",
+      "x-forwarded-for": "172.16.0.42",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const res = await handleQuotationVerification(req, {
+    supabaseClient: mockSupabase as any,
+  })
+
+  assertEquals(res.status, 401)
+  const body = await res.json()
+  assertEquals(body.success, false)
+  assertEquals(body.requiresAuth, true)
+  assertEquals(body.error?.includes("Invalid or expired session"), true)
+})
+
+Deno.test("TEST-SEC-12: Client-side submitQuotationRequest rejects unauthenticated sessions with requiresAuth", async () => {
+  const mockSupabase = {
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: null }),
+    },
+    functions: {
+      invoke: async () => {
+        throw new Error("SECURITY FAILURE: Edge Function should not be invoked when unauthenticated!")
+      },
+    },
+  }
+
+  const sampleBuild: any = {
+    id: "unauth-build-test",
+    name: "Unauthenticated Rig",
+    components: {
+      CPU: { slot: "CPU", productId: "p-cpu", title: "AMD Ryzen 5 5600", price: 9000, variantId: "gid://shopify/ProductVariant/cpu-1" },
+    },
+  }
+
+  const res = await submitQuotationRequest(sampleBuild, undefined, { supabaseClient: mockSupabase })
+
+  assertEquals(res.success, false)
+  assertEquals(res.requiresAuth, true)
+  assertEquals(res.error?.includes("Authentication required"), true)
+})
+
+Deno.test("TEST-SEC-13: Pending build preservation preserves build and preferences and restores for review", () => {
+  // Clear any existing stored quote
+  clearPendingQuotation()
+  assertEquals(getPendingQuotation(), null)
+
+  const mockCanonical: any = {
+    id: "preserved-build-123",
+    name: "Kerala Creator Rig",
+    mode: "wizard",
+    currency: "INR",
+    components: {
+      CPU: { slot: "CPU", productId: "p-cpu", title: "AMD Ryzen 5 5600", price: 9000 },
+      Motherboard: { slot: "Motherboard", productId: "p-mobo", title: "ASUS B550M", price: 8999 },
+    },
+  }
+
+  // 1. Save pending quotation
+  savePendingQuotation({
+    mode: "wizard",
+    build: mockCanonical,
+    parts: mockCanonical.components,
+    name: mockCanonical.name,
+    intent: { budget: 60000, category: "Gaming" },
+    ownedSlots: ["RAM"],
+  })
+
+  // 2. Retrieve pending quotation
+  const restored = getPendingQuotation()
+  assertNotEquals(restored, null)
+  assertEquals(restored?.mode, "wizard")
+  assertEquals(restored?.name, "Kerala Creator Rig")
+  assertEquals(restored?.ownedSlots?.includes("RAM"), true)
+  assertEquals(restored?.intent?.budget, 60000)
+  assertEquals(Boolean(restored?.parts?.CPU), true)
+
+  // 3. Clear pending quotation upon confirmation
+  clearPendingQuotation()
+  assertEquals(getPendingQuotation(), null)
+})
+
+Deno.test("TEST-SEC-14: Migration 20261026000003_quotation_mandatory_authentication.sql strictly forbids anonymous quotations", async () => {
+  const sql = await Deno.readTextFile("supabase/migrations/20261026000003_quotation_mandatory_authentication.sql")
+  
+  // 1. protect_pc_build trigger must enforce user_id is not null for quotations
+  assertEquals(sql.includes("new.user_id is null"), true)
+  assertEquals(sql.includes("PC quotation submission requires an authenticated customer account"), true)
+
+  // 2. submit_pc_quotation_request must require v_user_id is not null
+  assertEquals(sql.includes("v_user_id is null"), true)
+  assertEquals(sql.includes("v_user_id := auth.uid();"), true)
+})
+
 
 

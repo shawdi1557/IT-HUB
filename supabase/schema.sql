@@ -1036,6 +1036,11 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
     if tg_op = 'INSERT' then
+      -- Quotation submissions strictly require an authenticated customer account
+      if (new.reference_id is not null or new.enquiry_status in ('New', 'Contacted', 'Quoted', 'Closed')) and new.user_id is null then
+        raise exception 'Unauthorized: PC quotation submission requires an authenticated customer account. Please sign in.';
+      end if;
+
       if auth.uid() is not null then
         if new.user_id is distinct from auth.uid() then
           raise exception 'Unauthorized: PC Build user_id must match authenticated user';
