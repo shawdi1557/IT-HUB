@@ -541,8 +541,9 @@ export function matchShopifyProductToComponent(
 }
 
 /**
- * Builds the canonical builder catalog by aggregating live Shopify products
- * and filling missing slots with verified reference entries.
+ * Builds the canonical builder catalog by aggregating live Shopify products.
+ * Strictly adheres to Shopify as the sole authoritative source:
+ * No static, mock, or reference fallbacks are ever inserted into customer-facing component selections.
  */
 export function buildBuilderCatalog(
   shopifyProducts: Product[] = [],
@@ -560,63 +561,18 @@ export function buildBuilderCatalog(
     Monitor: [],
   }
 
-  const matchedKeys = new Set<string>()
-
-  // 1. Process authentic Shopify products first (Authoritative)
+  // Process authentic Shopify products (Authoritative)
   for (const product of shopifyProducts) {
     const comp = matchShopifyProductToComponent(product)
-    if (comp) {
+    // Only available, eligible products with valid variant IDs and prices are selectable
+    if (
+      comp &&
+      comp.availability === "available" &&
+      comp.variantId &&
+      comp.price > 0
+    ) {
       catalog[comp.slot].push(comp)
-      if (comp.matchedModelKey) {
-        matchedKeys.add(comp.matchedModelKey)
-      }
     }
-  }
-
-  // 2. Add verified reference models for any hardware not yet populated in Shopify
-  for (const [key, entry] of Object.entries(VERIFIED_HARDWARE_SPECS)) {
-    // If a live Shopify product already represents this model, do not add the fallback!
-    if (matchedKeys.has(key)) continue
-
-    const slot: ComponentSlotId = key.startsWith("cpu-")
-      ? "CPU"
-      : key.startsWith("mobo-")
-        ? "Motherboard"
-        : key.startsWith("ram-")
-          ? "RAM"
-          : key.startsWith("gpu-")
-            ? "GPU"
-            : key.startsWith("ssd-")
-              ? "Storage"
-              : key.startsWith("psu-")
-                ? "PSU"
-                : key.startsWith("case-")
-                  ? "Cabinet"
-                  : key.startsWith("cooler-")
-                    ? "Cooler"
-                    : key.startsWith("monitor-")
-                      ? "Monitor"
-                      : "CPU"
-
-    catalog[slot].push({
-      slot,
-      productId: key,
-      variantId: "", // Unlinked to Shopify; quote only
-      title: entry.title,
-      brand: entry.title.split(" ")[0] || "IT HUB",
-      model: entry.title,
-      price: entry.defaultPrice,
-      currency: "INR",
-      productUrl: "/products",
-      imageUrl: `/images/pc-parts/${slot.toLowerCase()}.jpg`,
-      specs: entry.specs,
-      availability: "available",
-      quantity: 1,
-      retrievedAt: new Date().toISOString(),
-      isShopifyLive: false,
-      isVerified: true,
-      matchedModelKey: key,
-    })
   }
 
   return catalog
@@ -644,48 +600,37 @@ export function toComponentOption(comp: CanonicalBuildComponent): ComponentOptio
     bios: comp.specs.requiresBiosUpdateForRyzen5000,
     wifi: comp.specs.hasWifi,
     interface: comp.specs.storageInterface,
-    stock: comp.availability === "available" ? (comp.isShopifyLive ? 6 : 10) : 0,
+    stock: comp.availability === "available" ? 6 : 0,
   }
 }
 
 /**
  * Synchronizes the application's component catalog with live Shopify products.
  * Guarantees that Shopify is the authoritative source for pricing, variant IDs, and availability.
+ * Never inserts mock or fallback hardware into the selectable component catalog.
  */
 export function syncBuilderCatalogWithShopify(
   shopifyProducts: Product[] = [],
-  baselineCatalog?: Record<string, ComponentOption[]>,
+  _baselineCatalog?: Record<string, ComponentOption[]>,
 ): {
   componentCatalog: Record<string, ComponentOption[]>
   canonicalCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]>
 } {
   const canonicalCatalog = buildBuilderCatalog(shopifyProducts)
-  const componentCatalog: Record<string, ComponentOption[]> = {}
-
-  for (const [slot, items] of Object.entries(canonicalCatalog)) {
-    componentCatalog[slot] = items.map(toComponentOption)
+  const componentCatalog: Record<string, ComponentOption[]> = {
+    CPU: [],
+    Motherboard: [],
+    RAM: [],
+    GPU: [],
+    Storage: [],
+    PSU: [],
+    Cabinet: [],
+    Cooler: [],
   }
 
-  // Preserve any custom administrative entries from baselineCatalog if not already represented
-  if (baselineCatalog) {
-    for (const [slot, baseItems] of Object.entries(baselineCatalog)) {
-      if (slot === "Peripherals" || slot === "OS") continue
-      if (!componentCatalog[slot]) {
-        componentCatalog[slot] = baseItems
-      } else {
-        const existingIds = new Set(componentCatalog[slot].map((item) => item.id))
-        const existingNames = new Set(componentCatalog[slot].map((item) => item.name.toLowerCase()))
-        for (const baseItem of baseItems) {
-          if (!existingIds.has(baseItem.id) && !existingNames.has(baseItem.name.toLowerCase())) {
-            componentCatalog[slot].push({
-              ...baseItem,
-              variantId: baseItem.variantId || undefined,
-              isShopifyLive: Boolean(baseItem.variantId),
-            })
-          }
-        }
-      }
-    }
+  for (const [slot, items] of Object.entries(canonicalCatalog)) {
+    if (slot === "CaseFans") continue
+    componentCatalog[slot] = items.map(toComponentOption)
   }
 
   return { componentCatalog, canonicalCatalog }

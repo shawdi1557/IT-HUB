@@ -39,6 +39,130 @@ const mockShopifyRyzen5600: any = {
   specs: {},
 }
 
+const mockShopifyB550M: any = {
+  id: "gid://shopify/Product/mobo-b550m-test",
+  name: "[TEST] ASUS Prime B550M-A WiFi II",
+  title: "[TEST] ASUS Prime B550M-A WiFi II",
+  handle: "test-asus-prime-b550m-a",
+  price: 8999,
+  original: 9999,
+  brand: "ASUS",
+  category: "Motherboards",
+  productType: "Motherboard",
+  tags: ["pc-builder", "motherboard", "am4", "b550"],
+  variantId: "gid://shopify/ProductVariant/4455667789",
+  availableForSale: true,
+  stock: 5,
+  specs: {},
+}
+
+const mockShopifyRam16: any = {
+  id: "gid://shopify/Product/ram-16-test",
+  name: "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz",
+  title: "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz",
+  handle: "test-corsair-vengeance-16gb-ddr4",
+  price: 3499,
+  brand: "Corsair",
+  category: "Memory",
+  productType: "RAM",
+  tags: ["pc-builder", "ram", "ddr4"],
+  variantId: "gid://shopify/ProductVariant/4455667790",
+  availableForSale: true,
+  stock: 10,
+  specs: {},
+}
+
+const mockShopifyRtx4060: any = {
+  id: "gid://shopify/Product/gpu-4060-test",
+  name: "[TEST] Gigabyte GeForce RTX 4060 Eagle OC 8GB",
+  title: "[TEST] Gigabyte GeForce RTX 4060 Eagle OC 8GB",
+  handle: "test-gigabyte-rtx-4060",
+  price: 28499,
+  brand: "Gigabyte",
+  category: "Graphics Cards",
+  productType: "Graphics Card",
+  tags: ["pc-builder", "gpu", "rtx4060"],
+  variantId: "gid://shopify/ProductVariant/4455667791",
+  availableForSale: true,
+  stock: 4,
+  specs: {},
+}
+
+const mockShopifyNvme1tb: any = {
+  id: "gid://shopify/Product/ssd-1tb-test",
+  name: "[TEST] Kingston NV2 1TB M.2 2280 NVMe PCIe 4.0 SSD",
+  title: "[TEST] Kingston NV2 1TB M.2 2280 NVMe PCIe 4.0 SSD",
+  handle: "test-kingston-nv2-1tb",
+  price: 4999,
+  brand: "Kingston",
+  category: "Storage",
+  productType: "Solid State Drive",
+  tags: ["pc-builder", "storage", "nvme", "ssd"],
+  variantId: "gid://shopify/ProductVariant/4455667792",
+  availableForSale: true,
+  stock: 8,
+  specs: {},
+}
+
+const mockShopifyPsu550: any = {
+  id: "gid://shopify/Product/psu-550-test",
+  name: "[TEST] Deepcool PK550D 550W 80 Plus Bronze Power Supply",
+  title: "[TEST] Deepcool PK550D 550W 80 Plus Bronze Power Supply",
+  handle: "test-deepcool-pk550d",
+  price: 3699,
+  brand: "Deepcool",
+  category: "Power Supplies",
+  productType: "Power Supply",
+  tags: ["pc-builder", "psu", "550w"],
+  variantId: "gid://shopify/ProductVariant/4455667793",
+  availableForSale: true,
+  stock: 6,
+  specs: {},
+}
+
+const mockShopifyCase: any = {
+  id: "gid://shopify/Product/case-matx-test",
+  name: "[TEST] Ant Esports ICE-100 Mid-Tower Gaming Cabinet",
+  title: "[TEST] Ant Esports ICE-100 Mid-Tower Gaming Cabinet",
+  handle: "test-ant-esports-ice-100",
+  price: 2999,
+  brand: "Ant Esports",
+  category: "PC Cases",
+  productType: "Cabinet",
+  tags: ["pc-builder", "cabinet", "case"],
+  variantId: "gid://shopify/ProductVariant/4455667794",
+  availableForSale: true,
+  stock: 7,
+  specs: {},
+}
+
+const mockShopifyCooler: any = {
+  id: "gid://shopify/Product/cooler-ag400-test",
+  name: "[TEST] Deepcool AG400 Single-Tower CPU Cooler",
+  title: "[TEST] Deepcool AG400 Single-Tower CPU Cooler",
+  handle: "test-deepcool-ag400",
+  price: 1799,
+  brand: "Deepcool",
+  category: "Cooling",
+  productType: "CPU Cooler",
+  tags: ["pc-builder", "cooler"],
+  variantId: "gid://shopify/ProductVariant/4455667795",
+  availableForSale: true,
+  stock: 9,
+  specs: {},
+}
+
+const eightTestProducts = [
+  mockShopifyRyzen5600,
+  mockShopifyB550M,
+  mockShopifyRam16,
+  mockShopifyRtx4060,
+  mockShopifyNvme1tb,
+  mockShopifyPsu550,
+  mockShopifyCase,
+  mockShopifyCooler,
+]
+
 const mockShopifyLegionMonitor: any = {
   id: "gid://shopify/Product/112233445",
   name: "Lenovo Legion {Smartchoice} R27qe Gen 2",
@@ -97,21 +221,26 @@ Deno.test("AUDIT-2: Detects slots and normalizes titles stripping [TEST] bracket
   assertEquals(detectComponentSlot("Lenovo Legion R27qe Monitor"), "Monitor")
 })
 
-Deno.test("AUDIT-3: Find My PC recommendation engine uses the authentic ₹9,000 Shopify price", () => {
-  const canonicalCatalog = buildBuilderCatalog([mockShopifyRyzen5600])
-
+Deno.test("AUDIT-3: Find My PC recommendation engine uses the authentic ₹9,000 Shopify price and rejects incomplete catalogs", () => {
+  // 1. Incomplete catalog (CPU only): Must produce 0 fabricated builds (no silent fallback insertion!)
+  const incompleteCatalog = buildBuilderCatalog([mockShopifyRyzen5600])
   const answers: any = {
     purpose: "gaming",
-    budgetInr: 50000,
+    budgetInr: 60000,
     includePeripherals: false,
     ownedParts: [],
     preferredBrands: ["AMD"],
   }
+  const incompleteRecs = generateRecommendations(answers, incompleteCatalog)
+  assertEquals(incompleteRecs.length, 0) // No fabricated builds!
 
+  // 2. Complete catalog (all 8 authentic Shopify test products): Successfully generates recommendation
+  const canonicalCatalog = buildBuilderCatalog(eightTestProducts)
   const recs = generateRecommendations(answers, canonicalCatalog)
   assertEquals(recs.length > 0, true)
 
   const valueRec = recs.find((r) => r.build.components.CPU?.title.includes("5600"))
+  assertEquals(Boolean(valueRec), true)
   if (valueRec) {
     const cpu = valueRec.build.components.CPU
     assertEquals(cpu?.price, 9000)

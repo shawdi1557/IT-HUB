@@ -31,7 +31,6 @@ import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import {
-  componentOptions,
   images,
   money,
   type ComponentOption,
@@ -50,7 +49,7 @@ import {
   saveBuild,
   loadSavedBuilds,
   deleteSavedBuild,
-  prepareShopifyCheckout,
+  submitQuotationRequest,
   generateWhatsAppQuotation,
   type CanonicalBuild,
   type CanonicalBuildComponent,
@@ -99,6 +98,17 @@ function toCanonicalRecord(parts: Record<string, ComponentOption>): Partial<Reco
   }
   return canonicalParts
 }
+const EXPERT_BUILDER_SLOTS = [
+  "CPU",
+  "Motherboard",
+  "RAM",
+  "GPU",
+  "Storage",
+  "PSU",
+  "Cabinet",
+  "Cooler",
+]
+
 function ExpertBuilder({
   initialParts,
   initialName,
@@ -117,10 +127,14 @@ function ExpertBuilder({
   const [selection, setSelection] = useState("")
   const [name, setName] = useState(initialName)
   const [filter, setFilter] = useState("")
-  const [ready, setReady] = useState(false)
   const [savingBuild, setSavingBuild] = useState(false)
-  const [checkingOut, setCheckingOut] = useState(false)
-  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [quoteResult, setQuoteResult] = useState<{
+    referenceId: string
+    estimatedPrice: number
+    parts: Array<{ type: string; name: string; price: number }>
+    buildName: string
+  } | null>(null)
   const total = Object.values(parts).reduce((sum, item) => sum + item.price, 0)
   const { result, watts, recommended, valid, complete } = compatibility(parts)
 
@@ -166,49 +180,53 @@ function ExpertBuilder({
       track("PC Build Saved", { build: canonical.name })
       store.log(`PC build saved: ${canonical.name}`)
       store.notify("Your PC build is saved to My Account")
-      setReady(true)
     } else {
       store.notify(res.error || "Failed to save build")
     }
   }
 
-  const partList = Object.keys(store.componentCatalog)
+  const partList = Object.keys(parts)
     .filter((type) => type !== "Peripherals" && type !== "OS" && parts[type])
     .map((type) => ({ type, name: parts[type].name, price: parts[type].price }))
 
-  const enquire = () => {
+  const handleRequestQuotation = async () => {
+    if (!complete || !valid) {
+      store.notify("Please select all essential components and resolve any compatibility issues.")
+      return
+    }
+    setSubmittingQuote(true)
     const canonical = createCanonical()
-    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp)
-    store.set((previous) => ({
-      pcEnquiries: [
-        {
-          id: quote.referenceId,
-          summary: name.trim() || "My custom PC",
-          parts: partList,
-          estimate: total,
-          date: new Date().toISOString(),
-          status: "New",
-        },
-        ...previous.pcEnquiries,
-      ],
-    }))
-    store.log(`PC quotation requested: ${quote.referenceId}`)
-    track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: quote.referenceId })
-    window.open(quote.whatsappUrl, "_blank", "noopener,noreferrer")
-  }
+    const res = await submitQuotationRequest(canonical, {
+      name: store.profile?.name,
+      phone: store.profile?.phone,
+      email: store.profile?.email,
+    })
+    setSubmittingQuote(false)
 
-  const add = async () => {
-    setCheckingOut(true)
-    setCheckoutError(null)
-    const canonical = createCanonical()
-    const res = await prepareShopifyCheckout(canonical)
-    setCheckingOut(false)
-
-    if (res.success && res.checkoutUrl) {
-      window.location.href = res.checkoutUrl
+    if (res.success && res.referenceId) {
+      setQuoteResult({
+        referenceId: res.referenceId,
+        estimatedPrice: res.estimatedPrice ?? total,
+        parts: partList,
+        buildName: name.trim() || "My custom PC",
+      })
+      store.set((previous) => ({
+        pcEnquiries: [
+          {
+            id: res.referenceId!,
+            summary: name.trim() || "My custom PC",
+            parts: partList,
+            estimate: total,
+            date: new Date().toISOString(),
+            status: "New",
+          },
+          ...previous.pcEnquiries,
+        ],
+      }))
+      store.log(`PC quotation requested: ${res.referenceId}`)
+      track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: res.referenceId })
     } else {
-      setCheckoutError(res.error || "Unable to proceed to direct Shopify checkout. You can request a WhatsApp quotation below.")
-      setReady(true)
+      store.notify(res.error || "Failed to submit quotation request. Please try again.")
     }
   }
   return (
@@ -245,9 +263,7 @@ function ExpertBuilder({
       </div>
       <div className="grid gap-8 lg:grid-cols-[1fr_370px]">
         <div className="space-y-3">
-          {Object.keys(store.componentCatalog)
-            .filter((type) => type !== "Peripherals" && type !== "OS")
-            .map((type, index) => (
+          {EXPERT_BUILDER_SLOTS.map((type, index) => (
             <div
               key={type}
               className={`flex flex-wrap items-center gap-4 rounded-lg border p-5 ${
@@ -347,17 +363,10 @@ function ExpertBuilder({
             </p>
             <div className="mt-6 grid gap-3">
               <Button
-                disabled={!complete || !valid}
-                onClick={() => setReady(true)}
+                disabled={!complete || !valid || submittingQuote}
+                onClick={handleRequestQuotation}
               >
-                Request IT HUB Quotation <CheckCircle2 size={15} />
-              </Button>
-              <Button
-                disabled={!complete || !valid || checkingOut}
-                variant="secondary"
-                onClick={add}
-              >
-                {checkingOut ? "Preparing Shopify Cart…" : "Checkout with Shopify"} <ShoppingBag size={15} />
+                {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"} <CheckCircle2 size={15} />
               </Button>
               <Button
                 disabled={!complete || !valid || savingBuild}
@@ -371,7 +380,7 @@ function ExpertBuilder({
               <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
                 {!complete
                   ? "Select essential components (CPU, Motherboard, RAM, Storage, PSU, Cabinet) to complete your build."
-                  : "Resolve compatibility errors before requesting quotation or purchasing."}
+                  : "Resolve compatibility errors before requesting a quotation."}
               </p>
             )}
           </div>
@@ -435,52 +444,81 @@ function ExpertBuilder({
         </aside>
       </div>
       <Modal
-        open={ready}
-        onOpenChange={(open) => {
-          setReady(open)
-          if (!open) setCheckoutError(null)
-        }}
-        title="Preview your PC configuration"
-        description="Send this configuration to IT HUB on WhatsApp to confirm availability and get your final quotation."
+        open={Boolean(quoteResult)}
+        onOpenChange={(open) => !open && setQuoteResult(null)}
+        title="Your PC Build Request Has Been Received!"
+        description="Quotation Request Confirmation"
       >
-        {checkoutError && (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 leading-relaxed">
-            <p className="font-semibold text-amber-950 mb-0.5">Shopify Checkout Notice</p>
-            {checkoutError}
+        {quoteResult && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>Reference ID: {quoteResult.referenceId}</span>
+              </div>
+              <p>
+                Thank you for choosing IT HUB. Our team will review your selected components, verify current availability, and contact you soon with the final quotation.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
+              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
+              {quoteResult.parts.map((part) => (
+                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
+                  <span>
+                    <strong className="text-foreground">{part.type}:</strong> {part.name}
+                  </span>
+                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
+                </p>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-border p-4 bg-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground">Estimated Build Price</span>
+                  <p className="text-[10px] text-muted-foreground">
+                    (Estimate only — final price will be confirmed in your official quotation)
+                  </p>
+                </div>
+                <strong className="text-2xl text-primary">{money(quoteResult.estimatedPrice)}</strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+              <Info size={16} className="text-primary shrink-0" />
+              <p>
+                <strong className="text-foreground">Next step: </strong>
+                Our team will contact you soon after reviewing your build.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => setQuoteResult(null)}
+              >
+                Continue Building
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setQuoteResult(null)}
+              >
+                Close
+              </Button>
+              <a
+                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                <WhatsAppIcon size={16} /> Send via WhatsApp
+              </a>
+            </div>
           </div>
         )}
-        <div className="space-y-2 rounded-lg bg-muted p-4 text-xs">
-          {partList.map((part) => (
-            <p key={part.type} className="flex justify-between gap-3">
-              <span>
-                <span className="text-muted-foreground">{part.type}:</span>{" "}
-                {part.name}
-              </span>
-              <strong className="shrink-0">{money(part.price)}</strong>
-            </p>
-          ))}
-        </div>
-        <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm">Estimated Price</span>
-          <strong className="text-2xl text-primary">{money(total)}</strong>
-        </div>
-        <p className="mt-2 text-[10px] leading-5 text-muted-foreground">
-          Estimated only — final price may change based on availability, market
-          pricing, configuration, assembly/service and your requirements.
-        </p>
-        <button
-          onClick={enquire}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95"
-        >
-          <WhatsAppIcon size={18} /> Contact IT HUB on WhatsApp
-        </button>
-        <Button
-          variant="secondary"
-          className="mt-3 w-full"
-          onClick={() => setReady(false)}
-        >
-          Keep editing
-        </Button>
       </Modal>
       <Modal
         open={Boolean(selection)}
@@ -488,7 +526,7 @@ function ExpertBuilder({
           if (!open) setSelection("")
         }}
         title={`Choose your ${selection.toLowerCase()}`}
-        description="Illustrative component prices. Compatibility updates when you select an option."
+        description="Authoritative Shopify products and verified technical specifications."
       >
         <input
           value={filter}
@@ -498,11 +536,31 @@ function ExpertBuilder({
           aria-label="Search components"
         />
         <div className="space-y-3">
-          {(store.componentCatalog[selection] || [])
-            .filter((item) =>
+          {(() => {
+            const slotItems = store.componentCatalog[selection] || []
+            if (slotItems.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    No matching products are currently available. Please contact IT HUB for assistance.
+                  </p>
+                </div>
+              )
+            }
+            const filtered = slotItems.filter((item) =>
               item.name.toLowerCase().includes(filter.toLowerCase()),
             )
-            .map((item) => (
+            if (filtered.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    No matching products found for "{filter}".
+                  </p>
+                </div>
+              )
+            }
+            return filtered.map((item) => (
               <button
                 key={item.id}
                 className={`flex w-full items-center justify-between gap-4 rounded-lg border p-4 text-left hover:bg-secondary ${
@@ -556,14 +614,8 @@ function ExpertBuilder({
                   {money(item.price)}
                 </div>
               </button>
-            ))}
-          {!(store.componentCatalog[selection] || []).some((item) =>
-            item.name.toLowerCase().includes(filter.toLowerCase()),
-          ) && (
-            <p className="py-6 text-sm text-muted-foreground">
-              No matching components. Try a different search.
-            </p>
-          )}
+            ))
+          })()}
         </div>
       </Modal>
     </Page>
@@ -886,7 +938,7 @@ function findPart(
   })
   if (keyMatch) return keyMatch
 
-  return componentOptions[type]?.find((item) => item.id === id)
+  return undefined
 }
 const sumParts = (parts: Record<string, ComponentOption>) =>
   Object.values(parts).reduce((sum, item) => sum + item.price, 0)
@@ -942,6 +994,16 @@ function recommend(
         const part = findPart(catalog, type, id)
         if (part) parts[type] = part
       })
+
+      // Authenticity requirement: Only recommend builds if all essential components exist in the authentic catalog
+      const hasEssentials =
+        Boolean(parts.CPU) &&
+        Boolean(parts.Motherboard) &&
+        Boolean(parts.RAM) &&
+        Boolean(parts.Storage) &&
+        Boolean(parts.PSU) &&
+        Boolean(parts.Cabinet)
+      if (!hasEssentials) return null
       // Wi-Fi requested: swap to the cheapest compatible Wi-Fi board.
       if (
         answers.wifi === "Yes" &&
@@ -1019,6 +1081,7 @@ function recommend(
         score,
       }
     })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
     .filter((item) => item.score > -500)
     .sort((a, b) => b.score - a.score)
   return scored.slice(0, 3).sort((a, b) => a.price - b.price)
@@ -1155,7 +1218,13 @@ function BuildDetail({
   const [breakdown, setBreakdown] = useState(false)
   const [savingBuild, setSavingBuild] = useState(false)
   const [checkingOut, setCheckingOut] = useState(false)
-  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [quoteResult, setQuoteResult] = useState<{
+    referenceId: string
+    estimatedPrice: number
+    parts: Array<{ type: string; name: string; price: number }>
+    buildName: string
+  } | null>(null)
   const priced: Record<string, ComponentOption> = { ...parts }
   owned.forEach((type) => delete priced[type])
   const componentTotal = sumParts(priced)
@@ -1280,17 +1349,52 @@ function BuildDetail({
     window.open(quote.whatsappUrl, "_blank", "noopener,noreferrer")
   }
 
-  const handleShopifyCheckout = async () => {
-    setCheckingOut(true)
-    setCheckoutError(null)
+  const handleRequestQuotation = async () => {
+    if (!checks.valid) {
+      store.notify("Please resolve compatibility issues before requesting a quotation.")
+      return
+    }
+    setSubmittingQuote(true)
     const canonical = createCanonical()
-    const res = await prepareShopifyCheckout(canonical)
-    setCheckingOut(false)
+    const res = await submitQuotationRequest(canonical, {
+      name: store.profile?.name,
+      phone: store.profile?.phone,
+      email: store.profile?.email,
+    })
+    setSubmittingQuote(false)
 
-    if (res.success && res.checkoutUrl) {
-      window.location.href = res.checkoutUrl
+    if (res.success && res.referenceId) {
+      const summaryParts = partOrder
+        .filter((type) => priced[type])
+        .map((type) => ({
+          type,
+          name: priced[type].name,
+          price: priced[type].price,
+        }))
+
+      setQuoteResult({
+        referenceId: res.referenceId,
+        estimatedPrice: res.estimatedPrice ?? total,
+        parts: summaryParts,
+        buildName: name.trim() || initial.name,
+      })
+      store.set((previous) => ({
+        pcEnquiries: [
+          {
+            id: res.referenceId!,
+            summary: name.trim() || initial.name,
+            parts: summaryParts,
+            estimate: total,
+            date: new Date().toISOString(),
+            status: "New",
+          },
+          ...previous.pcEnquiries,
+        ],
+      }))
+      store.log(`PC quotation requested: ${res.referenceId}`)
+      track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: res.referenceId })
     } else {
-      setCheckoutError(res.error || "Unable to proceed to Shopify checkout. You can request a WhatsApp quotation below.")
+      store.notify(res.error || "Failed to submit quotation request. Please try again.")
     }
   }
   return (
@@ -1532,27 +1636,20 @@ function BuildDetail({
               {DISCLAIMER}
             </p>
             <div className="mt-6 grid gap-3">
-              <p className="text-sm font-bold">Purchase or Confirm with IT HUB</p>
-              {checkoutError && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 leading-relaxed">
-                  <p className="font-semibold text-amber-950 mb-0.5">Shopify Checkout Notice</p>
-                  {checkoutError}
-                </div>
-              )}
+              <p className="text-sm font-bold">Request Official Quotation</p>
+              <Button
+                disabled={!checks.valid || submittingQuote}
+                onClick={handleRequestQuotation}
+              >
+                {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"} <CheckCircle2 size={15} />
+              </Button>
               <button
                 onClick={enquire}
                 disabled={!checks.valid}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
               >
                 <WhatsAppIcon size={18} /> Continue on WhatsApp
               </button>
-              <Button
-                variant="secondary"
-                onClick={handleShopifyCheckout}
-                disabled={!checks.valid || checkingOut}
-              >
-                {checkingOut ? "Preparing Shopify Cart…" : "Checkout with Shopify"} <ShoppingBag size={15} />
-              </Button>
               <Button
                 variant="secondary"
                 onClick={save}
@@ -1578,6 +1675,83 @@ function BuildDetail({
         </aside>
       </div>
       <Modal
+        open={Boolean(quoteResult)}
+        onOpenChange={(open) => !open && setQuoteResult(null)}
+        title="Your PC Build Request Has Been Received!"
+        description="Quotation Request Confirmation"
+      >
+        {quoteResult && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>Reference ID: {quoteResult.referenceId}</span>
+              </div>
+              <p>
+                Thank you for choosing IT HUB. Our team will review your selected components, verify current availability, and contact you soon with the final quotation.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
+              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
+              {quoteResult.parts.map((part) => (
+                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
+                  <span>
+                    <strong className="text-foreground">{part.type}:</strong> {part.name}
+                  </span>
+                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
+                </p>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-border p-4 bg-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground">Estimated Build Price</span>
+                  <p className="text-[10px] text-muted-foreground">
+                    (Estimate only — final price will be confirmed in your official quotation)
+                  </p>
+                </div>
+                <strong className="text-2xl text-primary">{money(quoteResult.estimatedPrice)}</strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+              <Info size={16} className="text-primary shrink-0" />
+              <p>
+                <strong className="text-foreground">Next step: </strong>
+                Our team will contact you soon after reviewing your build.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => setQuoteResult(null)}
+              >
+                Continue Building
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setQuoteResult(null)}
+              >
+                Close
+              </Button>
+              <a
+                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                <WhatsAppIcon size={16} /> Send via WhatsApp
+              </a>
+            </div>
+          </div>
+        )}
+      </Modal>
+      <Modal
         open={Boolean(selection)}
         onOpenChange={(open) => !open && setSelection("")}
         title={`Change ${(partLabels[selection] || selection).toLowerCase()}`}
@@ -1600,55 +1774,68 @@ function BuildDetail({
                 Use integrated graphics (remove graphics card)
               </button>
             )}
-          {(catalog[selection] || []).map((item) => {
-            const check = compatibility({ ...parts, [selection]: item })
-            const issue = check.result.find((row) => row.state === "error")
-            const current = parts[selection]
-            const diff =
-              current && !owned.includes(selection)
-                ? item.price - current.price
-                : item.price
-            const active = current?.id === item.id && !owned.includes(selection)
-            return (
-              <button
-                key={item.id}
-                disabled={!check.valid || active}
-                onClick={() => {
-                  swap(selection, item)
-                  setSelection("")
-                }}
-                className={`flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition enabled:hover:bg-secondary disabled:cursor-not-allowed ${
-                  active ? "border-primary bg-secondary/40" : "border-border"
-                } ${!check.valid ? "opacity-50" : ""}`}
-              >
-                <div>
-                  <p className="text-sm font-semibold">{item.name}</p>
-                  <p
-                    className={`mt-1 text-xs ${
-                      issue ? "text-red-600" : "text-muted-foreground"
-                    }`}
-                  >
-                    {active
-                      ? "Current selection"
-                      : issue
-                        ? issue.label
-                        : item.stock === 0
-                          ? "Currently unavailable"
-                          : "Compatible with this build"}
+          {(() => {
+            const slotItems = catalog[selection] || []
+            if (slotItems.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    No matching products are currently available. Please contact IT HUB for assistance.
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-bold">{money(item.price)}</p>
-                  {!active && (
-                    <p className="text-[11px] text-muted-foreground">
-                      {diff >= 0 ? "+" : "−"}
-                      {money(Math.abs(diff))}
+              )
+            }
+            return slotItems.map((item) => {
+              const check = compatibility({ ...parts, [selection]: item })
+              const issue = check.result.find((row) => row.state === "error")
+              const current = parts[selection]
+              const diff =
+                current && !owned.includes(selection)
+                  ? item.price - current.price
+                  : item.price
+              const active = current?.id === item.id && !owned.includes(selection)
+              return (
+                <button
+                  key={item.id}
+                  disabled={!check.valid || active}
+                  onClick={() => {
+                    swap(selection, item)
+                    setSelection("")
+                  }}
+                  className={`flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition enabled:hover:bg-secondary disabled:cursor-not-allowed ${
+                    active ? "border-primary bg-secondary/40" : "border-border"
+                  } ${!check.valid ? "opacity-50" : ""}`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{item.name}</p>
+                    <p
+                      className={`mt-1 text-xs ${
+                        issue ? "text-red-600" : "text-muted-foreground"
+                      }`}
+                    >
+                      {active
+                        ? "Current selection"
+                        : issue
+                          ? issue.label
+                          : item.stock === 0
+                            ? "Currently unavailable"
+                            : "Compatible with this build"}
                     </p>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-bold">{money(item.price)}</p>
+                    {!active && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {diff >= 0 ? "+" : "−"}
+                        {money(Math.abs(diff))}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              )
+            })
+          })()}
         </div>
       </Modal>
     </div>
@@ -1716,6 +1903,9 @@ function SmartBuilder() {
     : initialBuildTemplates
   const recommendations =
     step === 2 ? recommend(templates, store.componentCatalog, answers) : []
+  const missingSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"].filter(
+    (slot) => !store.componentCatalog[slot] || store.componentCatalog[slot].length === 0,
+  )
   const budget = resolvedBudget(answers)
   const purposeInfo = purposes.find((item) => item.id === answers.purpose)
   const basedOn = [
@@ -2113,6 +2303,29 @@ function SmartBuilder() {
                   </article>
                 )
               })}
+            </div>
+          ) : missingSlots.length > 0 ? (
+            <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950">
+              <PackageX className="mx-auto h-10 w-10 text-amber-700 mb-3" />
+              <h2 className="text-lg font-bold">Catalog Incomplete for Pre-Configured Builds</h2>
+              <p className="mt-2 text-sm text-amber-900 max-w-xl mx-auto">
+                The live store catalog currently does not have eligible products for:{" "}
+                <span className="font-semibold underline">{missingSlots.join(", ")}</span>.
+                Rather than suggesting unverified or unavailable parts, our team can source them directly for you.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button onClick={() => setMode("expert")}>
+                  <Wrench size={15} /> Open Expert Mode
+                </Button>
+                <a
+                  href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(`Hi IT HUB, I'm looking for a custom PC configuration for ${basedOn || 'custom use'} with budget ${budget?.label || 'custom'}. Could you assist with component availability?`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"
+                >
+                  <WhatsAppIcon size={16} /> Contact on WhatsApp
+                </a>
+              </div>
             </div>
           ) : (
             <div className="mt-8 rounded-3xl bg-muted p-8 text-center">

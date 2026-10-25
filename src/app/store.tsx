@@ -437,20 +437,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? parsed.supportCategories
           : initial.supportCategories,
 
-        // Append newly added catalog options missing from older saves.
-
+        // Rehydrate only authentic Shopify-backed component options, discarding old static mocks.
         componentCatalog: Object.fromEntries(
           Object.entries(initial.componentCatalog).map(([type, options]) => {
-            const saved = parsed.componentCatalog?.[type] || []
+            const saved = (parsed.componentCatalog?.[type] || []).filter(
+              (item: any) => item.isShopifyLive && item.variantId,
+            )
 
             return [
               type,
-
               [
                 ...saved,
-
                 ...options.filter(
-                  (option) => !saved.some((row) => row.id === option.id),
+                  (option) => !saved.some((row: any) => row.id === option.id),
                 ),
               ],
             ]
@@ -601,8 +600,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 updates.brands = liveBrands
               }
 
-              // Synchronize PC Builder catalog with authentic Shopify products
-              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts, prev.componentCatalog)
+              // Synchronize PC Builder catalog with authentic Shopify products (authoritative source)
+              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts)
               updates.componentCatalog = syncResult.componentCatalog
             }
           } else {

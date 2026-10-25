@@ -1011,10 +1011,15 @@ $$;
 
 create table pc_builds (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references profiles (id) on delete cascade,
+  user_id uuid references profiles (id) on delete cascade,
+  reference_id text unique,
   name text,
+  customer_name text,
+  customer_phone text,
+  customer_email text,
   parts jsonb not null,               -- [{type, product_id, name, price}]
   estimated_price numeric(12, 2) not null check (estimated_price >= 0),
+  compatibility jsonb not null default '{}'::jsonb,
   enquiry_status text not null default 'Draft'
     check (enquiry_status in ('Draft', 'New', 'Contacted', 'Quoted', 'Closed')),
   created_at timestamptz not null default now(),
@@ -1031,9 +1036,16 @@ language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   if not is_admin() then
     if tg_op = 'INSERT' then
-      if new.user_id is distinct from auth.uid() then
-        raise exception 'Unauthorized: PC Build user_id must match authenticated user';
+      if auth.uid() is not null then
+        if new.user_id is distinct from auth.uid() then
+          raise exception 'Unauthorized: PC Build user_id must match authenticated user';
+        end if;
+      else
+        if new.user_id is not null then
+          raise exception 'Unauthorized: Guest PC Build requests cannot claim a user_id';
+        end if;
       end if;
+
       if new.enquiry_status not in ('Draft', 'New') then
         raise exception 'Unauthorized: New PC build enquiry must start as Draft or New';
       end if;
@@ -1053,6 +1065,87 @@ $$;
 create trigger pc_builds_protect
   before insert or update on pc_builds
   for each row execute function protect_pc_build();
+
+-- Secure RPC: submit_pc_quotation_request
+create or replace function submit_pc_quotation_request(
+  p_build_name text,
+  p_reference_id text default null,
+  p_parts jsonb default '{}'::jsonb,
+  p_estimated_price numeric default 0,
+  p_compatibility jsonb default '{}'::jsonb,
+  p_customer_name text default null,
+  p_customer_phone text default null,
+  p_customer_email text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id uuid;
+  v_build_id uuid;
+  v_ref text;
+  v_name text;
+begin
+  v_user_id := auth.uid();
+  v_name := coalesce(nullif(trim(p_build_name), ''), 'Custom PC Build');
+
+  if p_reference_id is not null and trim(p_reference_id) <> '' then
+    v_ref := trim(p_reference_id);
+  else
+    v_ref := 'ITH-PC-' || to_char(now(), 'YYYYMMDD') || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
+  end if;
+
+  if p_estimated_price is null or p_estimated_price < 0 then
+    raise exception 'Invalid estimated price: %', p_estimated_price;
+  end if;
+
+  if p_parts is null or (jsonb_typeof(p_parts) != 'object' and jsonb_typeof(p_parts) != 'array') then
+    raise exception 'Invalid parts payload';
+  end if;
+
+  insert into pc_builds (
+    user_id,
+    name,
+    reference_id,
+    parts,
+    estimated_price,
+    compatibility,
+    customer_name,
+    customer_phone,
+    customer_email,
+    enquiry_status,
+    created_at,
+    updated_at
+  ) values (
+    v_user_id,
+    v_name,
+    v_ref,
+    p_parts,
+    p_estimated_price,
+    coalesce(p_compatibility, '{}'::jsonb),
+    nullif(trim(p_customer_name), ''),
+    nullif(trim(p_customer_phone), ''),
+    nullif(trim(p_customer_email), ''),
+    'New',
+    now(),
+    now()
+  ) returning id into v_build_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'id', v_build_id,
+    'reference_id', v_ref,
+    'user_id', v_user_id,
+    'estimated_price', p_estimated_price
+  );
+exception when others then
+  return jsonb_build_object(
+    'success', false,
+    'error', SQLERRM
+  );
+end;
+$$;
 
 create table pc_build_templates (
   id uuid primary key default gen_random_uuid(),
@@ -2590,6 +2683,9 @@ grant execute on function ensure_profile() to authenticated;
 
 revoke all on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) from public;
 grant execute on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) to anon, authenticated;
+
+revoke all on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public;
+grant execute on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to anon, authenticated;
 
 revoke all on function health_check() from public;
 grant execute on function health_check() to anon, authenticated, service_role;

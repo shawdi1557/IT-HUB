@@ -190,6 +190,129 @@ export function calculateBuildTotal(build: CanonicalBuild): number {
   return total
 }
 
+export interface CustomerContactInfo {
+  name?: string
+  phone?: string
+  email?: string
+}
+
+export interface QuotationSubmissionResult {
+  success: boolean
+  referenceId?: string
+  id?: string
+  estimatedPrice?: number
+  error?: string
+}
+
+export function generateQuotationReference(): string {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "")
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase()
+  return `ITH-PC-${dateStr}-${rand}`
+}
+
+/**
+ * Submits an official PC Build Quotation Request to IT HUB.
+ * Uses the Supabase RPC `submit_pc_quotation_request` which:
+ * - Authoritatively binds authenticated users via auth.uid()
+ * - Securely permits guest requests with null user_id
+ * - Records reference_id, parts, Shopify variant IDs, estimated price, and hardware compatibility
+ * - Never returns success if the database write fails
+ */
+export async function submitQuotationRequest(
+  build: CanonicalBuild,
+  customerInfo?: CustomerContactInfo,
+): Promise<QuotationSubmissionResult> {
+  const referenceId = generateQuotationReference()
+  const estimatedPrice = calculateBuildTotal(build)
+
+  // Map parts into structured format containing names, Shopify product/variant IDs, and prices
+  const partsPayload: Record<string, any> = {}
+  for (const [slot, comp] of Object.entries(build.components)) {
+    if (comp) {
+      partsPayload[slot] = {
+        slot,
+        productId: comp.productId,
+        variantId: comp.variantId || null,
+        title: comp.title,
+        name: comp.title,
+        price: comp.price,
+        isShopifyLive: comp.isShopifyLive ?? Boolean(comp.variantId),
+        specs: comp.specs || {},
+      }
+    }
+  }
+
+  const compatibilityPayload = build.compatibility || checkCompatibility(build.components)
+
+  try {
+    if (supabase) {
+      const { data, error } = await supabase.rpc("submit_pc_quotation_request", {
+        p_build_name: build.name || "Custom PC Build",
+        p_reference_id: referenceId,
+        p_parts: partsPayload,
+        p_estimated_price: estimatedPrice,
+        p_compatibility: compatibilityPayload,
+        p_customer_name: customerInfo?.name?.trim() || null,
+        p_customer_phone: customerInfo?.phone?.trim() || null,
+        p_customer_email: customerInfo?.email?.trim() || null,
+      })
+
+      if (error) {
+        return {
+          success: false,
+          error: error.message || "Failed to submit quotation request to IT HUB.",
+        }
+      }
+
+      if (data && (data as any).success === false) {
+        return {
+          success: false,
+          error: (data as any).error || "Failed to submit quotation request.",
+        }
+      }
+
+      return {
+        success: true,
+        referenceId: (data as any)?.reference_id || referenceId,
+        id: (data as any)?.id,
+        estimatedPrice,
+      }
+    } else {
+      // In offline/test environment without Supabase configuration
+      const guestQuote = {
+        id: `local-quote-${Date.now()}`,
+        reference_id: referenceId,
+        name: build.name || "Custom PC Build",
+        parts: partsPayload,
+        estimated_price: estimatedPrice,
+        compatibility: compatibilityPayload,
+        created_at: new Date().toISOString(),
+      }
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          const stored = JSON.parse(localStorage.getItem("ithub_local_quotations") || "[]")
+          stored.unshift(guestQuote)
+          localStorage.setItem("ithub_local_quotations", JSON.stringify(stored))
+        }
+      } catch {
+        // LocalStorage mock/environment safe
+      }
+
+      return {
+        success: true,
+        referenceId,
+        id: guestQuote.id,
+        estimatedPrice,
+      }
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "An unexpected error occurred while submitting your quotation.",
+    }
+  }
+}
+
 function getLocalGuestBuilds(): CanonicalBuild[] {
   if (typeof window === "undefined") return []
   try {

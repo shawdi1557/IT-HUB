@@ -11,6 +11,13 @@ import type {
 } from "./types"
 import { checkCompatibility } from "./compatibility"
 
+export function getMissingCatalogCategories(
+  catalog: Record<ComponentSlotId, CanonicalBuildComponent[]> | Record<string, any[]>,
+): ComponentSlotId[] {
+  const essential: ComponentSlotId[] = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
+  return essential.filter((slot) => !catalog[slot] || catalog[slot].length === 0)
+}
+
 export function generateRecommendations(
   answers: GuidedAnswers,
   catalog: Record<ComponentSlotId, CanonicalBuildComponent[]>,
@@ -31,11 +38,12 @@ export function generateRecommendations(
     })
   }
 
-  // Helper to pick part, prioritizing authentic Shopify live products
+  // Helper to pick part, strictly prioritizing available authentic Shopify live products
+  const isAvailable = (c: CanonicalBuildComponent) => c.availability !== "unavailable"
   const getPart = (slot: ComponentSlotId, matcher: (c: CanonicalBuildComponent) => boolean): CanonicalBuildComponent | undefined => {
-    const liveMatch = catalog[slot]?.find((c) => c.isShopifyLive && matcher(c))
+    const liveMatch = catalog[slot]?.find((c) => c.isShopifyLive && isAvailable(c) && matcher(c))
     if (liveMatch) return liveMatch
-    return catalog[slot]?.find(matcher) || catalog[slot]?.[0]
+    return catalog[slot]?.find((c) => isAvailable(c) && matcher(c))
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -54,27 +62,38 @@ export function generateRecommendations(
     valueParts.GPU = getPart("GPU", (c) => matches(c, "rx7600", "rtx4060", "rx6600"))
   }
 
-  const valueBuild = createBuildFromParts(
-    "Smart Value Configuration",
-    "guided",
-    valueParts,
-    owned,
-    answers.purpose,
+  const isValueComplete = Boolean(
+    valueParts.CPU &&
+    valueParts.Motherboard &&
+    valueParts.RAM &&
+    valueParts.Storage &&
+    valueParts.PSU &&
+    valueParts.Cabinet
   )
-  if (valueBuild.compatibility.valid) {
-    candidates.push({
-      build: valueBuild,
-      style: "best-fit",
-      title: "Best Value for Budget",
-      matchScore: calculateScore(valueBuild, budget, answers),
-      rationale: "Optimized price-to-performance ratio utilizing proven components with zero bottlenecking.",
-      highlights: [
-        "High clock speed 6-core processor ideal for gaming & day-to-day productivity",
-        "Fast NVMe Solid State Drive for lightning-fast application launches",
-        "80 Plus Bronze certified power delivery with built-in surge protection",
-      ],
-      tradeOffs: budget < 40000 ? "Uses previous-gen DDR4 platform to maximize graphics budget." : undefined,
-    })
+
+  if (isValueComplete) {
+    const valueBuild = createBuildFromParts(
+      "Smart Value Configuration",
+      "guided",
+      valueParts,
+      owned,
+      answers.purpose,
+    )
+    if (valueBuild.compatibility.valid) {
+      candidates.push({
+        build: valueBuild,
+        style: "best-fit",
+        title: "Best Value for Budget",
+        matchScore: calculateScore(valueBuild, budget, answers),
+        rationale: "Optimized price-to-performance ratio utilizing proven components with zero bottlenecking.",
+        highlights: [
+          "High clock speed 6-core processor ideal for gaming & day-to-day productivity",
+          "Fast NVMe Solid State Drive for lightning-fast application launches",
+          "80 Plus Bronze certified power delivery with built-in surge protection",
+        ],
+        tradeOffs: budget < 40000 ? "Uses previous-gen DDR4 platform to maximize graphics budget." : undefined,
+      })
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -94,26 +113,37 @@ export function generateRecommendations(
     balancedParts.GPU = getPart("GPU", (c) => matches(c, "rtx4060", "4060"))
   }
 
-  const balancedBuild = createBuildFromParts(
-    "Balanced Modern Rig",
-    "guided",
-    balancedParts,
-    owned,
-    answers.purpose,
+  const isBalancedComplete = Boolean(
+    balancedParts.CPU &&
+    balancedParts.Motherboard &&
+    balancedParts.RAM &&
+    balancedParts.Storage &&
+    balancedParts.PSU &&
+    balancedParts.Cabinet
   )
-  if (balancedBuild.compatibility.valid) {
-    candidates.push({
-      build: balancedBuild,
-      style: "balanced",
-      title: "Balanced Modern Rig",
-      matchScore: calculateScore(balancedBuild, budget, answers),
-      rationale: "Modern AM5 architecture with DDR5 memory, PCIe 4.0 expansion, and DLSS 3 ray tracing support.",
-      highlights: [
-        "AMD Zen 4 processor with integrated RDNA2 graphics backup",
-        "Ultra-fast DDR5 memory bandwidth for heavy multitasking",
-        "Full support for ray tracing, DLSS 3 frame generation, and AV1 video encoding",
-      ],
-    })
+
+  if (isBalancedComplete) {
+    const balancedBuild = createBuildFromParts(
+      "Balanced Modern Rig",
+      "guided",
+      balancedParts,
+      owned,
+      answers.purpose,
+    )
+    if (balancedBuild.compatibility.valid) {
+      candidates.push({
+        build: balancedBuild,
+        style: "balanced",
+        title: "Balanced Modern Rig",
+        matchScore: calculateScore(balancedBuild, budget, answers),
+        rationale: "Modern AM5 architecture with DDR5 memory, PCIe 4.0 expansion, and DLSS 3 ray tracing support.",
+        highlights: [
+          "AMD Zen 4 processor with integrated RDNA2 graphics backup",
+          "Ultra-fast DDR5 memory bandwidth for heavy multitasking",
+          "Full support for ray tracing, DLSS 3 frame generation, and AV1 video encoding",
+        ],
+      })
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -130,26 +160,37 @@ export function generateRecommendations(
   enthusiastParts.Cabinet = getPart("Cabinet", (c) => matches(c, "case-atx"))
   enthusiastParts.Cooler = getPart("Cooler", (c) => matches(c, "le520", "ag400"))
 
-  const enthusiastBuild = createBuildFromParts(
-    "High-Performance Creator & Gaming Beast",
-    "guided",
-    enthusiastParts,
-    owned,
-    answers.purpose,
+  const isEnthusiastComplete = Boolean(
+    enthusiastParts.CPU &&
+    enthusiastParts.Motherboard &&
+    enthusiastParts.RAM &&
+    enthusiastParts.Storage &&
+    enthusiastParts.PSU &&
+    enthusiastParts.Cabinet
   )
-  if (enthusiastBuild.compatibility.valid) {
-    candidates.push({
-      build: enthusiastBuild,
-      style: "upgrade-friendly",
-      title: "High-Performance Workstation & Gaming",
-      matchScore: calculateScore(enthusiastBuild, budget, answers),
-      rationale: "Flagship 8-core/16-thread processing with dedicated AIO liquid cooling and heavy graphics capability for 1440p ultra gaming and 4K rendering.",
-      highlights: [
-        "Unrestricted 1440p ultra gaming performance with 12GB VRAM",
-        "240mm liquid cooling maintaining whisper-quiet acoustic operation",
-        "750W 80+ Gold power supply accommodating future high-end graphics upgrades",
-      ],
-    })
+
+  if (isEnthusiastComplete) {
+    const enthusiastBuild = createBuildFromParts(
+      "High-Performance Creator & Gaming Beast",
+      "guided",
+      enthusiastParts,
+      owned,
+      answers.purpose,
+    )
+    if (enthusiastBuild.compatibility.valid) {
+      candidates.push({
+        build: enthusiastBuild,
+        style: "upgrade-friendly",
+        title: "High-Performance Workstation & Gaming",
+        matchScore: calculateScore(enthusiastBuild, budget, answers),
+        rationale: "Flagship 8-core/16-thread processing with dedicated AIO liquid cooling and heavy graphics capability for 1440p ultra gaming and 4K rendering.",
+        highlights: [
+          "Unrestricted 1440p ultra gaming performance with 12GB VRAM",
+          "240mm liquid cooling maintaining whisper-quiet acoustic operation",
+          "750W 80+ Gold power supply accommodating future high-end graphics upgrades",
+        ],
+      })
+    }
   }
 
   // Sort candidates by matchScore descending

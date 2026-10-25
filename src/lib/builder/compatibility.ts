@@ -82,14 +82,14 @@ export function checkCompatibility(
 ): CompatibilitySummary {
   const items: CompatibilityItem[] = []
 
-  const cpu = components.CPU
-  const mobo = components.Motherboard
-  const ram = components.RAM
-  const gpu = components.GPU
-  const storage = components.Storage
-  const psu = components.PSU
-  const cabinet = components.Cabinet
-  const cooler = components.Cooler
+  const cpu = components.CPU ? { ...components.CPU, specs: components.CPU.specs || {} } : undefined
+  const mobo = components.Motherboard ? { ...components.Motherboard, specs: components.Motherboard.specs || {} } : undefined
+  const ram = components.RAM ? { ...components.RAM, specs: components.RAM.specs || {} } : undefined
+  const gpu = components.GPU ? { ...components.GPU, specs: components.GPU.specs || {} } : undefined
+  const storage = components.Storage ? { ...components.Storage, specs: components.Storage.specs || {} } : undefined
+  const psu = components.PSU ? { ...components.PSU, specs: components.PSU.specs || {} } : undefined
+  const cabinet = components.Cabinet ? { ...components.Cabinet, specs: components.Cabinet.specs || {} } : undefined
+  const cooler = components.Cooler ? { ...components.Cooler, specs: components.Cooler.specs || {} } : undefined
 
   // ───────────────────────────────────────────────────────────────────────────
   // Rule A — CPU and Motherboard Socket & Chipset Compatibility
