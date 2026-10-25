@@ -116,13 +116,15 @@ function synthesizeBuildConfigurations(
   options: {
     purpose: string
     targetBudget: number
+    minBudget?: number
+    maxBudget?: number
     ownedSlots: Set<string>
     preferredBrands?: string[]
     requireWifi?: boolean
     resolution?: string
   },
 ) {
-  const { purpose, targetBudget, ownedSlots, preferredBrands = [], requireWifi = false, resolution } = options
+  const { purpose, targetBudget, minBudget, maxBudget, ownedSlots, preferredBrands = [], requireWifi = false, resolution } = options
 
   // Enforce catalog completeness
   const essentialSlots: ComponentSlotId[] = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
@@ -190,12 +192,11 @@ function synthesizeBuildConfigurations(
     })
     const ram = allRams[0]
 
-    // 3. Storage
+    // 3. Storage: Deterministic selection
     const allStorage = (itemsBySlot.Storage || []).slice().sort((a, b) => a.price - b.price)
     if (allStorage.length === 0 && !ownedSlots.has("Storage")) continue
-    // If budget allows, prefer 1TB over 500GB
     const storage1tb = allStorage.find((s) => s.name.includes("1TB") || s.name.includes("1tb"))
-    const storage = (targetBudget > 55000 && storage1tb) ? storage1tb : allStorage[0]
+    const storage = storage1tb || allStorage[0]
 
     // 4. Cabinet
     const allCabinets = (itemsBySlot.Cabinet || []).slice().sort((a, b) => a.price - b.price)
@@ -236,7 +237,7 @@ function synthesizeBuildConfigurations(
       }
     }
 
-    // 6. Cooler
+    // 6. Cooler: Deterministic selection
     let cooler: NormalizedItem | undefined = undefined
     const allCoolers = (itemsBySlot.Cooler || []).slice().sort((a, b) => a.price - b.price)
     if (!cpu.includesCooler) {
@@ -245,7 +246,7 @@ function synthesizeBuildConfigurations(
         continue
       }
       cooler = allCoolers[0]
-    } else if (allCoolers.length > 0 && targetBudget >= 60000) {
+    } else if (allCoolers.length > 0) {
       cooler = allCoolers[0]
     }
 
@@ -280,6 +281,11 @@ function synthesizeBuildConfigurations(
       if (item && !ownedSlots.has(slot)) {
         price += item.price
       }
+    }
+
+    // STRICT BUDGET FILTER: Reject builds exceeding customer's maximum budget
+    if (maxBudget && price > maxBudget) {
+      continue
     }
 
     // Determine style / tradeoff
@@ -384,6 +390,7 @@ export function generateRecommendations(
   const configurations = synthesizeBuildConfigurations(itemsBySlot, {
     purpose: answers.purpose,
     targetBudget: budget,
+    maxBudget: Math.round(budget * 1.15),
     ownedSlots: owned,
     preferredBrands: answers.preferredBrands,
     requireWifi: answers.requireWifi,
@@ -419,6 +426,7 @@ export function generateRecommendations(
 /**
  * Dynamic catalog recommendation engine directly used by Find My PC in Builder.tsx.
  * Consumes the live store.componentCatalog (with authentic Shopify prices and variant IDs).
+ * Strictly enforces that builds never exceed the customer's maximum budget.
  */
 export function generateDynamicCatalogRecommendations(
   catalog: Record<string, any[]>,
@@ -432,7 +440,7 @@ export function generateDynamicCatalogRecommendations(
     wifi?: string
     owned?: string[]
   },
-  _templates?: any[],
+  budgetOrTemplates?: any,
 ): any[] {
   const owned = new Set(answers.owned || [])
 
@@ -441,11 +449,22 @@ export function generateDynamicCatalogRecommendations(
   const missing = essentialSlots.filter((slot) => !owned.has(slot) && (!catalog[slot] || catalog[slot].length === 0))
   if (missing.length > 0) return []
 
-  // Resolve target budget
-  let targetBudget = 65000
-  let minBudget = 35000
+  // Resolve budget range
+  let minBudget = 40000
   let maxBudget = 150000
-  if (answers.budgetId === "custom") {
+  let targetBudget = 65000
+
+  // 1. Explicit budget object passed from Builder.tsx: { min, max, label }
+  if (
+    budgetOrTemplates &&
+    typeof budgetOrTemplates === "object" &&
+    !Array.isArray(budgetOrTemplates) &&
+    typeof budgetOrTemplates.max === "number"
+  ) {
+    minBudget = budgetOrTemplates.min || 0
+    maxBudget = budgetOrTemplates.max
+    targetBudget = Math.round((minBudget + maxBudget) / 2)
+  } else if (answers.budgetId === "custom") {
     const num = Number((answers.customBudget || "").replace(/[^0-9]/g, ""))
     if (num > 0) {
       targetBudget = num
@@ -454,9 +473,14 @@ export function generateDynamicCatalogRecommendations(
     }
   } else if (answers.budgetId) {
     const bandMap: Record<string, [number, number]> = {
-      budget: [35000, 55000],
-      mid: [55000, 85000],
-      high: [85000, 140000],
+      "40-60": [40000, 60000],
+      "60-80": [60000, 80000],
+      "80-100": [80000, 100000],
+      "100-150": [100000, 150000],
+      "150+": [150000, 300000],
+      budget: [40000, 60000],
+      mid: [60000, 80000],
+      high: [80000, 140000],
       ultra: [140000, 300000],
     }
     const band = bandMap[answers.budgetId]
@@ -490,13 +514,18 @@ export function generateDynamicCatalogRecommendations(
   const configurations = synthesizeBuildConfigurations(itemsBySlot, {
     purpose: answers.purpose,
     targetBudget,
+    minBudget,
+    maxBudget,
     ownedSlots: owned,
     preferredBrands: answers.brands,
     requireWifi: answers.wifi === "Yes",
     resolution: answers.details?.resolution,
   })
 
-  return configurations.map((config, index) => {
+  // Strictly filter out any configuration that exceeds maxBudget
+  const withinBudgetConfigurations = configurations.filter((config) => config.price <= maxBudget)
+
+  return withinBudgetConfigurations.map((config, index) => {
     const parts: Record<string, any> = {}
     for (const [slot, normItem] of Object.entries(config.parts)) {
       if (normItem) {
@@ -506,9 +535,7 @@ export function generateDynamicCatalogRecommendations(
 
     const inBudget = config.price >= minBudget && config.price <= maxBudget
     let note: string | undefined = undefined
-    if (config.price > maxBudget) {
-      note = "Above your selected range — the closest suitable configuration for your needs."
-    } else if (config.price < minBudget) {
+    if (config.price < minBudget) {
       note = "Below your selected range — covers your needs without overspending."
     }
 

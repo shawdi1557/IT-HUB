@@ -389,3 +389,105 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
   assertEquals(intelBuild.parts.CPU.price, 11000)
   assertEquals(intelBuild.parts.Motherboard.price, 9500)
 })
+
+Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000–₹60,000 or below it (custom budget)", () => {
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+
+  // 1. Budget is ₹40,000 – ₹60,000 (id: "40-60"):
+  // The only available build costs ₹63,593, which exceeds ₹60,000. It must NOT be fetched!
+  const budget4060Answers = {
+    purpose: "gaming",
+    budgetId: "40-60",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const budget4060Override = { min: 40000, max: 60000, label: "₹40,000–₹60,000" }
+  const recs4060 = generateDynamicCatalogRecommendations(componentCatalog, budget4060Answers, budget4060Override)
+  assertEquals(recs4060.length, 0) // Zero over-budget builds returned!
+
+  // 2. Custom budget below it: Around ₹10,000 (customBudget: "10000"):
+  // A ₹63,593 build must NOT be fetched for a ₹10,000 budget!
+  const custom10000Answers = {
+    purpose: "gaming",
+    budgetId: "custom",
+    customBudget: "10000",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const custom10000Override = { min: 8500, max: 10000, label: "Around ₹10,000" }
+  const recs10000 = generateDynamicCatalogRecommendations(componentCatalog, custom10000Answers, custom10000Override)
+  assertEquals(recs10000.length, 0) // Zero over-budget builds returned!
+
+  // 3. Custom budget: Around ₹50,000 (still below ₹63,593):
+  const custom50000Answers = {
+    purpose: "gaming",
+    budgetId: "custom",
+    customBudget: "50000",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const custom50000Override = { min: 42500, max: 50000, label: "Around ₹50,000" }
+  const recs50000 = generateDynamicCatalogRecommendations(componentCatalog, custom50000Answers, custom50000Override)
+  assertEquals(recs50000.length, 0)
+})
+
+Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between different budget queries", () => {
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+
+  // Query 1: Budget ₹60,000 – ₹80,000 (covers ₹63,593)
+  const answers1 = {
+    purpose: "gaming",
+    budgetId: "60-80",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const override1 = { min: 60000, max: 80000, label: "₹60,000–₹80,000" }
+  const recs1 = generateDynamicCatalogRecommendations(componentCatalog, answers1, override1)
+  assertEquals(recs1.length, 1)
+  const price1 = recs1[0].price
+  assertEquals(price1, 63593)
+
+  // Query 2: Custom budget Around ₹70,000 (covers ₹63,593)
+  const answers2 = {
+    purpose: "gaming",
+    budgetId: "custom",
+    customBudget: "70000",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const override2 = { min: 59500, max: 70000, label: "Around ₹70,000" }
+  const recs2 = generateDynamicCatalogRecommendations(componentCatalog, answers2, override2)
+  assertEquals(recs2.length, 1)
+  const price2 = recs2[0].price
+  assertEquals(price2, 63593)
+
+  // Query 3: Custom budget Around ₹1,00,000 (covers ₹63,593)
+  const answers3 = {
+    purpose: "gaming",
+    budgetId: "custom",
+    customBudget: "100000",
+    brands: ["AMD"],
+    wifi: "Yes",
+    owned: [],
+  }
+  const override3 = { min: 85000, max: 100000, label: "Around ₹1,00,000" }
+  const recs3 = generateDynamicCatalogRecommendations(componentCatalog, answers3, override3)
+  assertEquals(recs3.length, 1)
+  const price3 = recs3[0].price
+  assertEquals(price3, 63593)
+
+  // The estimated price must be 100% identical and never change across queries
+  assertEquals(price1, price2)
+  assertEquals(price2, price3)
+
+  // Cooler must be consistently included across all queries
+  assertEquals(recs1[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
+  assertEquals(recs2[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
+  assertEquals(recs3[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
+})
+

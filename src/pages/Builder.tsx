@@ -1902,15 +1902,15 @@ function SmartBuilder() {
   const templates = store.buildTemplates.length
     ? store.buildTemplates
     : initialBuildTemplates
+  const budget = resolvedBudget(answers)
   const recommendations =
     step === 2
-      ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, templates)
+      ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget)
       : []
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
   const missingSlots = essentialSlots.filter(
     (slot) => !answers.owned.includes(slot) && (!store.componentCatalog[slot] || store.componentCatalog[slot].length === 0),
   )
-  const budget = resolvedBudget(answers)
   const purposeInfo = purposes.find((item) => item.id === answers.purpose)
   const basedOn = [
     answers.purpose === "custom" ? "Custom use" : purposeInfo?.title,
