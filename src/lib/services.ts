@@ -1,76 +1,76 @@
-import { supabase, supabaseConfig } from "./supabase"
+import { supabase, supabaseConfig } from "./supabase";
 import {
   checkWarranty,
   type ServiceRequest,
   type DiagnosisFinding,
   type QuotationItem,
   type QuotationRevision,
-} from "../data/catalog"
+} from "../data/catalog";
 
 export interface ServiceBookingInput {
-  device: string
-  model: string
-  problem: string
-  method: string
-  address: string
-  date: string
-  time: string
-  name: string
-  email: string
-  phone?: string
-  notes?: string
+  device: string;
+  model: string;
+  problem: string;
+  method: string;
+  address: string;
+  date: string;
+  time: string;
+  name: string;
+  email: string;
+  phone?: string;
+  notes?: string;
 }
 
 export interface SafePublicTracking {
-  id: string
-  userId?: string
-  device: string
-  model: string
-  problem: string
-  status: number
-  statusLabel: string
-  method: string
-  date: string
-  time: string
-  quote: number
-  quoteState: "pending" | "approved" | "rejected"
-  quoteVersion?: number
-  courierCharge?: { returnDelivery: number }
-  technicianPublic: string
-  isOwnerOrAdmin: boolean
-  customerMaskedName?: string
-  maskedAddress?: string
-  notesPublic?: string
-  createdAt?: string
-  findings?: DiagnosisFinding[]
-  quotationItems?: QuotationItem[]
-  approvedItems?: string[]
-  declinedItems?: string[]
+  id: string;
+  userId?: string;
+  device: string;
+  model: string;
+  problem: string;
+  status: number;
+  statusLabel: string;
+  method: string;
+  date: string;
+  time: string;
+  quote: number;
+  quoteState: "pending" | "approved" | "rejected";
+  quoteVersion?: number;
+  courierCharge?: { returnDelivery: number };
+  technicianPublic: string;
+  isOwnerOrAdmin: boolean;
+  customerMaskedName?: string;
+  maskedAddress?: string;
+  notesPublic?: string;
+  createdAt?: string;
+  findings?: DiagnosisFinding[];
+  quotationItems?: QuotationItem[];
+  approvedItems?: string[];
+  declinedItems?: string[];
 }
 
 export interface QuoteDecisionResult {
-  ok: boolean
-  decision?: "approved" | "rejected"
-  nextStatus?: number
-  nextStatusLabel?: string
-  approvedItems?: string[]
-  declinedItems?: string[]
-  totalAmount?: number
-  version?: number
-  error?: string
+  ok: boolean;
+  decision?: "approved" | "rejected";
+  nextStatus?: number;
+  nextStatusLabel?: string;
+  approvedItems?: string[];
+  declinedItems?: string[];
+  totalAmount?: number;
+  version?: number;
+  error?: string;
 }
 
 export interface QuotationCalculation {
-  partsTotal: number
-  labourTotal: number
-  subtotal: number
-  discountsTotal: number
-  diagnosticFee: number
-  diagnosticFeeWaived: boolean
-  courierFee: number
-  totalPayable: number
-  selectedCount: number
-  totalCount: number
+  partsTotal: number;
+  labourTotal: number;
+  subtotal: number;
+  discountsTotal: number;
+  diagnosticFee: number;
+  diagnosticFeeWaived: boolean;
+  courierFee: number;
+  totalPayable: number;
+  selectedCount: number;
+  totalCount: number;
 }
 
 /**
@@ -82,33 +82,30 @@ export function calculateQuotationTotals(
   courierCharge?: { returnDelivery: number },
   baseDiagnosticFee: number = 300,
 ): QuotationCalculation {
-  const selectedSet = new Set(selectedItemIds)
-  const selectedItems = items.filter((it) => selectedSet.has(it.id))
+  const selectedSet = new Set(selectedItemIds);
+  const selectedItems = items.filter((it) => selectedSet.has(it.id));
 
-  let partsTotal = 0
-  let labourTotal = 0
-  let discountsTotal = 0
+  let partsTotal = 0;
+  let labourTotal = 0;
+  let discountsTotal = 0;
 
   for (const it of selectedItems) {
-    const qty = it.quantity || 1
-    partsTotal += (it.partCost || 0) * qty
-    labourTotal += (it.labourCost || 0) * qty
-    discountsTotal += it.discount || 0
+    const qty = it.quantity || 1;
+    partsTotal += (it.partCost || 0) * qty;
+    labourTotal += (it.labourCost || 0) * qty;
+    discountsTotal += it.discount || 0;
   }
 
-  const subtotal = partsTotal + labourTotal
-  const selectedCount = selectedItems.length
+  const subtotal = partsTotal + labourTotal;
+  const selectedCount = selectedItems.length;
 
   // Diagnostic fee is waived when customer approves at least one repair.
   // If 0 repairs are approved (all declined or deferred), the standard diagnostic assessment fee applies.
-  const diagnosticFeeWaived = selectedCount > 0
-  const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee
+  const diagnosticFeeWaived = selectedCount > 0;
+  const diagnosticFee = diagnosticFeeWaived ? 0 : baseDiagnosticFee;
 
-  const courierFee = courierCharge?.returnDelivery || 0
-  const totalPayable = Math.max(
-    0,
-    subtotal - discountsTotal + diagnosticFee + courierFee,
-  )
+  const courierFee = courierCharge?.returnDelivery || 0;
+  const totalPayable = Math.max(0, subtotal - discountsTotal + diagnosticFee + courierFee);
 
   return {
     partsTotal,
@@ -121,12 +118,12 @@ export function calculateQuotationTotals(
     totalPayable,
     selectedCount,
     totalCount: items.length,
-  }
+  };
 }
 
 export interface ItemSelectionValidation {
-  valid: boolean
-  error?: string
+  valid: boolean;
+  error?: string;
 }
 
 /**
@@ -138,10 +135,10 @@ export function validateItemSelection(
   decision: "approved" | "rejected" = "approved",
 ): ItemSelectionValidation {
   if (decision === "rejected" || selectedItemIds.length === 0) {
-    return { valid: true }
+    return { valid: true };
   }
 
-  const selectedSet = new Set(selectedItemIds)
+  const selectedSet = new Set(selectedItemIds);
 
   // 1. Check for required items
   for (const item of items) {
@@ -149,55 +146,51 @@ export function validateItemSelection(
       return {
         valid: false,
         error: `Required repair "${item.title}" is essential for device operation and cannot be deselected if proceeding with repairs.`,
-      }
+      };
     }
   }
 
   // 2. Check dependencies
   for (const item of items) {
-    if (
-      selectedSet.has(item.id) &&
-      item.dependsOn &&
-      item.dependsOn.length > 0
-    ) {
+    if (selectedSet.has(item.id) && item.dependsOn && item.dependsOn.length > 0) {
       for (const depId of item.dependsOn) {
         if (!selectedSet.has(depId)) {
-          const depItem = items.find((i) => i.id === depId)
-          const depName = depItem ? depItem.title : depId
+          const depItem = items.find((i) => i.id === depId);
+          const depName = depItem ? depItem.title : depId;
           return {
             valid: false,
             error: `Repair "${item.title}" requires "${depName}" to be authorized.`,
-          }
+          };
         }
       }
     }
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 export interface UserProfileIdentity {
-  id?: string
-  email?: string
-  phone?: string
-  role?: string
+  id?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
 }
 
 export interface UserSessionIdentity {
-  id?: string
-  email?: string
-  phone?: string
+  id?: string;
+  email?: string;
+  phone?: string;
 }
 
 export interface ServiceBookingResult {
-  ok: boolean
-  id: string
-  error?: string
+  ok: boolean;
+  id: string;
+  error?: string;
 }
 
 export interface AdminUpdateResult {
-  ok: boolean
-  error?: string
+  ok: boolean;
+  error?: string;
 }
 
 /**
@@ -205,15 +198,15 @@ export interface AdminUpdateResult {
  * e.g. "+91 98765 43210" -> "9876543210"
  */
 export function normalizePhone(rawPhone?: string | null): string {
-  if (!rawPhone) return ""
-  const digits = rawPhone.replace(/\D/g, "")
+  if (!rawPhone) return "";
+  const digits = rawPhone.replace(/\D/g, "");
   if (digits.length === 12 && digits.startsWith("91")) {
-    return digits.slice(2)
+    return digits.slice(2);
   }
   if (digits.length === 11 && digits.startsWith("0")) {
-    return digits.slice(1)
+    return digits.slice(1);
   }
-  return digits
+  return digits;
 }
 
 /**
@@ -225,36 +218,34 @@ export function isUserTicketOwner(
   profile?: UserProfileIdentity | null,
   sessionUser?: UserSessionIdentity | null,
 ): boolean {
-  if (!request) return false
+  if (!request) return false;
 
   // 1. Admin role override
   if (profile?.role === "admin" || (profile as any)?.isAdmin) {
-    return true
+    return true;
   }
 
   // 2. Direct Supabase UUID ownership match
-  const authUserId = sessionUser?.id || profile?.id
+  const authUserId = sessionUser?.id || profile?.id;
   if (authUserId && request.userId && authUserId === request.userId) {
-    return true
+    return true;
   }
 
   // 3. Normalized phone number match
-  const userPhone = normalizePhone(sessionUser?.phone || profile?.phone)
-  const reqPhone = normalizePhone(request.phone)
+  const userPhone = normalizePhone(sessionUser?.phone || profile?.phone);
+  const reqPhone = normalizePhone(request.phone);
   if (userPhone && reqPhone && userPhone === reqPhone) {
-    return true
+    return true;
   }
 
   // 4. Normalized email match
-  const userEmail = (sessionUser?.email || profile?.email || "")
-    .trim()
-    .toLowerCase()
-  const reqEmail = (request.email || "").trim().toLowerCase()
+  const userEmail = (sessionUser?.email || profile?.email || "").trim().toLowerCase();
+  const reqEmail = (request.email || "").trim().toLowerCase();
   if (userEmail && reqEmail && userEmail === reqEmail) {
-    return true
+    return true;
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -287,7 +278,7 @@ export function mapDbServiceRequest(
     Returned: 9,
     Completed: 9,
     Cancelled: 0,
-  }
+  };
 
   return {
     id: item.id,
@@ -305,7 +296,7 @@ export function mapDbServiceRequest(
     status: statusMap[item.status] ?? 0,
     statusName: item.status,
     quote: Number(item.quote) || 0,
-    quoteState: item.quote_state as any || "pending",
+    quoteState: (item.quote_state as any) || "pending",
     technician: item.technician_name || "IT HUB Bench Specialist",
     notes: item.notes || "",
     courierCharge: item.courier_charge_return_delivery
@@ -313,22 +304,14 @@ export function mapDbServiceRequest(
       : undefined,
     quoteVersion: item.quote_version ? Number(item.quote_version) : 1,
     findings: Array.isArray(item.findings) ? item.findings : [],
-    quotationItems: Array.isArray(item.quotation_items)
-      ? item.quotation_items
-      : [],
-    approvedItems: Array.isArray(item.approved_items)
-      ? item.approved_items
-      : [],
-    declinedItems: Array.isArray(item.declined_items)
-      ? item.declined_items
-      : [],
+    quotationItems: Array.isArray(item.quotation_items) ? item.quotation_items : [],
+    approvedItems: Array.isArray(item.approved_items) ? item.approved_items : [],
+    declinedItems: Array.isArray(item.declined_items) ? item.declined_items : [],
     decisionNotes: item.decision_notes || undefined,
     decisionAt: item.decision_at || undefined,
     decisionActor: item.decision_actor || undefined,
-    quotationHistory: Array.isArray(item.quotation_history)
-      ? item.quotation_history
-      : [],
-  }
+    quotationHistory: Array.isArray(item.quotation_history) ? item.quotation_history : [],
+  };
 }
 
 /**
@@ -339,9 +322,9 @@ export async function createServiceBooking(
   input: ServiceBookingInput,
   currentUserId?: string,
 ): Promise<ServiceBookingResult> {
-  const id = `SRV-${crypto.randomUUID().slice(0, 7).toUpperCase()}`
-  const isCourier = input.method === "Courier to IT HUB"
-  const courierFee = isCourier ? 150 : undefined
+  const id = `SRV-${crypto.randomUUID().slice(0, 7).toUpperCase()}`;
+  const isCourier = input.method === "Courier to IT HUB";
+  const courierFee = isCourier ? 150 : undefined;
 
   // Attempt Supabase insert if client is ready and user is authenticated
   if (supabase && supabaseConfig.isConfigured && currentUserId) {
@@ -360,50 +343,45 @@ export async function createServiceBooking(
           courier_charge_return_delivery: courierFee || null,
         })
         .select("id")
-        .maybeSingle()
+        .maybeSingle();
 
       if (dbError) {
-        console.warn(
-          "[Supabase] Failed to insert service_request:",
-          dbError.message,
-        )
+        console.warn("[Supabase] Failed to insert service_request:", dbError.message);
       } else if (data?.id) {
-        return { ok: true, id: data.id }
+        return { ok: true, id: data.id };
       }
     } catch (err) {
-      console.warn("[Supabase] Service request network error:", err)
+      console.warn("[Supabase] Service request network error:", err);
     }
   }
 
-  return { ok: true, id }
+  return { ok: true, id };
 }
 
 /**
  * Fetches service requests for the current authenticated user from Supabase.
  */
 export async function fetchUserServiceRequests(): Promise<ServiceRequest[]> {
-  if (!supabase || !supabaseConfig.isConfigured) return []
+  if (!supabase || !supabaseConfig.isConfigured) return [];
 
   try {
     const {
       data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return []
+    } = await supabase.auth.getUser();
+    if (!user) return [];
 
     const { data, error } = await supabase
       .from("service_requests")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false });
 
-    if (error || !data) return []
+    if (error || !data) return [];
 
-    return data.map((item) =>
-      mapDbServiceRequest(item, user.email || "", user.phone || ""),
-    )
+    return data.map((item) => mapDbServiceRequest(item, user.email || "", user.phone || ""));
   } catch (err) {
-    console.warn("[Supabase] Error fetching user service requests:", err)
-    return []
+    console.warn("[Supabase] Error fetching user service requests:", err);
+    return [];
   }
 }
 
@@ -411,34 +389,30 @@ export async function fetchUserServiceRequests(): Promise<ServiceRequest[]> {
  * Validates whether a given string is a valid PostgreSQL UUID.
  */
 export function isUuid(val: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    val,
-  )
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 }
 
 /**
  * Fetches a single service request by ID from Supabase.
  */
-export async function fetchServiceRequestById(
-  id: string,
-): Promise<ServiceRequest | null> {
-  if (!supabase || !supabaseConfig.isConfigured || !isUuid(id)) return null
+export async function fetchServiceRequestById(id: string): Promise<ServiceRequest | null> {
+  if (!supabase || !supabaseConfig.isConfigured || !isUuid(id)) return null;
 
   try {
     const { data, error } = await supabase
       .from("service_requests")
       .select("*")
       .eq("id", id)
-      .maybeSingle()
+      .maybeSingle();
 
     if (data && !error) {
-      return mapDbServiceRequest(data)
+      return mapDbServiceRequest(data);
     }
   } catch (err) {
-    console.warn("[Supabase] Failed to fetch service request by id:", err)
+    console.warn("[Supabase] Failed to fetch service request by id:", err);
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -464,7 +438,7 @@ export async function submitCustomerQuoteDecision(
   currentRequest?: ServiceRequest,
 ): Promise<QuoteDecisionResult> {
   if (decision !== "approved" && decision !== "rejected") {
-    return { ok: false, error: "Invalid quotation decision." }
+    return { ok: false, error: "Invalid quotation decision." };
   }
 
   // 1. Try authoritative Supabase RPC first (only if requestId is a valid PostgreSQL UUID)
@@ -479,15 +453,12 @@ export async function submitCustomerQuoteDecision(
           p_expected_version: expectedVersion,
           p_notes: notes || null,
         },
-      )
+      );
 
       if (!rpcError && rpcData && rpcData.ok) {
         const nextStatus =
-          rpcData.decision === "approved" && rpcData.approved_items?.length > 0
-            ? 5
-            : 4
-        const nextStatusLabel =
-          nextStatus === 5 ? "Approved" : "Awaiting approval"
+          rpcData.decision === "approved" && rpcData.approved_items?.length > 0 ? 5 : 4;
+        const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval";
         return {
           ok: true,
           decision: rpcData.decision,
@@ -497,7 +468,7 @@ export async function submitCustomerQuoteDecision(
           declinedItems: rpcData.declined_items,
           totalAmount: rpcData.total,
           version: rpcData.version,
-        }
+        };
       }
 
       // If RPC failed due to domain rule validation, return its explicit error message
@@ -508,7 +479,7 @@ export async function submitCustomerQuoteDecision(
         !rpcError.message.includes("syntax") &&
         !rpcError.message.includes("not found")
       ) {
-        return { ok: false, error: rpcError.message }
+        return { ok: false, error: rpcError.message };
       }
     } catch {
       // Fall through to table update fallback
@@ -519,13 +490,13 @@ export async function submitCustomerQuoteDecision(
       const {
         data: { user },
         error: authError,
-      } = await supabase.auth.getUser()
+      } = await supabase.auth.getUser();
       if (authError || !user) {
         if (!currentRequest) {
           return {
             ok: false,
             error: "You must be signed in to approve or decline a quotation.",
-          }
+          };
         }
       }
 
@@ -535,15 +506,14 @@ export async function submitCustomerQuoteDecision(
           "id, user_id, status, quote, quote_state, quote_version, quotation_items, courier_charge_return_delivery",
         )
         .eq("id", requestId)
-        .maybeSingle()
+        .maybeSingle();
 
       if (fetchErr || !existing) {
         if (!currentRequest) {
           return {
             ok: false,
-            error:
-              "Service request not found or you do not have permission to view it.",
-          }
+            error: "Service request not found or you do not have permission to view it.",
+          };
         }
         // Fall through to local fallback for demo/in-memory tickets
       } else {
@@ -553,13 +523,13 @@ export async function submitCustomerQuoteDecision(
             .from("profiles")
             .select("role")
             .eq("id", user.id)
-            .maybeSingle()
+            .maybeSingle();
 
           if (profile?.role !== "admin") {
             return {
               ok: false,
               error: "Unauthorized: You do not own this service ticket.",
-            }
+            };
           }
         }
 
@@ -567,60 +537,48 @@ export async function submitCustomerQuoteDecision(
           return {
             ok: false,
             error: `This quotation has already been ${existing.quote_state}. Further decisions cannot be submitted.`,
-          }
+          };
         }
 
-        if (
-          existing.quote_version &&
-          existing.quote_version !== expectedVersion
-        ) {
+        if (existing.quote_version && existing.quote_version !== expectedVersion) {
           return {
             ok: false,
             error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
-          }
+          };
         }
 
         const items: QuotationItem[] = Array.isArray(existing.quotation_items)
           ? existing.quotation_items
-          : []
+          : [];
 
         // Validate selection
-        const val = validateItemSelection(items, selectedItemIds, decision)
+        const val = validateItemSelection(items, selectedItemIds, decision);
         if (!val.valid) {
-          return { ok: false, error: val.error }
+          return { ok: false, error: val.error };
         }
 
         const courierCharge = existing.courier_charge_return_delivery
           ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
-          : undefined
+          : undefined;
 
-        const effectiveSelectedIds =
-          decision === "approved" ? selectedItemIds : []
-        const calc = calculateQuotationTotals(
-          items,
-          effectiveSelectedIds,
-          courierCharge,
-        )
+        const effectiveSelectedIds = decision === "approved" ? selectedItemIds : [];
+        const calc = calculateQuotationTotals(items, effectiveSelectedIds, courierCharge);
 
-        const allItemIds = items.map((i) => i.id)
-        const declinedItemIds = allItemIds.filter(
-          (id) => !effectiveSelectedIds.includes(id),
-        )
+        const allItemIds = items.map((i) => i.id);
+        const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id));
 
         const updatedItems = items.map((i) => {
           if (effectiveSelectedIds.includes(i.id)) {
-            return { ...i, approvalState: "approved" as const }
+            return { ...i, approvalState: "approved" as const };
           }
           if (decision === "approved" && i.canDefer) {
-            return { ...i, approvalState: "deferred" as const }
+            return { ...i, approvalState: "deferred" as const };
           }
-          return { ...i, approvalState: "declined" as const }
-        })
+          return { ...i, approvalState: "declined" as const };
+        });
 
-        const nextStatus =
-          decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
-        const nextStatusLabel =
-          nextStatus === 5 ? "Approved" : "Awaiting approval"
+        const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4;
+        const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval";
 
         const { error: updateErr } = await supabase
           .from("service_requests")
@@ -635,7 +593,7 @@ export async function submitCustomerQuoteDecision(
             decision_actor: user?.id,
           })
           .eq("id", requestId)
-          .eq("quote_state", "pending")
+          .eq("quote_state", "pending");
 
         if (updateErr) {
           if (
@@ -649,7 +607,7 @@ export async function submitCustomerQuoteDecision(
                 .update({
                   quote: calc.totalPayable,
                 })
-                .eq("id", requestId)
+                .eq("id", requestId);
             } catch {
               // Ignore remote failure when remote schema is pending migration
             }
@@ -663,12 +621,12 @@ export async function submitCustomerQuoteDecision(
               declinedItems: declinedItemIds,
               totalAmount: calc.totalPayable,
               version: existing.quote_version || expectedVersion,
-            }
+            };
           }
           return {
             ok: false,
             error: updateErr.message || "Failed to update quotation decision.",
-          }
+          };
         }
 
         return {
@@ -680,52 +638,43 @@ export async function submitCustomerQuoteDecision(
           declinedItems: declinedItemIds,
           totalAmount: calc.totalPayable,
           version: existing.quote_version || expectedVersion,
-        }
+        };
       }
     } catch (err: any) {
       if (!currentRequest) {
         return {
           ok: false,
-          error:
-            err?.message ||
-            "A network error occurred while submitting your decision.",
-        }
+          error: err?.message || "A network error occurred while submitting your decision.",
+        };
       }
       // If error occurred and currentRequest is available, fall through to local fallback
     }
   }
 
   // Fallback for offline prototype / demo mode / Deno test harness
-  const items = currentRequest?.quotationItems || []
-  const val = validateItemSelection(items, selectedItemIds, decision)
+  const items = currentRequest?.quotationItems || [];
+  const val = validateItemSelection(items, selectedItemIds, decision);
   if (!val.valid) {
-    return { ok: false, error: val.error }
+    return { ok: false, error: val.error };
   }
 
-  const effectiveSelectedIds = decision === "approved" ? selectedItemIds : []
-  const calc = calculateQuotationTotals(
-    items,
-    effectiveSelectedIds,
-    currentRequest?.courierCharge,
-  )
-  const allItemIds = items.map((i) => i.id)
-  const declinedItemIds = allItemIds.filter(
-    (id) => !effectiveSelectedIds.includes(id),
-  )
+  const effectiveSelectedIds = decision === "approved" ? selectedItemIds : [];
+  const calc = calculateQuotationTotals(items, effectiveSelectedIds, currentRequest?.courierCharge);
+  const allItemIds = items.map((i) => i.id);
+  const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id));
 
   const updatedItems = items.map((i) => {
     if (effectiveSelectedIds.includes(i.id)) {
-      return { ...i, approvalState: "approved" as const }
+      return { ...i, approvalState: "approved" as const };
     }
     if (decision === "approved" && i.canDefer) {
-      return { ...i, approvalState: "deferred" as const }
+      return { ...i, approvalState: "deferred" as const };
     }
-    return { ...i, approvalState: "declined" as const }
-  })
+    return { ...i, approvalState: "declined" as const };
+  });
 
-  const nextStatus =
-    decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4
-  const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval"
+  const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4;
+  const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval";
 
   return {
     ok: true,
@@ -736,13 +685,13 @@ export async function submitCustomerQuoteDecision(
     declinedItems: declinedItemIds,
     totalAmount: calc.totalPayable,
     version: expectedVersion,
-  }
+  };
 }
 
 /**
  * Backward compatibility alias for customer quote decisions.
  */
-export const updateServiceQuoteDecision = submitCustomerQuoteDecision
+export const updateServiceQuoteDecision = submitCustomerQuoteDecision;
 
 /**
  * Publishes an itemized quotation with diagnosis findings, incrementing version and resetting quote_state to pending.
@@ -755,22 +704,20 @@ export async function adminPublishQuotation(
   courierChargeReturnDelivery?: number,
   currentRequest?: ServiceRequest,
 ): Promise<{
-  ok: boolean
-  newVersion?: number
-  totalAmount?: number
-  warning?: string
-  error?: string
+  ok: boolean;
+  newVersion?: number;
+  totalAmount?: number;
+  warning?: string;
+  error?: string;
 }> {
-  const allItemIds = quotationItems.map((i) => i.id)
+  const allItemIds = quotationItems.map((i) => i.id);
   const calc = calculateQuotationTotals(
     quotationItems,
     allItemIds,
-    courierChargeReturnDelivery
-      ? { returnDelivery: courierChargeReturnDelivery }
-      : undefined,
-  )
+    courierChargeReturnDelivery ? { returnDelivery: courierChargeReturnDelivery } : undefined,
+  );
 
-  const newVersion = (currentRequest?.quoteVersion || 1) + 1
+  const newVersion = (currentRequest?.quoteVersion || 1) + 1;
 
   const revision: QuotationRevision = {
     version: currentRequest?.quoteVersion || 1,
@@ -780,11 +727,11 @@ export async function adminPublishQuotation(
     findings: currentRequest?.findings || [],
     totalAmount: currentRequest?.quote || 0,
     notes: currentRequest?.notes || "",
-  }
+  };
 
   const newHistory = currentRequest?.quotationHistory
     ? [...currentRequest.quotationHistory, revision]
-    : [revision]
+    : [revision];
 
   if (supabase && supabaseConfig.isConfigured && isUuid(requestId)) {
     try {
@@ -802,7 +749,7 @@ export async function adminPublishQuotation(
           quotation_history: newHistory as any,
           notes: adminNotes !== undefined ? adminNotes : currentRequest?.notes,
         })
-        .eq("id", requestId)
+        .eq("id", requestId);
 
       if (error) {
         // Handle unmigrated remote database gracefully by updating legacy columns or local store
@@ -818,10 +765,9 @@ export async function adminPublishQuotation(
               .update({
                 status: "Awaiting Approval",
                 quote: calc.totalPayable,
-                notes:
-                  adminNotes !== undefined ? adminNotes : currentRequest?.notes,
+                notes: adminNotes !== undefined ? adminNotes : currentRequest?.notes,
               })
-              .eq("id", requestId)
+              .eq("id", requestId);
           } catch {
             // Ignore remote failure when remote schema is pending migration
           }
@@ -833,17 +779,17 @@ export async function adminPublishQuotation(
             totalAmount: calc.totalPayable,
             warning:
               "Quotation published in local mode. Please run the Phase 5.2 SQL migration in Supabase to sync itemized quotes to the database.",
-          }
+          };
         }
-        return { ok: false, error: error.message }
+        return { ok: false, error: error.message };
       }
-      return { ok: true, newVersion, totalAmount: calc.totalPayable }
+      return { ok: true, newVersion, totalAmount: calc.totalPayable };
     } catch (err: any) {
-      return { ok: false, error: err?.message || "Failed to publish quotation" }
+      return { ok: false, error: err?.message || "Failed to publish quotation" };
     }
   }
 
-  return { ok: true, newVersion, totalAmount: calc.totalPayable }
+  return { ok: true, newVersion, totalAmount: calc.totalPayable };
 }
 
 /**
@@ -852,34 +798,28 @@ export async function adminPublishQuotation(
 export async function adminUpdateServiceRequest(
   id: string,
   updates: {
-    status?: string
-    quote?: number
-    quote_state?: string
-    technician_name?: string
-    notes?: string
+    status?: string;
+    quote?: number;
+    quote_state?: string;
+    technician_name?: string;
+    notes?: string;
   },
 ): Promise<AdminUpdateResult> {
   if (supabase && supabaseConfig.isConfigured && isUuid(id)) {
     try {
-      const { error } = await supabase
-        .from("service_requests")
-        .update(updates)
-        .eq("id", id)
+      const { error } = await supabase.from("service_requests").update(updates).eq("id", id);
 
       if (error) {
-        console.warn(
-          "[Supabase Admin] Failed to update service_request:",
-          error.message,
-        )
-        return { ok: false, error: error.message }
+        console.warn("[Supabase Admin] Failed to update service_request:", error.message);
+        return { ok: false, error: error.message };
       }
-      return { ok: true }
+      return { ok: true };
     } catch (err: any) {
-      console.warn("[Supabase Admin] Network error:", err)
-      return { ok: false, error: err?.message }
+      console.warn("[Supabase Admin] Network error:", err);
+      return { ok: false, error: err?.message };
     }
   }
-  return { ok: true }
+  return { ok: true };
 }
 
 /**
@@ -892,11 +832,8 @@ export function maskServiceRequestForPublicTracking(
   isOwnerOrAdmin: boolean,
   statusLabels: string[],
 ): SafePublicTracking {
-  const statusIndex = Math.min(
-    Math.max(0, request.status),
-    statusLabels.length - 1,
-  )
-  const statusLabel = statusLabels[statusIndex] || "Processing"
+  const statusIndex = Math.min(Math.max(0, request.status), statusLabels.length - 1);
+  const statusLabel = statusLabels[statusIndex] || "Processing";
 
   if (isOwnerOrAdmin) {
     return {
@@ -923,28 +860,28 @@ export function maskServiceRequestForPublicTracking(
       quotationItems: request.quotationItems || [],
       approvedItems: request.approvedItems || [],
       declinedItems: request.declinedItems || [],
-    }
+    };
   }
 
   // Mask customer name: e.g. "Prakash A K" -> "P***** K."
-  let maskedName = "Customer"
+  let maskedName = "Customer";
   if (request.name) {
-    const parts = request.name.trim().split(/\s+/)
+    const parts = request.name.trim().split(/\s+/);
     if (parts.length === 1) {
-      maskedName = `${parts[0][0]}***`
+      maskedName = `${parts[0][0]}***`;
     } else {
-      maskedName = `${parts[0][0]}*** ${parts[parts.length - 1][0]}.`
+      maskedName = `${parts[0][0]}*** ${parts[parts.length - 1][0]}.`;
     }
   }
 
   // Mask address: e.g. "Kothamangalam, Ernakulam, PIN 686691" -> "Kerala Area (PIN 686***)"
-  let maskedAddr = "IT HUB Registered Address"
+  let maskedAddr = "IT HUB Registered Address";
   if (request.address) {
-    const pinMatch = request.address.match(/\b([1-9][0-9]{2})[0-9]{3}\b/)
+    const pinMatch = request.address.match(/\b([1-9][0-9]{2})[0-9]{3}\b/);
     if (pinMatch) {
-      maskedAddr = `Kerala Area (PIN ${pinMatch[1]}***)`
+      maskedAddr = `Kerala Area (PIN ${pinMatch[1]}***)`;
     } else {
-      maskedAddr = "Kerala Service Area"
+      maskedAddr = "Kerala Service Area";
     }
   }
 
@@ -975,7 +912,7 @@ export function maskServiceRequestForPublicTracking(
     quotationItems: request.quotationItems || [],
     approvedItems: request.approvedItems || [],
     declinedItems: request.declinedItems || [],
-  }
+  };
 }
 
 /**
@@ -983,19 +920,22 @@ export function maskServiceRequestForPublicTracking(
  * Checks whether an Indian PIN code is eligible for local Doorstep On-Site service
  * versus Kerala-wide Courier service and Store Walk-in.
  */
-export function checkServiceCoverage(pincode: string, locations: any[]): {
-  valid: boolean
-  doorstepEligible: boolean
-  courierEligible: boolean
-  storeWalkInEligible: boolean
-  areaName?: string
-  distanceKm?: number
-  message: string
+export function checkServiceCoverage(
+  pincode: string,
+  locations: any[],
+): {
+  valid: boolean;
+  doorstepEligible: boolean;
+  courierEligible: boolean;
+  storeWalkInEligible: boolean;
+  areaName?: string;
+  distanceKm?: number;
+  message: string;
 } {
   const cleanPin = pincode
     .trim()
     .replace(/[^0-9]/g, "")
-    .slice(0, 6)
+    .slice(0, 6);
   if (cleanPin.length !== 6) {
     return {
       valid: false,
@@ -1003,20 +943,18 @@ export function checkServiceCoverage(pincode: string, locations: any[]): {
       courierEligible: false,
       storeWalkInEligible: true,
       message: "Please enter a valid 6-digit Indian PIN code.",
-    }
+    };
   }
 
-  const result = checkWarranty(cleanPin, locations)
+  const result = checkWarranty(cleanPin, locations);
 
   // Doorstep is strictly within the local hub radius (~15 km of Kothamangalam / Ernakulam-Idukki border)
-  const isDoorstep = result.status === "eligible"
+  const isDoorstep = result.status === "eligible";
   const isKeralaPin =
-    cleanPin.startsWith("67") ||
-    cleanPin.startsWith("68") ||
-    cleanPin.startsWith("69")
+    cleanPin.startsWith("67") || cleanPin.startsWith("68") || cleanPin.startsWith("69");
 
-  const areaName = "area" in result ? result.area : undefined
-  const distanceKm = "distanceKm" in result ? result.distanceKm : undefined
+  const areaName = "area" in result ? result.area : undefined;
+  const distanceKm = "distanceKm" in result ? result.distanceKm : undefined;
 
   if (isDoorstep) {
     return {
@@ -1027,7 +965,7 @@ export function checkServiceCoverage(pincode: string, locations: any[]): {
       areaName: areaName || "Kothamangalam Area",
       distanceKm: distanceKm ?? undefined,
       message: `Doorstep On-Site Service is available at ${areaName || "your location"} (~${distanceKm || 5} km from IT HUB)! You can also opt for Store Walk-in or Courier.`,
-    }
+    };
   }
 
   if (isKeralaPin) {
@@ -1039,7 +977,7 @@ export function checkServiceCoverage(pincode: string, locations: any[]): {
       areaName: areaName || "Kerala Region",
       distanceKm: distanceKm ?? undefined,
       message: `Doorstep technician visits are not available at PIN ${cleanPin} (outside our ~15 km local radius). However, our Kerala-wide Insured Courier Service and Store Walk-in are fully available for your area!`,
-    }
+    };
   }
 
   return {
@@ -1048,5 +986,5 @@ export function checkServiceCoverage(pincode: string, locations: any[]): {
     courierEligible: true,
     storeWalkInEligible: true,
     message: `PIN ${cleanPin} is outside Kerala local service radius. Courier service to IT HUB Kothamangalam or in-store drop-off is welcome.`,
-  }
+  };
 }

@@ -46,16 +46,19 @@ flowchart TD
 ## 3. Implementation Tasks
 
 ### Task 5.1: Customer Address Book Management
+
 - Wire `addresses` table in [`src/pages/Account.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Account.tsx).
 - Support Adding, Editing, Deleting, and Setting a Default Address.
 - The PostgreSQL trigger `handle_default_address` ensures that setting one address as default automatically unsets others for that customer.
 
 ### Task 5.2: Cloud-Synced Custom PC Builds
+
 - When customers customize a PC in [`src/pages/Builder.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Builder.tsx) and click "Save Build", prompt for login (if unauthenticated) and persist to `pc_builds`.
 - Stored fields: `name`, `purpose`, `parts` (JSONB array), `total_price`, `assembly_included`.
 - Actions in Account: Rename build, side-by-side comparison, share build link, and "Add Entire Build to Cart".
 
 ### Task 5.3: Service Booking & Ticket Tracking
+
 - Connect the 6-step booking wizard in [`src/pages/Services.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Services.tsx):
   - Step 1: Device Category (Laptop, Mobile, PC, Printer)
   - Step 2: Problem Description
@@ -69,9 +72,8 @@ flowchart TD
 
 ## 4. Verification Checkpoints
 
-| Feature | Verification Method |
-| :--- | :--- |
-| **Address Mutation** | Insert/Edit address $\rightarrow$ verify only 1 default exists |
+| Feature               | Verification Method                                                                       |
+| :-------------------- | :---------------------------------------------------------------------------------------- |
+| **Address Mutation**  | Insert/Edit address $\rightarrow$ verify only 1 default exists                            |
 | **Build Persistence** | Save PC build $\rightarrow$ log out & log in on another browser $\rightarrow$ build loads |
-| **Service Request** | Book service $\rightarrow$ verify record in `service_requests` with status `'Pending'` |
-
+| **Service Request**   | Book service $\rightarrow$ verify record in `service_requests` with status `'Pending'`    |

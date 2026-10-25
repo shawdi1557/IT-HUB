@@ -1,19 +1,13 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type HTMLAttributes,
-} from "react"
-import "./CircularGallery.css"
+import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes } from "react";
+import "./CircularGallery.css";
 
-const DEFAULT_FONT = "bold 30px Figtree"
+const DEFAULT_FONT = "bold 30px Figtree";
 const DEFAULT_FONT_URL =
-  "https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&display=swap"
-const SEGMENTS_X = 32
-const SEGMENTS_Y = 24
-const INTRO_SECONDS = 1.4
-const WORLD_HEIGHT = 16.57
+  "https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&display=swap";
+const SEGMENTS_X = 32;
+const SEGMENTS_Y = 24;
+const INTRO_SECONDS = 1.4;
+const WORLD_HEIGHT = 16.57;
 const CLASSES = {
   root: "circular-gallery",
   canvas: "circular-gallery-canvas",
@@ -23,58 +17,57 @@ const CLASSES = {
   captionText: "circular-gallery-caption-text",
   close: "circular-gallery-close",
   hidden: "circular-gallery-hidden",
-}
+};
 const STEPS: Record<string, number> = {
   ArrowRight: 1,
   ArrowDown: 1,
   ArrowLeft: -1,
   ArrowUp: -1,
-}
+};
 
 export interface CircularGalleryItem {
-  image: string
-  text?: string
-  description?: string
-  alt?: string
+  image: string;
+  text?: string;
+  description?: string;
+  alt?: string;
 }
 
 interface DragSample {
-  x: number
-  t: number
+  x: number;
+  t: number;
 }
 
 interface Point2D {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
-export interface CircularGalleryProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, "onItemClick"> {
-  items?: CircularGalleryItem[]
-  bend?: number
-  textColor?: string
-  borderRadius?: number
-  font?: string
-  fontUrl?: string
-  scrollSpeed?: number
-  scrollEase?: number
-  itemSize?: number
-  itemAspect?: number
-  gap?: number
-  wave?: number
-  fadeEdges?: number
-  shadow?: number
-  grayscale?: boolean
-  showTitles?: boolean
-  snap?: boolean
-  autoScroll?: number
-  openOnClick?: boolean
-  intro?: boolean
-  onItemClick?: (item: CircularGalleryItem, index: number) => void
-  onActiveChange?: (index: number) => void
-  dpr?: number
-  className?: string
-  style?: CSSProperties
+export interface CircularGalleryProps extends Omit<HTMLAttributes<HTMLDivElement>, "onItemClick"> {
+  items?: CircularGalleryItem[];
+  bend?: number;
+  textColor?: string;
+  borderRadius?: number;
+  font?: string;
+  fontUrl?: string;
+  scrollSpeed?: number;
+  scrollEase?: number;
+  itemSize?: number;
+  itemAspect?: number;
+  gap?: number;
+  wave?: number;
+  fadeEdges?: number;
+  shadow?: number;
+  grayscale?: boolean;
+  showTitles?: boolean;
+  snap?: boolean;
+  autoScroll?: number;
+  openOnClick?: boolean;
+  intro?: boolean;
+  onItemClick?: (item: CircularGalleryItem, index: number) => void;
+  onActiveChange?: (index: number) => void;
+  dpr?: number;
+  className?: string;
+  style?: CSSProperties;
 }
 
 const DEFAULT_ITEMS: CircularGalleryItem[] = [
@@ -90,7 +83,7 @@ const DEFAULT_ITEMS: CircularGalleryItem[] = [
   { image: "https://picsum.photos/seed/10/800/600", text: "Good Boy" },
   { image: "https://picsum.photos/seed/21/800/600", text: "Coastline" },
   { image: "https://picsum.photos/seed/12/800/600", text: "Palm Trees" },
-]
+];
 
 const VERTEX = `#version 300 es
 in vec2 aPosition;
@@ -113,7 +106,7 @@ void main() {
   vec2 turned = vec2(c * local.x - s * local.y, s * local.x + c * local.y);
   vLocal = local;
   gl_Position = vec4((uCenter + turned * depth) / (uResolution * 0.5), 0.0, 1.0);
-}`
+}`;
 
 const FRAGMENT = `#version 300 es
 precision highp float;
@@ -178,118 +171,112 @@ void main() {
   vec4 card = vec4(color * body, body);
   vec4 outline = vec4(uRingColor * ring, ring);
   outColor = (card + outline * (1.0 - card.a)) * uAlpha * edgeFade();
-}`
+}`;
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value))
-const mix = (a: number, b: number, t: number) => a + (b - a) * t
-const ease = (value: number) => value * value * (3 - 2 * value)
-const wrap = (value: number, length: number) =>
-  ((value % length) + length) % length
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+const ease = (value: number) => value * value * (3 - 2 * value);
+const wrap = (value: number, length: number) => ((value % length) + length) % length;
 
 function deriveFontFamilyFromUrl(url: string) {
-  const fileName = (url.split("/").pop() || "custom-font").split("?")[0]
-  const base = fileName.replace(/\.(woff2?|ttf|otf|eot)$/i, "")
-  return base.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "CircularGalleryFont"
+  const fileName = (url.split("/").pop() || "custom-font").split("?")[0];
+  const base = fileName.replace(/\.(woff2?|ttf|otf|eot)$/i, "");
+  return base.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "CircularGalleryFont";
 }
 
 async function loadFontFromStylesheet(url: string) {
-  const response = await fetch(url)
-  if (!response.ok)
-    throw new Error(`Failed to fetch font stylesheet (${response.status})`)
-  const cssText = await response.text()
-  const faceBlocks = cssText.match(/@font-face\s*{[^}]*}/g) || []
-  let family: string | null = null
-  const fontFaces: FontFace[] = []
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch font stylesheet (${response.status})`);
+  const cssText = await response.text();
+  const faceBlocks = cssText.match(/@font-face\s*{[^}]*}/g) || [];
+  let family: string | null = null;
+  const fontFaces: FontFace[] = [];
   for (const block of faceBlocks) {
-    const familyMatch = block.match(/font-family:\s*['"]?([^;'"]+)['"]?/)
-    const urlMatch = block.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/)
-    if (!familyMatch || !urlMatch) continue
-    family = familyMatch[1].trim()
-    const descriptors: FontFaceDescriptors = {}
-    const weightMatch = block.match(/font-weight:\s*([^;]+);/)
-    const styleMatch = block.match(/font-style:\s*([^;]+);/)
-    const rangeMatch = block.match(/unicode-range:\s*([^;]+);/)
-    if (weightMatch) descriptors.weight = weightMatch[1].trim()
-    if (styleMatch) descriptors.style = styleMatch[1].trim()
-    if (rangeMatch) descriptors.unicodeRange = rangeMatch[1].trim()
-    fontFaces.push(new FontFace(family, `url(${urlMatch[1]})`, descriptors))
+    const familyMatch = block.match(/font-family:\s*['"]?([^;'"]+)['"]?/);
+    const urlMatch = block.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/);
+    if (!familyMatch || !urlMatch) continue;
+    family = familyMatch[1].trim();
+    const descriptors: FontFaceDescriptors = {};
+    const weightMatch = block.match(/font-weight:\s*([^;]+);/);
+    const styleMatch = block.match(/font-style:\s*([^;]+);/);
+    const rangeMatch = block.match(/unicode-range:\s*([^;]+);/);
+    if (weightMatch) descriptors.weight = weightMatch[1].trim();
+    if (styleMatch) descriptors.style = styleMatch[1].trim();
+    if (rangeMatch) descriptors.unicodeRange = rangeMatch[1].trim();
+    fontFaces.push(new FontFace(family, `url(${urlMatch[1]})`, descriptors));
   }
-  if (!family) throw new Error("No @font-face rule found in the stylesheet")
+  if (!family) throw new Error("No @font-face rule found in the stylesheet");
   await Promise.allSettled(
     fontFaces.map(async (face) => {
-      await face.load()
-      document.fonts.add(face)
+      await face.load();
+      document.fonts.add(face);
     }),
-  )
-  return family
+  );
+  return family;
 }
 
 async function loadFontFromFile(url: string) {
-  const family = deriveFontFamilyFromUrl(url)
-  const fontFace = new FontFace(family, `url(${url})`)
-  await fontFace.load()
-  document.fonts.add(fontFace)
-  return family
+  const family = deriveFontFamilyFromUrl(url);
+  const fontFace = new FontFace(family, `url(${url})`);
+  await fontFace.load();
+  document.fonts.add(fontFace);
+  return family;
 }
 
 async function resolveFont(font: string, fontUrl?: string) {
-  const url = fontUrl || (font === DEFAULT_FONT ? DEFAULT_FONT_URL : null)
-  if (!url) return font
+  const url = fontUrl || (font === DEFAULT_FONT ? DEFAULT_FONT_URL : null);
+  if (!url) return font;
   try {
-    const isStylesheet =
-      url.includes("fonts.googleapis.com") || /\.css(\?.*)?$/i.test(url)
-    const family = isStylesheet
-      ? await loadFontFromStylesheet(url)
-      : await loadFontFromFile(url)
-    const sizeMatch = font.match(/^\s*(.*?\d+px)/)
-    return `${sizeMatch ? sizeMatch[1].trim() : "bold 30px"} "${family}"`
+    const isStylesheet = url.includes("fonts.googleapis.com") || /\.css(\?.*)?$/i.test(url);
+    const family = isStylesheet ? await loadFontFromStylesheet(url) : await loadFontFromFile(url);
+    const sizeMatch = font.match(/^\s*(.*?\d+px)/);
+    return `${sizeMatch ? sizeMatch[1].trim() : "bold 30px"} "${family}"`;
   } catch {
-    return font
+    return font;
   }
 }
 
 const fontScale = (font: string) => {
-  const match = String(font).match(/(\d+(?:\.\d+)?)px/)
-  return match ? parseFloat(match[1]) / 30 : 1
-}
+  const match = String(font).match(/(\d+(?:\.\d+)?)px/);
+  return match ? parseFloat(match[1]) / 30 : 1;
+};
 
 const compile = (gl: WebGL2RenderingContext, type: number, source: string) => {
-  const shader = gl.createShader(type)
-  if (!shader) return null
-  gl.shaderSource(shader, source)
-  gl.compileShader(shader)
-  if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader
-  gl.deleteShader(shader)
-  return null
-}
+  const shader = gl.createShader(type);
+  if (!shader) return null;
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+  gl.deleteShader(shader);
+  return null;
+};
 
 const link = (gl: WebGL2RenderingContext) => {
-  const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX)
-  const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT)
-  const program = gl.createProgram()
-  if (!vertex || !fragment || !program) return null
-  gl.attachShader(program, vertex)
-  gl.attachShader(program, fragment)
-  gl.bindAttribLocation(program, 0, "aPosition")
-  gl.linkProgram(program)
-  gl.deleteShader(vertex)
-  gl.deleteShader(fragment)
+  const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
+  const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
+  const program = gl.createProgram();
+  if (!vertex || !fragment || !program) return null;
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.bindAttribLocation(program, 0, "aPosition");
+  gl.linkProgram(program);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    gl.deleteProgram(program)
-    return null
+    gl.deleteProgram(program);
+    return null;
   }
-  const uniforms: Record<string, WebGLUniformLocation> = {}
-  const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS)
+  const uniforms: Record<string, WebGLUniformLocation> = {};
+  const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < count; i++) {
-    const info = gl.getActiveUniform(program, i)
+    const info = gl.getActiveUniform(program, i);
     if (info) {
-      const loc = gl.getUniformLocation(program, info.name)
-      if (loc) uniforms[info.name] = loc
+      const loc = gl.getUniformLocation(program, info.name);
+      if (loc) uniforms[info.name] = loc;
     }
   }
-  return { program, uniforms }
-}
+  return { program, uniforms };
+};
 
 export default function CircularGallery({
   items,
@@ -319,39 +306,38 @@ export default function CircularGallery({
   style,
   ...rest
 }: CircularGalleryProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const labelsRef = useRef<HTMLDivElement | null>(null)
-  const captionRef = useRef<HTMLDivElement | null>(null)
-  const buttonsRef = useRef<(HTMLButtonElement | null)[]>([])
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const labelsRef = useRef<HTMLDivElement | null>(null);
+  const captionRef = useRef<HTMLDivElement | null>(null);
+  const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const engineRef = useRef<{
-    wake: () => void
-    open: (index: number) => void
-    focus: (index: number) => void
-    close: () => void
-  } | null>(null)
-  const fontRef = useRef(font)
-  const [active, setActive] = useState(0)
-  const [open, setOpen] = useState(false)
-  const [webglSupported, setWebglSupported] = useState(true)
-  const [modalItem, setModalItem] = useState<CircularGalleryItem | null>(null)
-  const list = Array.isArray(items) && items.length ? items : DEFAULT_ITEMS
+    wake: () => void;
+    open: (index: number) => void;
+    focus: (index: number) => void;
+    close: () => void;
+  } | null>(null);
+  const fontRef = useRef(font);
+  const [active, setActive] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [webglSupported, setWebglSupported] = useState(true);
+  const [modalItem, setModalItem] = useState<CircularGalleryItem | null>(null);
+  const list = Array.isArray(items) && items.length ? items : DEFAULT_ITEMS;
 
   useEffect(() => {
     list.forEach((item) => {
-      if (!item.image) return
-      const img = new Image()
+      if (!item.image) return;
+      const img = new Image();
       const isExternal =
         typeof window !== "undefined" &&
-        (item.image.startsWith("http://") ||
-          item.image.startsWith("https://")) &&
-        !item.image.startsWith(window.location.origin)
+        (item.image.startsWith("http://") || item.image.startsWith("https://")) &&
+        !item.image.startsWith(window.location.origin);
       if (isExternal) {
-        img.crossOrigin = "anonymous"
+        img.crossOrigin = "anonymous";
       }
-      img.src = item.image
-    })
-  }, [list])
+      img.src = item.image;
+    });
+  }, [list]);
 
   const settings = {
     items: list,
@@ -375,31 +361,31 @@ export default function CircularGallery({
     onItemClick,
     onActiveChange,
     dpr,
-  }
-  const settingsRef = useRef(settings)
-  settingsRef.current = settings
+  };
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   useEffect(() => {
-    let alive = true
-    fontRef.current = font
+    let alive = true;
+    fontRef.current = font;
     resolveFont(font, fontUrl).then((resolved) => {
-      if (!alive) return
-      fontRef.current = resolved
-      engineRef.current?.wake()
-    })
+      if (!alive) return;
+      fontRef.current = resolved;
+      engineRef.current?.wake();
+    });
     return () => {
-      alive = false
-    }
-  }, [font, fontUrl])
+      alive = false;
+    };
+  }, [font, fontUrl]);
 
   useEffect(() => {
-    const container = containerRef.current
-    const canvas = canvasRef.current
-    const labelLayer = labelsRef.current
-    const caption = captionRef.current
-    if (!container || !canvas || !labelLayer || !caption) return undefined
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    const labelLayer = labelsRef.current;
+    const caption = captionRef.current;
+    if (!container || !canvas || !labelLayer || !caption) return undefined;
 
-    let gl: WebGL2RenderingContext | null = null
+    let gl: WebGL2RenderingContext | null = null;
     try {
       gl = canvas.getContext("webgl2", {
         alpha: true,
@@ -407,57 +393,53 @@ export default function CircularGallery({
         antialias: false,
         depth: false,
         stencil: false,
-      })
+      });
     } catch (err) {
-      console.warn("[CircularGallery] WebGL2 initialization failed:", err)
+      console.warn("[CircularGallery] WebGL2 initialization failed:", err);
     }
 
     if (!gl || gl.isContextLost()) {
-      setWebglSupported(false)
-      return undefined
+      setWebglSupported(false);
+      return undefined;
     }
 
-    const program = link(gl)
+    const program = link(gl);
     if (!program) {
-      setWebglSupported(false)
-      return undefined
+      setWebglSupported(false);
+      return undefined;
     }
-    const u = program.uniforms
+    const u = program.uniforms;
 
-    const vertices: number[] = []
+    const vertices: number[] = [];
     for (let y = 0; y <= SEGMENTS_Y; y++) {
       for (let x = 0; x <= SEGMENTS_X; x++)
-        vertices.push(x / SEGMENTS_X - 0.5, y / SEGMENTS_Y - 0.5)
+        vertices.push(x / SEGMENTS_X - 0.5, y / SEGMENTS_Y - 0.5);
     }
-    const indices: number[] = []
+    const indices: number[] = [];
     for (let y = 0; y < SEGMENTS_Y; y++) {
       for (let x = 0; x < SEGMENTS_X; x++) {
-        const a = y * (SEGMENTS_X + 1) + x
-        const b = a + 1
-        const c = a + SEGMENTS_X + 1
-        const d = c + 1
-        indices.push(a, b, d, a, d, c)
+        const a = y * (SEGMENTS_X + 1) + x;
+        const b = a + 1;
+        const c = a + SEGMENTS_X + 1;
+        const d = c + 1;
+        indices.push(a, b, d, a, d, c);
       }
     }
-    const vao = gl.createVertexArray()
-    gl.bindVertexArray(vao)
-    const vertexBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
-    gl.enableVertexAttribArray(0)
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
-    const indexBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
-    gl.bufferData(
-      gl.ELEMENT_ARRAY_BUFFER,
-      new Uint16Array(indices),
-      gl.STATIC_DRAW,
-    )
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anisotropy = gl.getExtension("EXT_texture_filter_anisotropic") as any
-    const blank = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, blank)
+    const anisotropy = gl.getExtension("EXT_texture_filter_anisotropic") as any;
+    const blank = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, blank);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -468,37 +450,37 @@ export default function CircularGallery({
       gl.RGBA,
       gl.UNSIGNED_BYTE,
       new Uint8Array([0, 0, 0, 0]),
-    )
+    );
 
-    const probe = document
-      .createElement("canvas")
-      .getContext("2d", { willReadFrequently: true })
-    const colorCache = new Map<string, number[]>()
+    const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+    const colorCache = new Map<string, number[]>();
     const parse = (value: string) => {
-      const key = String(value)
-      if (colorCache.has(key)) return colorCache.get(key)!
-      let rgb = [1, 1, 1]
+      const key = String(value);
+      if (colorCache.has(key)) return colorCache.get(key)!;
+      let rgb = [1, 1, 1];
       if (probe) {
-        probe.clearRect(0, 0, 1, 1)
-        probe.fillStyle = "#ffffff"
-        probe.fillStyle = key
-        probe.fillRect(0, 0, 1, 1)
-        const [r, g, b] = probe.getImageData(0, 0, 1, 1).data
-        rgb = [r / 255, g / 255, b / 255]
+        probe.clearRect(0, 0, 1, 1);
+        probe.fillStyle = "#ffffff";
+        probe.fillStyle = key;
+        probe.fillRect(0, 0, 1, 1);
+        const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
+        rgb = [r / 255, g / 255, b / 255];
       }
-      colorCache.set(key, rgb)
-      return rgb
-    }
+      colorCache.set(key, rgb);
+      return rgb;
+    };
 
-    const reduce =
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
-    const textures = new Map<string, {
-      texture: WebGLTexture | null
-      aspect: number
-      ready: number
-      loaded: boolean
-    }>()
-    const view = { width: 1, height: 1, ratio: 1 }
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const textures = new Map<
+      string,
+      {
+        texture: WebGLTexture | null;
+        aspect: number;
+        ready: number;
+        loaded: boolean;
+      }
+    >();
+    const view = { width: 1, height: 1, ratio: 1 };
 
     const state = {
       scroll: 0,
@@ -514,257 +496,243 @@ export default function CircularGallery({
       hover: new Map<number, number>(),
       focus: new Map<number, number>(),
       drag: null as {
-        id: number
-        x0: number
-        y0: number
-        start: number
-        moved: boolean
-        samples: DragSample[]
-        p: Point2D
+        id: number;
+        x0: number;
+        y0: number;
+        start: number;
+        moved: boolean;
+        samples: DragSample[];
+        p: Point2D;
       } | null,
       lastInput: 0,
       active: 0,
       spacing: 1,
-    }
+    };
 
     interface CardItem {
-      slot: number
-      index: number
-      item: CircularGalleryItem
+      slot: number;
+      index: number;
+      item: CircularGalleryItem;
       entry: {
-        texture: WebGLTexture | null
-        aspect: number
-        ready: number
-        loaded: boolean
-      }
-      x: number
-      y: number
-      angle: number
-      w: number
-      h: number
-      radius: number
-      alpha: number
-      dim: number
-      gray: number
-      focus: number
-      labelAlpha: number
-      labelSize: number
+        texture: WebGLTexture | null;
+        aspect: number;
+        ready: number;
+        loaded: boolean;
+      };
+      x: number;
+      y: number;
+      angle: number;
+      w: number;
+      h: number;
+      radius: number;
+      alpha: number;
+      dim: number;
+      gray: number;
+      focus: number;
+      labelAlpha: number;
+      labelSize: number;
       frame: {
-        width: number
-        height: number
-        y: number
-        titleSpace: number
-      }
+        width: number;
+        height: number;
+        y: number;
+        titleSpace: number;
+      };
     }
 
-    let cards: CardItem[] = []
+    let cards: CardItem[] = [];
     let pool: {
-      el: HTMLSpanElement
-      slot: number | null
-      font: string
-      text: string
-    }[] = []
-    let raf = 0
-    let last = 0
-    let visible = true
-    let snapTimer = 0
-    let lastItems: CircularGalleryItem[] | null = null
-    let typing = false
+      el: HTMLSpanElement;
+      slot: number | null;
+      font: string;
+      text: string;
+    }[] = [];
+    let raf = 0;
+    let last = 0;
+    let visible = true;
+    let snapTimer = 0;
+    let lastItems: CircularGalleryItem[] | null = null;
+    let typing = false;
 
     const createGLTexture = (
       img: HTMLImageElement,
       entry: {
-        texture: WebGLTexture | null
-        aspect: number
-        ready: number
-        loaded: boolean
+        texture: WebGLTexture | null;
+        aspect: number;
+        ready: number;
+        loaded: boolean;
       },
     ) => {
-      if (!gl || gl.isContextLost()) return
-      const texture = gl.createTexture()
-      if (!texture) return
-      gl.bindTexture(gl.TEXTURE_2D, texture)
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
-      gl.generateMipmap(gl.TEXTURE_2D)
-      gl.texParameteri(
-        gl.TEXTURE_2D,
-        gl.TEXTURE_MIN_FILTER,
-        gl.LINEAR_MIPMAP_LINEAR,
-      )
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      if (!gl || gl.isContextLost()) return;
+      const texture = gl.createTexture();
+      if (!texture) return;
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       if (anisotropy) {
-        const max = gl.getParameter(
-          anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
-        ) as number
-        gl.texParameterf(
-          gl.TEXTURE_2D,
-          anisotropy.TEXTURE_MAX_ANISOTROPY_EXT,
-          Math.min(8, max),
-        )
+        const max = gl.getParameter(anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+        gl.texParameterf(gl.TEXTURE_2D, anisotropy.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max));
       }
-      entry.texture = texture
-      entry.aspect = img.naturalWidth / Math.max(1, img.naturalHeight)
-      entry.loaded = true
-      wake()
-    }
+      entry.texture = texture;
+      entry.aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
+      entry.loaded = true;
+      wake();
+    };
 
     const textureFor = (url: string) => {
-      const existing = textures.get(url)
-      if (existing) return existing
+      const existing = textures.get(url);
+      if (existing) return existing;
       const entry = {
         texture: null as WebGLTexture | null,
         aspect: 1,
         ready: 0,
         loaded: false,
-      }
-      textures.set(url, entry)
+      };
+      textures.set(url, entry);
 
       const isExternal =
         typeof window !== "undefined" &&
         (url.startsWith("http://") || url.startsWith("https://")) &&
-        !url.startsWith(window.location.origin)
+        !url.startsWith(window.location.origin);
 
-      const image = new Image()
+      const image = new Image();
       if (isExternal) {
-        image.crossOrigin = "anonymous"
+        image.crossOrigin = "anonymous";
       }
-      image.decoding = "async"
+      image.decoding = "async";
 
       image.onload = () => {
-        if (!textures.has(url)) return
+        if (!textures.has(url)) return;
         try {
-          createGLTexture(image, entry)
+          createGLTexture(image, entry);
         } catch (e) {
-          console.warn("[CircularGallery] Failed to create GL texture:", e)
+          console.warn("[CircularGallery] Failed to create GL texture:", e);
         }
-      }
+      };
 
       image.onerror = (err) => {
         if (image.crossOrigin) {
-          const retry = new Image()
-          retry.decoding = "async"
+          const retry = new Image();
+          retry.decoding = "async";
           retry.onload = () => {
-            if (!textures.has(url)) return
+            if (!textures.has(url)) return;
             try {
-              createGLTexture(retry, entry)
+              createGLTexture(retry, entry);
             } catch (e) {
-              console.warn("[CircularGallery] Retry GL texture failed:", e)
+              console.warn("[CircularGallery] Retry GL texture failed:", e);
             }
-          }
+          };
           retry.onerror = (e) => {
-            console.error(`[CircularGallery] Retry image failed for ${url}:`, e)
-          }
-          retry.src = url
+            console.error(`[CircularGallery] Retry image failed for ${url}:`, e);
+          };
+          retry.src = url;
         } else {
-          console.error(`[CircularGallery] Failed to load image: ${url}`, err)
+          console.error(`[CircularGallery] Failed to load image: ${url}`, err);
         }
-      }
+      };
 
-      image.src = url
-      return entry
-    }
+      image.src = url;
+      return entry;
+    };
 
     const prune = (currentList: CircularGalleryItem[]) => {
-      const keep = new Set(currentList.map((item) => item.image))
+      const keep = new Set(currentList.map((item) => item.image));
       textures.forEach((entry, url) => {
-        if (keep.has(url)) return
-        if (entry.texture) gl.deleteTexture(entry.texture)
-        textures.delete(url)
-      })
-    }
+        if (keep.has(url)) return;
+        if (entry.texture) gl.deleteTexture(entry.texture);
+        textures.delete(url);
+      });
+    };
 
     const measure = () => {
-      const s = settingsRef.current
-      const height = 0.6 * view.height * s.itemSize
-      const width = height * s.itemAspect
-      const scale = Math.min(1, (view.width * 0.82) / width)
+      const s = settingsRef.current;
+      const height = 0.6 * view.height * s.itemSize;
+      const width = height * s.itemAspect;
+      const scale = Math.min(1, (view.width * 0.82) / width);
       return {
         w: width * scale,
         h: height * scale,
         spacing: width * scale * (1 + s.gap),
-      }
-    }
+      };
+    };
 
     const arcOf = (x: number) => {
-      const s = settingsRef.current
-      if (!s.bend) return { y: 0, angle: 0 }
-      const depth = (Math.abs(s.bend) * view.height) / WORLD_HEIGHT
-      const half = Math.max(view.width, view.height * 1.9) / 2
-      const radius = (half * half + depth * depth) / (2 * depth)
-      const reach = Math.min(Math.abs(x), half, radius * 0.999)
-      const arc = radius - Math.sqrt(radius * radius - reach * reach)
-      const angle = Math.sign(x) * Math.asin(reach / radius)
-      return s.bend > 0 ? { y: -arc, angle: -angle } : { y: arc, angle }
-    }
+      const s = settingsRef.current;
+      if (!s.bend) return { y: 0, angle: 0 };
+      const depth = (Math.abs(s.bend) * view.height) / WORLD_HEIGHT;
+      const half = Math.max(view.width, view.height * 1.9) / 2;
+      const radius = (half * half + depth * depth) / (2 * depth);
+      const reach = Math.min(Math.abs(x), half, radius * 0.999);
+      const arc = radius - Math.sqrt(radius * radius - reach * reach);
+      const angle = Math.sign(x) * Math.asin(reach / radius);
+      return s.bend > 0 ? { y: -arc, angle: -angle } : { y: arc, angle };
+    };
 
-    const captionSize = () => clamp(view.height * 0.045, 15, 22)
+    const captionSize = () => clamp(view.height * 0.045, 15, 22);
 
     const ensurePool = (spacing: number) => {
-      const size = Math.ceil(view.width / Math.max(spacing, 1)) + 8
-      if (pool.length === size) return
-      labelLayer.replaceChildren()
+      const size = Math.ceil(view.width / Math.max(spacing, 1)) + 8;
+      if (pool.length === size) return;
+      labelLayer.replaceChildren();
       pool = Array.from({ length: size }, () => {
-        const el = document.createElement("span")
-        el.className = CLASSES.label
-        el.style.opacity = "0"
-        labelLayer.appendChild(el)
-        return { el, slot: null as number | null, font: "", text: "" }
-      })
-    }
+        const el = document.createElement("span");
+        el.className = CLASSES.label;
+        el.style.opacity = "0";
+        labelLayer.appendChild(el);
+        return { el, slot: null as number | null, font: "", text: "" };
+      });
+    };
 
     const layout = () => {
-      const s = settingsRef.current
-      const currentList = s.items
-      const count = currentList.length
-      const { w, h, spacing } = measure()
-      state.spacing = spacing
-      const introEase = 1 - Math.pow(1 - state.intro, 3)
-      const scroll = state.scroll + (1 - introEase) * spacing * 1.6
-      const margin = Math.max(20, Math.min(view.width, view.height) * 0.06)
-      const baseLabel = h * 0.072 * fontScale(fontRef.current)
+      const s = settingsRef.current;
+      const currentList = s.items;
+      const count = currentList.length;
+      const { w, h, spacing } = measure();
+      state.spacing = spacing;
+      const introEase = 1 - Math.pow(1 - state.intro, 3);
+      const scroll = state.scroll + (1 - introEase) * spacing * 1.6;
+      const margin = Math.max(20, Math.min(view.width, view.height) * 0.06);
+      const baseLabel = h * 0.072 * fontScale(fontRef.current);
       const openFrame = (item: CircularGalleryItem) => {
-        const aspect = textureFor(item.image).aspect || w / h
-        const titleSpace = item.text && s.showTitles ? captionSize() * 2.4 : 0
-        const captionSpace = titleSpace + (item.description ? 52 : 0)
+        const aspect = textureFor(item.image).aspect || w / h;
+        const titleSpace = item.text && s.showTitles ? captionSize() * 2.4 : 0;
+        const captionSpace = titleSpace + (item.description ? 52 : 0);
         const width = Math.min(
           view.width - margin * 2,
           (view.height - margin * 2 - captionSpace) * aspect,
-        )
+        );
         return {
           width,
           height: width / aspect,
           y: captionSpace / 2,
           titleSpace,
-        }
-      }
-      const activeFrame = openFrame(currentList[wrap(state.active, count)])
-      const spread = Math.max(0, activeFrame.width / 2 - w / 2)
-      const activeX = state.active * spacing - scroll
-      const first = Math.floor(
-        (scroll - view.width / 2 - spacing * 2) / spacing,
-      )
-      const lastSlot = Math.ceil(
-        (scroll + view.width / 2 + spacing * 2) / spacing,
-      )
-      const next: CardItem[] = []
-      let lead: CardItem | null = null
+        };
+      };
+      const activeFrame = openFrame(currentList[wrap(state.active, count)]);
+      const spread = Math.max(0, activeFrame.width / 2 - w / 2);
+      const activeX = state.active * spacing - scroll;
+      const first = Math.floor((scroll - view.width / 2 - spacing * 2) / spacing);
+      const lastSlot = Math.ceil((scroll + view.width / 2 + spacing * 2) / spacing);
+      const next: CardItem[] = [];
+      let lead: CardItem | null = null;
       for (let slot = first; slot <= lastSlot; slot++) {
-        const index = wrap(slot, count)
-        const item = currentList[index]
-        const entry = textureFor(item.image)
-        const focus = ease(state.focus.get(slot) || 0)
-        let x = slot * spacing - scroll
-        x += Math.sign(x - activeX) * state.open * (1 - focus) * spread
-        const arc = arcOf(x)
-        const frame = focus > 0 ? openFrame(item) : activeFrame
-        const order = Math.abs(slot * spacing - state.scroll) / spacing
-        const shown = ease(clamp(state.intro * 2.2 - order * 0.22, 0, 1))
-        const hover = state.hover.get(slot) || 0
-        const lift = 1 + hover * 0.04 * (1 - focus)
+        const index = wrap(slot, count);
+        const item = currentList[index];
+        const entry = textureFor(item.image);
+        const focus = ease(state.focus.get(slot) || 0);
+        let x = slot * spacing - scroll;
+        x += Math.sign(x - activeX) * state.open * (1 - focus) * spread;
+        const arc = arcOf(x);
+        const frame = focus > 0 ? openFrame(item) : activeFrame;
+        const order = Math.abs(slot * spacing - state.scroll) / spacing;
+        const shown = ease(clamp(state.intro * 2.2 - order * 0.22, 0, 1));
+        const hover = state.hover.get(slot) || 0;
+        const lift = 1 + hover * 0.04 * (1 - focus);
         const card: CardItem = {
           slot,
           index,
@@ -785,13 +753,13 @@ export default function CircularGallery({
           labelAlpha: mix(1 - state.open, 1, focus),
           labelSize: mix(baseLabel, captionSize(), focus),
           frame,
-        }
-        if (!lead || focus > lead.focus) lead = card
-        next.push(card)
+        };
+        if (!lead || focus > lead.focus) lead = card;
+        next.push(card);
       }
-      next.sort((a, b) => a.focus - b.focus || Math.abs(b.x) - Math.abs(a.x))
-      cards = next
-      const frame = lead && lead.focus > 0 ? lead.frame : activeFrame
+      next.sort((a, b) => a.focus - b.focus || Math.abs(b.x) - Math.abs(a.x));
+      cards = next;
+      const frame = lead && lead.focus > 0 ? lead.frame : activeFrame;
       return {
         w,
         h,
@@ -799,195 +767,178 @@ export default function CircularGallery({
         openH: frame.height,
         openY: frame.y,
         titleSpace: frame.titleSpace,
-      }
-    }
+      };
+    };
 
     const draw = (metrics: {
-      w: number
-      h: number
-      spacing: number
-      openH: number
-      openY: number
-      titleSpace: number
+      w: number;
+      h: number;
+      spacing: number;
+      openH: number;
+      openY: number;
+      titleSpace: number;
     }) => {
-      const s = settingsRef.current
-      const ratio = view.ratio
-      const speed = Math.min(
-        Math.abs(state.velocity) / Math.max(metrics.spacing * 4, 1),
-        1,
-      )
-      const wavePx = reduce ? 0 : s.wave * speed * view.height * 0.08 * ratio
-      gl.viewport(0, 0, canvas.width, canvas.height)
-      gl.clearColor(0, 0, 0, 0)
-      gl.clear(gl.COLOR_BUFFER_BIT)
-      gl.enable(gl.BLEND)
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-      gl.useProgram(program.program)
-      gl.bindVertexArray(vao)
-      gl.uniform2f(u.uResolution, canvas.width, canvas.height)
-      gl.uniform1f(u.uFocal, view.height * 1.207 * ratio)
-      gl.uniform1f(u.uWaveTime, state.waveTime)
-      gl.uniform1f(u.uFade, s.fadeEdges)
-      gl.uniform3fv(u.uPlaceholder, parse(s.textColor))
-      gl.uniform3fv(u.uRingColor, parse(s.textColor))
-      gl.uniform1f(u.uRingWidth, 2 * ratio)
-      gl.uniform1f(u.uRingGap, 5 * ratio)
-      gl.activeTexture(gl.TEXTURE0)
-      gl.uniform1i(u.uTexture, 0)
-      const count = SEGMENTS_X * SEGMENTS_Y * 6
-      const blur = Math.max(10, metrics.h * 0.09) * ratio
+      const s = settingsRef.current;
+      const ratio = view.ratio;
+      const speed = Math.min(Math.abs(state.velocity) / Math.max(metrics.spacing * 4, 1), 1);
+      const wavePx = reduce ? 0 : s.wave * speed * view.height * 0.08 * ratio;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(program.program);
+      gl.bindVertexArray(vao);
+      gl.uniform2f(u.uResolution, canvas.width, canvas.height);
+      gl.uniform1f(u.uFocal, view.height * 1.207 * ratio);
+      gl.uniform1f(u.uWaveTime, state.waveTime);
+      gl.uniform1f(u.uFade, s.fadeEdges);
+      gl.uniform3fv(u.uPlaceholder, parse(s.textColor));
+      gl.uniform3fv(u.uRingColor, parse(s.textColor));
+      gl.uniform1f(u.uRingWidth, 2 * ratio);
+      gl.uniform1f(u.uRingGap, 5 * ratio);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(u.uTexture, 0);
+      const count = SEGMENTS_X * SEGMENTS_Y * 6;
+      const blur = Math.max(10, metrics.h * 0.09) * ratio;
       const place = (card: CardItem) => {
-        gl.uniform2f(u.uCenter, card.x * ratio, card.y * ratio)
-        gl.uniform2f(u.uSize, card.w * ratio, card.h * ratio)
-        gl.uniform1f(u.uAngle, card.angle)
-        gl.uniform1f(
-          u.uRadius,
-          Math.min(card.radius, card.w / 2, card.h / 2) * ratio,
-        )
-        gl.uniform1f(u.uWave, wavePx * (1 - card.focus))
-        gl.uniform1f(u.uAlpha, card.alpha)
-      }
+        gl.uniform2f(u.uCenter, card.x * ratio, card.y * ratio);
+        gl.uniform2f(u.uSize, card.w * ratio, card.h * ratio);
+        gl.uniform1f(u.uAngle, card.angle);
+        gl.uniform1f(u.uRadius, Math.min(card.radius, card.w / 2, card.h / 2) * ratio);
+        gl.uniform1f(u.uWave, wavePx * (1 - card.focus));
+        gl.uniform1f(u.uAlpha, card.alpha);
+      };
       if (s.shadow > 0) {
-        gl.uniform1f(u.uShadow, s.shadow)
-        gl.uniform1f(u.uBlur, blur)
-        gl.uniform2f(u.uShadowOffset, 0, -blur * 0.45)
-        gl.uniform1f(u.uPad, blur * 1.6)
-        gl.bindTexture(gl.TEXTURE_2D, blank)
+        gl.uniform1f(u.uShadow, s.shadow);
+        gl.uniform1f(u.uBlur, blur);
+        gl.uniform2f(u.uShadowOffset, 0, -blur * 0.45);
+        gl.uniform1f(u.uPad, blur * 1.6);
+        gl.bindTexture(gl.TEXTURE_2D, blank);
         cards.forEach((card) => {
-          place(card)
-          gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0)
-        })
+          place(card);
+          gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+        });
       }
-      gl.uniform1f(u.uShadow, 0)
-      gl.uniform1f(u.uPad, 10 * ratio)
+      gl.uniform1f(u.uShadow, 0);
+      gl.uniform1f(u.uPad, 10 * ratio);
       cards.forEach((card) => {
-        place(card)
-        const entry = card.entry
-        gl.bindTexture(gl.TEXTURE_2D, entry.texture || blank)
-        gl.uniform1f(u.uImageAspect, entry.aspect)
-        gl.uniform1f(u.uReady, entry.ready)
-        gl.uniform1f(u.uGray, card.gray)
-        gl.uniform1f(u.uDim, card.dim)
-        gl.uniform1f(
-          u.uRing,
-          card.slot === state.active ? state.ring * (1 - card.focus) : 0,
-        )
-        gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0)
-      })
-    }
+        place(card);
+        const entry = card.entry;
+        gl.bindTexture(gl.TEXTURE_2D, entry.texture || blank);
+        gl.uniform1f(u.uImageAspect, entry.aspect);
+        gl.uniform1f(u.uReady, entry.ready);
+        gl.uniform1f(u.uGray, card.gray);
+        gl.uniform1f(u.uDim, card.dim);
+        gl.uniform1f(u.uRing, card.slot === state.active ? state.ring * (1 - card.focus) : 0);
+        gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+      });
+    };
 
     const placeLabels = (metrics: {
-      w: number
-      h: number
-      spacing: number
-      openH: number
-      openY: number
-      titleSpace: number
+      w: number;
+      h: number;
+      spacing: number;
+      openH: number;
+      openY: number;
+      titleSpace: number;
     }) => {
-      const s = settingsRef.current
-      ensurePool(metrics.spacing)
+      const s = settingsRef.current;
+      ensurePool(metrics.spacing);
       const used = new Set<{
-        el: HTMLSpanElement
-        slot: number | null
-        font: string
-        text: string
-      }>()
-      const font = fontRef.current
+        el: HTMLSpanElement;
+        slot: number | null;
+        font: string;
+        text: string;
+      }>();
+      const font = fontRef.current;
       const fade = (value: number) => {
-        if (s.fadeEdges <= 0) return 1
-        const t = clamp(value / s.fadeEdges, 0, 1)
-        return t * t * t * (t * (t * 6 - 15) + 10)
-      }
+        if (s.fadeEdges <= 0) return 1;
+        const t = clamp(value / s.fadeEdges, 0, 1);
+        return t * t * t * (t * (t * 6 - 15) + 10);
+      };
       if (s.showTitles) {
         cards.forEach((card) => {
-          if (!card.item.text) return
-          const entry = pool[wrap(card.slot, pool.length)]
-          used.add(entry)
+          if (!card.item.text) return;
+          const entry = pool[wrap(card.slot, pool.length)];
+          used.add(entry);
           if (entry.slot !== card.slot || entry.text !== card.item.text) {
-            entry.slot = card.slot
-            entry.text = card.item.text
-            entry.el.textContent = card.item.text
+            entry.slot = card.slot;
+            entry.text = card.item.text;
+            entry.el.textContent = card.item.text;
           }
           if (entry.font !== font) {
-            entry.font = font
-            entry.el.style.font = font
+            entry.font = font;
+            entry.el.style.font = font;
           }
-          const size = card.labelSize
-          const offset = card.h / 2 + size * 1.1
-          const x = card.x + Math.sin(card.angle) * offset
-          const y = card.y - Math.cos(card.angle) * offset
-          const cssX = view.width / 2 + x
-          const cssY = view.height / 2 - y
-          const edge = fade(cssX / view.width) * fade(1 - cssX / view.width)
-          entry.el.style.fontSize = `${size}px`
-          entry.el.style.color = s.textColor
-          entry.el.style.transform = `translate(${cssX}px, ${cssY}px) translate(-50%, -50%) rotate(${-card.angle}rad)`
-          entry.el.style.opacity = String(
-            card.alpha * card.labelAlpha * mix(edge, 1, card.focus),
-          )
-        })
+          const size = card.labelSize;
+          const offset = card.h / 2 + size * 1.1;
+          const x = card.x + Math.sin(card.angle) * offset;
+          const y = card.y - Math.cos(card.angle) * offset;
+          const cssX = view.width / 2 + x;
+          const cssY = view.height / 2 - y;
+          const edge = fade(cssX / view.width) * fade(1 - cssX / view.width);
+          entry.el.style.fontSize = `${size}px`;
+          entry.el.style.color = s.textColor;
+          entry.el.style.transform = `translate(${cssX}px, ${cssY}px) translate(-50%, -50%) rotate(${-card.angle}rad)`;
+          entry.el.style.opacity = String(card.alpha * card.labelAlpha * mix(edge, 1, card.focus));
+        });
       }
       pool.forEach((entry) => {
-        if (used.has(entry)) return
-        if (entry.el.style.opacity !== "0") entry.el.style.opacity = "0"
-      })
-      const top =
-        view.height / 2 -
-        (metrics.openY - metrics.openH / 2) +
-        metrics.titleSpace +
-        4
-      caption.style.transform = `translate(-50%, ${top}px)`
-      caption.style.opacity = String(
-        ease(clamp((state.open - 0.5) / 0.5, 0, 1)),
-      )
-      caption.style.color = s.textColor
+        if (used.has(entry)) return;
+        if (entry.el.style.opacity !== "0") entry.el.style.opacity = "0";
+      });
+      const top = view.height / 2 - (metrics.openY - metrics.openH / 2) + metrics.titleSpace + 4;
+      caption.style.transform = `translate(-50%, ${top}px)`;
+      caption.style.opacity = String(ease(clamp((state.open - 0.5) / 0.5, 0, 1)));
+      caption.style.color = s.textColor;
       if (caption.dataset.font !== font) {
-        caption.dataset.font = font
-        caption.style.font = font
-        caption.style.fontWeight = "400"
+        caption.dataset.font = font;
+        caption.style.font = font;
+        caption.style.fontWeight = "400";
       }
-      caption.style.fontSize = `${captionSize() * 0.8}px`
-    }
+      caption.style.fontSize = `${captionSize() * 0.8}px`;
+    };
 
-    const nearest = () => Math.round(state.target / Math.max(state.spacing, 1))
+    const nearest = () => Math.round(state.target / Math.max(state.spacing, 1));
 
     const setSlot = (slot: number, announce = true) => {
-      const s = settingsRef.current
-      state.target = slot * state.spacing
+      const s = settingsRef.current;
+      state.target = slot * state.spacing;
       if (slot !== state.active) {
-        state.active = slot
-        const index = wrap(slot, s.items.length)
-        if (announce) setActive(index)
-        s.onActiveChange?.(index)
+        state.active = slot;
+        const index = wrap(slot, s.items.length);
+        if (announce) setActive(index);
+        s.onActiveChange?.(index);
       }
-      wake()
-    }
+      wake();
+    };
 
     const openSlot = (slot: number) => {
-      setSlot(slot)
-      state.openTarget = 1
-      setOpen(true)
-      wake()
-    }
+      setSlot(slot);
+      state.openTarget = 1;
+      setOpen(true);
+      wake();
+    };
 
     const close = () => {
-      state.openTarget = 0
-      setOpen(false)
-      wake()
-    }
+      state.openTarget = 0;
+      setOpen(false);
+      wake();
+    };
 
     const frame = (now: number) => {
-      raf = 0
-      if (!visible || document.hidden) return
-      const s = settingsRef.current
-      const dt = last ? clamp((now - last) / 1000, 0.0005, 0.05) : 1 / 60
-      last = now
+      raf = 0;
+      if (!visible || document.hidden) return;
+      const s = settingsRef.current;
+      const dt = last ? clamp((now - last) / 1000, 0.0005, 0.05) : 1 / 60;
+      last = now;
       if (s.items !== lastItems) {
-        lastItems = s.items
-        prune(s.items)
-        s.items.forEach((item) => textureFor(item.image))
+        lastItems = s.items;
+        prune(s.items);
+        s.items.forEach((item) => textureFor(item.image));
       }
-      const idle = now - state.lastInput > 1800
+      const idle = now - state.lastInput > 1800;
       const auto =
         s.autoScroll &&
         !reduce &&
@@ -995,71 +946,62 @@ export default function CircularGallery({
         state.open < 0.01 &&
         state.hovered === null &&
         !state.keyboard &&
-        idle
-      if (auto) state.target += s.autoScroll * state.spacing * 0.25 * dt
-      const follow = reduce ? 1 : 1 - Math.pow(1 - s.scrollEase, dt * 60)
-      const before = state.scroll
-      state.scroll += (state.target - state.scroll) * follow
-      if (Math.abs(state.target - state.scroll) < 0.05)
-        state.scroll = state.target
-      const velocity = (state.scroll - before) / dt
-      state.velocity += (velocity - state.velocity) * (1 - Math.exp(-dt / 0.08))
-      if (Math.abs(state.velocity) < 0.5) state.velocity = 0
-      state.waveTime += dt * 2.4
-      const openFollow = reduce ? 1 : 1 - Math.exp(-dt / 0.14)
-      state.open += (state.openTarget - state.open) * openFollow
-      if (Math.abs(state.openTarget - state.open) < 0.001)
-        state.open = state.openTarget
-      state.ring +=
-        ((state.keyboard ? 1 : 0) - state.ring) * (1 - Math.exp(-dt / 0.1))
+        idle;
+      if (auto) state.target += s.autoScroll * state.spacing * 0.25 * dt;
+      const follow = reduce ? 1 : 1 - Math.pow(1 - s.scrollEase, dt * 60);
+      const before = state.scroll;
+      state.scroll += (state.target - state.scroll) * follow;
+      if (Math.abs(state.target - state.scroll) < 0.05) state.scroll = state.target;
+      const velocity = (state.scroll - before) / dt;
+      state.velocity += (velocity - state.velocity) * (1 - Math.exp(-dt / 0.08));
+      if (Math.abs(state.velocity) < 0.5) state.velocity = 0;
+      state.waveTime += dt * 2.4;
+      const openFollow = reduce ? 1 : 1 - Math.exp(-dt / 0.14);
+      state.open += (state.openTarget - state.open) * openFollow;
+      if (Math.abs(state.openTarget - state.open) < 0.001) state.open = state.openTarget;
+      state.ring += ((state.keyboard ? 1 : 0) - state.ring) * (1 - Math.exp(-dt / 0.1));
       if (Math.abs((state.keyboard ? 1 : 0) - state.ring) < 0.002)
-        state.ring = state.keyboard ? 1 : 0
-      if (state.intro < 1)
-        state.intro = Math.min(1, state.intro + dt / INTRO_SECONDS)
-      let settling = false
+        state.ring = state.keyboard ? 1 : 0;
+      if (state.intro < 1) state.intro = Math.min(1, state.intro + dt / INTRO_SECONDS);
+      let settling = false;
       state.hover.forEach((value, slot) => {
-        const goal = slot === state.hovered ? 1 : 0
-        const next = value + (goal - value) * (1 - Math.exp(-dt / 0.12))
+        const goal = slot === state.hovered ? 1 : 0;
+        const next = value + (goal - value) * (1 - Math.exp(-dt / 0.12));
         if (Math.abs(goal - next) < 0.002) {
-          if (goal === 0) state.hover.delete(slot)
-          else state.hover.set(slot, 1)
+          if (goal === 0) state.hover.delete(slot);
+          else state.hover.set(slot, 1);
         } else {
-          state.hover.set(slot, next)
-          settling = true
+          state.hover.set(slot, next);
+          settling = true;
         }
-      })
-      if (state.openTarget > 0 && !state.focus.has(state.active))
-        state.focus.set(state.active, 0)
+      });
+      if (state.openTarget > 0 && !state.focus.has(state.active)) state.focus.set(state.active, 0);
       state.focus.forEach((value, slot) => {
-        const goal = state.openTarget > 0 && slot === state.active ? 1 : 0
-        const next = reduce
-          ? goal
-          : value + (goal - value) * (1 - Math.exp(-dt / 0.16))
+        const goal = state.openTarget > 0 && slot === state.active ? 1 : 0;
+        const next = reduce ? goal : value + (goal - value) * (1 - Math.exp(-dt / 0.16));
         if (Math.abs(goal - next) < 0.001) {
-          if (goal === 0) state.focus.delete(slot)
-          else state.focus.set(slot, 1)
+          if (goal === 0) state.focus.delete(slot);
+          else state.focus.set(slot, 1);
         } else {
-          state.focus.set(slot, next)
-          settling = true
+          state.focus.set(slot, next);
+          settling = true;
         }
-      })
+      });
       textures.forEach((entry) => {
-        if (!entry.loaded || entry.ready >= 1) return
-        entry.ready = reduce ? 1 : Math.min(1, entry.ready + dt / 0.45)
-        settling = true
-      })
-      const slot = auto
-        ? Math.round(state.scroll / Math.max(state.spacing, 1))
-        : nearest()
+        if (!entry.loaded || entry.ready >= 1) return;
+        entry.ready = reduce ? 1 : Math.min(1, entry.ready + dt / 0.45);
+        settling = true;
+      });
+      const slot = auto ? Math.round(state.scroll / Math.max(state.spacing, 1)) : nearest();
       if (slot !== state.active && !state.drag) {
-        state.active = slot
-        const index = wrap(slot, s.items.length)
-        setActive(index)
-        s.onActiveChange?.(index)
+        state.active = slot;
+        const index = wrap(slot, s.items.length);
+        setActive(index);
+        s.onActiveChange?.(index);
       }
-      const metrics = layout()
-      draw(metrics)
-      placeLabels(metrics)
+      const metrics = layout();
+      draw(metrics);
+      placeLabels(metrics);
       const moving =
         (s.autoScroll && !reduce) ||
         state.scroll !== state.target ||
@@ -1067,81 +1009,76 @@ export default function CircularGallery({
         state.open !== state.openTarget ||
         state.intro < 1 ||
         (state.ring !== 0 && state.ring !== 1) ||
-        settling
-      if (moving) raf = requestAnimationFrame(frame)
-      else last = 0
-    }
+        settling;
+      if (moving) raf = requestAnimationFrame(frame);
+      else last = 0;
+    };
 
     function wake() {
-      if (!raf && visible && !document.hidden)
-        raf = requestAnimationFrame(frame)
+      if (!raf && visible && !document.hidden) raf = requestAnimationFrame(frame);
     }
 
     const resize = () => {
-      const s = settingsRef.current
-      view.width = Math.max(1, container.clientWidth)
-      view.height = Math.max(1, container.clientHeight)
-      view.ratio = Math.min(s.dpr || window.devicePixelRatio || 1, 2)
-      canvas.width = Math.max(1, Math.round(view.width * view.ratio))
-      canvas.height = Math.max(1, Math.round(view.height * view.ratio))
-      const before = state.spacing
-      const { spacing } = measure()
+      const s = settingsRef.current;
+      view.width = Math.max(1, container.clientWidth);
+      view.height = Math.max(1, container.clientHeight);
+      view.ratio = Math.min(s.dpr || window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(view.width * view.ratio));
+      canvas.height = Math.max(1, Math.round(view.height * view.ratio));
+      const before = state.spacing;
+      const { spacing } = measure();
       if (before > 1 && spacing !== before) {
-        state.scroll = (state.scroll / before) * spacing
-        state.target = (state.target / before) * spacing
+        state.scroll = (state.scroll / before) * spacing;
+        state.target = (state.target / before) * spacing;
       }
-      state.spacing = spacing
-      wake()
-    }
+      state.spacing = spacing;
+      wake();
+    };
 
     const point = (event: PointerEvent) => {
-      const rect = container.getBoundingClientRect()
+      const rect = container.getBoundingClientRect();
       return {
         x: event.clientX - rect.left - rect.width / 2,
         y: rect.height / 2 - (event.clientY - rect.top),
-      }
-    }
+      };
+    };
 
     const hit = ({ x, y }: Point2D) => {
       for (let i = cards.length - 1; i >= 0; i--) {
-        const card = cards[i]
-        if (card.alpha < 0.05) continue
-        const dx = x - card.x
-        const dy = y - card.y
-        const c = Math.cos(-card.angle)
-        const s = Math.sin(-card.angle)
-        const lx = c * dx - s * dy
-        const ly = s * dx + c * dy
-        if (Math.abs(lx) <= card.w / 2 && Math.abs(ly) <= card.h / 2)
-          return card
+        const card = cards[i];
+        if (card.alpha < 0.05) continue;
+        const dx = x - card.x;
+        const dy = y - card.y;
+        const c = Math.cos(-card.angle);
+        const s = Math.sin(-card.angle);
+        const lx = c * dx - s * dy;
+        const ly = s * dx + c * dy;
+        if (Math.abs(lx) <= card.w / 2 && Math.abs(ly) <= card.h / 2) return card;
       }
-      return null
-    }
+      return null;
+    };
 
     const setPointer = (card: CardItem | null) => {
-      const slot = card ? card.slot : null
+      const slot = card ? card.slot : null;
       if (slot !== state.hovered) {
-        state.hovered = slot
-        if (slot !== null && !state.hover.has(slot)) state.hover.set(slot, 0)
-        wake()
+        state.hovered = slot;
+        if (slot !== null && !state.hover.has(slot)) state.hover.set(slot, 0);
+        wake();
       }
-      if (card) container.setAttribute("data-pointer", "")
-      else container.removeAttribute("data-pointer")
-    }
+      if (card) container.setAttribute("data-pointer", "");
+      else container.removeAttribute("data-pointer");
+    };
 
     const snapNow = () => {
-      const s = settingsRef.current
-      if (!s.snap && state.open < 0.5) return
-      setSlot(nearest())
-    }
+      const s = settingsRef.current;
+      if (!s.snap && state.open < 0.5) return;
+      setSlot(nearest());
+    };
 
     const onPointerDown = (event: PointerEvent) => {
-      if (
-        event.button !== 0 ||
-        (event.target as HTMLElement).closest("[data-gallery-close]")
-      )
-        return
-      const p = point(event)
+      if (event.button !== 0 || (event.target as HTMLElement).closest("[data-gallery-close]"))
+        return;
+      const p = point(event);
       state.drag = {
         id: event.pointerId,
         x0: event.clientX,
@@ -1150,230 +1087,220 @@ export default function CircularGallery({
         moved: false,
         samples: [],
         p,
-      }
-      state.lastInput = performance.now()
-      wake()
-    }
+      };
+      state.lastInput = performance.now();
+      wake();
+    };
 
     const onPointerMove = (event: PointerEvent) => {
-      const drag = state.drag
+      const drag = state.drag;
       if (drag && drag.id === event.pointerId) {
-        const dx = event.clientX - drag.x0
-        const dy = event.clientY - drag.y0
+        const dx = event.clientX - drag.x0;
+        const dy = event.clientY - drag.y0;
         if (!drag.moved && Math.hypot(dx, dy) > 6) {
           if (Math.abs(dy) > Math.abs(dx) && event.pointerType !== "mouse") {
-            state.drag = null
-            return
+            state.drag = null;
+            return;
           }
-          drag.moved = true
-          container.setPointerCapture?.(event.pointerId)
-          container.setAttribute("data-dragging", "")
-          setPointer(null)
+          drag.moved = true;
+          container.setPointerCapture?.(event.pointerId);
+          container.setAttribute("data-dragging", "");
+          setPointer(null);
         }
         if (drag.moved) {
-          state.target = drag.start - dx * (settingsRef.current.scrollSpeed / 2)
-          drag.samples.push({ x: event.clientX, t: performance.now() })
-          if (drag.samples.length > 6) drag.samples.shift()
-          state.lastInput = performance.now()
-          wake()
+          state.target = drag.start - dx * (settingsRef.current.scrollSpeed / 2);
+          drag.samples.push({ x: event.clientX, t: performance.now() });
+          if (drag.samples.length > 6) drag.samples.shift();
+          state.lastInput = performance.now();
+          wake();
         }
-        return
+        return;
       }
-      if (event.pointerType === "mouse") setPointer(hit(point(event)))
-    }
+      if (event.pointerType === "mouse") setPointer(hit(point(event)));
+    };
 
     const onPointerUp = (event: PointerEvent) => {
-      const drag = state.drag
-      if (!drag || drag.id !== event.pointerId) return
-      state.drag = null
-      container.removeAttribute("data-dragging")
+      const drag = state.drag;
+      if (!drag || drag.id !== event.pointerId) return;
+      state.drag = null;
+      container.removeAttribute("data-dragging");
       if (container.hasPointerCapture?.(event.pointerId))
-        container.releasePointerCapture(event.pointerId)
+        container.releasePointerCapture(event.pointerId);
       if (drag.moved) {
-        const samples = drag.samples
+        const samples = drag.samples;
         if (samples.length > 1) {
-          const a = samples[0]
-          const b = samples[samples.length - 1]
-          const span = Math.max(b.t - a.t, 16)
-          const speed = ((b.x - a.x) / span) * 1000
-          state.target -= speed * 0.18 * (settingsRef.current.scrollSpeed / 2)
+          const a = samples[0];
+          const b = samples[samples.length - 1];
+          const span = Math.max(b.t - a.t, 16);
+          const speed = ((b.x - a.x) / span) * 1000;
+          state.target -= speed * 0.18 * (settingsRef.current.scrollSpeed / 2);
         }
-        snapNow()
-        return
+        snapNow();
+        return;
       }
-      const card = hit(drag.p)
-      const s = settingsRef.current
+      const card = hit(drag.p);
+      const s = settingsRef.current;
       if (!card) {
-        if (state.open > 0.5) close()
-        return
+        if (state.open > 0.5) close();
+        return;
       }
-      s.onItemClick?.(card.item, card.index)
+      s.onItemClick?.(card.item, card.index);
       if (!s.openOnClick) {
-        setSlot(card.slot)
-        return
+        setSlot(card.slot);
+        return;
       }
-      if (state.open > 0.5 && card.slot === state.active) close()
-      else openSlot(card.slot)
-    }
+      if (state.open > 0.5 && card.slot === state.active) close();
+      else openSlot(card.slot);
+    };
 
     const onPointerCancel = (event: PointerEvent) => {
       if (state.drag && state.drag.id === event.pointerId) {
-        state.drag = null
-        container.removeAttribute("data-dragging")
-        snapNow()
+        state.drag = null;
+        container.removeAttribute("data-dragging");
+        snapNow();
       }
-    }
+    };
 
     const onPointerLeave = () => {
-      setPointer(null)
-    }
+      setPointer(null);
+    };
 
     const onWheel = (event: WheelEvent) => {
-      const unit =
-        event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.height : 1
-      const delta =
-        Math.abs(event.deltaX) > Math.abs(event.deltaY)
-          ? event.deltaX
-          : event.deltaY
-      if (!delta) return
-      event.preventDefault()
-      state.target += delta * unit * (settingsRef.current.scrollSpeed / 2)
-      state.lastInput = performance.now()
-      clearTimeout(snapTimer)
-      snapTimer = window.setTimeout(snapNow, 140)
-      wake()
-    }
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.height : 1;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta) return;
+      event.preventDefault();
+      state.target += delta * unit * (settingsRef.current.scrollSpeed / 2);
+      state.lastInput = performance.now();
+      clearTimeout(snapTimer);
+      snapTimer = window.setTimeout(snapNow, 140);
+      wake();
+    };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const s = settingsRef.current
-      const step = STEPS[event.key]
-      state.lastInput = performance.now()
+      const s = settingsRef.current;
+      const step = STEPS[event.key];
+      state.lastInput = performance.now();
       if (step) {
-        event.preventDefault()
-        if (
-          container.contains(document.activeElement) &&
-          document.activeElement !== container
-        )
-          state.keyboard = true
-        setSlot(nearest() + step)
-        const index = wrap(state.active, s.items.length)
+        event.preventDefault();
+        if (container.contains(document.activeElement) && document.activeElement !== container)
+          state.keyboard = true;
+        setSlot(nearest() + step);
+        const index = wrap(state.active, s.items.length);
         if (container.contains(document.activeElement))
-          buttonsRef.current[index]?.focus({ preventScroll: true })
-        return
+          buttonsRef.current[index]?.focus({ preventScroll: true });
+        return;
       }
       if (event.key === "Home" || event.key === "End") {
-        event.preventDefault()
-        const base = nearest() - wrap(nearest(), s.items.length)
-        setSlot(event.key === "Home" ? base : base + s.items.length - 1)
-        return
+        event.preventDefault();
+        const base = nearest() - wrap(nearest(), s.items.length);
+        setSlot(event.key === "Home" ? base : base + s.items.length - 1);
+        return;
       }
       if (event.key === "Escape" && state.openTarget > 0) {
-        event.preventDefault()
-        close()
+        event.preventDefault();
+        close();
       }
-    }
+    };
 
     const onFocusIn = (event: FocusEvent) => {
-      if (!(event.target as HTMLElement)?.closest("[data-gallery-list]")) return
-      state.keyboard =
-        typing || (event.target as HTMLElement).matches(":focus-visible")
-      wake()
-    }
+      if (!(event.target as HTMLElement)?.closest("[data-gallery-list]")) return;
+      state.keyboard = typing || (event.target as HTMLElement).matches(":focus-visible");
+      wake();
+    };
 
     const onAnyKey = (event: KeyboardEvent) => {
-      if (event.key === "Tab" || event.key.startsWith("Arrow")) typing = true
-    }
+      if (event.key === "Tab" || event.key.startsWith("Arrow")) typing = true;
+    };
 
     const onAnyPointer = () => {
-      typing = false
-    }
+      typing = false;
+    };
 
     const onFocusOut = (event: FocusEvent) => {
-      if (container.contains(event.relatedTarget as Node | null)) return
-      state.keyboard = false
-      wake()
-    }
+      if (container.contains(event.relatedTarget as Node | null)) return;
+      state.keyboard = false;
+      wake();
+    };
 
     const onVisibility = () => {
-      last = 0
-      wake()
-    }
+      last = 0;
+      wake();
+    };
 
-    const resizeObserver = new ResizeObserver(resize)
-    resizeObserver.observe(container)
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
     const intersection = new IntersectionObserver((entries) => {
-      visible = entries.some((entry) => entry.isIntersecting)
+      visible = entries.some((entry) => entry.isIntersecting);
       if (visible) {
-        last = 0
-        wake()
+        last = 0;
+        wake();
       }
-    })
-    intersection.observe(container)
-    container.addEventListener("pointerdown", onPointerDown)
-    container.addEventListener("pointermove", onPointerMove)
-    container.addEventListener("pointerup", onPointerUp)
-    container.addEventListener("pointercancel", onPointerCancel)
-    container.addEventListener("pointerleave", onPointerLeave)
-    container.addEventListener("wheel", onWheel, { passive: false })
-    container.addEventListener("keydown", onKeyDown)
-    container.addEventListener("focusin", onFocusIn)
-    container.addEventListener("focusout", onFocusOut)
-    document.addEventListener("visibilitychange", onVisibility)
-    document.addEventListener("keydown", onAnyKey, true)
-    document.addEventListener("pointerdown", onAnyPointer, true)
-    lastItems = settingsRef.current.items
-    lastItems.forEach((item) => textureFor(item.image))
-    resize()
+    });
+    intersection.observe(container);
+    container.addEventListener("pointerdown", onPointerDown);
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointerup", onPointerUp);
+    container.addEventListener("pointercancel", onPointerCancel);
+    container.addEventListener("pointerleave", onPointerLeave);
+    container.addEventListener("wheel", onWheel, { passive: false });
+    container.addEventListener("keydown", onKeyDown);
+    container.addEventListener("focusin", onFocusIn);
+    container.addEventListener("focusout", onFocusOut);
+    document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener("keydown", onAnyKey, true);
+    document.addEventListener("pointerdown", onAnyPointer, true);
+    lastItems = settingsRef.current.items;
+    lastItems.forEach((item) => textureFor(item.image));
+    resize();
 
     const slotFor = (index: number) => {
-      const count = settingsRef.current.items.length
-      const slot = nearest()
-      const base = slot - wrap(slot, count) + index
+      const count = settingsRef.current.items.length;
+      const slot = nearest();
+      const base = slot - wrap(slot, count) + index;
       return [base - count, base, base + count].reduce((best, value) =>
         Math.abs(value - slot) < Math.abs(best - slot) ? value : best,
-      )
-    }
+      );
+    };
 
     engineRef.current = {
       wake,
       open: (index: number) => openSlot(slotFor(index)),
       focus: (index: number) => setSlot(slotFor(index), false),
       close,
-    }
+    };
 
     return () => {
-      cancelAnimationFrame(raf)
-      clearTimeout(snapTimer)
-      engineRef.current = null
-      resizeObserver.disconnect()
-      intersection.disconnect()
-      container.removeEventListener("pointerdown", onPointerDown)
-      container.removeEventListener("pointermove", onPointerMove)
-      container.removeEventListener("pointerup", onPointerUp)
-      container.removeEventListener("pointercancel", onPointerCancel)
-      container.removeEventListener("pointerleave", onPointerLeave)
-      container.removeEventListener("wheel", onWheel)
-      container.removeEventListener("keydown", onKeyDown)
-      container.removeEventListener("focusin", onFocusIn)
-      container.removeEventListener("focusout", onFocusOut)
-      document.removeEventListener("visibilitychange", onVisibility)
-      document.removeEventListener("keydown", onAnyKey, true)
-      document.removeEventListener("pointerdown", onAnyPointer, true)
-      labelLayer.replaceChildren()
-      textures.forEach(
-        (entry) => entry.texture && gl.deleteTexture(entry.texture),
-      )
-      gl.deleteTexture(blank)
-      gl.deleteProgram(program.program)
-      gl.deleteBuffer(vertexBuffer)
-      gl.deleteBuffer(indexBuffer)
-      gl.deleteVertexArray(vao)
-    }
-  }, [])
+      cancelAnimationFrame(raf);
+      clearTimeout(snapTimer);
+      engineRef.current = null;
+      resizeObserver.disconnect();
+      intersection.disconnect();
+      container.removeEventListener("pointerdown", onPointerDown);
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerup", onPointerUp);
+      container.removeEventListener("pointercancel", onPointerCancel);
+      container.removeEventListener("pointerleave", onPointerLeave);
+      container.removeEventListener("wheel", onWheel);
+      container.removeEventListener("keydown", onKeyDown);
+      container.removeEventListener("focusin", onFocusIn);
+      container.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("keydown", onAnyKey, true);
+      document.removeEventListener("pointerdown", onAnyPointer, true);
+      labelLayer.replaceChildren();
+      textures.forEach((entry) => entry.texture && gl.deleteTexture(entry.texture));
+      gl.deleteTexture(blank);
+      gl.deleteProgram(program.program);
+      gl.deleteBuffer(vertexBuffer);
+      gl.deleteBuffer(indexBuffer);
+      gl.deleteVertexArray(vao);
+    };
+  }, []);
 
   useEffect(() => {
-    engineRef.current?.wake()
-  })
+    engineRef.current?.wake();
+  });
 
   if (!webglSupported) {
     return (
@@ -1392,8 +1319,8 @@ export default function CircularGallery({
             <div
               key={`${item.image}-${idx}`}
               onClick={() => {
-                onItemClick?.(item, idx)
-                if (openOnClick) setModalItem(item)
+                onItemClick?.(item, idx);
+                if (openOnClick) setModalItem(item);
               }}
               className={`flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] cursor-pointer group rounded-2xl bg-card border border-border p-4 transition-all hover:scale-[1.02] hover:shadow-md hover:border-primary/40 shadow-xs ${
                 snap ? "snap-center" : ""
@@ -1455,24 +1382,20 @@ export default function CircularGallery({
                 />
               </div>
               <div className="mt-4 text-center">
-                <h3 className="text-xl font-bold text-foreground">
-                  {modalItem.text}
-                </h3>
+                <h3 className="text-xl font-bold text-foreground">{modalItem.text}</h3>
                 {modalItem.description && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {modalItem.description}
-                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">{modalItem.description}</p>
                 )}
               </div>
             </div>
           </div>
         )}
       </div>
-    )
+    );
   }
 
-  const count = list.length
-  const current = list[active % count] || list[0]
+  const count = list.length;
+  const current = list[active % count] || list[0];
 
   return (
     <div
@@ -1487,9 +1410,7 @@ export default function CircularGallery({
       <canvas ref={canvasRef} className={CLASSES.canvas} aria-hidden="true" />
       <div ref={labelsRef} className={CLASSES.labels} aria-hidden="true" />
       <div ref={captionRef} className={CLASSES.caption} aria-hidden={!open}>
-        {current?.description && (
-          <p className={CLASSES.captionText}>{current.description}</p>
-        )}
+        {current?.description && <p className={CLASSES.captionText}>{current.description}</p>}
       </div>
       <button
         type="button"
@@ -1500,13 +1421,7 @@ export default function CircularGallery({
         aria-label="Close"
         onClick={() => engineRef.current?.close()}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 18 18"
-          fill="none"
-          aria-hidden="true"
-        >
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
           <path
             d="M4 4l10 10M14 4L4 14"
             stroke="currentColor"
@@ -1521,7 +1436,7 @@ export default function CircularGallery({
             <button
               type="button"
               ref={(el) => {
-                buttonsRef.current[index] = el
+                buttonsRef.current[index] = el;
               }}
               tabIndex={index === active ? 0 : -1}
               aria-label={`${item.text || item.alt || "Image"}, ${index + 1} of ${count}`}
@@ -1535,10 +1450,8 @@ export default function CircularGallery({
         ))}
       </ul>
       <div className={CLASSES.hidden} aria-live="polite">
-        {open && current
-          ? `${current.text || current.alt || "Image"} opened`
-          : ""}
+        {open && current ? `${current.text || current.alt || "Image"} opened` : ""}
       </div>
     </div>
-  )
+  );
 }

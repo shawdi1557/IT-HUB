@@ -2,8 +2,8 @@
 // IT HUB — Technology Blog & Hardware Engineering Guides
 // Dedicated customer-facing technology editorial section
 
-import { useState, useEffect, useMemo } from "react"
-import { Link, useParams, useNavigate } from "react-router"
+import { useState, useEffect, useMemo } from "react";
+import { Link, useParams, useNavigate } from "react-router";
 import {
   Search,
   Calendar,
@@ -22,11 +22,19 @@ import {
   ShieldCheck,
   Wrench,
   ShoppingBag,
-} from "lucide-react"
-import { Page, PageHeading, Button, Badge, Empty, fieldClass, containerClass } from "../components/ui"
-import { useStore } from "../app/store"
-import { fetchBlogArticles, fetchBlogArticleBySlug } from "../lib/blog"
-import { type BlogArticle } from "../data/blog"
+} from "lucide-react";
+import {
+  Page,
+  PageHeading,
+  Button,
+  Badge,
+  Empty,
+  fieldClass,
+  containerClass,
+} from "../components/ui";
+import { useStore } from "../app/store";
+import { fetchBlogArticles, fetchBlogArticleBySlug } from "../lib/blog";
+import { type BlogArticle } from "../data/blog";
 
 const CATEGORIES = [
   "All",
@@ -34,67 +42,66 @@ const CATEGORIES = [
   "Repair & Maintenance",
   "Guides & Tutorials",
   "Industry News",
-] as const
+] as const;
 
-const ARTICLES_PER_PAGE = 6
+const ARTICLES_PER_PAGE = 6;
 
 /**
  * Blog Landing Page component
  */
 export default function Blog() {
-  const [articles, setArticles] = useState<BlogArticle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string>("All")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
+  const [articles, setArticles] = useState<BlogArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
     fetchBlogArticles()
       .then((data) => {
         if (isMounted) {
-          setArticles(data)
-          setLoading(false)
+          setArticles(data);
+          setLoading(false);
         }
       })
       .catch((err) => {
         if (isMounted) {
-          setError(err.message || "Failed to load technology articles.")
-          setLoading(false)
+          setError(err.message || "Failed to load technology articles.");
+          setLoading(false);
         }
-      })
+      });
     return () => {
-      isMounted = false
-    }
-  }, [])
+      isMounted = false;
+    };
+  }, []);
 
   // Reset to first page when category or search changes
   useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedCategory, searchQuery])
+    setCurrentPage(1);
+  }, [selectedCategory, searchQuery]);
 
   const filteredArticles = useMemo(() => {
     return articles.filter((article) => {
-      const matchesCategory =
-        selectedCategory === "All" || article.category === selectedCategory
-      const q = searchQuery.trim().toLowerCase()
+      const matchesCategory = selectedCategory === "All" || article.category === selectedCategory;
+      const q = searchQuery.trim().toLowerCase();
       const matchesQuery =
         !q ||
         article.title.toLowerCase().includes(q) ||
         article.excerpt.toLowerCase().includes(q) ||
-        article.tags.some((t) => t.toLowerCase().includes(q))
-      return matchesCategory && matchesQuery
-    })
-  }, [articles, selectedCategory, searchQuery])
+        article.tags.some((t) => t.toLowerCase().includes(q));
+      return matchesCategory && matchesQuery;
+    });
+  }, [articles, selectedCategory, searchQuery]);
 
-  const featuredArticle = filteredArticles[0]
-  const remainingArticles = filteredArticles.slice(1)
-  const totalPages = Math.max(1, Math.ceil(remainingArticles.length / ARTICLES_PER_PAGE))
+  const featuredArticle = filteredArticles[0];
+  const remainingArticles = filteredArticles.slice(1);
+  const totalPages = Math.max(1, Math.ceil(remainingArticles.length / ARTICLES_PER_PAGE));
   const paginatedArticles = useMemo(() => {
-    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE
-    return remainingArticles.slice(startIndex, startIndex + ARTICLES_PER_PAGE)
-  }, [remainingArticles, currentPage])
+    const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
+    return remainingArticles.slice(startIndex, startIndex + ARTICLES_PER_PAGE);
+  }, [remainingArticles, currentPage]);
 
   return (
     <Page>
@@ -153,12 +160,12 @@ export default function Blog() {
           <Button
             className="mt-4"
             onClick={() => {
-              setLoading(true)
-              setError(null)
+              setLoading(true);
+              setError(null);
               fetchBlogArticles({ force: true }).then((data) => {
-                setArticles(data)
-                setLoading(false)
-              })
+                setArticles(data);
+                setLoading(false);
+              });
             }}
           >
             Retry
@@ -182,8 +189,8 @@ export default function Blog() {
               variant="secondary"
               className="mt-4"
               onClick={() => {
-                setSearchQuery("")
-                setSelectedCategory("All")
+                setSearchQuery("");
+                setSelectedCategory("All");
               }}
             >
               Clear filters
@@ -233,7 +240,9 @@ export default function Blog() {
               <div className="mt-6 flex items-center justify-between pt-4 border-t border-border/50 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-foreground">{featuredArticle.author}</span>
-                  <span className="text-[10px] text-muted-foreground">({featuredArticle.authorRole})</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    ({featuredArticle.authorRole})
+                  </span>
                 </div>
                 <span className="flex items-center gap-1 font-semibold text-primary group-hover:translate-x-0.5 transition">
                   Read article <ArrowRight size={14} />
@@ -253,7 +262,10 @@ export default function Blog() {
                 key={article.id}
                 className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs transition hover:border-primary/40 hover:shadow-md"
               >
-                <Link to={`/blog/${article.slug}`} className="relative h-48 overflow-hidden bg-muted">
+                <Link
+                  to={`/blog/${article.slug}`}
+                  className="relative h-48 overflow-hidden bg-muted"
+                >
                   <img
                     src={article.image}
                     alt={article.imageAlt}
@@ -287,7 +299,9 @@ export default function Blog() {
                   </div>
 
                   <div className="mt-5 flex items-center justify-between pt-3 border-t border-border/40 text-xs">
-                    <span className="text-[11px] font-medium text-foreground">{article.author}</span>
+                    <span className="text-[11px] font-medium text-foreground">
+                      {article.author}
+                    </span>
                     <Link
                       to={`/blog/${article.slug}`}
                       className="font-semibold text-primary flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition"
@@ -327,63 +341,63 @@ export default function Blog() {
         </>
       )}
     </Page>
-  )
+  );
 }
 
 /**
  * Article Detail Page component (/blog/:slug)
  */
 export function ArticleDetail() {
-  const { slug } = useParams<{ slug: string }>()
-  const navigate = useNavigate()
-  const store = useStore()
-  const [article, setArticle] = useState<BlogArticle | null>(null)
-  const [related, setRelated] = useState<BlogArticle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const store = useStore();
+  const [article, setArticle] = useState<BlogArticle | null>(null);
+  const [related, setRelated] = useState<BlogArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    let isMounted = true
-    if (!slug) return
+    let isMounted = true;
+    if (!slug) return;
 
-    setLoading(true)
+    setLoading(true);
     fetchBlogArticleBySlug(slug)
       .then((data) => {
         if (isMounted) {
-          setArticle(data)
-          setLoading(false)
+          setArticle(data);
+          setLoading(false);
         }
       })
       .catch(() => {
         if (isMounted) {
-          setArticle(null)
-          setLoading(false)
+          setArticle(null);
+          setLoading(false);
         }
-      })
+      });
 
     fetchBlogArticles().then((all) => {
       if (isMounted) {
-        const others = all.filter((a) => a.slug !== slug).slice(0, 3)
-        setRelated(others)
+        const others = all.filter((a) => a.slug !== slug).slice(0, 3);
+        setRelated(others);
       }
-    })
+    });
 
     return () => {
-      isMounted = false
-    }
-  }, [slug])
+      isMounted = false;
+    };
+  }, [slug]);
 
   // SEO metadata & canonical structured data injection
   useEffect(() => {
     if (article) {
-      document.title = `${article.title} | IT HUB Technology Blog`
-      const scriptId = "article-structured-data"
-      let scriptTag = document.getElementById(scriptId) as HTMLScriptElement | null
+      document.title = `${article.title} | IT HUB Technology Blog`;
+      const scriptId = "article-structured-data";
+      let scriptTag = document.getElementById(scriptId) as HTMLScriptElement | null;
       if (!scriptTag) {
-        scriptTag = document.createElement("script")
-        scriptTag.id = scriptId
-        scriptTag.type = "application/ld+json"
-        document.head.appendChild(scriptTag)
+        scriptTag = document.createElement("script");
+        scriptTag.id = scriptId;
+        scriptTag.type = "application/ld+json";
+        document.head.appendChild(scriptTag);
       }
       scriptTag.text = JSON.stringify({
         "@context": "https://schema.org",
@@ -411,22 +425,22 @@ export function ArticleDetail() {
           "@type": "WebPage",
           "@id": window.location.href,
         },
-      })
+      });
     }
     return () => {
-      const tag = document.getElementById("article-structured-data")
-      if (tag) tag.remove()
-    }
-  }, [article])
+      const tag = document.getElementById("article-structured-data");
+      if (tag) tag.remove();
+    };
+  }, [article]);
 
   const handleCopyLink = () => {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href)
-      setCopied(true)
-      store.notify("Article link copied to clipboard!")
-      setTimeout(() => setCopied(false), 2500)
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      store.notify("Article link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -437,7 +451,7 @@ export function ArticleDetail() {
           <p className="mt-1 text-xs text-muted-foreground">Retrieving article content</p>
         </div>
       </Page>
-    )
+    );
   }
 
   if (!article) {
@@ -449,7 +463,7 @@ export function ArticleDetail() {
           to="/blog"
         />
       </Page>
-    )
+    );
   }
 
   return (
@@ -457,9 +471,13 @@ export function ArticleDetail() {
       {/* Breadcrumb & Navigation */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <Link to="/" className="hover:text-foreground">Home</Link>
+          <Link to="/" className="hover:text-foreground">
+            Home
+          </Link>
           <span>/</span>
-          <Link to="/blog" className="hover:text-foreground">Blog</Link>
+          <Link to="/blog" className="hover:text-foreground">
+            Blog
+          </Link>
           <span>/</span>
           <span className="text-foreground truncate max-w-xs">{article.category}</span>
         </div>
@@ -575,7 +593,8 @@ export function ArticleDetail() {
                     <div>
                       <p className="font-semibold text-foreground">IT HUB Certified Service</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {article.relatedServiceLabel || "Hardware diagnostics and professional repairs."}
+                        {article.relatedServiceLabel ||
+                          "Hardware diagnostics and professional repairs."}
                       </p>
                     </div>
                   </div>
@@ -620,5 +639,5 @@ export function ArticleDetail() {
         )}
       </article>
     </Page>
-  )
+  );
 }

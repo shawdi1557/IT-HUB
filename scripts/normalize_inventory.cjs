@@ -18,74 +18,65 @@
  *   node scripts/normalize_inventory.cjs [--input=<path>] [--sample=<N>] [--dry-run] [--output=<path>] [--csv]
  */
 
-const fs = require("fs")
-const path = require("path")
-const crypto = require("crypto")
-const xlsx = require("xlsx")
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const xlsx = require("xlsx");
 
 // ── Default Configuration ───────────────────────────────────────────────────
 const DEFAULT_INPUT =
-  "C:/Users/PRAKASH A K/.gemini/antigravity/brain/4ee52b1c-d003-4edc-88a6-9d7ef0385bca/.user_uploaded/media_1792040498610_790321a9.xlsx"
-const DEFAULT_OUTPUT = path.join(
-  __dirname,
-  "..",
-  "inventory_staging",
-  "normalized_inventory.xlsx",
-)
+  "C:/Users/PRAKASH A K/.gemini/antigravity/brain/4ee52b1c-d003-4edc-88a6-9d7ef0385bca/.user_uploaded/media_1792040498610_790321a9.xlsx";
+const DEFAULT_OUTPUT = path.join(__dirname, "..", "inventory_staging", "normalized_inventory.xlsx");
 
 // Parse CLI flags
-const args = process.argv.slice(2)
+const args = process.argv.slice(2);
 const flags = {
   input: DEFAULT_INPUT,
   sample: 0, // 0 = process all valid rows
   dryRun: false,
   output: DEFAULT_OUTPUT,
   csv: false,
-}
+};
 
 for (const arg of args) {
-  if (arg.startsWith("--input=")) flags.input = arg.split("=")[1]
-  else if (arg.startsWith("--sample="))
-    flags.sample = parseInt(arg.split("=")[1], 10) || 0
-  else if (arg.startsWith("--output=")) flags.output = arg.split("=")[1]
-  else if (arg === "--dry-run") flags.dryRun = true
-  else if (arg === "--csv") flags.csv = true
+  if (arg.startsWith("--input=")) flags.input = arg.split("=")[1];
+  else if (arg.startsWith("--sample=")) flags.sample = parseInt(arg.split("=")[1], 10) || 0;
+  else if (arg.startsWith("--output=")) flags.output = arg.split("=")[1];
+  else if (arg === "--dry-run") flags.dryRun = true;
+  else if (arg === "--csv") flags.csv = true;
 }
 
 // ── Load Existing Repository SKUs (For Collision Defense) ───────────────────
 function loadExistingSkus() {
-  const existing = new Set()
+  const existing = new Set();
   try {
     // 1. Scan src/data/catalog.ts
-    const catalogPath = path.join(__dirname, "..", "src", "data", "catalog.ts")
+    const catalogPath = path.join(__dirname, "..", "src", "data", "catalog.ts");
     if (fs.existsSync(catalogPath)) {
-      const content = fs.readFileSync(catalogPath, "utf8")
-      const lines = content.split("\n")
+      const content = fs.readFileSync(catalogPath, "utf8");
+      const lines = content.split("\n");
       for (const line of lines) {
         // match id: "..." or sku: "..."
-        const mId = line.match(/\bid:\s*["']([^"']+)["']/)
-        if (mId) existing.add(mId[1].toUpperCase())
-        const mSku = line.match(/\bsku:\s*["']([^"']+)["']/)
-        if (mSku) existing.add(mSku[1].toUpperCase())
+        const mId = line.match(/\bid:\s*["']([^"']+)["']/);
+        if (mId) existing.add(mId[1].toUpperCase());
+        const mSku = line.match(/\bsku:\s*["']([^"']+)["']/);
+        if (mSku) existing.add(mSku[1].toUpperCase());
       }
     }
 
     // 2. Scan supabase/seed.sql
-    const seedPath = path.join(__dirname, "..", "supabase", "seed.sql")
+    const seedPath = path.join(__dirname, "..", "supabase", "seed.sql");
     if (fs.existsSync(seedPath)) {
-      const content = fs.readFileSync(seedPath, "utf8")
-      const matches = content.match(/SH-[A-Z0-9-]+/g)
+      const content = fs.readFileSync(seedPath, "utf8");
+      const matches = content.match(/SH-[A-Z0-9-]+/g);
       if (matches) {
-        for (const m of matches) existing.add(m.toUpperCase())
+        for (const m of matches) existing.add(m.toUpperCase());
       }
     }
   } catch (err) {
-    console.warn(
-      "[Warning] Could not scan existing repository SKUs:",
-      err.message,
-    )
+    console.warn("[Warning] Could not scan existing repository SKUs:", err.message);
   }
-  return existing
+  return existing;
 }
 
 // ── IT HUB Category Taxonomy ────────────────────────────────────────────────
@@ -115,12 +106,7 @@ const CATEGORY_MAP = {
   INKS: {
     name: "Inks, Toners & Cartridges",
     code: "INK",
-    subcategories: [
-      "Laser Toners",
-      "Ink Bottles",
-      "Ink Cartridges",
-      "Printer Ribbons",
-    ],
+    subcategories: ["Laser Toners", "Ink Bottles", "Ink Cartridges", "Printer Ribbons"],
   },
   COMPONENTS: {
     name: "PC Components & Storage",
@@ -196,7 +182,7 @@ const CATEGORY_MAP = {
     code: "DSK",
     subcategories: ["All-in-One PCs", "Desktop Towers", "Mini PCs", "Servers"],
   },
-}
+};
 
 // ── Known Brand Definitions (Explicit vs Inferred) ──────────────────────────
 const BRAND_DEFINITIONS = [
@@ -218,55 +204,35 @@ const BRAND_DEFINITIONS = [
       /\bprobook\b/i,
       /\belitebook\b/i,
     ],
-    inferenceReason:
-      "Inferred HP from brand sub-line (Victus/Pavilion/Omen/ProBook)",
+    inferenceReason: "Inferred HP from brand sub-line (Victus/Pavilion/Omen/ProBook)",
   },
   {
     name: "Lenovo",
     code: "LNV",
     explicitPatterns: [/\blenovo\b/i],
-    inferredPatterns: [
-      /\bthinkpad\b/i,
-      /\bideapad\b/i,
-      /\bloq\b/i,
-      /\blegion\b/i,
-    ],
-    inferenceReason:
-      "Inferred Lenovo from brand sub-line (ThinkPad/IdeaPad/LOQ/Legion)",
+    inferredPatterns: [/\bthinkpad\b/i, /\bideapad\b/i, /\bloq\b/i, /\blegion\b/i],
+    inferenceReason: "Inferred Lenovo from brand sub-line (ThinkPad/IdeaPad/LOQ/Legion)",
   },
   {
     name: "Dell",
     code: "DEL",
     explicitPatterns: [/\bdell\b/i],
-    inferredPatterns: [
-      /\binspiron\b/i,
-      /\blatitude\b/i,
-      /\bvostro\b/i,
-      /\bxps\b/i,
-    ],
-    inferenceReason:
-      "Inferred Dell from brand sub-line (Inspiron/Latitude/Vostro/XPS)",
+    inferredPatterns: [/\binspiron\b/i, /\blatitude\b/i, /\bvostro\b/i, /\bxps\b/i],
+    inferenceReason: "Inferred Dell from brand sub-line (Inspiron/Latitude/Vostro/XPS)",
   },
   {
     name: "ASUS",
     code: "ASU",
     explicitPatterns: [/\basus\b/i],
     inferredPatterns: [/\btuf\b/i, /\brog\b/i, /\bzenbook\b/i, /\bvivobook\b/i],
-    inferenceReason:
-      "Inferred ASUS from brand sub-line (TUF/ROG/ZenBook/VivoBook)",
+    inferenceReason: "Inferred ASUS from brand sub-line (TUF/ROG/ZenBook/VivoBook)",
   },
   {
     name: "Acer",
     code: "ACR",
     explicitPatterns: [/\bacer\b/i],
-    inferredPatterns: [
-      /\baspire\b/i,
-      /\bpredator\b/i,
-      /\bnitro\b/i,
-      /\bswift\b/i,
-    ],
-    inferenceReason:
-      "Inferred Acer from brand sub-line (Aspire/Predator/Nitro/Swift)",
+    inferredPatterns: [/\baspire\b/i, /\bpredator\b/i, /\bnitro\b/i, /\bswift\b/i],
+    inferenceReason: "Inferred Acer from brand sub-line (Aspire/Predator/Nitro/Swift)",
   },
   {
     name: "MSI",
@@ -293,14 +259,8 @@ const BRAND_DEFINITIONS = [
     name: "boAt",
     code: "BAT",
     explicitPatterns: [/\bboat\b/i],
-    inferredPatterns: [
-      /\bboar\b/i,
-      /\bairdopes\b/i,
-      /\brockerz\b/i,
-      /\baavante\b/i,
-    ],
-    inferenceReason:
-      "Inferred boAt from product line (Airdopes/Rockerz) or source typo (Boar)",
+    inferredPatterns: [/\bboar\b/i, /\bairdopes\b/i, /\brockerz\b/i, /\baavante\b/i],
+    inferenceReason: "Inferred boAt from product line (Airdopes/Rockerz) or source typo (Boar)",
   },
   {
     name: "Canon",
@@ -568,114 +528,105 @@ const BRAND_DEFINITIONS = [
     inferredPatterns: [],
     inferenceReason: "",
   },
-]
+];
 
 // ── Deterministic Spec Extractor ────────────────────────────────────────────
 function extractSpecs(text) {
-  const specs = {}
+  const specs = {};
 
   // RAM
-  const ramMatch = text.match(/\b(\d{1,2}\s*GB)\s*(DDR[345]|Unified)?\b/i)
-  if (ramMatch) specs.RAM = ramMatch[0].trim().toUpperCase()
+  const ramMatch = text.match(/\b(\d{1,2}\s*GB)\s*(DDR[345]|Unified)?\b/i);
+  if (ramMatch) specs.RAM = ramMatch[0].trim().toUpperCase();
 
   // Storage
-  const ssdMatch = text.match(
-    /\b(\d{1,4}\s*(?:GB|TB))\s*(?:NVMe|SATA|PCIe)?\s*(SSD)\b/i,
-  )
-  const hddMatch = text.match(
-    /\b(\d{1,2}\s*TB|\d{3,4}\s*GB)\s*(HDD|Hard\s*Disk)\b/i,
-  )
-  if (ssdMatch) specs.Storage = ssdMatch[0].trim()
-  else if (hddMatch) specs.Storage = hddMatch[0].trim()
+  const ssdMatch = text.match(/\b(\d{1,4}\s*(?:GB|TB))\s*(?:NVMe|SATA|PCIe)?\s*(SSD)\b/i);
+  const hddMatch = text.match(/\b(\d{1,2}\s*TB|\d{3,4}\s*GB)\s*(HDD|Hard\s*Disk)\b/i);
+  if (ssdMatch) specs.Storage = ssdMatch[0].trim();
+  else if (hddMatch) specs.Storage = hddMatch[0].trim();
 
   // Processor
   const cpuMatch = text.match(
     /\b(i[3579]-\d{4,5}[A-Z]*|Core-?[357]\s*\d{3}[A-Z]*|R[3579]\s*\d{4}[A-Z]*|Ryzen\s*[3579]\s*\d{4}[A-Z]*|A18\s*Pro|M[1234]\s*(?:Pro|Max)?)\b/i,
-  )
-  if (cpuMatch) specs.Processor = cpuMatch[0].trim()
+  );
+  if (cpuMatch) specs.Processor = cpuMatch[0].trim();
 
   // Screen / Display size (e.g. 15.6", 14.0", 13.3", 17.3")
   const displayMatch = text.match(
     /\b(1[1-7](?:\.[0-9])?)\s*(?:["']|inch|-inch)?\s*(FHD|HD|IPS|LED|OLED|True\s*Tone)?\b/i,
-  )
+  );
   if (displayMatch) {
-    const size = displayMatch[1]
-    const res = displayMatch[2] ? " " + displayMatch[2].toUpperCase() : ""
-    specs.Display = `${size}"${res}`
+    const size = displayMatch[1];
+    const res = displayMatch[2] ? " " + displayMatch[2].toUpperCase() : "";
+    specs.Display = `${size}"${res}`;
   }
 
   // Refresh Rate
-  const hzMatch = text.match(/\b(120|144|165|240)\s*HZ\b/i)
-  if (hzMatch) specs.RefreshRate = `${hzMatch[1]}Hz`
+  const hzMatch = text.match(/\b(120|144|165|240)\s*HZ\b/i);
+  if (hzMatch) specs.RefreshRate = `${hzMatch[1]}Hz`;
 
   // Pin count for replacement laptop panels
-  const pinMatch = text.match(/\b(30|40)\s*PIN\b/i)
-  if (pinMatch) specs.PinCount = `${pinMatch[1]}-Pin`
+  const pinMatch = text.match(/\b(30|40)\s*PIN\b/i);
+  if (pinMatch) specs.PinCount = `${pinMatch[1]}-Pin`;
 
   // GPU
   const gpuMatch = text.match(
     /\b(RTX\s*\d{4}(?:\s*Ti|\s*Super)?|GTX\s*\d{4}|Radeon\s*RX\s*\d{4})\b/i,
-  )
-  if (gpuMatch) specs.Graphics = gpuMatch[0].trim().toUpperCase()
+  );
+  if (gpuMatch) specs.Graphics = gpuMatch[0].trim().toUpperCase();
 
   // OS
-  const osMatch = text.match(
-    /\b(W11|Windows\s*11|W10|Windows\s*10|macOS|Android)\b/i,
-  )
+  const osMatch = text.match(/\b(W11|Windows\s*11|W10|Windows\s*10|macOS|Android)\b/i);
   if (osMatch)
-    specs.OS = osMatch[0]
-      .trim()
-      .replace(/^W11$/i, "Windows 11")
-      .replace(/^W10$/i, "Windows 10")
+    specs.OS = osMatch[0].trim().replace(/^W11$/i, "Windows 11").replace(/^W10$/i, "Windows 10");
 
   // Battery capacity (UPS / Inverter)
-  const ahMatch = text.match(/\b(\d{1,3}\s*AH)\b/i)
-  if (ahMatch) specs.Capacity = ahMatch[1].toUpperCase()
+  const ahMatch = text.match(/\b(\d{1,3}\s*AH)\b/i);
+  if (ahMatch) specs.Capacity = ahMatch[1].toUpperCase();
 
   // Color
   const colorMatch = text.match(
     /\b(Natural Silver|Citrus|Silver|Space Grey|Black|Blue|Sage|Cloudy Grey|Noir Black|Quartz White|Pearl White|Carbon Black|Active Black)\b/i,
-  )
-  if (colorMatch) specs.Color = colorMatch[0].trim()
+  );
+  if (colorMatch) specs.Color = colorMatch[0].trim();
 
-  return specs
+  return specs;
 }
 
 // ── Model & MPN Extractor ───────────────────────────────────────────────────
 function extractModelAndMpn(text) {
-  let model = ""
-  let mpn = ""
+  let model = "";
+  let mpn = "";
 
   // Look for MPN patterns like D49D1PA, D0NZ5PA, B91DNPA, MD4A4HN/A, MTP63HN/A
-  const mpnMatch = text.match(/\b([A-Z0-9]{5,10}PA|[A-Z0-9]{5,8}HN\/A)\b/i)
-  if (mpnMatch) mpn = mpnMatch[1].toUpperCase()
+  const mpnMatch = text.match(/\b([A-Z0-9]{5,10}PA|[A-Z0-9]{5,8}HN\/A)\b/i);
+  if (mpnMatch) mpn = mpnMatch[1].toUpperCase();
 
   // Specific model families
-  if (/victus/i.test(text)) model = "Victus 15"
-  else if (/loq/i.test(text)) model = "LOQ 15"
-  else if (/macbook\s*neo/i.test(text)) model = 'MacBook Neo 13"'
-  else if (/macbook\s*air/i.test(text)) model = "MacBook Air"
-  else if (/macbook\s*pro/i.test(text)) model = "MacBook Pro"
-  else if (/iphone\s*17/i.test(text)) model = "iPhone 17"
-  else if (/iphone\s*16/i.test(text)) model = "iPhone 16"
-  else if (/iphone\s*15/i.test(text)) model = "iPhone 15"
+  if (/victus/i.test(text)) model = "Victus 15";
+  else if (/loq/i.test(text)) model = "LOQ 15";
+  else if (/macbook\s*neo/i.test(text)) model = 'MacBook Neo 13"';
+  else if (/macbook\s*air/i.test(text)) model = "MacBook Air";
+  else if (/macbook\s*pro/i.test(text)) model = "MacBook Pro";
+  else if (/iphone\s*17/i.test(text)) model = "iPhone 17";
+  else if (/iphone\s*16/i.test(text)) model = "iPhone 16";
+  else if (/iphone\s*15/i.test(text)) model = "iPhone 15";
   else if (/airdopes\s*\d+/i.test(text)) {
-    const m = text.match(/airdopes\s*\d+[a-z0-9]*/i)
-    model = m ? m[0] : "Airdopes"
+    const m = text.match(/airdopes\s*\d+[a-z0-9]*/i);
+    model = m ? m[0] : "Airdopes";
   } else if (/rockerz\s*\d+/i.test(text)) {
-    const m = text.match(/rockerz\s*\d+[a-z0-9]*/i)
-    model = m ? m[0] : "Rockerz"
+    const m = text.match(/rockerz\s*\d+[a-z0-9]*/i);
+    model = m ? m[0] : "Rockerz";
   } else if (/aavante\s*bar/i.test(text)) {
-    const m = text.match(/aavante\s*bar\s*[a-z0-9]+/i)
-    model = m ? m[0] : "Aavante Bar"
-  } else if (/xp-c230/i.test(text)) model = "XP-C230"
-  else if (/xp-ats\s*1008/i.test(text)) model = "XP-ATS 1008"
+    const m = text.match(/aavante\s*bar\s*[a-z0-9]+/i);
+    model = m ? m[0] : "Aavante Bar";
+  } else if (/xp-c230/i.test(text)) model = "XP-C230";
+  else if (/xp-ats\s*1008/i.test(text)) model = "XP-ATS 1008";
   else if (/ds-2ce\w+/i.test(text)) {
-    const m = text.match(/ds-2ce\w+/i)
-    model = m ? m[0].toUpperCase() : ""
+    const m = text.match(/ds-2ce\w+/i);
+    model = m ? m[0].toUpperCase() : "";
   }
 
-  return { model, mpn }
+  return { model, mpn };
 }
 
 // ── Classifier Function ─────────────────────────────────────────────────────
@@ -692,29 +643,21 @@ function classifyItem(text) {
       catCode: CATEGORY_MAP.SPARES.code,
       subcategory: "Replacement Laptop Screens",
       productType: "Spare Part",
-    }
+    };
   }
 
   // 2. Electrical Conduit & CCTV Wiring Supplies (Installation Hardware)
-  if (
-    /\b(?:20mm|25mm|32mm)\b.*?\b(?:bend|elbow|junction|conduit|saddle)\b/i.test(
-      text,
-    )
-  ) {
+  if (/\b(?:20mm|25mm|32mm)\b.*?\b(?:bend|elbow|junction|conduit|saddle)\b/i.test(text)) {
     return {
       category: CATEGORY_MAP.NETWORKING.name,
       catCode: CATEGORY_MAP.NETWORKING.code,
       subcategory: "Conduit & Installation Hardware",
       productType: "Installation Hardware",
-    }
+    };
   }
 
   // 3. Laptop Spares & Batteries
-  if (
-    /laptop\s*(?:battery|fan|cpu fan|hinge|hinch|bottom case|keyboard|display)/i.test(
-      text,
-    )
-  ) {
+  if (/laptop\s*(?:battery|fan|cpu fan|hinge|hinch|bottom case|keyboard|display)/i.test(text)) {
     return {
       category: CATEGORY_MAP.SPARES.name,
       catCode: CATEGORY_MAP.SPARES.code,
@@ -724,7 +667,7 @@ function classifyItem(text) {
           ? "Laptop Fans & Hinges"
           : "Laptop Spares & Service Parts",
       productType: "Spare Part",
-    }
+    };
   }
 
   // 4. Laptops & MacBooks
@@ -742,7 +685,7 @@ function classifyItem(text) {
           ? "Gaming Laptops"
           : "Laptops",
       productType: "Fresh",
-    }
+    };
   }
 
   // 5. Mobile Phones & Tablets
@@ -754,11 +697,9 @@ function classifyItem(text) {
     return {
       category: CATEGORY_MAP.MOBILES.name,
       catCode: CATEGORY_MAP.MOBILES.code,
-      subcategory: /\bipad\b|\btablet\b/i.test(text)
-        ? "iPads & Tablets"
-        : "Smartphones",
+      subcategory: /\bipad\b|\btablet\b/i.test(text) ? "iPads & Tablets" : "Smartphones",
       productType: "Fresh",
-    }
+    };
   }
 
   // 6. Inks, Toners & Cartridges
@@ -770,11 +711,9 @@ function classifyItem(text) {
     return {
       category: CATEGORY_MAP.INKS.name,
       catCode: CATEGORY_MAP.INKS.code,
-      subcategory: /\btoner\b|\b88a\b|\b12a\b|\b057\b/i.test(text)
-        ? "Laser Toners"
-        : "Ink Bottles",
+      subcategory: /\btoner\b|\b88a\b|\b12a\b|\b057\b/i.test(text) ? "Laser Toners" : "Ink Bottles",
       productType: "Fresh",
-    }
+    };
   }
 
   // 7. Printers, Scanners & POS
@@ -792,13 +731,11 @@ function classifyItem(text) {
           ? "Thermal Printers"
           : "Printers & Scanners",
       productType: "Fresh",
-    }
+    };
   }
 
   // 8. Storage & Memory (SSD / HDD / RAM)
-  if (
-    /\bssd\b|\bnvme\b|\bhdd\b|\bhard\s*disk\b|\bddr[345]\b|\bram\b/i.test(text)
-  ) {
+  if (/\bssd\b|\bnvme\b|\bhdd\b|\bhard\s*disk\b|\bddr[345]\b|\bram\b/i.test(text)) {
     return {
       category: CATEGORY_MAP.COMPONENTS.name,
       catCode: CATEGORY_MAP.COMPONENTS.code,
@@ -808,7 +745,7 @@ function classifyItem(text) {
           ? "Hard Disk Drives (HDD)"
           : "RAM (DDR4 / DDR5)",
       productType: "Fresh",
-    }
+    };
   }
 
   // 9. Monitors & Displays
@@ -818,7 +755,7 @@ function classifyItem(text) {
       catCode: CATEGORY_MAP.MONITORS.code,
       subcategory: "LED Monitors",
       productType: "Fresh",
-    }
+    };
   }
 
   // 10. Networking & CCTV
@@ -836,7 +773,7 @@ function classifyItem(text) {
           ? "Network Cables (Cat6)"
           : "Routers & Access Points",
       productType: "Fresh",
-    }
+    };
   }
 
   // 11. Audio & Smart Gadgets
@@ -854,7 +791,7 @@ function classifyItem(text) {
           ? "Wireless Headphones"
           : "Soundbars & Speakers",
       productType: "Fresh",
-    }
+    };
   }
 
   // 12. Power & UPS
@@ -862,11 +799,9 @@ function classifyItem(text) {
     return {
       category: CATEGORY_MAP.POWER.name,
       catCode: CATEGORY_MAP.POWER.code,
-      subcategory: /\bbattery\b/i.test(text)
-        ? "Inverter Batteries"
-        : "Desktop UPS",
+      subcategory: /\bbattery\b/i.test(text) ? "Inverter Batteries" : "Desktop UPS",
       productType: "Fresh",
-    }
+    };
   }
 
   // 13. Accessories & Cables
@@ -884,7 +819,7 @@ function classifyItem(text) {
           ? "Mice & Keyboards"
           : "Cables & Adapters",
       productType: "Fresh",
-    }
+    };
   }
 
   // Default Fallback
@@ -893,7 +828,7 @@ function classifyItem(text) {
     catCode: "GEN",
     subcategory: "General IT Hardware",
     productType: "Fresh",
-  }
+  };
 }
 
 // ── Deterministic SKU Generator ─────────────────────────────────────────────
@@ -901,8 +836,8 @@ function generateSku(sourceRow, originalText, catCode, brandCode, model) {
   let token = (model || originalText)
     .replace(/[^A-Za-z0-9]/g, "")
     .toUpperCase()
-    .slice(0, 8)
-  if (!token) token = "ITEM"
+    .slice(0, 8);
+  if (!token) token = "ITEM";
 
   // Deterministic 4-character hex hash from sourceRow + clean text
   const hash = crypto
@@ -910,31 +845,28 @@ function generateSku(sourceRow, originalText, catCode, brandCode, model) {
     .update(`${sourceRow}:${originalText.trim()}`)
     .digest("hex")
     .slice(0, 4)
-    .toUpperCase()
+    .toUpperCase();
 
-  return `ITH-${catCode}-${brandCode}-${token}-${hash}`
+  return `ITH-${catCode}-${brandCode}-${token}-${hash}`;
 }
 
 // ── Row Normalizer ──────────────────────────────────────────────────────────
 function normalizeRow(rowNumber, rawText) {
-  const cleanOriginal = rawText
-    .trim()
-    .replace(/\r?\n/g, " ")
-    .replace(/\s+/g, " ")
+  const cleanOriginal = rawText.trim().replace(/\r?\n/g, " ").replace(/\s+/g, " ");
 
   // 1. Brand Detection (Explicit vs Inferred)
-  let detectedBrand = "Generic / OEM"
-  let brandCode = "GEN"
-  let brandConfidence = "Unknown"
-  let brandInferenceNote = ""
+  let detectedBrand = "Generic / OEM";
+  let brandCode = "GEN";
+  let brandConfidence = "Unknown";
+  let brandInferenceNote = "";
 
   // Check explicit matches first
   for (const b of BRAND_DEFINITIONS) {
     if (b.explicitPatterns.some((p) => p.test(cleanOriginal))) {
-      detectedBrand = b.name
-      brandCode = b.code
-      brandConfidence = "Explicit"
-      break
+      detectedBrand = b.name;
+      brandCode = b.code;
+      brandConfidence = "Explicit";
+      break;
     }
   }
 
@@ -942,23 +874,23 @@ function normalizeRow(rowNumber, rawText) {
   if (brandConfidence === "Unknown") {
     for (const b of BRAND_DEFINITIONS) {
       if (b.inferredPatterns.some((p) => p.test(cleanOriginal))) {
-        detectedBrand = b.name
-        brandCode = b.code
-        brandConfidence = "Inferred"
-        brandInferenceNote = b.inferenceReason
-        break
+        detectedBrand = b.name;
+        brandCode = b.code;
+        brandConfidence = "Inferred";
+        brandInferenceNote = b.inferenceReason;
+        break;
       }
     }
   }
 
   // 2. Classify Category & Subcategory
-  const classification = classifyItem(cleanOriginal)
+  const classification = classifyItem(cleanOriginal);
 
   // 3. Extract Model & MPN
-  const { model, mpn } = extractModelAndMpn(cleanOriginal)
+  const { model, mpn } = extractModelAndMpn(cleanOriginal);
 
   // 4. Extract Hardware Specifications
-  const specs = extractSpecs(cleanOriginal)
+  const specs = extractSpecs(cleanOriginal);
 
   // 5. Generate Stable, Deterministic SKU
   const sku = generateSku(
@@ -967,47 +899,44 @@ function normalizeRow(rowNumber, rawText) {
     classification.catCode,
     brandCode,
     model || mpn,
-  )
+  );
 
   // 6. Normalized Product Name
-  let normalizedName = cleanOriginal.replace(/^"|"$/g, "")
-  if (
-    normalizedName === normalizedName.toUpperCase() &&
-    normalizedName.length > 10
-  ) {
+  let normalizedName = cleanOriginal.replace(/^"|"$/g, "");
+  if (normalizedName === normalizedName.toUpperCase() && normalizedName.length > 10) {
     normalizedName = normalizedName
       .toLowerCase()
       .split(" ")
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ")
+      .join(" ");
   }
 
   // 7. Strict Review Criteria / Issues Detection
-  const reviewReasons = []
+  const reviewReasons = [];
 
   if (classification.productType === "Installation Hardware") {
     reviewReasons.push(
       "Internal electrical / CCTV wiring supply (service consumable — recommend excluding from public retail)",
-    )
+    );
   }
   if (classification.subcategory === "Replacement Laptop Screens") {
     reviewReasons.push(
       "Replacement laptop screen panel requires physical connector & mounting bracket review",
-    )
+    );
   }
   if (brandConfidence === "Inferred") {
     reviewReasons.push(
       `Proposed Brand Correction: ${brandInferenceNote} (Requires admin confirmation)`,
-    )
+    );
   }
   if (brandConfidence === "Unknown") {
-    reviewReasons.push("Brand not specified in source description")
+    reviewReasons.push("Brand not specified in source description");
   }
   if (cleanOriginal.length < 15) {
-    reviewReasons.push("Short or ambiguous product description")
+    reviewReasons.push("Short or ambiguous product description");
   }
 
-  const reviewRequired = reviewReasons.length > 0
+  const reviewRequired = reviewReasons.length > 0;
 
   return {
     sourceRow: rowNumber,
@@ -1026,172 +955,163 @@ function normalizeRow(rowNumber, rawText) {
     status: reviewRequired ? "Draft" : "Active",
     reviewRequired: reviewRequired ? "Yes" : "No",
     reviewReasons: reviewReasons.join(" | ") || "None",
-  }
+  };
 }
 
 // ── Pipeline Runner ─────────────────────────────────────────────────────────
 function run() {
-  console.log("=".repeat(76))
-  console.log("IT HUB — Inventory Normalization Engine (Phase B)")
-  console.log("=".repeat(76))
-  console.log(`Input File:  ${flags.input}`)
-  console.log(`Output File: ${flags.output}`)
-  console.log(`Dry Run:     ${flags.dryRun}`)
+  console.log("=".repeat(76));
+  console.log("IT HUB — Inventory Normalization Engine (Phase B)");
+  console.log("=".repeat(76));
+  console.log(`Input File:  ${flags.input}`);
+  console.log(`Output File: ${flags.output}`);
+  console.log(`Dry Run:     ${flags.dryRun}`);
   console.log(
     `Scope:       ${
-      flags.sample > 0
-        ? flags.sample + " sample rows"
-        : "FULL WORKBOOK (~1,359 rows)"
+      flags.sample > 0 ? flags.sample + " sample rows" : "FULL WORKBOOK (~1,359 rows)"
     }`,
-  )
-  console.log("-".repeat(76))
+  );
+  console.log("-".repeat(76));
 
   if (!fs.existsSync(flags.input)) {
-    console.error(`ERROR: Source workbook not found at "${flags.input}".`)
-    process.exit(1)
+    console.error(`ERROR: Source workbook not found at "${flags.input}".`);
+    process.exit(1);
   }
 
   // Load existing repository SKUs for collision verification
-  const existingRepoSkus = loadExistingSkus()
+  const existingRepoSkus = loadExistingSkus();
   console.log(
     `Existing Catalog SKUs Scanned: ${existingRepoSkus.size} (for cross-catalog collision check)`,
-  )
+  );
 
   // Read workbook
-  const wb = xlsx.readFile(flags.input)
-  const sheetName = wb.SheetNames[0]
-  const sheet = wb.Sheets[sheetName]
+  const wb = xlsx.readFile(flags.input);
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
 
   if (!sheet) {
-    console.error(`ERROR: No sheet found in workbook "${flags.input}".`)
-    process.exit(1)
+    console.error(`ERROR: No sheet found in workbook "${flags.input}".`);
+    process.exit(1);
   }
 
   // Extract raw rows (Row 15 to Row 1373, skipping header rows 1-14 and Grand Total footer)
-  const rawRows = []
-  const totalRowsInSheet = 1374
+  const rawRows = [];
+  const totalRowsInSheet = 1374;
   for (let r = 15; r <= totalRowsInSheet; r++) {
-    const cell = sheet["A" + r]
+    const cell = sheet["A" + r];
     if (cell && cell.v !== undefined) {
-      const txt = String(cell.v).trim()
+      const txt = String(cell.v).trim();
       if (txt && txt !== "Grand Total" && txt !== "Particulars") {
-        rawRows.push({ row: r, text: txt })
+        rawRows.push({ row: r, text: txt });
       }
     }
   }
 
-  console.log(`Total Valid Item Rows in Source Workbook: ${rawRows.length}`)
+  console.log(`Total Valid Item Rows in Source Workbook: ${rawRows.length}`);
 
   // Apply sample filter if requested
-  const itemsToProcess =
-    flags.sample > 0 ? rawRows.slice(0, flags.sample) : rawRows
-  console.log(`Normalizing ${itemsToProcess.length} items...\n`)
+  const itemsToProcess = flags.sample > 0 ? rawRows.slice(0, flags.sample) : rawRows;
+  console.log(`Normalizing ${itemsToProcess.length} items...\n`);
 
   // Process rows
-  const normalizedRecords = []
-  const internalSkuSet = new Set()
-  const internalCollisions = []
-  const repoCollisions = []
+  const normalizedRecords = [];
+  const internalSkuSet = new Set();
+  const internalCollisions = [];
+  const repoCollisions = [];
 
   for (const item of itemsToProcess) {
-    const record = normalizeRow(item.row, item.text)
+    const record = normalizeRow(item.row, item.text);
 
     // Internal collision check
     if (internalSkuSet.has(record.sku)) {
-      internalCollisions.push(record.sku)
+      internalCollisions.push(record.sku);
     } else {
-      internalSkuSet.add(record.sku)
+      internalSkuSet.add(record.sku);
     }
 
     // Existing repository SKU collision check
     if (existingRepoSkus.has(record.sku.toUpperCase())) {
-      repoCollisions.push(record.sku)
+      repoCollisions.push(record.sku);
     }
 
-    normalizedRecords.push(record)
+    normalizedRecords.push(record);
   }
 
   // Strict Accounting Verification: Confirm zero records dropped
   if (normalizedRecords.length !== itemsToProcess.length) {
     console.error(
       `FATAL ACCOUNTING ERROR: Processed count (${normalizedRecords.length}) != expected count (${itemsToProcess.length})`,
-    )
-    process.exit(1)
+    );
+    process.exit(1);
   }
 
   // Tally Review vs Ready counts
-  const needsReviewList = normalizedRecords.filter(
-    (r) => r.reviewRequired === "Yes",
-  )
-  const readyList = normalizedRecords.filter((r) => r.reviewRequired === "No")
+  const needsReviewList = normalizedRecords.filter((r) => r.reviewRequired === "Yes");
+  const readyList = normalizedRecords.filter((r) => r.reviewRequired === "No");
 
   // Group by category
-  const categoryCounts = {}
+  const categoryCounts = {};
   for (const r of normalizedRecords) {
     if (!categoryCounts[r.category]) {
-      categoryCounts[r.category] = { total: 0, ready: 0, review: 0 }
+      categoryCounts[r.category] = { total: 0, ready: 0, review: 0 };
     }
-    categoryCounts[r.category].total++
-    if (r.reviewRequired === "Yes") categoryCounts[r.category].review++
-    else categoryCounts[r.category].ready++
+    categoryCounts[r.category].total++;
+    if (r.reviewRequired === "Yes") categoryCounts[r.category].review++;
+    else categoryCounts[r.category].ready++;
   }
 
   // Group by brand
-  const brandCounts = {}
+  const brandCounts = {};
   for (const r of normalizedRecords) {
-    brandCounts[r.brand] = (brandCounts[r.brand] || 0) + 1
+    brandCounts[r.brand] = (brandCounts[r.brand] || 0) + 1;
   }
-  const sortedBrands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1])
+  const sortedBrands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]);
 
-  console.log("=".repeat(76))
-  console.log("NORMALIZATION AUDIT SUMMARY")
-  console.log("=".repeat(76))
+  console.log("=".repeat(76));
+  console.log("NORMALIZATION AUDIT SUMMARY");
+  console.log("=".repeat(76));
   console.log(
     `Total Source Items Accounted For : ${normalizedRecords.length} / ${itemsToProcess.length} (100% Accounted, 0 Dropped)`,
-  )
+  );
   console.log(
     `Ready for Pricing & Verification : ${readyList.length} (${Math.round((readyList.length / normalizedRecords.length) * 100)}%)`,
-  )
+  );
   console.log(
     `Requires Admin Review / Staging  : ${needsReviewList.length} (${Math.round((needsReviewList.length / normalizedRecords.length) * 100)}%)`,
-  )
-  console.log(`Unique SKUs Generated            : ${internalSkuSet.size}`)
-  console.log(
-    `Internal SKU Collisions          : ${internalCollisions.length} (Must be 0)`,
-  )
-  console.log(
-    `Collisions with Existing Catalog : ${repoCollisions.length} (Must be 0)`,
-  )
+  );
+  console.log(`Unique SKUs Generated            : ${internalSkuSet.size}`);
+  console.log(`Internal SKU Collisions          : ${internalCollisions.length} (Must be 0)`);
+  console.log(`Collisions with Existing Catalog : ${repoCollisions.length} (Must be 0)`);
 
   if (internalCollisions.length > 0 || repoCollisions.length > 0) {
     console.error("FATAL: SKU Collisions detected!", {
       internalCollisions,
       repoCollisions,
-    })
-    process.exit(1)
+    });
+    process.exit(1);
   }
 
-  console.log("\n--- Breakdown by Category ---")
+  console.log("\n--- Breakdown by Category ---");
   for (const [cat, counts] of Object.entries(categoryCounts).sort(
     (a, b) => b[1].total - a[1].total,
   )) {
     console.log(
       `  • ${cat.padEnd(32)}: Total ${counts.total.toString().padStart(4)} | Ready: ${counts.ready.toString().padStart(4)} | Review: ${counts.review.toString().padStart(4)}`,
-    )
+    );
   }
 
-  console.log("\n--- Top 15 Brands Identified ---")
+  console.log("\n--- Top 15 Brands Identified ---");
   for (const [b, count] of sortedBrands.slice(0, 15)) {
-    console.log(`  • ${b.padEnd(25)}: ${count} products`)
+    console.log(`  • ${b.padEnd(25)}: ${count} products`);
   }
 
   if (flags.dryRun) {
-    console.log("\nDRY RUN complete. Staging files were not written to disk.")
-    return
+    console.log("\nDRY RUN complete. Staging files were not written to disk.");
+    return;
   }
 
   // ── Build Multi-Sheet Workbook ────────────────────────────────────────────
-  const outWb = xlsx.utils.book_new()
+  const outWb = xlsx.utils.book_new();
 
   // Sheet 1: Normalized_Inventory
   const sheet1Data = normalizedRecords.map((r) => ({
@@ -1211,9 +1131,9 @@ function run() {
     Status: r.status,
     "Review Required": r.reviewRequired,
     "Review Reasons": r.reviewReasons,
-  }))
-  const ws1 = xlsx.utils.json_to_sheet(sheet1Data)
-  xlsx.utils.book_append_sheet(outWb, ws1, "Normalized_Inventory")
+  }));
+  const ws1 = xlsx.utils.json_to_sheet(sheet1Data);
+  xlsx.utils.book_append_sheet(outWb, ws1, "Normalized_Inventory");
 
   // Sheet 2: Needs_Review
   const sheet2Data = needsReviewList.map((r) => ({
@@ -1227,9 +1147,9 @@ function run() {
     Subcategory: r.subcategory,
     "Product Type": r.productType,
     "Review Reasons": r.reviewReasons,
-  }))
-  const ws2 = xlsx.utils.json_to_sheet(sheet2Data)
-  xlsx.utils.book_append_sheet(outWb, ws2, "Needs_Review")
+  }));
+  const ws2 = xlsx.utils.json_to_sheet(sheet2Data);
+  xlsx.utils.book_append_sheet(outWb, ws2, "Needs_Review");
 
   // Sheet 3: Category_Summary
   const sheet3Data = Object.entries(categoryCounts)
@@ -1240,9 +1160,9 @@ function run() {
       "Ready for Pricing": counts.ready,
       "Needs Review": counts.review,
       "Percentage Ready": `${Math.round((counts.ready / counts.total) * 100)}%`,
-    }))
-  const ws3 = xlsx.utils.json_to_sheet(sheet3Data)
-  xlsx.utils.book_append_sheet(outWb, ws3, "Category_Summary")
+    }));
+  const ws3 = xlsx.utils.json_to_sheet(sheet3Data);
+  xlsx.utils.book_append_sheet(outWb, ws3, "Category_Summary");
 
   // Sheet 4: Import_Template (Exact 14 columns of Admin Bulk Importer)
   // Per business constraint: Prices, MRP, and Stock are left intentionally empty
@@ -1261,9 +1181,9 @@ function run() {
     Warranty: "",
     Weight: "",
     Status: r.status,
-  }))
-  const ws4 = xlsx.utils.json_to_sheet(sheet4Data)
-  xlsx.utils.book_append_sheet(outWb, ws4, "Import_Template")
+  }));
+  const ws4 = xlsx.utils.json_to_sheet(sheet4Data);
+  xlsx.utils.book_append_sheet(outWb, ws4, "Import_Template");
 
   // Sheet 5: Normalization_Report
   const sheet5Data = [
@@ -1287,33 +1207,32 @@ function run() {
     { Metric: "Stock Status", Value: "Awaiting client updated stock counts" },
     {
       Metric: "Database Safety",
-      Value:
-        "Preserved (0-price records staged only; not inserted into products table)",
+      Value: "Preserved (0-price records staged only; not inserted into products table)",
     },
     { Metric: "Execution Timestamp", Value: new Date().toISOString() },
-  ]
-  const ws5 = xlsx.utils.json_to_sheet(sheet5Data)
-  xlsx.utils.book_append_sheet(outWb, ws5, "Normalization_Report")
+  ];
+  const ws5 = xlsx.utils.json_to_sheet(sheet5Data);
+  xlsx.utils.book_append_sheet(outWb, ws5, "Normalization_Report");
 
   // Ensure output directory exists
-  const outDir = path.dirname(flags.output)
+  const outDir = path.dirname(flags.output);
   if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true })
+    fs.mkdirSync(outDir, { recursive: true });
   }
 
   // Write Excel file
-  xlsx.writeFile(outWb, flags.output)
-  console.log(`\nWorkbook successfully written to:\n  ${flags.output}`)
+  xlsx.writeFile(outWb, flags.output);
+  console.log(`\nWorkbook successfully written to:\n  ${flags.output}`);
 
   // Optional CSV export of Import_Template
   if (flags.csv) {
-    const csvPath = flags.output.replace(/\.xlsx$/i, "_import_template.csv")
-    const csvContent = xlsx.utils.sheet_to_csv(ws4)
-    fs.writeFileSync(csvPath, csvContent, "utf8")
-    console.log(`CSV Import Template written to:\n  ${csvPath}`)
+    const csvPath = flags.output.replace(/\.xlsx$/i, "_import_template.csv");
+    const csvContent = xlsx.utils.sheet_to_csv(ws4);
+    fs.writeFileSync(csvPath, csvContent, "utf8");
+    console.log(`CSV Import Template written to:\n  ${csvPath}`);
   }
 
-  console.log("\nNormalization pipeline completed successfully.")
+  console.log("\nNormalization pipeline completed successfully.");
 }
 
-run()
+run();

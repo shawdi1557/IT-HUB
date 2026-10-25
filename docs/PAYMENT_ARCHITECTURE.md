@@ -62,7 +62,9 @@ sequenceDiagram
 ## 3. Step-by-Step Checkout & Order Initialization
 
 ### 1. Order Creation (`create_order` RPC)
+
 When the customer clicks "Place Order":
+
 - **RPC Invocation**: The frontend calls [`create_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1435) passing an array of `{ product_id, quantity }`, delivery method, address ID, and optional coupon code.
 - **Server-Side Validation**:
   - Validates that products exist, are active, and have sufficient stock in `inventory`.
@@ -76,7 +78,9 @@ When the customer clicks "Place Order":
   - Returns `order_id`, `order_number`, and authoritative `total` in Rupees.
 
 ### 2. Razorpay Order Binding
+
 Before loading the Razorpay modal, the storefront or checkout edge worker creates a gateway order:
+
 - Converts total to paise: $\text{amount\_paise} = \text{round}(\text{total} \times 100)$.
 - Creates Razorpay Order with currency `'INR'`.
 - Calls [`attach_razorpay_order_id`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1562) to bind the gateway order ID to the pending database order row.
@@ -128,31 +132,37 @@ Located at [`supabase/functions/verify-razorpay-webhook/index.ts`](file:///d:/ma
 The database stored procedure [`record_order_payment`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1604) provides transactional guarantees:
 
 ### 1. Security Definer & Privilege Lockdown
+
 ```sql
-REVOKE ALL ON FUNCTION record_order_payment(uuid, text, text, text, numeric, text) 
+REVOKE ALL ON FUNCTION record_order_payment(uuid, text, text, text, numeric, text)
   FROM public, anon, authenticated;
-GRANT EXECUTE ON FUNCTION record_order_payment(uuid, text, text, text, numeric, text) 
+GRANT EXECUTE ON FUNCTION record_order_payment(uuid, text, text, text, numeric, text)
   TO service_role;
 ```
+
 Direct access is blocked for all public and client roles.
 
 ### 2. Pessimistic Locking & Idempotency
+
 - Acquires a row lock on the order: `SELECT * FROM orders WHERE ... FOR UPDATE`.
 - **Duplicate Callback/Webhook Handling**:
   - If `payment_status == 'Paid'` with matching `razorpay_payment_id`:
     Returns `{ ok: true, idempotent: true }` without touching inventory or coupons.
-  - If `payment_status == 'Paid'` with a *different* payment ID:
+  - If `payment_status == 'Paid'` with a _different_ payment ID:
     Raises an exception (`Order is already marked as Paid with different payment ID`).
 
 ### 3. Exact Amount Verification
+
 ```sql
 if round(p_amount_paid, 2) <> round(v_order.total, 2) then
   raise exception 'Payment amount mismatch: Expected ₹%, Received ₹%', v_order.total, p_amount_paid;
 end if;
 ```
+
 Ensures that partial or manipulated payments are rejected.
 
 ### 4. Atomic Coupon Redemption
+
 - Acquires `FOR UPDATE` lock on the coupon row.
 - Inserts usage into `coupon_usages` (`ON CONFLICT (coupon_id, customer_id) DO NOTHING`).
 - Increments `coupons.times_used`.
@@ -163,6 +173,7 @@ Ensures that partial or manipulated payments are rejected.
 ## 6. The 30-Minute Reservation & Late-Payment Edge Cases
 
 ### Stock Reservation TTL
+
 1. Every order created via `create_order` reserves physical stock for **30 minutes**.
 2. A background worker periodically invokes [`cleanup_expired_orders`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1928), which identifies unpaid pending checkouts past `expires_at`:
    - Uses `FOR UPDATE SKIP LOCKED` to prevent contention with active checkouts.
@@ -170,6 +181,7 @@ Ensures that partial or manipulated payments are rejected.
    - Sets `orders.status = 'Cancelled'` and `orders.stock_reserved = false`.
 
 ### What happens if payment succeeds after expiration?
+
 If a customer leaves a UPI app open and authorizes payment after 35 minutes:
 
 ```mermaid
@@ -183,6 +195,7 @@ flowchart TD
 ```
 
 This guarantees that:
+
 - **No negative stock** ever occurs.
 - The customer's money is accounted for and tied to their order record.
 - The merchant is immediately alerted to either back-order the stock or trigger a Razorpay refund.
@@ -191,12 +204,12 @@ This guarantees that:
 
 ## 7. Order Cancellation & Failure Workflows
 
-| Scenario | Trigger / Actor | Method | Outcome |
-| :--- | :--- | :--- | :--- |
-| **Payment Failed / Declined** | Razorpay Webhook or Edge Callback | [`record_payment_failure`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1829) | Sets `payment_status = 'Failed'`, `status = 'Cancelled'`, and atomically restores stock to `inventory`. |
-| **Unpaid Order Cancelled by Customer** | Customer Profile / Order View | [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876) | Allowed only if `status == 'Pending'` and `payment_status != 'Paid'`. Restores stock idempotently. |
-| **Paid Order Cancellation Request** | Customer | Merchant Return / Refund Flow | Direct customer cancellation blocked. Customer must contact support; merchant initiates return/refund. |
-| **Admin Order Cancellation** | Store Administrator | [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876) | Restores stock (if reserved). For paid orders, admin initiates gateway refund via Razorpay dashboard. |
+| Scenario                               | Trigger / Actor                   | Method                                                                                    | Outcome                                                                                                 |
+| :------------------------------------- | :-------------------------------- | :---------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ |
+| **Payment Failed / Declined**          | Razorpay Webhook or Edge Callback | [`record_payment_failure`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1829) | Sets `payment_status = 'Failed'`, `status = 'Cancelled'`, and atomically restores stock to `inventory`. |
+| **Unpaid Order Cancelled by Customer** | Customer Profile / Order View     | [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876)           | Allowed only if `status == 'Pending'` and `payment_status != 'Paid'`. Restores stock idempotently.      |
+| **Paid Order Cancellation Request**    | Customer                          | Merchant Return / Refund Flow                                                             | Direct customer cancellation blocked. Customer must contact support; merchant initiates return/refund.  |
+| **Admin Order Cancellation**           | Store Administrator               | [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876)           | Restores stock (if reserved). For paid orders, admin initiates gateway refund via Razorpay dashboard.   |
 
 ---
 
@@ -204,16 +217,16 @@ This guarantees that:
 
 Configure the following secrets in your Supabase project settings (`supabase secrets set`):
 
-| Variable Name | Environment | Description |
-| :--- | :--- | :--- |
-| `SUPABASE_URL` | Edge Functions | Your Supabase project API URL. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | Privileged service key (never exposed to client browser). |
-| `SUPABASE_ANON_KEY` | Edge Functions & Client | Public anon key for client JWT validation. |
-| `RAZORPAY_KEY_ID` | Edge Functions & Client | Public Razorpay key ID (`rzp_test_...` or `rzp_live_...`). |
-| `RAZORPAY_KEY_SECRET` | Edge Functions | Private Razorpay key secret for signature verification. |
-| `RAZORPAY_WEBHOOK_SECRET` | Edge Functions | Webhook secret configured in Razorpay Webhook Dashboard. |
-| `STOREFRONT_ORIGIN` | Edge Functions | Comma-separated allowed frontend origins (e.g. `https://ithub.com`). |
-| `APP_ENV` | Edge Functions | `production` or `development` (enables localhost only when `development`). |
+| Variable Name               | Environment             | Description                                                                |
+| :-------------------------- | :---------------------- | :------------------------------------------------------------------------- |
+| `SUPABASE_URL`              | Edge Functions          | Your Supabase project API URL.                                             |
+| `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions          | Privileged service key (never exposed to client browser).                  |
+| `SUPABASE_ANON_KEY`         | Edge Functions & Client | Public anon key for client JWT validation.                                 |
+| `RAZORPAY_KEY_ID`           | Edge Functions & Client | Public Razorpay key ID (`rzp_test_...` or `rzp_live_...`).                 |
+| `RAZORPAY_KEY_SECRET`       | Edge Functions          | Private Razorpay key secret for signature verification.                    |
+| `RAZORPAY_WEBHOOK_SECRET`   | Edge Functions          | Webhook secret configured in Razorpay Webhook Dashboard.                   |
+| `STOREFRONT_ORIGIN`         | Edge Functions          | Comma-separated allowed frontend origins (e.g. `https://ithub.com`).       |
+| `APP_ENV`                   | Edge Functions          | `production` or `development` (enables localhost only when `development`). |
 
 ---
 
@@ -226,8 +239,8 @@ npm run test:edge
 ```
 
 **Test Suite Coverage Summary**:
+
 - `verify-checkout-callback.test.ts` (43 tests): Validates CORS allowlists, missing/invalid Bearer JWTs, HMAC-SHA256 signature verification, constant-time comparisons, and API status checking.
 - `verify-razorpay-webhook.test.ts` (19 tests): Validates raw body HMAC signature checking, event filtering, paise-to-INR conversions, and notes extraction.
 - `security-fixes-audit.test.ts` (18 tests): Validates database RPC privilege lockouts, negative inventory protection, and coupon conflict flags.
 - **Total: 80 tests passing (100% success rate)**.
-

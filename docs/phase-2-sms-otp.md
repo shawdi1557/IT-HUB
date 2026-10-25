@@ -59,6 +59,7 @@ sequenceDiagram
 ## 3. Key Implementations
 
 ### 3.1. Client-Side Phone Utilities & Auth Service ([`src/lib/auth.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/auth.ts))
+
 - **`normalizePhone(input: string)`**:
   - Strips non-digit characters, spaces, and hyphens.
   - Automatically prepends `+91` to standard 10-digit Indian numbers starting with 6, 7, 8, or 9.
@@ -74,12 +75,15 @@ sequenceDiagram
   - Listens to `SIGNED_IN`, `SIGNED_OUT`, `TOKEN_REFRESHED`, and `USER_UPDATED` events.
 
 ### 3.2. Interactive Customer UI ([`src/components/AuthModal.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/components/AuthModal.tsx))
+
 - **Stateful Progression**: Transitions from Phone Input step $\rightarrow$ 6-digit OTP Verification step.
 - **Resend Countdown Timer**: Prevents aggressive retry attempts by enforcing a 60-second cooldown timer.
 - **Accessibility & Feedback**: Visual feedback with loading indicators, auto-focusing OTP input fields, and clear error messaging for expired/incorrect codes.
 
 ### 3.3. Serverless SMS Provider Hook ([`supabase/functions/send-sms-hook/index.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/functions/send-sms-hook/index.ts))
+
 The Edge Function serves as Supabase's HTTP hook for SMS dispatch, offering:
+
 - **DLT Compliance (Telecom Regulatory Authority of India)**:
   - Supports registered DLT entity IDs, sender headers (`ITHUBK`), and pre-approved template IDs.
 - **Multi-Gateway Routing**:
@@ -101,4 +105,3 @@ The Edge Function serves as Supabase's HTTP hook for SMS dispatch, offering:
   - Secret token verification and rejection of unauthenticated webhooks.
   - Error translation for invalid phone numbers and provider network failures.
 - **Frontend Integration**: Production build compiles with zero TypeScript errors.
-

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo } from "react";
 import {
   Wrench,
   Plus,
@@ -13,8 +13,8 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
-} from "lucide-react"
-import { useStore } from "../app/store"
+} from "lucide-react";
+import { useStore } from "../app/store";
 import {
   money,
   serviceStatuses,
@@ -24,73 +24,68 @@ import {
   type FindingSource,
   type FindingClassification,
   type RepairSafety,
-} from "../data/catalog"
+} from "../data/catalog";
 import {
   adminPublishQuotation,
   adminUpdateServiceRequest,
   calculateQuotationTotals,
-} from "../lib/services"
-import { ActionLink, Badge, Button, Field, fieldClass } from "./ui"
+} from "../lib/services";
+import { ActionLink, Badge, Button, Field, fieldClass } from "./ui";
 
 interface AdminServiceRequestEditorProps {
-  request: ServiceRequest
-  onClose: () => void
+  request: ServiceRequest;
+  onClose: () => void;
 }
 
 export default function AdminServiceRequestEditor({
   request,
   onClose,
 }: AdminServiceRequestEditorProps) {
-  const store = useStore()
+  const store = useStore();
 
   // Local draft states
-  const [technician, setTechnician] = useState<string>(
-    request.technician || "Unassigned",
-  )
-  const [status, setStatus] = useState<number>(request.status || 0)
-  const [adminNotes, setAdminNotes] = useState<string>(request.notes || "")
-  const [error, setError] = useState<string>("")
-  const [isPublishing, setIsPublishing] = useState<boolean>(false)
-  const [showHistory, setShowHistory] = useState<boolean>(false)
+  const [technician, setTechnician] = useState<string>(request.technician || "Unassigned");
+  const [status, setStatus] = useState<number>(request.status || 0);
+  const [adminNotes, setAdminNotes] = useState<string>(request.notes || "");
+  const [error, setError] = useState<string>("");
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
 
   // Draft findings
   const [findings, setFindings] = useState<DiagnosisFinding[]>(() => {
     if (request.findings && request.findings.length > 0) {
-      return [...request.findings]
+      return [...request.findings];
     }
     // Seed with initial customer complaint as first finding if none exist
     return [
       {
         id: `find-cust-${Date.now().toString(36)}`,
         title: "Reported Symptom",
-        description:
-          request.problem || "Initial customer complaint upon service booking.",
+        description: request.problem || "Initial customer complaint upon service booking.",
         source: "customer",
         classification: "confirmed",
-        customerExplanation:
-          request.problem || "Reported fault requiring workbench diagnosis.",
+        customerExplanation: request.problem || "Reported fault requiring workbench diagnosis.",
         recommendedRepair: "Inspect & test core hardware components.",
         safety: "required",
         isEligibleForRepair: true,
         createdAt: new Date().toISOString(),
       },
-    ]
-  })
+    ];
+  });
 
   // Draft quotation items
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>(() => {
     if (request.quotationItems && request.quotationItems.length > 0) {
-      return [...request.quotationItems]
+      return [...request.quotationItems];
     }
     // Default item if legacy single quote
-    const baseQuote = request.quote || 1500
-    const diagnosticCredit = Math.min(300, baseQuote)
+    const baseQuote = request.quote || 1500;
+    const diagnosticCredit = Math.min(300, baseQuote);
     return [
       {
         id: `item-${Date.now().toString(36)}`,
         title: `${request.device} Workbench Service`,
-        description:
-          request.problem || "Standard hardware repair and bench diagnostics.",
+        description: request.problem || "Standard hardware repair and bench diagnostics.",
         partCost: Math.max(0, baseQuote - diagnosticCredit),
         labourCost: diagnosticCredit,
         quantity: 1,
@@ -99,54 +94,44 @@ export default function AdminServiceRequestEditor({
         canDefer: false,
         approvalState: request.quoteState || "pending",
       },
-    ]
-  })
+    ];
+  });
 
   // Finding form state
-  const [isAddingFinding, setIsAddingFinding] = useState<boolean>(false)
-  const [newFindingTitle, setNewFindingTitle] = useState<string>("")
-  const [newFindingDesc, setNewFindingDesc] = useState<string>("")
-  const [newFindingSource, setNewFindingSource] =
-    useState<FindingSource>("technician")
-  const [newFindingClass, setNewFindingClass] =
-    useState<FindingClassification>("confirmed")
-  const [newFindingSafety, setNewFindingSafety] =
-    useState<RepairSafety>("recommended")
-  const [newFindingCustExpl, setNewFindingCustExpl] = useState<string>("")
-  const [newFindingRecRepair, setNewFindingRecRepair] = useState<string>("")
+  const [isAddingFinding, setIsAddingFinding] = useState<boolean>(false);
+  const [newFindingTitle, setNewFindingTitle] = useState<string>("");
+  const [newFindingDesc, setNewFindingDesc] = useState<string>("");
+  const [newFindingSource, setNewFindingSource] = useState<FindingSource>("technician");
+  const [newFindingClass, setNewFindingClass] = useState<FindingClassification>("confirmed");
+  const [newFindingSafety, setNewFindingSafety] = useState<RepairSafety>("recommended");
+  const [newFindingCustExpl, setNewFindingCustExpl] = useState<string>("");
+  const [newFindingRecRepair, setNewFindingRecRepair] = useState<string>("");
 
   // Quotation item form state
-  const [isAddingItem, setIsAddingItem] = useState<boolean>(false)
-  const [newItemTitle, setNewItemTitle] = useState<string>("")
-  const [newItemDesc, setNewItemDesc] = useState<string>("")
-  const [newItemPartCost, setNewItemPartCost] = useState<number>(1000)
-  const [newItemLabourCost, setNewItemLabourCost] = useState<number>(500)
-  const [newItemQty, setNewItemQty] = useState<number>(1)
-  const [newItemFindingId, setNewItemFindingId] = useState<string>("")
-  const [newItemIsRequired, setNewItemIsRequired] = useState<boolean>(false)
-  const [newItemCanDefer, setNewItemCanDefer] = useState<boolean>(true)
-  const [newItemDependsOn, setNewItemDependsOn] = useState<string>("")
+  const [isAddingItem, setIsAddingItem] = useState<boolean>(false);
+  const [newItemTitle, setNewItemTitle] = useState<string>("");
+  const [newItemDesc, setNewItemDesc] = useState<string>("");
+  const [newItemPartCost, setNewItemPartCost] = useState<number>(1000);
+  const [newItemLabourCost, setNewItemLabourCost] = useState<number>(500);
+  const [newItemQty, setNewItemQty] = useState<number>(1);
+  const [newItemFindingId, setNewItemFindingId] = useState<string>("");
+  const [newItemIsRequired, setNewItemIsRequired] = useState<boolean>(false);
+  const [newItemCanDefer, setNewItemCanDefer] = useState<boolean>(true);
+  const [newItemDependsOn, setNewItemDependsOn] = useState<string>("");
 
   // Authoritative total calculation
-  const allItemIds = useMemo(
-    () => quotationItems.map((i) => i.id),
-    [quotationItems],
-  )
+  const allItemIds = useMemo(() => quotationItems.map((i) => i.id), [quotationItems]);
   const totals = useMemo(() => {
-    return calculateQuotationTotals(
-      quotationItems,
-      allItemIds,
-      request.courierCharge,
-    )
-  }, [quotationItems, allItemIds, request.courierCharge])
+    return calculateQuotationTotals(quotationItems, allItemIds, request.courierCharge);
+  }, [quotationItems, allItemIds, request.courierCharge]);
 
   // Handlers for Findings
   const handleAddFinding = () => {
     if (!newFindingTitle.trim()) {
-      setError("Finding title is required.")
-      return
+      setError("Finding title is required.");
+      return;
     }
-    setError("")
+    setError("");
 
     const newF: DiagnosisFinding = {
       id: `find-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -158,38 +143,33 @@ export default function AdminServiceRequestEditor({
       customerExplanation:
         newFindingCustExpl.trim() ||
         `Identified ${newFindingTitle.trim().toLowerCase()}. Repair recommended for optimal reliability.`,
-      recommendedRepair:
-        newFindingRecRepair.trim() ||
-        "Component replacement / bench servicing.",
+      recommendedRepair: newFindingRecRepair.trim() || "Component replacement / bench servicing.",
       isEligibleForRepair: true,
       createdAt: new Date().toISOString(),
-    }
+    };
 
-    setFindings((prev) => [...prev, newF])
-    setNewFindingTitle("")
-    setNewFindingDesc("")
-    setNewFindingCustExpl("")
-    setNewFindingRecRepair("")
-    setIsAddingFinding(false)
-  }
+    setFindings((prev) => [...prev, newF]);
+    setNewFindingTitle("");
+    setNewFindingDesc("");
+    setNewFindingCustExpl("");
+    setNewFindingRecRepair("");
+    setIsAddingFinding(false);
+  };
 
   const handleRemoveFinding = (findingId: string) => {
-    setFindings((prev) => prev.filter((f) => f.id !== findingId))
-  }
+    setFindings((prev) => prev.filter((f) => f.id !== findingId));
+  };
 
   // Handlers for Quotation Items
   const handleAddQuotationItem = () => {
     if (!newItemTitle.trim()) {
-      setError("Item title is required.")
-      return
+      setError("Item title is required.");
+      return;
     }
-    setError("")
+    setError("");
 
-    const lineTotal =
-      (newItemPartCost + newItemLabourCost) * Math.max(1, newItemQty)
-    const dependsOnList = newItemDependsOn.trim()
-      ? [newItemDependsOn.trim()]
-      : undefined
+    const lineTotal = (newItemPartCost + newItemLabourCost) * Math.max(1, newItemQty);
+    const dependsOnList = newItemDependsOn.trim() ? [newItemDependsOn.trim()] : undefined;
 
     const item: QuotationItem = {
       id: `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -204,51 +184,49 @@ export default function AdminServiceRequestEditor({
       canDefer: newItemCanDefer,
       dependsOn: dependsOnList,
       approvalState: "pending",
-    }
+    };
 
-    setQuotationItems((prev) => [...prev, item])
-    setNewItemTitle("")
-    setNewItemDesc("")
-    setNewItemPartCost(1000)
-    setNewItemLabourCost(500)
-    setNewItemQty(1)
-    setNewItemIsRequired(false)
-    setNewItemCanDefer(true)
-    setNewItemDependsOn("")
-    setIsAddingItem(false)
-  }
+    setQuotationItems((prev) => [...prev, item]);
+    setNewItemTitle("");
+    setNewItemDesc("");
+    setNewItemPartCost(1000);
+    setNewItemLabourCost(500);
+    setNewItemQty(1);
+    setNewItemIsRequired(false);
+    setNewItemCanDefer(true);
+    setNewItemDependsOn("");
+    setIsAddingItem(false);
+  };
 
   const handleRemoveQuotationItem = (itemId: string) => {
-    setQuotationItems((prev) => prev.filter((i) => i.id !== itemId))
-  }
+    setQuotationItems((prev) => prev.filter((i) => i.id !== itemId));
+  };
 
   // Technician assignment handler
   const handleTechnicianChange = async (newTech: string) => {
-    setTechnician(newTech)
-    await adminUpdateServiceRequest(request.id, { technician_name: newTech })
+    setTechnician(newTech);
+    await adminUpdateServiceRequest(request.id, { technician_name: newTech });
     store.set({
       requests: store.requests.map((item) =>
         item.id === request.id ? { ...item, technician: newTech } : item,
       ),
-    })
-    store.log(`Technician ${newTech} assigned to ${request.id}`)
-    store.notify("Technician assigned")
-  }
+    });
+    store.log(`Technician ${newTech} assigned to ${request.id}`);
+    store.notify("Technician assigned");
+  };
 
   // Status update handler
   const handleStatusChange = async (newStatus: number) => {
     if (newStatus >= 5 && request.quoteState !== "approved") {
-      setError(
-        "The customer must approve the quotation before repair work can proceed.",
-      )
-      return
+      setError("The customer must approve the quotation before repair work can proceed.");
+      return;
     }
-    setError("")
-    setStatus(newStatus)
+    setError("");
+    setStatus(newStatus);
 
     await adminUpdateServiceRequest(request.id, {
       status: serviceStatuses[newStatus],
-    })
+    });
 
     store.set((previous) => ({
       requests: previous.requests.map((item) =>
@@ -258,20 +236,20 @@ export default function AdminServiceRequestEditor({
         `Service ${request.id}: ${serviceStatuses[newStatus]}`,
         ...previous.notifications,
       ],
-    }))
+    }));
 
-    store.log(`Service ${request.id}: ${serviceStatuses[newStatus]}`)
-    store.notify("Service status updated")
-  }
+    store.log(`Service ${request.id}: ${serviceStatuses[newStatus]}`);
+    store.notify("Service status updated");
+  };
 
   // Publish / Revise quotation handler
   const handlePublishQuotation = async () => {
     if (quotationItems.length === 0) {
-      setError("At least one quotation line item is required.")
-      return
+      setError("At least one quotation line item is required.");
+      return;
     }
-    setError("")
-    setIsPublishing(true)
+    setError("");
+    setIsPublishing(true);
 
     try {
       const result = await adminPublishQuotation(
@@ -281,16 +259,16 @@ export default function AdminServiceRequestEditor({
         adminNotes,
         request.courierCharge?.returnDelivery,
         request,
-      )
+      );
 
       if (!result.ok) {
-        setError(result.error || "Failed to publish quotation.")
-        setIsPublishing(false)
-        return
+        setError(result.error || "Failed to publish quotation.");
+        setIsPublishing(false);
+        return;
       }
 
-      const nextStatus = Math.max(request.status, 4)
-      const newVersion = result.newVersion || (request.quoteVersion || 1) + 1
+      const nextStatus = Math.max(request.status, 4);
+      const newVersion = result.newVersion || (request.quoteVersion || 1) + 1;
 
       // Update store
       store.set((previous) => ({
@@ -314,20 +292,20 @@ export default function AdminServiceRequestEditor({
           `Quotation v${newVersion} published for ${request.id} (${money(totals.totalPayable)})`,
           ...previous.notifications,
         ],
-      }))
+      }));
 
-      store.log(`Quotation v${newVersion} published for ${request.id}`)
+      store.log(`Quotation v${newVersion} published for ${request.id}`);
       if (result.warning) {
-        store.notify(result.warning)
+        store.notify(result.warning);
       } else {
-        store.notify(`Quotation v${newVersion} published for customer review`)
+        store.notify(`Quotation v${newVersion} published for customer review`);
       }
-      setIsPublishing(false)
+      setIsPublishing(false);
     } catch (err: any) {
-      setError(err?.message || "Failed to publish quotation.")
-      setIsPublishing(false)
+      setError(err?.message || "Failed to publish quotation.");
+      setIsPublishing(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -371,9 +349,7 @@ export default function AdminServiceRequestEditor({
             <FileText size={14} className="text-primary" />
             <span>Customer-Reported Problem (Original Complaint):</span>
           </div>
-          <p className="mt-1 font-semibold text-foreground">
-            "{request.problem}"
-          </p>
+          <p className="mt-1 font-semibold text-foreground">"{request.problem}"</p>
           <span className="mt-1 inline-block text-[10px] text-muted-foreground">
             *Preserved permanently; not overwritten by technician findings.
           </span>
@@ -420,8 +396,8 @@ export default function AdminServiceRequestEditor({
               <span>Diagnostic Findings ({findings.length})</span>
             </h4>
             <p className="text-[11px] text-muted-foreground">
-              Record both customer-reported symptoms and newly discovered faults
-              with customer-safe explanations.
+              Record both customer-reported symptoms and newly discovered faults with customer-safe
+              explanations.
             </p>
           </div>
           <Button
@@ -458,9 +434,7 @@ export default function AdminServiceRequestEditor({
                 </label>
                 <select
                   value={newFindingSource}
-                  onChange={(e) =>
-                    setNewFindingSource(e.target.value as FindingSource)
-                  }
+                  onChange={(e) => setNewFindingSource(e.target.value as FindingSource)}
                   className={fieldClass}
                 >
                   <option value="technician">Technician Discovered</option>
@@ -474,16 +448,12 @@ export default function AdminServiceRequestEditor({
                 </label>
                 <select
                   value={newFindingClass}
-                  onChange={(e) =>
-                    setNewFindingClass(e.target.value as FindingClassification)
-                  }
+                  onChange={(e) => setNewFindingClass(e.target.value as FindingClassification)}
                   className={fieldClass}
                 >
                   <option value="confirmed">Confirmed</option>
                   <option value="suspected">Suspected</option>
-                  <option value="needs_further_testing">
-                    Needs Further Testing
-                  </option>
+                  <option value="needs_further_testing">Needs Further Testing</option>
                 </select>
               </div>
 
@@ -493,20 +463,14 @@ export default function AdminServiceRequestEditor({
                 </label>
                 <select
                   value={newFindingSafety}
-                  onChange={(e) =>
-                    setNewFindingSafety(e.target.value as RepairSafety)
-                  }
+                  onChange={(e) => setNewFindingSafety(e.target.value as RepairSafety)}
                   className={fieldClass}
                 >
                   <option value="required">
                     Required (Device will not work safely without it)
                   </option>
-                  <option value="recommended">
-                    Recommended (Performance/stability)
-                  </option>
-                  <option value="optional">
-                    Optional (Cosmetic/accessory)
-                  </option>
+                  <option value="recommended">Recommended (Performance/stability)</option>
+                  <option value="optional">Optional (Cosmetic/accessory)</option>
                   <option value="cosmetic">Cosmetic Only</option>
                 </select>
               </div>
@@ -539,11 +503,7 @@ export default function AdminServiceRequestEditor({
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                onClick={handleAddFinding}
-                className="text-xs"
-              >
+              <Button type="button" onClick={handleAddFinding} className="text-xs">
                 Save Finding
               </Button>
             </div>
@@ -599,8 +559,8 @@ export default function AdminServiceRequestEditor({
               <span>Itemized Quotation Items ({quotationItems.length})</span>
             </h4>
             <p className="text-[11px] text-muted-foreground">
-              Individual parts and labour pricing. Customers can authorize
-              eligible items individually.
+              Individual parts and labour pricing. Customers can authorize eligible items
+              individually.
             </p>
           </div>
           <Button
@@ -616,9 +576,7 @@ export default function AdminServiceRequestEditor({
         {/* Add Item Form */}
         {isAddingItem && (
           <div className="rounded-xl border border-primary/20 bg-secondary/20 p-4 text-xs space-y-3">
-            <h5 className="font-bold text-foreground">
-              New Quotation Line Item
-            </h5>
+            <h5 className="font-bold text-foreground">New Quotation Line Item</h5>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-[11px] font-semibold text-foreground mb-1">
@@ -686,9 +644,7 @@ export default function AdminServiceRequestEditor({
                   onChange={(e) => setNewItemDependsOn(e.target.value)}
                   className={fieldClass}
                 >
-                  <option value="">
-                    No Dependency (Can be approved standalone)
-                  </option>
+                  <option value="">No Dependency (Can be approved standalone)</option>
                   {quotationItems.map((qi) => (
                     <option key={qi.id} value={qi.id}>
                       Requires: {qi.title}
@@ -705,9 +661,7 @@ export default function AdminServiceRequestEditor({
                     onChange={(e) => setNewItemIsRequired(e.target.checked)}
                     className="h-4 w-4 rounded border-border text-primary"
                   />
-                  <span className="font-semibold text-foreground text-xs">
-                    Required Repair
-                  </span>
+                  <span className="font-semibold text-foreground text-xs">Required Repair</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -717,19 +671,13 @@ export default function AdminServiceRequestEditor({
                     onChange={(e) => setNewItemCanDefer(e.target.checked)}
                     className="h-4 w-4 rounded border-border text-primary"
                   />
-                  <span className="text-muted-foreground text-xs">
-                    Can Safely Defer
-                  </span>
+                  <span className="text-muted-foreground text-xs">Can Safely Defer</span>
                 </label>
               </div>
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                onClick={handleAddQuotationItem}
-                className="text-xs"
-              >
+              <Button type="button" onClick={handleAddQuotationItem} className="text-xs">
                 Save Line Item
               </Button>
             </div>
@@ -739,7 +687,7 @@ export default function AdminServiceRequestEditor({
         {/* Line Items List */}
         <div className="space-y-2">
           {quotationItems.map((item) => {
-            const linkedFinding = findings.find((f) => f.id === item.findingId)
+            const linkedFinding = findings.find((f) => f.id === item.findingId);
             return (
               <div
                 key={item.id}
@@ -747,9 +695,7 @@ export default function AdminServiceRequestEditor({
               >
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-foreground">
-                      {item.title}
-                    </span>
+                    <span className="font-bold text-foreground">{item.title}</span>
                     {item.isRequired && <Badge tone="red">REQUIRED</Badge>}
                     {item.canDefer && <Badge tone="gray">DEFERRABLE</Badge>}
                     {item.dependsOn && item.dependsOn.length > 0 && (
@@ -758,16 +704,13 @@ export default function AdminServiceRequestEditor({
                     {linkedFinding && (
                       <span className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                         Linked: {linkedFinding.title} (
-                        {linkedFinding.source === "customer"
-                          ? "Customer"
-                          : "Tech Found"}
-                        )
+                        {linkedFinding.source === "customer" ? "Customer" : "Tech Found"})
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Part: {money(item.partCost)} · Labour:{" "}
-                    {money(item.labourCost)} · Qty: {item.quantity}
+                    Part: {money(item.partCost)} · Labour: {money(item.labourCost)} · Qty:{" "}
+                    {item.quantity}
                   </p>
                 </div>
 
@@ -785,7 +728,7 @@ export default function AdminServiceRequestEditor({
                   </button>
                 </div>
               </div>
-            )
+            );
           })}
         </div>
 
@@ -830,9 +773,7 @@ export default function AdminServiceRequestEditor({
           >
             <span className="flex items-center gap-1.5">
               <History size={15} className="text-primary" />
-              <span>
-                Quotation Revision History ({request.quotationHistory.length})
-              </span>
+              <span>Quotation Revision History ({request.quotationHistory.length})</span>
             </span>
             {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
@@ -840,10 +781,7 @@ export default function AdminServiceRequestEditor({
           {showHistory && (
             <div className="mt-3 space-y-2 border-t border-border pt-3">
               {request.quotationHistory.map((rev, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-lg bg-secondary/20 p-2.5 text-[11px]"
-                >
+                <div key={idx} className="rounded-lg bg-secondary/20 p-2.5 text-[11px]">
                   <div className="flex justify-between font-bold">
                     <span>
                       Version {rev.version} — {money(rev.totalAmount)}
@@ -853,8 +791,7 @@ export default function AdminServiceRequestEditor({
                     </span>
                   </div>
                   <p className="text-muted-foreground mt-0.5">
-                    Items: {rev.items?.length || 0} · Findings:{" "}
-                    {rev.findings?.length || 0}
+                    Items: {rev.items?.length || 0} · Findings: {rev.findings?.length || 0}
                   </p>
                 </div>
               ))}
@@ -886,22 +823,14 @@ export default function AdminServiceRequestEditor({
 
       {/* 7. Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-        <Button
-          disabled={isPublishing}
-          onClick={handlePublishQuotation}
-          className="text-xs"
-        >
+        <Button disabled={isPublishing} onClick={handlePublishQuotation} className="text-xs">
           {isPublishing
             ? "Publishing & Saving..."
             : `Publish Quotation v${(request.quoteVersion || 1) + 1} (${money(totals.totalPayable)})`}
         </Button>
 
         <div className="flex items-center gap-3">
-          <ActionLink
-            secondary
-            to={`/track-service/${request.id}`}
-            className="text-xs"
-          >
+          <ActionLink secondary to={`/track-service/${request.id}`} className="text-xs">
             Customer View <ArrowRight size={13} className="inline ml-1" />
           </ActionLink>
           <Button variant="secondary" onClick={onClose} className="text-xs">
@@ -910,5 +839,5 @@ export default function AdminServiceRequestEditor({
         </div>
       </div>
     </div>
-  )
+  );
 }

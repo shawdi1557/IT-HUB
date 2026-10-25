@@ -1,50 +1,39 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type ButtonHTMLAttributes,
-} from "react"
-import { Link } from "react-router"
-import * as Dialog from "@radix-ui/react-dialog"
-import {
-  ArrowRight,
-  X,
-  PackageOpen,
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Star,
-} from "lucide-react"
-import { SplitText } from "./reactbits"
-import ShinyText from "./ShinyText"
-import logo from "../imports/ITHUBLOGO-1.jpeg"
+import { useEffect, useRef, useState, type ReactNode, type ButtonHTMLAttributes } from "react";
+import { Link } from "react-router";
+import * as Dialog from "@radix-ui/react-dialog";
+import { ArrowRight, X, PackageOpen, Check, ChevronDown, LoaderCircle, Star } from "lucide-react";
+import { SplitText } from "./reactbits";
+import ShinyText from "./ShinyText";
+import logo from "../imports/ITHUBLOGO-1.jpeg";
 
 export const buttonClass =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-8px_rgba(26,79,214,.6)] transition hover:-translate-y-0.5 hover:bg-[#0c2f8a] hover:shadow-[0_14px_30px_-10px_rgba(26,79,214,.7)] disabled:opacity-40"
+  "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-8px_rgba(26,79,214,.6)] transition hover:-translate-y-0.5 hover:bg-[#0c2f8a] hover:shadow-[0_14px_30px_-10px_rgba(26,79,214,.7)] disabled:opacity-40";
 export const secondaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-semibold transition hover:border-primary hover:text-primary disabled:opacity-40"
+  "inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-semibold transition hover:border-primary hover:text-primary disabled:opacity-40";
 export const fieldClass =
-  "w-full rounded-xl border border-border bg-white px-4 py-3 text-sm transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:bg-muted"
-export const containerClass =
-  "mx-auto w-full max-w-[1320px] px-5 md:px-9 lg:px-12"
+  "w-full rounded-xl border border-border bg-white px-4 py-3 text-sm transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:bg-muted";
+export const containerClass = "mx-auto w-full max-w-[1320px] px-5 md:px-9 lg:px-12";
 export function Button({
   variant = "primary",
+  size = "md",
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary"
+  variant?: "primary" | "secondary";
+  size?: "sm" | "md" | "lg";
 }) {
+  const sizeClass =
+    size === "sm" ? "!px-3.5 !py-1.5 !text-xs" : size === "lg" ? "!px-8 !py-3.5 !text-base" : "";
   return (
     <button
       {...props}
       className={`${
         variant === "primary" ? buttonClass : secondaryClass
-      } ${props.className || ""}`}
+      } ${sizeClass} ${props.className || ""}`.trim()}
     >
       {children}
     </button>
-  )
+  );
 }
 export function ActionLink({
   to,
@@ -52,19 +41,16 @@ export function ActionLink({
   secondary = false,
   className = "",
 }: {
-  to: string
-  children: ReactNode
-  secondary?: boolean
-  className?: string
+  to: string;
+  children: ReactNode;
+  secondary?: boolean;
+  className?: string;
 }) {
   return (
-    <Link
-      to={to}
-      className={`${secondary ? secondaryClass : buttonClass} ${className}`}
-    >
+    <Link to={to} className={`${secondary ? secondaryClass : buttonClass} ${className}`}>
       {children}
     </Link>
-  )
+  );
 }
 export function Logo({ large = false }: { large?: boolean }) {
   return (
@@ -75,7 +61,7 @@ export function Logo({ large = false }: { large?: boolean }) {
         large ? "h-36 w-36" : "h-[66px] w-[66px]"
       } shrink-0 rounded-sm bg-white object-contain`}
     />
-  )
+  );
 }
 export function SectionHeading({
   eyebrow,
@@ -84,11 +70,11 @@ export function SectionHeading({
   link,
   to,
 }: {
-  eyebrow?: string
-  title: string
-  subtitle?: string
-  link?: string
-  to?: string
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  link?: string;
+  to?: string;
 }) {
   return (
     <div className="mb-8 flex items-end justify-between gap-4">
@@ -107,9 +93,7 @@ export function SectionHeading({
         <h2 className="text-3xl font-extrabold tracking-[-.03em] md:text-[44px] md:leading-[1.05]">
           <SplitText text={title} />
         </h2>
-        {subtitle && (
-          <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-        )}
+        {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {to && (
         <Link
@@ -121,7 +105,7 @@ export function SectionHeading({
         </Link>
       )}
     </div>
-  )
+  );
 }
 export function PageHeading({
   eyebrow,
@@ -129,10 +113,10 @@ export function PageHeading({
   description,
   children,
 }: {
-  eyebrow?: string
-  title: string
-  description?: string
-  children?: ReactNode
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  children?: ReactNode;
 }) {
   return (
     <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
@@ -150,24 +134,22 @@ export function PageHeading({
           <SplitText text={title} />
         </h1>
         {description && (
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
         )}
       </div>
       {children}
     </div>
-  )
+  );
 }
 export function Page({ children }: { children: ReactNode }) {
-  return <div className={`${containerClass} py-10 md:py-14`}>{children}</div>
+  return <div className={`${containerClass} py-10 md:py-14`}>{children}</div>;
 }
 export function Badge({
   children,
   tone = "blue",
 }: {
-  children: ReactNode
-  tone?: "blue" | "green" | "amber" | "red" | "gray"
+  children: ReactNode;
+  tone?: "blue" | "green" | "amber" | "red" | "gray";
 }) {
   const colors = {
     blue: "bg-secondary text-primary",
@@ -175,14 +157,14 @@ export function Badge({
     amber: "bg-amber-50 text-amber-700",
     red: "bg-red-50 text-red-700",
     gray: "bg-muted text-muted-foreground",
-  }
+  };
   return (
     <span
       className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-semibold ${colors[tone]}`}
     >
       {children}
     </span>
-  )
+  );
 }
 export function Modal({
   open,
@@ -192,12 +174,12 @@ export function Modal({
   children,
   size = "max-w-2xl",
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  description?: string
-  children: ReactNode
-  size?: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: string;
+  children: ReactNode;
+  size?: string;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -207,9 +189,7 @@ export function Modal({
           data-lenis-prevent
           className={`fixed left-1/2 top-1/2 z-[81] max-h-[90dvh] w-[calc(100%-32px)] ${size} -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-3xl bg-white p-6 shadow-md md:p-8`}
         >
-          <Dialog.Title className="pr-8 font-display text-2xl font-bold">
-            {title}
-          </Dialog.Title>
+          <Dialog.Title className="pr-8 font-display text-2xl font-bold">{title}</Dialog.Title>
           <Dialog.Description className="mt-2 text-sm text-muted-foreground">
             {description || "Explore and manage your IT HUB experience."}
           </Dialog.Description>
@@ -223,7 +203,7 @@ export function Modal({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }
 export function Empty({
   title,
@@ -231,10 +211,10 @@ export function Empty({
   to,
   label,
 }: {
-  title: string
-  description: string
-  to?: string
-  label?: string
+  title: string;
+  description: string;
+  to?: string;
+  label?: string;
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-muted/60 px-6 py-16 text-center">
@@ -248,29 +228,17 @@ export function Empty({
         </ActionLink>
       )}
     </div>
-  )
+  );
 }
-export function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
+export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="mb-2 block text-xs font-semibold">{label}</span>
       {children}
     </label>
-  )
+  );
 }
-export function Timeline({
-  steps,
-  current,
-}: {
-  steps: string[]
-  current: number
-}) {
+export function Timeline({ steps, current }: { steps: string[]; current: number }) {
   return (
     <div className="space-y-0">
       {steps.map((step, index) => (
@@ -301,20 +269,16 @@ export function Timeline({
           </div>
           <div className="pt-1">
             <p
-              className={`text-sm font-semibold ${
-                index > current ? "text-muted-foreground" : ""
-              }`}
+              className={`text-sm font-semibold ${index > current ? "text-muted-foreground" : ""}`}
             >
               {step}
             </p>
-            {index === current && (
-              <p className="mt-1 text-xs text-primary">Current status</p>
-            )}
+            {index === current && <p className="mt-1 text-xs text-primary">Current status</p>}
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }
 export function Loading() {
   return (
@@ -326,16 +290,10 @@ export function Loading() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
-export function Stars({
-  size = 16,
-  className = "",
-}: {
-  size?: number
-  className?: string
-}) {
+export function Stars({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (
     <span
       className={`inline-flex items-center gap-0.5 align-middle ${className}`}
@@ -346,12 +304,12 @@ export function Stars({
         <Star key={i} size={size} fill="currentColor" strokeWidth={0} />
       ))}
     </span>
-  )
+  );
 }
 
 export interface SelectOption {
-  value: string
-  label: string
+  value: string;
+  label: string;
 }
 
 /** Styled dropdown — replaces native <select> so the list always opens below, in theme. */
@@ -363,30 +321,29 @@ export function Select({
   className = "",
   align = "left",
 }: {
-  value: string
-  options: SelectOption[]
-  onChange: (value: string) => void
-  label?: string
-  className?: string
-  align?: "left" | "right"
+  value: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  label?: string;
+  className?: string;
+  align?: "left" | "right";
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const current = options.find((option) => option.value === value) ?? options[0]
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find((option) => option.value === value) ?? options[0];
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     const close = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false)
-    }
-    const escape = (event: KeyboardEvent) =>
-      event.key === "Escape" && setOpen(false)
-    document.addEventListener("pointerdown", close)
-    document.addEventListener("keydown", escape)
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
     return () => {
-      document.removeEventListener("pointerdown", close)
-      document.removeEventListener("keydown", escape)
-    }
-  }, [open])
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
   return (
     <div ref={ref} className={`relative ${className}`}>
       <button
@@ -402,9 +359,7 @@ export function Select({
         <span className="truncate">{current?.label}</span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-muted-foreground transition ${
-            open ? "rotate-180" : ""
-          }`}
+          className={`shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open && (
@@ -416,7 +371,7 @@ export function Select({
           }`}
         >
           {options.map((option) => {
-            const selected = option.value === current?.value
+            const selected = option.value === current?.value;
             return (
               <li key={option.value}>
                 <button
@@ -424,23 +379,21 @@ export function Select({
                   role="option"
                   aria-selected={selected}
                   onClick={() => {
-                    onChange(option.value)
-                    setOpen(false)
+                    onChange(option.value);
+                    setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
-                    selected
-                      ? "bg-secondary font-semibold text-primary"
-                      : "hover:bg-muted"
+                    selected ? "bg-secondary font-semibold text-primary" : "hover:bg-muted"
                   }`}
                 >
                   {option.label}
                   {selected && <Check size={14} />}
                 </button>
               </li>
-            )
+            );
           })}
         </ul>
       )}
     </div>
-  )
+  );
 }

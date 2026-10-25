@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
   Plus,
   Tag,
@@ -10,110 +10,101 @@ import {
   Clock,
   ArrowRight,
   ShieldCheck,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import {
-  money,
-  formatDate,
-  type Coupon,
-  type CouponType,
-} from "../data/catalog"
-import { Button, Badge, Modal, Field, fieldClass } from "../components/ui"
+} from "lucide-react";
+import { useStore } from "../app/store";
+import { money, formatDate, type Coupon, type CouponType } from "../data/catalog";
+import { Button, Badge, Modal, Field, fieldClass } from "../components/ui";
 
 export default function CouponsAdmin({ view = "all" }: { view?: string }) {
-  const store = useStore()
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<Coupon | null>(null)
-  const [query, setQuery] = useState("")
+  const store = useStore();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Coupon | null>(null);
+  const [query, setQuery] = useState("");
 
   // Form State
-  const [code, setCode] = useState("")
-  const [description, setDescription] = useState("")
-  const [type, setType] = useState<CouponType>("percentage")
-  const [value, setValue] = useState(10)
-  const [minOrderValue, setMinOrderValue] = useState(0)
-  const [maxDiscount, setMaxDiscount] = useState(0)
-  const [totalUsageLimit, setTotalUsageLimit] = useState(0)
-  const [startsAt, setStartsAt] = useState("")
-  const [endsAt, setEndsAt] = useState("")
-  const [error, setError] = useState("")
+  const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<CouponType>("percentage");
+  const [value, setValue] = useState(10);
+  const [minOrderValue, setMinOrderValue] = useState(0);
+  const [maxDiscount, setMaxDiscount] = useState(0);
+  const [totalUsageLimit, setTotalUsageLimit] = useState(0);
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [error, setError] = useState("");
 
   const openCreate = () => {
-    setEditingCoupon(null)
-    setCode("")
-    setDescription("")
-    setType("percentage")
-    setValue(10)
-    setMinOrderValue(1000)
-    setMaxDiscount(2000)
-    setTotalUsageLimit(0)
-    const now = new Date()
-    setStartsAt(now.toISOString().slice(0, 16))
-    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    setEndsAt(future.toISOString().slice(0, 16))
-    setError("")
-    setEditorOpen(true)
-  }
+    setEditingCoupon(null);
+    setCode("");
+    setDescription("");
+    setType("percentage");
+    setValue(10);
+    setMinOrderValue(1000);
+    setMaxDiscount(2000);
+    setTotalUsageLimit(0);
+    const now = new Date();
+    setStartsAt(now.toISOString().slice(0, 16));
+    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    setEndsAt(future.toISOString().slice(0, 16));
+    setError("");
+    setEditorOpen(true);
+  };
 
   const openEdit = (c: Coupon) => {
-    setEditingCoupon(c)
-    setCode(c.code)
-    setDescription(c.description)
-    setType(c.type)
-    setValue(c.value)
-    setMinOrderValue(c.minOrderValue)
-    setMaxDiscount(c.maxDiscount)
-    setTotalUsageLimit(c.totalUsageLimit)
-    setStartsAt(
-      c.startsAt ? new Date(c.startsAt).toISOString().slice(0, 16) : "",
-    )
-    setEndsAt(c.endsAt ? new Date(c.endsAt).toISOString().slice(0, 16) : "")
-    setError("")
-    setEditorOpen(true)
-  }
+    setEditingCoupon(c);
+    setCode(c.code);
+    setDescription(c.description);
+    setType(c.type);
+    setValue(c.value);
+    setMinOrderValue(c.minOrderValue);
+    setMaxDiscount(c.maxDiscount);
+    setTotalUsageLimit(c.totalUsageLimit);
+    setStartsAt(c.startsAt ? new Date(c.startsAt).toISOString().slice(0, 16) : "");
+    setEndsAt(c.endsAt ? new Date(c.endsAt).toISOString().slice(0, 16) : "");
+    setError("");
+    setEditorOpen(true);
+  };
 
   const handleSave = (event: React.FormEvent) => {
-    event.preventDefault()
-    setError("")
-    const upperCode = code.trim().toUpperCase()
+    event.preventDefault();
+    setError("");
+    const upperCode = code.trim().toUpperCase();
 
     if (!upperCode) {
-      setError("Coupon code is required.")
-      return
+      setError("Coupon code is required.");
+      return;
     }
     if (!/^[A-Z0-9_-]{3,20}$/.test(upperCode)) {
       setError(
         "Coupon code must be 3-20 alphanumeric characters (hyphens and underscores allowed).",
-      )
-      return
+      );
+      return;
     }
 
     // Check duplicate code
     const existing = store.coupons.find(
       (c) => c.code.toUpperCase() === upperCode && c.id !== editingCoupon?.id,
-    )
+    );
     if (existing) {
-      setError(`Coupon code "${upperCode}" already exists.`)
-      return
+      setError(`Coupon code "${upperCode}" already exists.`);
+      return;
     }
 
     if (value <= 0) {
-      setError("Discount value must be greater than 0.")
-      return
+      setError("Discount value must be greater than 0.");
+      return;
     }
     if (type === "percentage" && value > 90) {
-      setError("Percentage discount cannot exceed 90%.")
-      return
+      setError("Percentage discount cannot exceed 90%.");
+      return;
     }
 
-    const startMs = startsAt ? new Date(startsAt).getTime() : Date.now()
-    const endMs = endsAt
-      ? new Date(endsAt).getTime()
-      : Date.now() + 30 * 86400000
+    const startMs = startsAt ? new Date(startsAt).getTime() : Date.now();
+    const endMs = endsAt ? new Date(endsAt).getTime() : Date.now() + 30 * 86400000;
     if (endMs <= startMs) {
-      setError("End date must be after the start date.")
-      return
+      setError("End date must be after the start date.");
+      return;
     }
 
     if (editingCoupon) {
@@ -129,12 +120,12 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
         totalUsageLimit,
         startsAt: new Date(startMs).toISOString(),
         endsAt: new Date(endMs).toISOString(),
-      }
+      };
       store.set((prev) => ({
         coupons: prev.coupons.map((c) => (c.id === updated.id ? updated : c)),
-      }))
-      store.log(`Coupon Updated: ${upperCode}`)
-      store.notify(`Coupon ${upperCode} updated`)
+      }));
+      store.log(`Coupon Updated: ${upperCode}`);
+      store.notify(`Coupon ${upperCode} updated`);
     } else {
       const created: Coupon = {
         id: `CPN-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
@@ -151,52 +142,50 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
         startsAt: new Date(startMs).toISOString(),
         endsAt: new Date(endMs).toISOString(),
         createdAt: new Date().toISOString(),
-      }
+      };
       store.set((prev) => ({
         coupons: [created, ...prev.coupons],
-      }))
-      store.log(`Coupon Created: ${upperCode}`)
-      store.notify(`Coupon ${upperCode} created successfully`)
+      }));
+      store.log(`Coupon Created: ${upperCode}`);
+      store.notify(`Coupon ${upperCode} created successfully`);
     }
 
-    setEditorOpen(false)
-  }
+    setEditorOpen(false);
+  };
 
   const toggleActive = (c: Coupon) => {
     store.set((prev) => ({
       coupons: prev.coupons.map((item) =>
         item.id === c.id ? { ...item, active: !item.active } : item,
       ),
-    }))
-    store.log(`Coupon ${c.active ? "Disabled" : "Enabled"}: ${c.code}`)
-    store.notify(`Coupon ${c.code} ${c.active ? "disabled" : "activated"}`)
-  }
+    }));
+    store.log(`Coupon ${c.active ? "Disabled" : "Enabled"}: ${c.code}`);
+    store.notify(`Coupon ${c.code} ${c.active ? "disabled" : "activated"}`);
+  };
 
   const handleDelete = (c: Coupon) => {
     store.set((prev) => ({
       coupons: prev.coupons.filter((item) => item.id !== c.id),
-    }))
-    store.log(`Coupon Deleted: ${c.code}`)
-    store.notify(`Coupon ${c.code} deleted`)
-    setDeleteConfirm(null)
-  }
+    }));
+    store.log(`Coupon Deleted: ${c.code}`);
+    store.notify(`Coupon ${c.code} deleted`);
+    setDeleteConfirm(null);
+  };
 
   // Filter coupons
   const filteredCoupons = store.coupons.filter((c) => {
     const matchesQuery =
       c.code.toLowerCase().includes(query.toLowerCase()) ||
-      c.description.toLowerCase().includes(query.toLowerCase())
-    return matchesQuery
-  })
+      c.description.toLowerCase().includes(query.toLowerCase());
+    return matchesQuery;
+  });
 
   return (
     <div className="space-y-6">
       {/* Top action bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">
-            Coupons & Promo Codes
-          </h2>
+          <h2 className="text-xl font-bold text-foreground">Coupons & Promo Codes</h2>
           <p className="text-xs text-muted-foreground">
             Configure one-time or multiple-use discount codes for checkout.
           </p>
@@ -212,18 +201,14 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
       <div className="flex gap-2 border-b border-border pb-2 text-xs font-semibold">
         <span
           className={`cursor-pointer rounded-lg px-3 py-1.5 ${
-            view !== "usage"
-              ? "bg-primary text-white"
-              : "text-muted-foreground hover:bg-muted"
+            view !== "usage" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"
           }`}
         >
           All Coupons ({store.coupons.length})
         </span>
         <span
           className={`cursor-pointer rounded-lg px-3 py-1.5 ${
-            view === "usage"
-              ? "bg-primary text-white"
-              : "text-muted-foreground hover:bg-muted"
+            view === "usage" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"
           }`}
         >
           Usage History ({store.couponUsages.length})
@@ -236,8 +221,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
           <div className="border-b border-border p-4">
             <h3 className="text-sm font-bold">Coupon Redemptions</h3>
             <p className="text-xs text-muted-foreground">
-              Recorded each time a customer completes an order using a valid
-              coupon.
+              Recorded each time a customer completes an order using a valid coupon.
             </p>
           </div>
           {store.couponUsages.length > 0 ? (
@@ -258,9 +242,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                       <td className="px-5 py-3.5 font-mono font-bold text-primary">
                         {usage.couponCode}
                       </td>
-                      <td className="px-5 py-3.5">
-                        {usage.customerId || usage.userId}
-                      </td>
+                      <td className="px-5 py-3.5">{usage.customerId || usage.userId}</td>
                       <td className="px-5 py-3.5 font-mono">{usage.orderId}</td>
                       <td className="px-5 py-3.5 font-semibold text-emerald-700">
                         −{money(usage.discount)}
@@ -284,10 +266,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
         <div className="overflow-hidden rounded-xl border border-border bg-white">
           <div className="flex items-center justify-between border-b border-border p-4">
             <div className="relative w-full max-w-xs">
-              <Search
-                size={14}
-                className="absolute left-3 top-3 text-muted-foreground"
-              />
+              <Search size={14} className="absolute left-3 top-3 text-muted-foreground" />
               <input
                 placeholder="Search coupon code…"
                 value={query}
@@ -295,9 +274,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                 className={`${fieldClass} py-2 pl-9 text-xs`}
               />
             </div>
-            <span className="text-xs text-muted-foreground">
-              {filteredCoupons.length} coupons
-            </span>
+            <span className="text-xs text-muted-foreground">{filteredCoupons.length} coupons</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -316,19 +293,15 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredCoupons.map((c) => {
-                  const now = Date.now()
-                  const isExpired =
-                    c.endsAt && new Date(c.endsAt).getTime() < now
-                  const isFuture =
-                    c.startsAt && new Date(c.startsAt).getTime() > now
+                  const now = Date.now();
+                  const isExpired = c.endsAt && new Date(c.endsAt).getTime() < now;
+                  const isFuture = c.startsAt && new Date(c.startsAt).getTime() > now;
                   return (
                     <tr key={c.id} className="hover:bg-muted/30">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
                           <Tag size={13} className="text-primary" />
-                          <span className="font-mono font-bold text-foreground">
-                            {c.code}
-                          </span>
+                          <span className="font-mono font-bold text-foreground">{c.code}</span>
                         </div>
                         {c.description && (
                           <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -337,9 +310,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                         )}
                       </td>
                       <td className="px-5 py-3.5 font-semibold text-emerald-700">
-                        {c.type === "percentage"
-                          ? `${c.value}% OFF`
-                          : `₹${c.value} FLAT`}
+                        {c.type === "percentage" ? `${c.value}% OFF` : `₹${c.value} FLAT`}
                         {c.type === "percentage" && c.maxDiscount > 0 && (
                           <span className="block text-[10px] text-muted-foreground font-normal">
                             Cap: ₹{c.maxDiscount}
@@ -347,18 +318,14 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        {c.minOrderValue > 0
-                          ? money(c.minOrderValue)
-                          : "No min"}
+                        {c.minOrderValue > 0 ? money(c.minOrderValue) : "No min"}
                       </td>
                       <td className="px-5 py-3.5">
                         <Badge tone="amber">1-Time / Customer</Badge>
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="font-semibold">{c.timesUsed}</span>
-                        {c.totalUsageLimit > 0
-                          ? ` / ${c.totalUsageLimit}`
-                          : " / ∞"}
+                        {c.totalUsageLimit > 0 ? ` / ${c.totalUsageLimit}` : " / ∞"}
                       </td>
                       <td className="px-5 py-3.5 text-[11px] text-muted-foreground">
                         {formatDate(c.startsAt)} – {formatDate(c.endsAt)}
@@ -366,13 +333,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                       <td className="px-5 py-3.5">
                         <Badge
                           tone={
-                            !c.active
-                              ? "gray"
-                              : isExpired
-                                ? "red"
-                                : isFuture
-                                  ? "blue"
-                                  : "green"
+                            !c.active ? "gray" : isExpired ? "red" : isFuture ? "blue" : "green"
                           }
                         >
                           {!c.active
@@ -416,14 +377,11 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
                         </div>
                       </td>
                     </tr>
-                  )
+                  );
                 })}
                 {!filteredCoupons.length && (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="p-8 text-center text-xs text-muted-foreground"
-                    >
+                    <td colSpan={8} className="p-8 text-center text-xs text-muted-foreground">
                       No coupons found. Click "Create Coupon" above to add one.
                     </td>
                   </tr>
@@ -438,18 +396,12 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
       <Modal
         open={editorOpen}
         onOpenChange={setEditorOpen}
-        title={
-          editingCoupon
-            ? `Edit Coupon: ${editingCoupon.code}`
-            : "Create New Coupon"
-        }
+        title={editingCoupon ? `Edit Coupon: ${editingCoupon.code}` : "Create New Coupon"}
         description="Set discount rules, order thresholds, one-time customer limits, and active date window."
       >
         <form onSubmit={handleSave} className="space-y-4">
           {error && (
-            <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-700">
-              {error}
-            </p>
+            <p className="rounded-md bg-red-50 p-2.5 text-xs font-medium text-red-700">{error}</p>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -485,11 +437,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
-              label={
-                type === "percentage"
-                  ? "Discount Percentage (%) *"
-                  : "Discount Amount (₹) *"
-              }
+              label={type === "percentage" ? "Discount Percentage (%) *" : "Discount Amount (₹) *"}
             >
               <input
                 type="number"
@@ -527,8 +475,7 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
             <Field label="Customer Usage Policy">
               <div className="flex h-10 items-center rounded-lg border border-border bg-muted/40 px-3 text-xs font-medium text-foreground">
                 <span className="inline-flex items-center gap-1.5 text-amber-700">
-                  <ShieldCheck size={14} /> 1-Time / Customer (Single redemption
-                  per user)
+                  <ShieldCheck size={14} /> 1-Time / Customer (Single redemption per user)
                 </span>
               </div>
             </Field>
@@ -566,16 +513,10 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
           </div>
 
           <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-border">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setEditorOpen(false)}
-            >
+            <Button type="button" variant="secondary" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">
-              {editingCoupon ? "Save Changes" : "Create Coupon"}
-            </Button>
+            <Button type="submit">{editingCoupon ? "Save Changes" : "Create Coupon"}</Button>
           </div>
         </form>
       </Modal>
@@ -602,5 +543,5 @@ export default function CouponsAdmin({ view = "all" }: { view?: string }) {
         </Modal>
       )}
     </div>
-  )
+  );
 }

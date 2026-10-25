@@ -3,17 +3,15 @@
 // Rigorous verification covering Rules A through J, Power Calculation, Recommendations,
 // Supabase Persistence Integrity, and Shopify Cart Preparation.
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts"
+import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // Dynamic import of builder modules
-const {
-  checkCompatibility,
-  calculateSystemPower,
-  compatibility,
-} = await import("../../../src/lib/builder/compatibility.ts")
+const { checkCompatibility, calculateSystemPower, compatibility } =
+  await import("../../../src/lib/builder/compatibility.ts");
 
-const { generateRecommendations } = await import("../../../src/lib/builder/recommendations.ts")
-const { generateWhatsAppQuotation, prepareShopifyCheckout } = await import("../../../src/lib/builder/checkout.ts")
+const { generateRecommendations } = await import("../../../src/lib/builder/recommendations.ts");
+const { generateWhatsAppQuotation, prepareShopifyCheckout } =
+  await import("../../../src/lib/builder/checkout.ts");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compatibility Engine Unit Tests (Rules A – J)
@@ -43,15 +41,15 @@ Deno.test("PC-BUILD-1: Rule A — CPU and Motherboard socket mismatch triggers h
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  assertEquals(result.valid, false)
-  const socketError = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_MISMATCH")
-  assertEquals(Boolean(socketError), true)
-  assertEquals(socketError?.severity, "error")
-  assertEquals(socketError?.status, "incompatible")
-})
+  const result = checkCompatibility(parts);
+  assertEquals(result.valid, false);
+  const socketError = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_MISMATCH");
+  assertEquals(Boolean(socketError), true);
+  assertEquals(socketError?.severity, "error");
+  assertEquals(socketError?.status, "incompatible");
+});
 
 Deno.test("PC-BUILD-2: Rule A — Exact matching CPU & Motherboard sockets pass cleanly", () => {
   const parts: any = {
@@ -77,13 +75,13 @@ Deno.test("PC-BUILD-2: Rule A — Exact matching CPU & Motherboard sockets pass 
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const matchInfo = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_MATCH")
-  assertEquals(Boolean(matchInfo), true)
-  assertEquals(matchInfo?.status, "compatible")
-})
+  const result = checkCompatibility(parts);
+  const matchInfo = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_MATCH");
+  assertEquals(Boolean(matchInfo), true);
+  assertEquals(matchInfo?.status, "compatible");
+});
 
 Deno.test("PC-BUILD-3: Rule B — RAM generation mismatch (DDR4 vs DDR5) triggers error", () => {
   const parts: any = {
@@ -109,14 +107,14 @@ Deno.test("PC-BUILD-3: Rule B — RAM generation mismatch (DDR4 vs DDR5) trigger
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const ramError = result.items.find((i) => i.ruleId === "RULE_B_RAM_MISMATCH")
-  assertEquals(Boolean(ramError), true)
-  assertEquals(ramError?.severity, "error")
-  assertEquals(result.valid, false)
-})
+  const result = checkCompatibility(parts);
+  const ramError = result.items.find((i) => i.ruleId === "RULE_B_RAM_MISMATCH");
+  assertEquals(Boolean(ramError), true);
+  assertEquals(ramError?.severity, "error");
+  assertEquals(result.valid, false);
+});
 
 Deno.test("PC-BUILD-4: Rule B — Incompatible SO-DIMM laptop memory triggers error", () => {
   const parts: any = {
@@ -131,13 +129,13 @@ Deno.test("PC-BUILD-4: Rule B — Incompatible SO-DIMM laptop memory triggers er
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const sodimmError = result.items.find((i) => i.ruleId === "RULE_B_RAM_SODIMM_ERROR")
-  assertEquals(Boolean(sodimmError), true)
-  assertEquals(sodimmError?.severity, "error")
-})
+  const result = checkCompatibility(parts);
+  const sodimmError = result.items.find((i) => i.ruleId === "RULE_B_RAM_SODIMM_ERROR");
+  assertEquals(Boolean(sodimmError), true);
+  assertEquals(sodimmError?.severity, "error");
+});
 
 Deno.test("PC-BUILD-5: Rule D — GPU length exceeding cabinet clearance triggers error", () => {
   const parts: any = {
@@ -163,13 +161,13 @@ Deno.test("PC-BUILD-5: Rule D — GPU length exceeding cabinet clearance trigger
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const clearanceError = result.items.find((i) => i.ruleId === "RULE_D_GPU_LENGTH_EXCEEDED")
-  assertEquals(Boolean(clearanceError), true)
-  assertEquals(clearanceError?.severity, "error")
-})
+  const result = checkCompatibility(parts);
+  const clearanceError = result.items.find((i) => i.ruleId === "RULE_D_GPU_LENGTH_EXCEEDED");
+  assertEquals(Boolean(clearanceError), true);
+  assertEquals(clearanceError?.severity, "error");
+});
 
 Deno.test("PC-BUILD-6: Rule E & F — Power calculation and PSU deficit detection", () => {
   const parts: any = {
@@ -186,19 +184,19 @@ Deno.test("PC-BUILD-6: Rule E & F — Power calculation and PSU deficit detectio
       title: "Entry 450W PSU",
       specs: { ratedWattage: 450 },
     },
-  }
+  };
 
   // System load = 125 + 285 + 80 = 490W
-  const power = calculateSystemPower(parts)
-  assertEquals(power.estimatedSystemLoadWatts, 490)
-  assertEquals(power.powerHeadroomStatus, "deficit")
+  const power = calculateSystemPower(parts);
+  assertEquals(power.estimatedSystemLoadWatts, 490);
+  assertEquals(power.powerHeadroomStatus, "deficit");
 
-  const result = checkCompatibility(parts)
-  const psuDeficit = result.items.find((i) => i.ruleId === "RULE_E_PSU_WATTAGE_DEFICIT")
-  assertEquals(Boolean(psuDeficit), true)
-  assertEquals(psuDeficit?.severity, "error")
-  assertEquals(result.valid, false)
-})
+  const result = checkCompatibility(parts);
+  const psuDeficit = result.items.find((i) => i.ruleId === "RULE_E_PSU_WATTAGE_DEFICIT");
+  assertEquals(Boolean(psuDeficit), true);
+  assertEquals(psuDeficit?.severity, "error");
+  assertEquals(result.valid, false);
+});
 
 Deno.test("PC-BUILD-7: Rule G — Motherboard form factor mismatch with case triggers error", () => {
   const parts: any = {
@@ -212,13 +210,13 @@ Deno.test("PC-BUILD-7: Rule G — Motherboard form factor mismatch with case tri
       title: "Micro-ATX Mini Case",
       specs: { supportedMotherboards: ["Micro-ATX", "Mini-ITX"] },
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const formFactorError = result.items.find((i) => i.ruleId === "RULE_G_FORM_FACTOR_MISMATCH")
-  assertEquals(Boolean(formFactorError), true)
-  assertEquals(formFactorError?.severity, "error")
-})
+  const result = checkCompatibility(parts);
+  const formFactorError = result.items.find((i) => i.ruleId === "RULE_G_FORM_FACTOR_MISMATCH");
+  assertEquals(Boolean(formFactorError), true);
+  assertEquals(formFactorError?.severity, "error");
+});
 
 Deno.test("PC-BUILD-8: Rule I — CPU with no iGPU requires discrete GPU for display output", () => {
   const parts: any = {
@@ -227,14 +225,14 @@ Deno.test("PC-BUILD-8: Rule I — CPU with no iGPU requires discrete GPU for dis
       title: "Intel Core i5-12400F (No iGPU)",
       specs: { socket: "LGA1700", hasIntegratedGraphics: false, includesCooler: true },
     },
-  }
+  };
 
-  const result = checkCompatibility(parts, { workload: "work" })
-  const igpuError = result.items.find((i) => i.ruleId === "RULE_I_GPU_MANDATORY_NO_IGPU")
-  assertEquals(Boolean(igpuError), true)
-  assertEquals(igpuError?.severity, "error")
-  assertEquals(result.valid, false)
-})
+  const result = checkCompatibility(parts, { workload: "work" });
+  const igpuError = result.items.find((i) => i.ruleId === "RULE_I_GPU_MANDATORY_NO_IGPU");
+  assertEquals(Boolean(igpuError), true);
+  assertEquals(igpuError?.severity, "error");
+  assertEquals(result.valid, false);
+});
 
 Deno.test("PC-BUILD-9: Rule J — Unspecified sockets are marked unknown rather than falsely compatible", () => {
   const parts: any = {
@@ -248,13 +246,13 @@ Deno.test("PC-BUILD-9: Rule J — Unspecified sockets are marked unknown rather 
       title: "Unbranded Motherboard",
       specs: { socket: "AM5" },
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const unknownItem = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_UNKNOWN")
-  assertEquals(Boolean(unknownItem), true)
-  assertEquals(unknownItem?.status, "unknown")
-})
+  const result = checkCompatibility(parts);
+  const unknownItem = result.items.find((i) => i.ruleId === "RULE_A_SOCKET_UNKNOWN");
+  assertEquals(Boolean(unknownItem), true);
+  assertEquals(unknownItem?.status, "unknown");
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Recommendation Engine Unit Tests
@@ -269,7 +267,13 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/1",
         title: "AMD Ryzen 5 7600",
         price: 18999,
-        specs: { socket: "AM5", tdpWatts: 65, hasIntegratedGraphics: true, includesCooler: true, supportedRamGen: ["DDR5"] },
+        specs: {
+          socket: "AM5",
+          tdpWatts: 65,
+          hasIntegratedGraphics: true,
+          includesCooler: true,
+          supportedRamGen: ["DDR5"],
+        },
       },
       {
         slot: "CPU",
@@ -277,7 +281,13 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/2",
         title: "AMD Ryzen 5 5600",
         price: 10999,
-        specs: { socket: "AM4", tdpWatts: 65, hasIntegratedGraphics: false, includesCooler: true, supportedRamGen: ["DDR4"] },
+        specs: {
+          socket: "AM4",
+          tdpWatts: 65,
+          hasIntegratedGraphics: false,
+          includesCooler: true,
+          supportedRamGen: ["DDR4"],
+        },
       },
     ],
     Motherboard: [
@@ -356,7 +366,7 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         specs: { supportedMotherboards: ["ATX", "Micro-ATX"], maxGpuLengthMm: 350 },
       },
     ],
-  }
+  };
 
   const answers: any = {
     purpose: "gaming",
@@ -365,17 +375,17 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
     ownedParts: [],
     preferredBrands: ["AMD"],
     requireWifi: false,
-  }
+  };
 
-  const candidates = generateRecommendations(answers, mockCatalog)
-  assertEquals(candidates.length > 0, true)
+  const candidates = generateRecommendations(answers, mockCatalog);
+  assertEquals(candidates.length > 0, true);
   // All generated candidates must pass hard compatibility checks
   for (const c of candidates) {
-    assertEquals(c.build.compatibility.valid, true)
-    assertEquals(Boolean(c.title), true)
-    assertEquals(Boolean(c.rationale), true)
+    assertEquals(c.build.compatibility.valid, true);
+    assertEquals(Boolean(c.title), true);
+    assertEquals(Boolean(c.rationale), true);
   }
-})
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Quotation & Commerce Finalization Tests
@@ -395,14 +405,14 @@ Deno.test("PC-BUILD-11: WhatsApp quotation formatting includes reference ID and 
       GPU: { title: "NVIDIA RTX 4060", price: 28999 },
       RAM: { title: "16GB DDR5", price: 4299 },
     },
-  }
+  };
 
-  const quote = generateWhatsAppQuotation(build, "919074000000")
-  assertEquals(quote.referenceId.startsWith("ITHUB-PC-"), true)
-  assertEquals(quote.message.includes("Custom Gaming Beast"), true)
-  assertEquals(quote.message.includes("AMD Ryzen 5 7600"), true)
-  assertEquals(quote.whatsappUrl.startsWith("https://wa.me/919074000000"), true)
-})
+  const quote = generateWhatsAppQuotation(build, "919074000000");
+  assertEquals(quote.referenceId.startsWith("ITHUB-PC-"), true);
+  assertEquals(quote.message.includes("Custom Gaming Beast"), true);
+  assertEquals(quote.message.includes("AMD Ryzen 5 7600"), true);
+  assertEquals(quote.whatsappUrl.startsWith("https://wa.me/919074000000"), true);
+});
 
 Deno.test("PC-BUILD-12: Shopify cart checkout preparation requires real variant GIDs", async () => {
   const buildWithMockVariants: any = {
@@ -411,13 +421,13 @@ Deno.test("PC-BUILD-12: Shopify cart checkout preparation requires real variant 
     components: {
       CPU: { variantId: "gid://shopify/ProductVariant/mock-cpu", price: 18999 },
     },
-  }
+  };
 
-  const result = await prepareShopifyCheckout(buildWithMockVariants)
+  const result = await prepareShopifyCheckout(buildWithMockVariants);
   // Mock/unlinked variants are caught and prevented from sending invalid requests to Shopify
-  assertEquals(result.success, false)
-  assertEquals(Boolean(result.error), true)
-})
+  assertEquals(result.success, false);
+  assertEquals(Boolean(result.error), true);
+});
 
 Deno.test("PC-BUILD-13: Backward compatibility wrapper preserves Admin.tsx signature", () => {
   const legacyParts: any = {
@@ -429,13 +439,13 @@ Deno.test("PC-BUILD-13: Backward compatibility wrapper preserves Admin.tsx signa
     PSU: { id: "psu", name: "550W PSU", price: 3499, capacity: 550 },
     Cabinet: { id: "case", name: "ATX Case", price: 3899, clearance: 350 },
     Cooler: { id: "cooler", name: "Tower Cooler", price: 1799 },
-  }
+  };
 
-  const result = compatibility(legacyParts)
+  const result = compatibility(legacyParts);
   // Must return expected shape { result, watts, recommended, valid, complete }
-  assertEquals(typeof result.valid, "boolean")
-  assertEquals(typeof result.watts, "number")
-  assertEquals(typeof result.recommended, "number")
-  assertEquals(Array.isArray(result.result), true)
-  assertEquals(result.valid, true)
-})
+  assertEquals(typeof result.valid, "boolean");
+  assertEquals(typeof result.watts, "number");
+  assertEquals(typeof result.recommended, "number");
+  assertEquals(Array.isArray(result.result), true);
+  assertEquals(result.valid, true);
+});

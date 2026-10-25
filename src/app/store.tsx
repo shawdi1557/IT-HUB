@@ -1,25 +1,19 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { track } from "../lib/analytics"
+import { track } from "../lib/analytics";
 
-import { supabase } from "../lib/supabase"
-import { shopifyConfig, fetchShopifyCatalog } from "../lib/shopify"
-import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog"
+import { supabase } from "../lib/supabase";
+import { shopifyConfig, fetchShopifyCatalog } from "../lib/shopify";
+import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog";
 
-import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
+import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth";
 
 import {
   fetchCatalogDetailed,
   fetchActiveOffersDetailed,
   fetchActiveCouponsDetailed,
   patchProductInventory,
-} from "../lib/catalog"
+} from "../lib/catalog";
 
 import {
   initialOffers,
@@ -53,154 +47,151 @@ import {
   initialSellRequests,
   type CertificateItem,
   initialCertificates,
-} from "../data/catalog"
+} from "../data/catalog";
 
-import {
-  initialBuildTemplates,
-  type BuildTemplate,
-} from "../data/buildTemplates"
+import { initialBuildTemplates, type BuildTemplate } from "../data/buildTemplates";
 
-import { resourceDefinitions, type AdminRecord } from "../data/admin"
+import { resourceDefinitions, type AdminRecord } from "../data/admin";
 
 type Profile = {
-  id?: string
+  id?: string;
 
-  role?: string
+  role?: string;
 
-  name: string
+  name: string;
 
-  email: string
+  email: string;
 
-  phone: string
+  phone: string;
 
-  address: string
-}
+  address: string;
+};
 
 type Audit = {
-  id: string
+  id: string;
 
-  action: string
+  action: string;
 
-  date: string
-}
+  date: string;
+};
 
 export type ShowcaseImage = {
-  id: string
+  id: string;
 
-  src: string
+  src: string;
 
-  caption: string
-}
+  caption: string;
+};
 
 type State = {
-  products: Product[]
+  products: Product[];
 
-  cart: CartItem[]
+  cart: CartItem[];
 
-  wishlist: string[]
+  wishlist: string[];
 
-  orders: Order[]
+  orders: Order[];
 
-  requests: ServiceRequest[]
+  requests: ServiceRequest[];
 
-  builds: Build[]
+  builds: Build[];
 
-  buildTemplates: BuildTemplate[]
+  buildTemplates: BuildTemplate[];
 
   /** Assembly charge added to build estimates; 0 = free assembly. */
 
-  assemblyCharge: number
+  assemblyCharge: number;
 
-  offers: Offer[]
+  offers: Offer[];
 
-  profile: Profile
+  profile: Profile;
 
-  loggedIn: boolean
+  loggedIn: boolean;
 
-  showcase: ShowcaseImage[]
+  showcase: ShowcaseImage[];
 
-  notifications: string[]
+  notifications: string[];
 
-  audit: Audit[]
+  audit: Audit[];
 
-  technicians: string[]
+  technicians: string[];
 
-  catalogCategories: string[]
+  catalogCategories: string[];
 
-  brands: string[]
+  brands: string[];
 
-  locations: ItHubLocation[]
+  locations: ItHubLocation[];
 
-  warrantyChecks: WarrantyCheck[]
+  warrantyChecks: WarrantyCheck[];
 
-  pcEnquiries: PcEnquiry[]
+  pcEnquiries: PcEnquiry[];
 
-  importHistory: ImportRecord[]
+  importHistory: ImportRecord[];
 
-  supportCategories: SupportCategory[]
+  supportCategories: SupportCategory[];
 
-  brandSupport: BrandSupport[]
+  brandSupport: BrandSupport[];
 
-  serviceCentres: ServiceCentre[]
+  serviceCentres: ServiceCentre[];
 
-  supportVerifications: SupportVerification[]
+  supportVerifications: SupportVerification[];
 
   /** Recently viewed brand-support record ids (customer side). */
 
-  recentSupport: string[]
+  recentSupport: string[];
 
-  componentCatalog: Record<string, ComponentOption[]>
+  componentCatalog: Record<string, ComponentOption[]>;
 
-  resources: Record<string, AdminRecord[]>
+  resources: Record<string, AdminRecord[]>;
 
   settings: {
-    storeName: string
+    storeName: string;
 
-    delivery: string
+    delivery: string;
 
-    emailNotifications: boolean
+    emailNotifications: boolean;
 
     /** Official IT HUB WhatsApp number, digits with country code (e.g. 919876543210). */
 
-    whatsapp: string
+    whatsapp: string;
 
-    address: string
+    address: string;
 
-    phone: string
+    phone: string;
 
-    email: string
+    email: string;
 
-    workingHours: string
-  }
+    workingHours: string;
+  };
 
   tickets: {
-    id: string
+    id: string;
 
-    subject: string
+    subject: string;
 
-    message: string
+    message: string;
 
-    status: string
-  }[]
+    status: string;
+  }[];
 
-  coupons: Coupon[]
+  coupons: Coupon[];
 
-  couponUsages: CouponUsage[]
+  couponUsages: CouponUsage[];
 
-  sellRequests: SellRequest[]
+  sellRequests: SellRequest[];
 
-  certificates: CertificateItem[]
+  certificates: CertificateItem[];
 
-  catalogLoading: boolean
+  catalogLoading: boolean;
 
-  catalogLive: boolean
+  catalogLive: boolean;
 
-  catalogError: string | null
+  catalogError: string | null;
 
-  catalogSource: "shopify" | "supabase" | "unconfigured"
+  catalogSource: "shopify" | "supabase" | "unconfigured";
 
-  realtimeConnected: boolean
-}
+  realtimeConnected: boolean;
+};
 
 const initial: State = {
   products: [],
@@ -308,47 +299,46 @@ const initial: State = {
   },
 
   tickets: [],
-}
+};
 
 type Store = State & {
-  set: (next: Partial<State> | ((state: State) => Partial<State>)) => void
+  set: (next: Partial<State> | ((state: State) => Partial<State>)) => void;
 
-  notify: (message: string) => void
+  notify: (message: string) => void;
 
-  toast: string
+  toast: string;
 
-  authOpen: boolean
+  authOpen: boolean;
 
-  setAuthOpen: (open: boolean) => void
+  setAuthOpen: (open: boolean) => void;
 
-  addCart: (item: Omit<CartItem, "quantity">, quantity?: number) => void
+  addCart: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
 
-  toggleWish: (id: string) => void
+  toggleWish: (id: string) => void;
 
-  log: (action: string) => void
+  log: (action: string) => void;
 
-  refreshCatalog: (options?: { force?: boolean }) => Promise<void>
-}
+  refreshCatalog: (options?: { force?: boolean }) => Promise<void>;
+};
 
 // Keep one context instance across hot updates; otherwise an edited store
 
 // module creates a new context that the already-mounted provider doesn't supply.
 
 const globalStore = globalThis as {
-  __ithubStoreContext?: ReturnType<typeof createContext<Store | null>>
-}
+  __ithubStoreContext?: ReturnType<typeof createContext<Store | null>>;
+};
 
-const Context = (globalStore.__ithubStoreContext ??=
-  createContext<Store | null>(null))
+const Context = (globalStore.__ithubStoreContext ??= createContext<Store | null>(null));
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => {
     try {
-      const saved = localStorage.getItem("ithub-prototype-v1")
+      const saved = localStorage.getItem("ithub-prototype-v1");
 
-      if (!saved) return initial
+      if (!saved) return initial;
 
-      const parsed = JSON.parse(saved) as Partial<State>
+      const parsed = JSON.parse(saved) as Partial<State>;
 
       return {
         ...initial,
@@ -367,9 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         // Older saves used coupon-code offers; replace them with the new offer model.
 
-        offers: parsed.offers?.every((offer) => "type" in offer)
-          ? parsed.offers
-          : initial.offers,
+        offers: parsed.offers?.every((offer) => "type" in offer) ? parsed.offers : initial.offers,
 
         settings: {
           ...initial.settings,
@@ -401,8 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
                       name: "IT HUB Kothamangalam (Headquarters)",
 
-                      address:
-                        "Molathu Building, College Jn., Kothamangalam, Kerala",
+                      address: "Molathu Building, College Jn., Kothamangalam, Kerala",
 
                       pincode: "686691",
 
@@ -425,10 +412,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               ...parsed.serviceCentres,
 
               ...initial.serviceCentres.filter(
-                (c) =>
-                  !(parsed.serviceCentres as any[])?.some(
-                    (p: any) => p.id === c.id,
-                  ),
+                (c) => !(parsed.serviceCentres as any[])?.some((p: any) => p.id === c.id),
               ),
             ]
           : initial.serviceCentres,
@@ -442,44 +426,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           Object.entries(initial.componentCatalog).map(([type, options]) => {
             const saved = (parsed.componentCatalog?.[type] || []).filter(
               (item: any) => item.isShopifyLive && item.variantId,
-            )
+            );
 
             return [
               type,
               [
                 ...saved,
-                ...options.filter(
-                  (option) => !saved.some((row: any) => row.id === option.id),
-                ),
+                ...options.filter((option) => !saved.some((row: any) => row.id === option.id)),
               ],
-            ]
+            ];
           }),
         ),
-      }
+      };
     } catch {
-      return initial
+      return initial;
     }
-  })
+  });
 
-  const [toast, setToast] = useState("")
+  const [toast, setToast] = useState("");
 
-  const [authOpen, setAuthOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     try {
-      localStorage.setItem("ithub-prototype-v1", JSON.stringify(state))
+      localStorage.setItem("ithub-prototype-v1", JSON.stringify(state));
     } catch {
-      setToast("Browser storage is unavailable. Changes last for this session.")
+      setToast("Browser storage is unavailable. Changes last for this session.");
     }
-  }, [state])
+  }, [state]);
 
   useEffect(() => {
-    if (!toast) return
+    if (!toast) return;
 
-    const timer = setTimeout(() => setToast(""), 3500)
+    const timer = setTimeout(() => setToast(""), 3500);
 
-    return () => clearTimeout(timer)
-  }, [toast])
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // Synchronize store with real Supabase Auth session & PostgreSQL profiles
 
@@ -504,20 +486,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
                 name: profile?.full_name || prev.profile.name,
 
-                email:
-                  profile?.email || session.user.email || prev.profile.email,
+                email: profile?.email || session.user.email || prev.profile.email,
 
                 address: profile?.address || prev.profile.address,
               },
-            }))
-          })
+            }));
+          });
         }
-      })
+      });
     }
 
     const unsubscribe = subscribeToAuthChanges((user) => {
       if (!user) {
-        setState((prev) => ({ ...prev, loggedIn: false }))
+        setState((prev) => ({ ...prev, loggedIn: false }));
       } else {
         fetchOrCreateProfile(user).then((profile) => {
           setState((prev) => ({
@@ -540,22 +521,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
               address: profile?.address || prev.profile.address,
             },
-          }))
-        })
+          }));
+        });
       }
-    })
+    });
 
     return () => {
-      unsubscribe()
-    }
-  }, [])
+      unsubscribe();
+    };
+  }, []);
 
   const refreshCatalog = async (options: { force?: boolean } = {}) => {
     setState((prev) =>
-      prev.products.length === 0 || options.force
-        ? { ...prev, catalogLoading: true }
-        : prev,
-    )
+      prev.products.length === 0 || options.force ? { ...prev, catalogLoading: true } : prev,
+    );
 
     try {
       if (shopifyConfig.isConfigured) {
@@ -564,63 +543,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           fetchShopifyCatalog({ first: 100, force: options.force }),
           fetchActiveOffersDetailed(),
           fetchActiveCouponsDetailed(),
-        ])
+        ]);
 
         setState((prev) => {
           const updates: Partial<State> = {
             catalogLoading: false,
             catalogSource: "shopify",
-          }
+          };
 
           if (shopifyRes.status === "fulfilled") {
-            const { products: shopifyProducts, isLive, error } = shopifyRes.value
+            const { products: shopifyProducts, isLive, error } = shopifyRes.value;
             if (error) {
               // Strictly display error; never silently substitute with Supabase
-              updates.catalogError = error
-              updates.catalogLive = false
-              updates.products = []
+              updates.catalogError = error;
+              updates.catalogLive = false;
+              updates.products = [];
             } else {
-              updates.products = shopifyProducts
-              updates.catalogLive = isLive
-              updates.catalogError = null
+              updates.products = shopifyProducts;
+              updates.catalogLive = isLive;
+              updates.catalogError = null;
 
               const liveCategories = Array.from(
                 new Set(shopifyProducts.map((p) => p.category).filter(Boolean)),
-              )
+              );
               if (liveCategories.length > 0) {
-                updates.catalogCategories = [
-                  "All",
-                  ...liveCategories.filter((c) => c !== "All"),
-                ]
+                updates.catalogCategories = ["All", ...liveCategories.filter((c) => c !== "All")];
               }
               const liveBrands = Array.from(
                 new Set(shopifyProducts.map((p) => p.brand).filter(Boolean)),
-              )
+              );
               if (liveBrands.length > 0) {
-                updates.brands = liveBrands
+                updates.brands = liveBrands;
               }
 
               // Synchronize PC Builder catalog with authentic Shopify products (authoritative source)
-              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts)
-              updates.componentCatalog = syncResult.componentCatalog
+              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts);
+              updates.componentCatalog = syncResult.componentCatalog;
             }
           } else {
             updates.catalogError =
-              shopifyRes.reason?.message || "Failed to load products from Shopify Storefront."
-            updates.catalogLive = false
-            updates.products = []
+              shopifyRes.reason?.message || "Failed to load products from Shopify Storefront.";
+            updates.catalogLive = false;
+            updates.products = [];
           }
 
           if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
-            updates.offers = offersRes.value.offers
+            updates.offers = offersRes.value.offers;
           }
           if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
-            updates.coupons = couponsRes.value.coupons
+            updates.coupons = couponsRes.value.coupons;
           }
 
-          return { ...prev, ...updates }
-        })
-        return
+          return { ...prev, ...updates };
+        });
+        return;
       }
 
       // Unconfigured Shopify environment: fallback to Supabase for local development
@@ -628,57 +604,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         fetchCatalogDetailed(),
         fetchActiveOffersDetailed(),
         fetchActiveCouponsDetailed(),
-      ])
+      ]);
 
       setState((prev) => {
         const updates: Partial<State> = {
           catalogLoading: false,
           catalogSource: "supabase",
-        }
+        };
 
         if (catalogRes.status === "fulfilled") {
-          const { products: liveProducts, isLive, error } = catalogRes.value
+          const { products: liveProducts, isLive, error } = catalogRes.value;
           if (error) {
-            updates.catalogError = error
-            updates.catalogLive = false
+            updates.catalogError = error;
+            updates.catalogLive = false;
           } else if (isLive) {
-            updates.products = liveProducts
-            updates.catalogLive = true
-            updates.catalogError = null
+            updates.products = liveProducts;
+            updates.catalogLive = true;
+            updates.catalogError = null;
 
             const liveCategories = Array.from(
               new Set(liveProducts.map((p) => p.category).filter(Boolean)),
-            )
+            );
             if (liveCategories.length > 0) {
-              updates.catalogCategories = [
-                "All",
-                ...liveCategories.filter((c) => c !== "All"),
-              ]
+              updates.catalogCategories = ["All", ...liveCategories.filter((c) => c !== "All")];
             }
             const liveBrands = Array.from(
               new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
-            )
+            );
             if (liveBrands.length > 0) {
-              updates.brands = liveBrands
+              updates.brands = liveBrands;
             }
           }
         } else {
-          updates.catalogError =
-            catalogRes.reason?.message || "Failed to load live catalog."
-          updates.catalogLive = false
+          updates.catalogError = catalogRes.reason?.message || "Failed to load live catalog.";
+          updates.catalogLive = false;
         }
 
         if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
-          updates.offers = offersRes.value.offers
+          updates.offers = offersRes.value.offers;
         }
         if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
-          updates.coupons = couponsRes.value.coupons
+          updates.coupons = couponsRes.value.coupons;
         }
 
-        return { ...prev, ...updates }
-      })
+        return { ...prev, ...updates };
+      });
     } catch (err) {
-      console.warn("[store] Background catalog hydration error:", err)
+      console.warn("[store] Background catalog hydration error:", err);
 
       setState((prev) => ({
         ...prev,
@@ -686,32 +658,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         catalogLoading: false,
 
         catalogError: err instanceof Error ? err.message : String(err),
-      }))
+      }));
     }
-  }
+  };
 
   // Phase 3 Step 3: Background Stale-While-Revalidate catalog hydration
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
 
     refreshCatalog().catch(() => {
       if (isMounted) {
-        setState((prev) => ({ ...prev, catalogLoading: false }))
+        setState((prev) => ({ ...prev, catalogLoading: false }));
       }
-    })
+    });
 
     return () => {
-      isMounted = false
-    }
-  }, [])
+      isMounted = false;
+    };
+  }, []);
 
   // Phase 3 Step 4: Realtime Inventory Synchronization & Window Focus Revalidation
 
   useEffect(() => {
-    const client = supabase
+    const client = supabase;
 
-    if (!client) return
+    if (!client) return;
 
     const channel = client
 
@@ -723,43 +695,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         { event: "*", schema: "public", table: "inventory" },
 
         (payload) => {
-          if (
-            payload.eventType === "UPDATE" ||
-            payload.eventType === "INSERT"
-          ) {
+          if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
             const row = payload.new as {
-              product_id: string
+              product_id: string;
 
-              stock: number
+              stock: number;
 
-              low_stock_threshold?: number
-            }
+              low_stock_threshold?: number;
+            };
 
             if (row?.product_id) {
               setState((prev) => {
-                const productExists = prev.products.some(
-                  (p) => p.id === row.product_id,
-                )
+                const productExists = prev.products.some((p) => p.id === row.product_id);
 
                 if (productExists) {
                   return {
                     ...prev,
 
                     products: patchProductInventory(prev.products, row),
-                  }
+                  };
                 } else if (payload.eventType === "INSERT") {
                   // Brand new product record added; trigger full catalog revalidation
 
-                  refreshCatalog()
+                  refreshCatalog();
 
-                  return prev
+                  return prev;
                 }
 
-                return prev
-              })
+                return prev;
+              });
             }
           } else if (payload.eventType === "DELETE") {
-            const oldRow = payload.old as { product_id?: string }
+            const oldRow = payload.old as { product_id?: string };
 
             if (oldRow?.product_id) {
               setState((prev) => ({
@@ -770,7 +737,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
                   stock: 0,
                 }),
-              }))
+              }));
             }
           }
         },
@@ -781,47 +748,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...prev,
 
           realtimeConnected: status === "SUBSCRIBED",
-        }))
-      })
+        }));
+      });
 
-    let lastFocusSync = Date.now()
+    let lastFocusSync = Date.now();
 
     const handleFocusSync = () => {
       if (document.visibilityState === "visible") {
-        const now = Date.now()
+        const now = Date.now();
         // Throttle background focus revalidation to at most once per 60 seconds
         if (now - lastFocusSync >= 60_000) {
-          lastFocusSync = now
-          refreshCatalog({ force: true })
+          lastFocusSync = now;
+          refreshCatalog({ force: true });
         }
       }
-    }
+    };
 
-    window.addEventListener("focus", handleFocusSync)
+    window.addEventListener("focus", handleFocusSync);
 
-    document.addEventListener("visibilitychange", handleFocusSync)
+    document.addEventListener("visibilitychange", handleFocusSync);
 
     return () => {
-      window.removeEventListener("focus", handleFocusSync)
+      window.removeEventListener("focus", handleFocusSync);
 
-      document.removeEventListener("visibilitychange", handleFocusSync)
+      document.removeEventListener("visibilitychange", handleFocusSync);
 
-      client.removeChannel(channel)
-    }
-  }, [])
+      client.removeChannel(channel);
+    };
+  }, []);
 
   const set = (next: Partial<State> | ((value: State) => Partial<State>)) =>
     setState((previous) => ({
       ...previous,
 
       ...(typeof next === "function" ? next(previous) : next),
-    }))
+    }));
 
-  const notify = (message: string) => setToast(message)
+  const notify = (message: string) => setToast(message);
 
   const log = (action: string) => {
-    if (location.pathname.startsWith("/admin"))
-      track("Admin Data Change", { action })
+    if (location.pathname.startsWith("/admin")) track("Admin Data Change", { action });
 
     set((previous) => ({
       audit: [
@@ -829,22 +795,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         ...previous.audit,
       ].slice(0, 100),
-    }))
-  }
+    }));
+  };
 
   const addCart = (item: Omit<CartItem, "quantity">, quantity = 1) => {
     if (!state.loggedIn) {
-      setAuthOpen(true)
+      setAuthOpen(true);
 
-      notify(
-        "Please sign in with your mobile number to add items to your cart.",
-      )
+      notify("Please sign in with your mobile number to add items to your cart.");
 
-      return
+      return;
     }
 
-    const existingQuantity =
-      state.cart.find((row) => row.id === item.id)?.quantity || 0
+    const existingQuantity = state.cart.find((row) => row.id === item.id)?.quantity || 0;
 
     const product = item.productId
       ? state.products.find(
@@ -853,73 +816,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             product.variantId === item.id ||
             product.id === item.id,
         )
-      : null
+      : null;
 
     if (item.productId) {
       const isSoldOut = product
         ? product.availableForSale !== undefined
           ? !product.availableForSale
           : product.stock <= 0
-        : false
+        : false;
 
       if (!product || isSoldOut) {
-        notify("Sorry, this item is currently sold out.")
-        return
+        notify("Sorry, this item is currently sold out.");
+        return;
       }
 
-      if (
-        product.availableForSale === undefined &&
-        existingQuantity + quantity > product.stock
-      ) {
-        notify("Not enough stock available. Please adjust your cart.")
-        return
+      if (product.availableForSale === undefined && existingQuantity + quantity > product.stock) {
+        notify("Not enough stock available. Please adjust your cart.");
+        return;
       }
     }
 
     set((previous) => {
-      const existing = previous.cart.find((row) => row.id === item.id)
+      const existing = previous.cart.find((row) => row.id === item.id);
 
       return {
         cart: existing
           ? previous.cart.map((row) =>
-              row.id === item.id
-                ? { ...row, quantity: row.quantity + quantity }
-                : row,
+              row.id === item.id ? { ...row, quantity: row.quantity + quantity } : row,
             )
-          : [...previous.cart, { ...item, variantId: item.variantId || product?.variantId, quantity }],
-      }
-    })
+          : [
+              ...previous.cart,
+              { ...item, variantId: item.variantId || product?.variantId, quantity },
+            ],
+      };
+    });
 
-    notify("Added to cart")
+    notify("Added to cart");
 
     track("Product Added to Cart", {
       product: item.name ?? item.id,
 
       productId: item.productId ?? item.id,
-    })
-  }
+    });
+  };
 
   const toggleWish = (id: string) => {
     if (!state.loggedIn) {
-      setAuthOpen(true)
+      setAuthOpen(true);
 
-      notify(
-        "Please sign in with your mobile number to save items to your wishlist.",
-      )
+      notify("Please sign in with your mobile number to save items to your wishlist.");
 
-      return
+      return;
     }
 
-    const exists = state.wishlist.includes(id)
+    const exists = state.wishlist.includes(id);
 
     set((previous) => ({
       wishlist: exists
         ? previous.wishlist.filter((value) => value !== id)
         : [...previous.wishlist, id],
-    }))
+    }));
 
-    notify(exists ? "Removed from wishlist" : "Saved to wishlist")
-  }
+    notify(exists ? "Removed from wishlist" : "Saved to wishlist");
+  };
 
   return (
     <Context.Provider
@@ -947,13 +906,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     >
       {children}
     </Context.Provider>
-  )
+  );
 }
 
 export function useStore() {
-  const store = useContext(Context)
+  const store = useContext(Context);
 
-  if (!store) throw new Error("Store provider is required")
+  if (!store) throw new Error("Store provider is required");
 
-  return store
+  return store;
 }

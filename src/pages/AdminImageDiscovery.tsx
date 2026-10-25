@@ -2,7 +2,7 @@
 // IT HUB — Admin Bulk Product Image Discovery & Verification Interface
 // Integrates SerpApi Google Images proxy, rights verification, and Supabase Storage upload.
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect } from "react";
 import {
   Image as ImageIcon,
   Check,
@@ -20,8 +20,8 @@ import {
   CheckCircle2,
   Trash2,
   Plus,
-} from "lucide-react"
-import { useStore } from "../app/store"
+} from "lucide-react";
+import { useStore } from "../app/store";
 import {
   ImageDiscoveryEngine,
   SerpApiImageProvider,
@@ -31,13 +31,13 @@ import {
   type ImageCandidate,
   type DiscoveryQuery,
   type DiscoveryStatus,
-} from "../lib/imageDiscovery"
-import { supabase } from "../lib/supabase"
+} from "../lib/imageDiscovery";
+import { supabase } from "../lib/supabase";
 
 export default function AdminImageDiscovery() {
-  const store = useStore()
-  const engine = useMemo(() => new ImageDiscoveryEngine(), [])
-  const serpProvider = useMemo(() => new SerpApiImageProvider(), [])
+  const store = useStore();
+  const engine = useMemo(() => new ImageDiscoveryEngine(), []);
+  const serpProvider = useMemo(() => new SerpApiImageProvider(), []);
 
   // Derive discovery queries dynamically from genuine store products
   const items = useMemo<DiscoveryQuery[]>(() => {
@@ -47,72 +47,66 @@ export default function AdminImageDiscovery() {
       productName: p.name,
       brand: p.brand || "",
       category: p.category || "",
-      modelMpn:
-        p.specs?.["Model / MPN"] || p.specs?.Model || p.specs?.MPN || "",
+      modelMpn: p.specs?.["Model / MPN"] || p.specs?.Model || p.specs?.MPN || "",
       originalDescription: p.description || p.name,
       isSecondHand: Boolean(p.secondHand),
-    }))
-  }, [store.products])
-  const [candidatesMap, setCandidatesMap] =
-    useState<Record<string, ImageCandidate[]>>({})
-  const [selectedProduct, setSelectedProduct] = useState<DiscoveryQuery | null>(
-    null,
-  )
-  const [selectedCandidate, setSelectedCandidate] =
-    useState<ImageCandidate | null>(null)
-  const [reviewModalOpen, setReviewModalOpen] = useState(false)
-  const [customSearchQuery, setCustomSearchQuery] = useState("")
-  const [rightsConfirmed, setRightsConfirmed] = useState(false)
-  const [isSearchingProduct, setIsSearchingProduct] = useState(false)
-  const [filterStatus, setFilterStatus] = useState<string>("all")
-  const [searchFilterText, setSearchFilterText] = useState("")
+    }));
+  }, [store.products]);
+  const [candidatesMap, setCandidatesMap] = useState<Record<string, ImageCandidate[]>>({});
+  const [selectedProduct, setSelectedProduct] = useState<DiscoveryQuery | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<ImageCandidate | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [customSearchQuery, setCustomSearchQuery] = useState("");
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchFilterText, setSearchFilterText] = useState("");
 
   // Provider configuration state
   const [serpApiStatus, setSerpApiStatus] = useState<{
-    checked: boolean
-    isConfigured: boolean
-    message?: string
-  }>({ checked: false, isConfigured: false })
+    checked: boolean;
+    isConfigured: boolean;
+    message?: string;
+  }>({ checked: false, isConfigured: false });
 
   // Check SerpApi configuration on load
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
     serpProvider.checkConfiguration().then((configured) => {
       if (mounted) {
         setSerpApiStatus({
           checked: true,
           isConfigured: configured,
           message: serpProvider.unconfiguredReason,
-        })
+        });
       }
-    })
+    });
     return () => {
-      mounted = false
-    }
-  }, [serpProvider])
+      mounted = false;
+    };
+  }, [serpProvider]);
 
   // Aggregate stats across prototype items
   const stats = useMemo(() => {
-    let matchedOrFound = 0
-    let identityVerified = 0
-    let uploaded = 0
-    let needsReview = 0
-    let rejected = 0
-    let pending = 0
-    const secondHand = items.filter((p) => p.isSecondHand).length
+    let matchedOrFound = 0;
+    let identityVerified = 0;
+    let uploaded = 0;
+    let needsReview = 0;
+    let rejected = 0;
+    let pending = 0;
+    const secondHand = items.filter((p) => p.isSecondHand).length;
 
     for (const item of items) {
-      const cands = candidatesMap[item.sku] || []
+      const cands = candidatesMap[item.sku] || [];
       if (cands.length === 0) {
-        pending++
+        pending++;
       } else {
-        const top = cands[0]
-        if (top.status === "uploaded" || top.status === "approved") uploaded++
-        else if (top.status === "identity_verified") identityVerified++
-        else if (top.status === "candidate_found" || top.status === "matched")
-          matchedOrFound++
-        else if (top.status === "needs_review") needsReview++
-        else if (top.status === "rejected") rejected++
+        const top = cands[0];
+        if (top.status === "uploaded" || top.status === "approved") uploaded++;
+        else if (top.status === "identity_verified") identityVerified++;
+        else if (top.status === "candidate_found" || top.status === "matched") matchedOrFound++;
+        else if (top.status === "needs_review") needsReview++;
+        else if (top.status === "rejected") rejected++;
       }
     }
 
@@ -125,46 +119,41 @@ export default function AdminImageDiscovery() {
       rejected,
       pending,
       secondHand,
-    }
-  }, [items, candidatesMap])
+    };
+  }, [items, candidatesMap]);
 
   // Single-product targeted search
-  const handleSearchForProduct = async (
-    item: DiscoveryQuery,
-    queryOverride?: string,
-  ) => {
-    setIsSearchingProduct(true)
-    const results = await engine.discoverForProduct(item, queryOverride)
+  const handleSearchForProduct = async (item: DiscoveryQuery, queryOverride?: string) => {
+    setIsSearchingProduct(true);
+    const results = await engine.discoverForProduct(item, queryOverride);
     setCandidatesMap((prev) => ({
       ...prev,
       [item.sku]: results,
-    }))
+    }));
     if (results.length > 0) {
-      setSelectedCandidate(results[0])
+      setSelectedCandidate(results[0]);
     }
-    setIsSearchingProduct(false)
-    store.log(`Ran targeted image search for SKU: ${item.sku}`)
-  }
+    setIsSearchingProduct(false);
+    store.log(`Ran targeted image search for SKU: ${item.sku}`);
+  };
 
   // Approve a selected candidate and upload to Supabase Storage
   const handleApprove = async (candidate: ImageCandidate) => {
-    const isLocalAsset = candidate.candidateUrl.startsWith("/images/")
+    const isLocalAsset = candidate.candidateUrl.startsWith("/images/");
     if (!isLocalAsset && !rightsConfirmed) {
-      store.notify(
-        "Please verify the commercial rights confirmation checkbox before approving.",
-      )
-      return
+      store.notify("Please verify the commercial rights confirmation checkbox before approving.");
+      return;
     }
 
     const result = await engine.approveCandidate(
       candidate,
       rightsConfirmed,
       store.profile?.email || "admin@ithub.com",
-    )
+    );
 
     if (result.ok) {
       setCandidatesMap((prev) => {
-        const currentList = prev[candidate.sku] || [candidate]
+        const currentList = prev[candidate.sku] || [candidate];
         const updated = currentList.map((c) =>
           c.id === candidate.id
             ? {
@@ -175,22 +164,22 @@ export default function AdminImageDiscovery() {
                 reviewedAt: new Date().toISOString(),
               }
             : c,
-        )
-        return { ...prev, [candidate.sku]: updated }
-      })
-      store.notify(`Image approved and stored for ${candidate.productName}`)
-      store.log(`Image approved & uploaded for SKU: ${candidate.sku}`)
-      setReviewModalOpen(false)
-      setRightsConfirmed(false)
+        );
+        return { ...prev, [candidate.sku]: updated };
+      });
+      store.notify(`Image approved and stored for ${candidate.productName}`);
+      store.log(`Image approved & uploaded for SKU: ${candidate.sku}`);
+      setReviewModalOpen(false);
+      setRightsConfirmed(false);
     } else {
-      store.notify(`Approval failed: ${result.error}`)
+      store.notify(`Approval failed: ${result.error}`);
     }
-  }
+  };
 
   // Reject candidate
   const handleReject = (candidate: ImageCandidate) => {
     setCandidatesMap((prev) => {
-      const currentList = prev[candidate.sku] || [candidate]
+      const currentList = prev[candidate.sku] || [candidate];
       const updated = currentList.map((c) =>
         c.id === candidate.id
           ? {
@@ -199,95 +188,84 @@ export default function AdminImageDiscovery() {
               reviewedAt: new Date().toISOString(),
             }
           : c,
-      )
-      return { ...prev, [candidate.sku]: updated }
-    })
-    store.notify(`Candidate rejected for ${candidate.productName}`)
-    store.log(`Candidate rejected for SKU: ${candidate.sku}`)
-    setReviewModalOpen(false)
-  }
+      );
+      return { ...prev, [candidate.sku]: updated };
+    });
+    store.notify(`Candidate rejected for ${candidate.productName}`);
+    store.log(`Candidate rejected for SKU: ${candidate.sku}`);
+    setReviewModalOpen(false);
+  };
 
   // Upload actual physical photographs for second-hand items (supports multiple real photos)
   const handleSecondHandPhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     item: DiscoveryQuery,
   ) => {
-    const fileList = e.target.files
-    if (!fileList || fileList.length === 0) return
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
     interface ValidUploadFile {
-      file: File
-      buffer: Uint8Array
+      file: File;
+      buffer: Uint8Array;
     }
-    const files = Array.from(fileList)
-    const validFiles: ValidUploadFile[] = []
-    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"]
-    const MAX_SIZE = 5 * 1024 * 1024 // 5MB limit
+    const files = Array.from(fileList);
+    const validFiles: ValidUploadFile[] = [];
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB limit
 
     for (const file of files) {
       if (!ALLOWED_TYPES.includes(file.type)) {
-        store.notify(
-          `File "${file.name}" rejected: Only JPEG, PNG, or WebP images are allowed.`,
-        )
-        continue
+        store.notify(`File "${file.name}" rejected: Only JPEG, PNG, or WebP images are allowed.`);
+        continue;
       }
       if (file.size > MAX_SIZE) {
-        store.notify(`File "${file.name}" rejected: Exceeds 5MB size limit.`)
-        continue
+        store.notify(`File "${file.name}" rejected: Exceeds 5MB size limit.`);
+        continue;
       }
       try {
-        const slice = file.slice(0, 16)
-        const buffer = new Uint8Array(await slice.arrayBuffer())
-        const magic = validateImageMagicBytes(buffer)
+        const slice = file.slice(0, 16);
+        const buffer = new Uint8Array(await slice.arrayBuffer());
+        const magic = validateImageMagicBytes(buffer);
         if (!magic.valid) {
           store.notify(
             `File "${file.name}" rejected: Invalid raster image headers (disguised file or script blocked).`,
-          )
-          continue
+          );
+          continue;
         }
-        validFiles.push({ file, buffer })
+        validFiles.push({ file, buffer });
       } catch {
-        store.notify(`File "${file.name}" rejected: Could not read image data.`)
+        store.notify(`File "${file.name}" rejected: Could not read image data.`);
       }
     }
 
     if (validFiles.length === 0) {
-      e.target.value = ""
-      return
+      e.target.value = "";
+      return;
     }
 
     const existingPhotos = (candidatesMap[item.sku] || []).filter(
       (c) => c.candidateUrl && c.candidateUrl.length > 0,
-    )
-    const newlyUploaded: ImageCandidate[] = []
+    );
+    const newlyUploaded: ImageCandidate[] = [];
 
     for (let i = 0; i < validFiles.length; i++) {
-      const { file } = validFiles[i]
-      const position = existingPhotos.length + newlyUploaded.length
-      const ext =
-        file.type === "image/png"
-          ? "png"
-          : file.type === "image/webp"
-            ? "webp"
-            : "jpg"
-      const path = `products/${item.sku.toLowerCase()}/physical-${Date.now()}-${position}.${ext}`
+      const { file } = validFiles[i];
+      const position = existingPhotos.length + newlyUploaded.length;
+      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const path = `products/${item.sku.toLowerCase()}/physical-${Date.now()}-${position}.${ext}`;
 
       if (supabase) {
         const { error: uploadError } = await supabase.storage
           .from("product-images")
-          .upload(path, file, { contentType: file.type, upsert: true })
+          .upload(path, file, { contentType: file.type, upsert: true });
 
         if (uploadError) {
-          store.notify(
-            `Upload failed for "${file.name}": ${uploadError.message}`,
-          )
-          continue
+          store.notify(`Upload failed for "${file.name}": ${uploadError.message}`);
+          continue;
         }
 
-        const { data: pubData } = supabase.storage
-          .from("product-images")
-          .getPublicUrl(path)
-        const storageUrl = pubData?.publicUrl || path
+        const { data: pubData } = supabase.storage.from("product-images").getPublicUrl(path);
+        const storageUrl = pubData?.publicUrl || path;
 
         newlyUploaded.push({
           id: `manual-${item.sku}-${Date.now()}-${position}`,
@@ -300,8 +278,7 @@ export default function AdminImageDiscovery() {
           candidateUrl: storageUrl,
           sourceProvider: "Admin Physical Photo Upload",
           licenceType: "Manual_Upload",
-          licenceEvidence:
-            "Physical item condition photo taken and uploaded by IT HUB staff.",
+          licenceEvidence: "Physical item condition photo taken and uploaded by IT HUB staff.",
           matchEvidence: `Physical photograph #${position + 1} of actual device.`,
           confidence: 1.0,
           status: "uploaded",
@@ -310,12 +287,11 @@ export default function AdminImageDiscovery() {
           reviewedBy: store.profile?.email || "admin@ithub.com",
           reviewedAt: new Date().toISOString(),
           isSecondHand: true,
-          notes:
-            position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
-        })
+          notes: position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
+        });
       } else {
         // Mock fallback for local preview without live Supabase
-        const localUrl = URL.createObjectURL(file)
+        const localUrl = URL.createObjectURL(file);
         newlyUploaded.push({
           id: `manual-${item.sku}-${Date.now()}-${position}`,
           sourceRow: item.sourceRow,
@@ -336,9 +312,8 @@ export default function AdminImageDiscovery() {
           reviewedBy: store.profile?.email || "admin@ithub.com",
           reviewedAt: new Date().toISOString(),
           isSecondHand: true,
-          notes:
-            position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
-        })
+          notes: position === 0 ? "Cover Photo" : `Device Angle #${position + 1}`,
+        });
       }
     }
 
@@ -346,57 +321,56 @@ export default function AdminImageDiscovery() {
       setCandidatesMap((prev) => ({
         ...prev,
         [item.sku]: [...existingPhotos, ...newlyUploaded],
-      }))
+      }));
       store.notify(
         `Uploaded ${newlyUploaded.length} physical photograph${
           newlyUploaded.length > 1 ? "s" : ""
         } for ${item.sku}. Total: ${existingPhotos.length + newlyUploaded.length}.`,
-      )
+      );
     }
-    e.target.value = ""
-  }
+    e.target.value = "";
+  };
 
   // Remove individual physical photograph from second-hand listing
   const handleRemoveSecondHandPhoto = (sku: string, photoId: string) => {
     setCandidatesMap((prev) => {
-      const list = prev[sku] || []
-      const updated = list.filter((c) => c.id !== photoId)
-      return { ...prev, [sku]: updated }
-    })
-    store.notify("Photo removed from pre-owned listing")
-  }
+      const list = prev[sku] || [];
+      const updated = list.filter((c) => c.id !== photoId);
+      return { ...prev, [sku]: updated };
+    });
+    store.notify("Photo removed from pre-owned listing");
+  };
 
   // Filtered rows for catalog table
   const displayedRows = useMemo(() => {
     return items.filter((item) => {
-      const cands = candidatesMap[item.sku] || []
-      const top = cands[0]
+      const cands = candidatesMap[item.sku] || [];
+      const top = cands[0];
 
       // Text search
       if (searchFilterText) {
-        const query = searchFilterText.toLowerCase()
+        const query = searchFilterText.toLowerCase();
         const textMatch =
           item.productName.toLowerCase().includes(query) ||
           item.sku.toLowerCase().includes(query) ||
-          item.brand.toLowerCase().includes(query)
-        if (!textMatch) return false
+          item.brand.toLowerCase().includes(query);
+        if (!textMatch) return false;
       }
 
       // Status pill filter
-      if (filterStatus === "all") return true
-      if (filterStatus === "pending") return cands.length === 0
-      if (filterStatus === "identity_verified")
-        return top?.status === "identity_verified"
+      if (filterStatus === "all") return true;
+      if (filterStatus === "pending") return cands.length === 0;
+      if (filterStatus === "identity_verified") return top?.status === "identity_verified";
       if (filterStatus === "candidate_found")
-        return top?.status === "candidate_found" || top?.status === "matched"
-      if (filterStatus === "needs_review") return top?.status === "needs_review"
+        return top?.status === "candidate_found" || top?.status === "matched";
+      if (filterStatus === "needs_review") return top?.status === "needs_review";
       if (filterStatus === "uploaded")
-        return top?.status === "uploaded" || top?.status === "approved"
-      if (filterStatus === "rejected") return top?.status === "rejected"
-      if (filterStatus === "second_hand") return item.isSecondHand
-      return true
-    })
-  }, [items, candidatesMap, filterStatus, searchFilterText])
+        return top?.status === "uploaded" || top?.status === "approved";
+      if (filterStatus === "rejected") return top?.status === "rejected";
+      if (filterStatus === "second_hand") return item.isSecondHand;
+      return true;
+    });
+  }, [items, candidatesMap, filterStatus, searchFilterText]);
 
   return (
     <div className="space-y-6">
@@ -413,8 +387,8 @@ export default function AdminImageDiscovery() {
               </h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Connects Google Images search API (SerpApi) with manufacturer
-              validation, SSRF defense, and rights review.
+              Connects Google Images search API (SerpApi) with manufacturer validation, SSRF
+              defense, and rights review.
             </p>
           </div>
 
@@ -432,8 +406,8 @@ export default function AdminImageDiscovery() {
             <div>
               <p className="font-bold">SerpApi Configuration Required</p>
               <p className="mt-0.5 text-amber-800">
-                To enable live Google Images discovery, configure your SerpApi
-                key in Supabase Edge Function secrets:
+                To enable live Google Images discovery, configure your SerpApi key in Supabase Edge
+                Function secrets:
               </p>
               <code className="mt-1.5 inline-block rounded bg-amber-100/90 px-2 py-1 font-mono text-[11px] text-amber-900 border border-amber-300">
                 supabase secrets set SERPAPI_API_KEY=your_key_here
@@ -452,20 +426,12 @@ export default function AdminImageDiscovery() {
             }`}
           >
             {serpApiStatus.isConfigured ? (
-              <ShieldCheck
-                size={18}
-                className="text-emerald-600 shrink-0 mt-0.5"
-              />
+              <ShieldCheck size={18} className="text-emerald-600 shrink-0 mt-0.5" />
             ) : (
-              <AlertTriangle
-                size={18}
-                className="text-amber-600 shrink-0 mt-0.5"
-              />
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
             )}
             <div>
-              <p className="text-xs font-bold text-foreground">
-                SerpApi Google Images
-              </p>
+              <p className="text-xs font-bold text-foreground">SerpApi Google Images</p>
               <p className="text-[11px] text-muted-foreground">
                 {serpApiStatus.isConfigured
                   ? "Active · Live search ready"
@@ -477,39 +443,24 @@ export default function AdminImageDiscovery() {
           <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3">
             <ShieldCheck size={18} className="text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-blue-900">
-                Curated Media Library
-              </p>
-              <p className="text-[11px] text-blue-700">
-                Active · High-res local assets
-              </p>
+              <p className="text-xs font-bold text-blue-900">Curated Media Library</p>
+              <p className="text-[11px] text-blue-700">Active · High-res local assets</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3">
-            <ShieldCheck
-              size={18}
-              className="text-indigo-600 shrink-0 mt-0.5"
-            />
+            <ShieldCheck size={18} className="text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-indigo-900">
-                Distributor Feeds
-              </p>
-              <p className="text-[11px] text-indigo-700">
-                Active · MPN/Model matched
-              </p>
+              <p className="text-xs font-bold text-indigo-900">Distributor Feeds</p>
+              <p className="text-[11px] text-indigo-700">Active · MPN/Model matched</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3 rounded-lg border border-purple-200 bg-purple-50/60 p-3">
             <Lock size={18} className="text-purple-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-purple-900">
-                Second-Hand Policy
-              </p>
-              <p className="text-[11px] text-purple-700">
-                Enforced · Actual photos only
-              </p>
+              <p className="text-xs font-bold text-purple-900">Second-Hand Policy</p>
+              <p className="text-[11px] text-purple-700">Enforced · Actual photos only</p>
             </div>
           </div>
         </div>
@@ -520,57 +471,37 @@ export default function AdminImageDiscovery() {
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-muted-foreground">Prototype Items</p>
           <p className="mt-1 text-2xl font-bold">{stats.totalEligible}</p>
-          <span className="text-[11px] text-muted-foreground">
-            Staging subset
-          </span>
+          <span className="text-[11px] text-muted-foreground">Staging subset</span>
         </div>
 
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-blue-700">Identity Verified</p>
-          <p className="mt-1 text-2xl font-bold text-blue-600">
-            {stats.identityVerified}
-          </p>
-          <span className="text-[11px] text-blue-600/80">
-            Exact Brand + MPN
-          </span>
+          <p className="mt-1 text-2xl font-bold text-blue-600">{stats.identityVerified}</p>
+          <span className="text-[11px] text-blue-600/80">Exact Brand + MPN</span>
         </div>
 
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-sky-700">Candidates Found</p>
-          <p className="mt-1 text-2xl font-bold text-sky-600">
-            {stats.matchedOrFound}
-          </p>
+          <p className="mt-1 text-2xl font-bold text-sky-600">{stats.matchedOrFound}</p>
           <span className="text-[11px] text-sky-600/80">Keyword matched</span>
         </div>
 
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-amber-700">Needs Review</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600">
-            {stats.needsReview}
-          </p>
-          <span className="text-[11px] text-amber-600/80">
-            Ambiguous / Spares
-          </span>
+          <p className="mt-1 text-2xl font-bold text-amber-600">{stats.needsReview}</p>
+          <span className="text-[11px] text-amber-600/80">Ambiguous / Spares</span>
         </div>
 
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-emerald-700">Uploaded / Approved</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {stats.uploaded}
-          </p>
-          <span className="text-[11px] text-emerald-600/80">
-            In Storage bucket
-          </span>
+          <p className="mt-1 text-2xl font-bold text-emerald-600">{stats.uploaded}</p>
+          <span className="text-[11px] text-emerald-600/80">In Storage bucket</span>
         </div>
 
         <div className="rounded-lg border border-border bg-white p-4">
           <p className="text-xs text-purple-700">Pre-Owned Blocked</p>
-          <p className="mt-1 text-2xl font-bold text-purple-600">
-            {stats.secondHand}
-          </p>
-          <span className="text-[11px] text-purple-600/80">
-            Physical upload only
-          </span>
+          <p className="mt-1 text-2xl font-bold text-purple-600">{stats.secondHand}</p>
+          <span className="text-[11px] text-purple-600/80">Physical upload only</span>
         </div>
       </div>
 
@@ -671,29 +602,20 @@ export default function AdminImageDiscovery() {
             </thead>
             <tbody className="divide-y divide-border">
               {displayedRows.map((item) => {
-                const cands = candidatesMap[item.sku] || []
-                const topCand = cands[0]
-                const status = topCand?.status || "pending"
+                const cands = candidatesMap[item.sku] || [];
+                const topCand = cands[0];
+                const status = topCand?.status || "pending";
 
                 return (
-                  <tr
-                    key={item.sku}
-                    className="hover:bg-muted/40 transition-colors"
-                  >
+                  <tr key={item.sku} className="hover:bg-muted/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-[11px]">
-                      <span className="text-muted-foreground">
-                        Row {item.sourceRow}
-                      </span>
+                      <span className="text-muted-foreground">Row {item.sourceRow}</span>
                       <br />
-                      <span className="font-semibold text-primary">
-                        {item.sku}
-                      </span>
+                      <span className="font-semibold text-primary">{item.sku}</span>
                     </td>
 
                     <td className="max-w-xs px-4 py-3">
-                      <p className="font-semibold text-foreground truncate">
-                        {item.productName}
-                      </p>
+                      <p className="font-semibold text-foreground truncate">{item.productName}</p>
                       <p
                         className="text-[10px] text-muted-foreground truncate"
                         title={item.originalDescription}
@@ -706,9 +628,7 @@ export default function AdminImageDiscovery() {
                       <span className="inline-block rounded bg-secondary px-2 py-0.5 text-[10px] font-medium text-foreground">
                         {item.brand}
                       </span>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {item.category}
-                      </p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{item.category}</p>
                     </td>
 
                     <td className="px-4 py-3">
@@ -731,8 +651,8 @@ export default function AdminImageDiscovery() {
                             alt={item.productName}
                             className="h-full w-full object-cover"
                             onError={(e) => {
-                              ;(e.target as HTMLImageElement).src =
-                                "/images/photo-1616440347437-b1c73416efc2.jpg"
+                              (e.target as HTMLImageElement).src =
+                                "/images/photo-1616440347437-b1c73416efc2.jpg";
                             }}
                           />
                           {cands.length > 1 && (
@@ -754,8 +674,7 @@ export default function AdminImageDiscovery() {
                           <ShieldCheck size={11} /> Identity Verified
                         </span>
                       )}
-                      {(status === "candidate_found" ||
-                        status === "matched") && (
+                      {(status === "candidate_found" || status === "matched") && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-800">
                           <Sparkles size={11} /> Candidate Found
                         </span>
@@ -796,12 +715,12 @@ export default function AdminImageDiscovery() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => {
-                            setSelectedProduct(item)
-                            const queryInfo = buildOptimizedSearchQuery(item)
-                            setCustomSearchQuery(queryInfo.primaryQuery)
-                            setSelectedCandidate(topCand || null)
-                            setRightsConfirmed(false)
-                            setReviewModalOpen(true)
+                            setSelectedProduct(item);
+                            const queryInfo = buildOptimizedSearchQuery(item);
+                            setCustomSearchQuery(queryInfo.primaryQuery);
+                            setSelectedCandidate(topCand || null);
+                            setRightsConfirmed(false);
+                            setReviewModalOpen(true);
                           }}
                           className="rounded p-1.5 text-primary hover:bg-secondary"
                           title="Inspect, Review & Search Candidates"
@@ -812,9 +731,9 @@ export default function AdminImageDiscovery() {
                         {item.isSecondHand ? (
                           <button
                             onClick={() => {
-                              setSelectedProduct(item)
-                              setSelectedCandidate(topCand || null)
-                              setReviewModalOpen(true)
+                              setSelectedProduct(item);
+                              setSelectedCandidate(topCand || null);
+                              setReviewModalOpen(true);
                             }}
                             className="rounded border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100"
                             title="Upload Physical Photographs (Multiple Photos Allowed)"
@@ -835,7 +754,7 @@ export default function AdminImageDiscovery() {
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
@@ -883,26 +802,18 @@ export default function AdminImageDiscovery() {
               <div className="mt-5 space-y-5">
                 <div className="rounded-lg border border-purple-300 bg-purple-50 p-4 text-purple-900">
                   <div className="flex items-start gap-2.5">
-                    <Lock
-                      size={18}
-                      className="text-purple-700 shrink-0 mt-0.5"
-                    />
+                    <Lock size={18} className="text-purple-700 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold">
-                        Second-Hand Mandatory Physical Photographs
-                      </p>
+                      <p className="font-bold">Second-Hand Mandatory Physical Photographs</p>
                       <p className="mt-1 text-xs text-purple-800 leading-relaxed">
-                        To maintain buyer trust and accurately represent
-                        pre-owned hardware, stock manufacturer images are
-                        strictly blocked. Staff must capture and upload real
+                        To maintain buyer trust and accurately represent pre-owned hardware, stock
+                        manufacturer images are strictly blocked. Staff must capture and upload real
                         photographs of this physical unit.
                       </p>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-purple-700">
                         <span>• Multiple real photos supported</span>
                         <span>• No fixed 6-photo requirement</span>
-                        <span>
-                          • JPEG, PNG, WebP up to 5MB (magic-byte verified)
-                        </span>
+                        <span>• JPEG, PNG, WebP up to 5MB (magic-byte verified)</span>
                       </div>
                     </div>
                   </div>
@@ -910,17 +821,16 @@ export default function AdminImageDiscovery() {
 
                 {/* Uploaded Photos Gallery (if any) */}
                 {(() => {
-                  const photos = (
-                    candidatesMap[selectedProduct.sku] || []
-                  ).filter((c) => c.candidateUrl && c.candidateUrl.length > 0)
-                  if (photos.length === 0) return null
+                  const photos = (candidatesMap[selectedProduct.sku] || []).filter(
+                    (c) => c.candidateUrl && c.candidateUrl.length > 0,
+                  );
+                  if (photos.length === 0) return null;
 
                   return (
                     <div className="space-y-2.5">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-foreground">
-                          Attached Physical Photographs ({photos.length}{" "}
-                          uploaded):
+                          Attached Physical Photographs ({photos.length} uploaded):
                         </p>
                         <span className="text-[11px] text-muted-foreground">
                           Photo #1 is used as primary storefront cover
@@ -940,9 +850,7 @@ export default function AdminImageDiscovery() {
                                 className="h-full w-full object-cover"
                               />
                               <span className="absolute top-1 left-1 rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                                {idx === 0
-                                  ? "Cover Photo"
-                                  : `Angle #${idx + 1}`}
+                                {idx === 0 ? "Cover Photo" : `Angle #${idx + 1}`}
                               </span>
                             </div>
 
@@ -953,10 +861,7 @@ export default function AdminImageDiscovery() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  handleRemoveSecondHandPhoto(
-                                    selectedProduct.sku,
-                                    photo.id,
-                                  )
+                                  handleRemoveSecondHandPhoto(selectedProduct.sku, photo.id)
                                 }
                                 className="rounded p-1 text-red-600 transition hover:bg-red-50 hover:text-red-700"
                                 title="Remove photo"
@@ -968,7 +873,7 @@ export default function AdminImageDiscovery() {
                         ))}
                       </div>
                     </div>
-                  )
+                  );
                 })()}
 
                 {/* Multi-Photo Upload Dropzone */}
@@ -978,8 +883,7 @@ export default function AdminImageDiscovery() {
                     Upload Physical Device Photographs
                   </p>
                   <p className="text-xs text-muted-foreground mt-1 mb-4">
-                    Select one or multiple real photos (JPEG, PNG, or WebP up to
-                    5MB each)
+                    Select one or multiple real photos (JPEG, PNG, or WebP up to 5MB each)
                   </p>
                   <label className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-purple-700 transition">
                     <Plus size={14} />
@@ -988,9 +892,7 @@ export default function AdminImageDiscovery() {
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) =>
-                        handleSecondHandPhotoUpload(e, selectedProduct)
-                      }
+                      onChange={(e) => handleSecondHandPhotoUpload(e, selectedProduct)}
                       className="hidden"
                     />
                   </label>
@@ -1014,19 +916,11 @@ export default function AdminImageDiscovery() {
                       />
                     </div>
                     <button
-                      onClick={() =>
-                        handleSearchForProduct(
-                          selectedProduct,
-                          customSearchQuery,
-                        )
-                      }
+                      onClick={() => handleSearchForProduct(selectedProduct, customSearchQuery)}
                       disabled={isSearchingProduct}
                       className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary/90 disabled:opacity-50 self-end"
                     >
-                      <Search
-                        size={13}
-                        className={isSearchingProduct ? "animate-spin" : ""}
-                      />
+                      <Search size={13} className={isSearchingProduct ? "animate-spin" : ""} />
                       {isSearchingProduct ? "Searching..." : "Search SerpApi"}
                     </button>
                   </div>
@@ -1034,24 +928,18 @@ export default function AdminImageDiscovery() {
 
                 {/* Candidate Grid / Selection */}
                 {(() => {
-                  const cands = candidatesMap[selectedProduct.sku] || []
+                  const cands = candidatesMap[selectedProduct.sku] || [];
                   if (cands.length === 0) {
                     return (
                       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
-                        <ImageIcon
-                          size={32}
-                          className="mb-2 text-muted-foreground/60"
-                        />
-                        <p className="text-sm font-medium">
-                          No Candidates Discovered Yet
-                        </p>
+                        <ImageIcon size={32} className="mb-2 text-muted-foreground/60" />
+                        <p className="text-sm font-medium">No Candidates Discovered Yet</p>
                         <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-                          Click &quot;Search SerpApi&quot; above to query
-                          authorized manufacturer and Google Images results for
-                          this product.
+                          Click &quot;Search SerpApi&quot; above to query authorized manufacturer
+                          and Google Images results for this product.
                         </p>
                       </div>
-                    )
+                    );
                   }
 
                   return (
@@ -1062,7 +950,7 @@ export default function AdminImageDiscovery() {
 
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                         {cands.map((cand, idx) => {
-                          const isSelected = selectedCandidate?.id === cand.id
+                          const isSelected = selectedCandidate?.id === cand.id;
 
                           return (
                             <div
@@ -1081,8 +969,8 @@ export default function AdminImageDiscovery() {
                                     alt={cand.productName}
                                     className="h-full w-full object-contain"
                                     onError={(e) => {
-                                      ;(e.target as HTMLImageElement).src =
-                                        "/images/photo-1616440347437-b1c73416efc2.jpg"
+                                      (e.target as HTMLImageElement).src =
+                                        "/images/photo-1616440347437-b1c73416efc2.jpg";
                                     }}
                                   />
                                 ) : (
@@ -1100,9 +988,7 @@ export default function AdminImageDiscovery() {
                               </p>
 
                               <p className="text-[10px] text-muted-foreground truncate">
-                                {cand.sourceDomain ||
-                                  cand.sourceCategory ||
-                                  "Manufacturer Asset"}
+                                {cand.sourceDomain || cand.sourceCategory || "Manufacturer Asset"}
                               </p>
 
                               <div className="mt-2 flex items-center justify-between text-[10px]">
@@ -1111,13 +997,12 @@ export default function AdminImageDiscovery() {
                                 </span>
                                 {cand.dimensions && (
                                   <span className="font-mono text-muted-foreground">
-                                    {cand.dimensions.width}×
-                                    {cand.dimensions.height}
+                                    {cand.dimensions.width}×{cand.dimensions.height}
                                   </span>
                                 )}
                               </div>
                             </div>
-                          )
+                          );
                         })}
                       </div>
 
@@ -1128,12 +1013,11 @@ export default function AdminImageDiscovery() {
                             <div>
                               <p className="text-xs font-bold text-foreground">
                                 Inspection:{" "}
-                                {selectedCandidate.sourcePageTitle ||
-                                  selectedCandidate.productName}
+                                {selectedCandidate.sourcePageTitle || selectedCandidate.productName}
                               </p>
                               <p className="text-[11px] text-muted-foreground mt-0.5">
-                                Provider: {selectedCandidate.sourceProvider} ·
-                                Match: {selectedCandidate.matchEvidence}
+                                Provider: {selectedCandidate.sourceProvider} · Match:{" "}
+                                {selectedCandidate.matchEvidence}
                               </p>
                             </div>
 
@@ -1155,22 +1039,17 @@ export default function AdminImageDiscovery() {
                               <input
                                 type="checkbox"
                                 checked={rightsConfirmed}
-                                onChange={(e) =>
-                                  setRightsConfirmed(e.target.checked)
-                                }
+                                onChange={(e) => setRightsConfirmed(e.target.checked)}
                                 className="mt-0.5 h-4 w-4 rounded border-amber-400 text-primary focus:ring-primary"
                               />
                               <div className="text-xs text-amber-900">
                                 <span className="font-bold">
-                                  Commercial Rights & License Confirmation
-                                  (Mandatory)
+                                  Commercial Rights & License Confirmation (Mandatory)
                                 </span>
                                 <p className="mt-0.5 text-[11px] text-amber-800 leading-normal">
-                                  I confirm this image is an authorized
-                                  manufacturer asset, official distributor feed,
-                                  or permitted under commercial fair
-                                  use/creative commons for IT HUB catalog
-                                  display.
+                                  I confirm this image is an authorized manufacturer asset, official
+                                  distributor feed, or permitted under commercial fair use/creative
+                                  commons for IT HUB catalog display.
                                 </p>
                               </div>
                             </label>
@@ -1178,7 +1057,7 @@ export default function AdminImageDiscovery() {
                         </div>
                       )}
                     </div>
-                  )
+                  );
                 })()}
               </div>
             )}
@@ -1205,8 +1084,7 @@ export default function AdminImageDiscovery() {
                     onClick={() => handleApprove(selectedCandidate)}
                     disabled={
                       !selectedCandidate.candidateUrl ||
-                      (!selectedCandidate.candidateUrl.startsWith("/images/") &&
-                        !rightsConfirmed)
+                      (!selectedCandidate.candidateUrl.startsWith("/images/") && !rightsConfirmed)
                     }
                     className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
@@ -1219,5 +1097,5 @@ export default function AdminImageDiscovery() {
         </div>
       )}
     </div>
-  )
+  );
 }

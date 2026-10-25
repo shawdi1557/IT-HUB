@@ -1,5 +1,5 @@
-import { Link } from "react-router"
-import { motion } from "motion/react"
+import { Link } from "react-router";
+import { motion } from "motion/react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -8,8 +8,8 @@ import {
   Monitor,
   Printer,
   Smartphone,
-} from "lucide-react"
-import banner from "../imports/services-banner.png"
+} from "lucide-react";
+import banner from "../imports/services-banner.png";
 
 // Each card shows its photo cropped from the attached services banner (1536×1024).
 const services = [
@@ -58,7 +58,7 @@ const services = [
     tint: "from-[#e0f4fb] to-[#f3fbfe]",
     badge: "bg-[#0e8fbf]",
   },
-]
+];
 
 function CompactServices() {
   return (
@@ -95,13 +95,9 @@ function CompactServices() {
               <Icon size={19} strokeWidth={1.8} />
             </span>
             <h3 className="mt-4 text-sm font-bold text-[#0b1530]">{name}</h3>
-            <p className="mt-1.5 flex-1 text-[11px] leading-5 text-[#0b1530]/65">
-              {text}
-            </p>
+            <p className="mt-1.5 flex-1 text-[11px] leading-5 text-[#0b1530]/65">{text}</p>
             <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary">
-              {to.includes("development")
-                ? "Start a Project"
-                : "Request Service"}
+              {to.includes("development") ? "Start a Project" : "Request Service"}
               <ArrowUpRight
                 size={13}
                 className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
@@ -111,7 +107,7 @@ function CompactServices() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 // `compact` is the short Home-page version; the full banner-style layout lives on /services.
@@ -120,10 +116,10 @@ export default function OurServices({
   bleedTop = false,
   compact = false,
 }: {
-  bleedTop?: boolean
-  compact?: boolean
+  bleedTop?: boolean;
+  compact?: boolean;
 }) {
-  if (compact) return <CompactServices />
+  if (compact) return <CompactServices />;
   return (
     <div
       className={`relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-[linear-gradient(180deg,#f4f5f7_0%,#fafafb_45%,#ffffff_100%)] px-5 pb-14 md:px-9 lg:px-12 ${
@@ -176,13 +172,9 @@ export default function OurServices({
                 <h3 className="mt-5 text-lg font-extrabold uppercase leading-tight tracking-[-.01em] text-[#0b1530]">
                   {name}
                 </h3>
-                <p className="mt-2 max-w-[15rem] text-[13px] leading-5 text-[#0b1530]/70">
-                  {text}
-                </p>
+                <p className="mt-2 max-w-[15rem] text-[13px] leading-5 text-[#0b1530]/70">{text}</p>
                 <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary opacity-80 transition group-hover:opacity-100">
-                  {to.includes("development")
-                    ? "Start a Project"
-                    : "Request Service"}
+                  {to.includes("development") ? "Start a Project" : "Request Service"}
                   <ArrowUpRight
                     size={14}
                     className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
@@ -211,5 +203,5 @@ export default function OurServices({
         ))}
       </div>
     </div>
-  )
+  );
 }

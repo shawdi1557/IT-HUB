@@ -1,22 +1,22 @@
 // Smart PC Builder — admin-managed recommendation templates.
 // Supabase: `pc_build_templates`. Parts reference componentOptions ids by part type.
-export type BuildPurpose = "gaming" | "creation" | "work" | "professional" | "general"
+export type BuildPurpose = "gaming" | "creation" | "work" | "professional" | "general";
 export type BuildTemplate = {
-  id: string
-  name: string
-  purpose: BuildPurpose
+  id: string;
+  name: string;
+  purpose: BuildPurpose;
   /** INR, whole build */
-  budgetMin: number
-  budgetMax: number
-  resolution: string
-  usage: string
+  budgetMin: number;
+  budgetMax: number;
+  resolution: string;
+  usage: string;
   /** Trade-off label: Value-focused | Balanced | Higher-performance | Upgrade-friendly */
-  tradeoff: string
+  tradeoff: string;
   /** part type (CPU, GPU, …) → componentOptions id */
-  parts: Record<string, string>
-  highlights: string[]
-  active: boolean
-}
+  parts: Record<string, string>;
+  highlights: string[];
+  active: boolean;
+};
 export const initialBuildTemplates: BuildTemplate[] = [
   {
     id: "g-entry-1080",
@@ -37,10 +37,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "Smooth 1080p in esports titles",
-      "Proven AM4 platform at a low cost",
-    ],
+    highlights: ["Smooth 1080p in esports titles", "Proven AM4 platform at a low cost"],
     active: true,
   },
   {
@@ -62,10 +59,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "DLSS support for higher frame rates",
-      "Efficient, quiet RTX graphics",
-    ],
+    highlights: ["DLSS support for higher frame rates", "Efficient, quiet RTX graphics"],
     active: true,
   },
   {
@@ -112,10 +106,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "lancool",
       Cooler: "ag400",
     },
-    highlights: [
-      "16GB graphics card for 1440p textures",
-      "Most graphics performance per rupee",
-    ],
+    highlights: ["16GB graphics card for 1440p textures", "Most graphics performance per rupee"],
     active: true,
   },
   {
@@ -137,10 +128,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ak400",
     },
-    highlights: [
-      "AM5 platform with a future CPU upgrade path",
-      "Fast DDR5 memory",
-    ],
+    highlights: ["AM5 platform with a future CPU upgrade path", "Fast DDR5 memory"],
     active: true,
   },
   {
@@ -206,10 +194,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "corsair",
       Cooler: "h100",
     },
-    highlights: [
-      "Fast Intel cores for high frame rates",
-      "Liquid cooling for sustained boost",
-    ],
+    highlights: ["Fast Intel cores for high frame rates", "Liquid cooling for sustained boost"],
     active: true,
   },
   {
@@ -231,10 +216,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "lancool",
       Cooler: "h100",
     },
-    highlights: [
-      "Gaming-focused 3D V-Cache processor",
-      "2TB storage for large AAA installs",
-    ],
+    highlights: ["Gaming-focused 3D V-Cache processor", "2TB storage for large AAA installs"],
     active: true,
   },
   {
@@ -278,10 +260,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "corsair",
       Cooler: "ak400",
     },
-    highlights: [
-      "8-core CPU for faster exports",
-      "NVIDIA encoder for editing and streaming",
-    ],
+    highlights: ["8-core CPU for faster exports", "NVIDIA encoder for editing and streaming"],
     active: true,
   },
   {
@@ -303,10 +282,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "corsair",
       Cooler: "h100",
     },
-    highlights: [
-      "20-core Intel CPU for multitasking",
-      "Quick Sync and NVENC for streaming",
-    ],
+    highlights: ["20-core Intel CPU for multitasking", "Quick Sync and NVENC for streaming"],
     active: true,
   },
   {
@@ -349,10 +325,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "Integrated graphics, no graphics card needed",
-      "Low power and quiet",
-    ],
+    highlights: ["Integrated graphics, no graphics card needed", "Low power and quiet"],
     active: true,
   },
   {
@@ -373,10 +346,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "Capable built-in Radeon graphics",
-      "AM5 platform for future upgrades",
-    ],
+    highlights: ["Capable built-in Radeon graphics", "AM5 platform for future upgrades"],
     active: true,
   },
   {
@@ -397,10 +367,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "32GB memory for IDEs, containers and many tabs",
-      "Built-in Wi-Fi",
-    ],
+    highlights: ["32GB memory for IDEs, containers and many tabs", "Built-in Wi-Fi"],
     active: true,
   },
   {
@@ -422,10 +389,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "corsair",
       Cooler: "h100",
     },
-    highlights: [
-      "Fast single-core speed for CAD",
-      "64GB memory for large models",
-    ],
+    highlights: ["Fast single-core speed for CAD", "64GB memory for large models"],
     active: true,
   },
   {
@@ -468,10 +432,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "1TB storage for photos and media",
-      "Quiet everyday performance",
-    ],
+    highlights: ["1TB storage for photos and media", "Quiet everyday performance"],
     active: true,
   },
   {
@@ -492,10 +453,7 @@ export const initialBuildTemplates: BuildTemplate[] = [
       Cabinet: "ant",
       Cooler: "ag400",
     },
-    highlights: [
-      "Built-in graphics handles light games",
-      "Room to add a graphics card later",
-    ],
+    highlights: ["Built-in graphics handles light games", "Room to add a graphics card later"],
     active: true,
   },
-]
+];

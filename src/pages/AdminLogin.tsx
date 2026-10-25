@@ -3,8 +3,8 @@
 // Features: IT HUB branding, light theme, password visibility toggle, accessible error handling,
 // and role verification via Supabase Auth.
 
-import { useState, type FormEvent } from "react"
-import { Link } from "react-router"
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import {
   Lock,
   Mail,
@@ -16,64 +16,58 @@ import {
   ShieldAlert,
   ArrowLeft,
   LogOut,
-} from "lucide-react"
-import logo from "../imports/ITHUBLOGO-1.jpeg"
-import {
-  signInAdminWithPassword,
-  signOutUser,
-  type CustomerProfile,
-} from "../lib/auth"
-import type { User } from "@supabase/supabase-js"
+} from "lucide-react";
+import logo from "../imports/ITHUBLOGO-1.jpeg";
+import { signInAdminWithPassword, signOutUser, type CustomerProfile } from "../lib/auth";
+import type { User } from "@supabase/supabase-js";
 
 interface AdminLoginProps {
-  onLoginSuccess: (user: User, profile: CustomerProfile) => void
+  onLoginSuccess: (user: User, profile: CustomerProfile) => void;
 }
 
 export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (loading) return
+    e.preventDefault();
+    if (loading) return;
 
-    const trimmedEmail = email.trim()
+    const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      setError("Please enter your administrator email address.")
-      return
+      setError("Please enter your administrator email address.");
+      return;
     }
     if (!password) {
-      setError("Please enter your administrator password.")
-      return
+      setError("Please enter your administrator password.");
+      return;
     }
 
-    setLoading(true)
-    setError("")
+    setLoading(true);
+    setError("");
 
     try {
-      const res = await signInAdminWithPassword(trimmedEmail, password)
+      const res = await signInAdminWithPassword(trimmedEmail, password);
       if (!res.ok) {
-        setError(res.error || "Invalid credentials. Please try again.")
-        setLoading(false)
-        return
+        setError(res.error || "Invalid credentials. Please try again.");
+        setLoading(false);
+        return;
       }
 
       if (res.user && res.profile) {
-        onLoginSuccess(res.user, res.profile)
+        onLoginSuccess(res.user, res.profile);
       } else {
-        setError("Failed to retrieve administrator profile.")
-        setLoading(false)
+        setError("Failed to retrieve administrator profile.");
+        setLoading(false);
       }
     } catch (err: any) {
-      setError(
-        err?.message || "An unexpected error occurred. Please try again.",
-      )
-      setLoading(false)
+      setError(err?.message || "An unexpected error occurred. Please try again.");
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-12 sm:px-6 lg:px-8">
@@ -83,11 +77,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
           {/* Header & Logo */}
           <div className="text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-white p-2 shadow-sm">
-              <img
-                src={logo}
-                alt="IT HUB Logo"
-                className="h-full w-full object-contain"
-              />
+              <img src={logo} alt="IT HUB Logo" className="h-full w-full object-contain" />
             </div>
             <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold tracking-wider text-primary uppercase">
               <ShieldCheck size={15} />
@@ -97,8 +87,8 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
               Admin Sign In
             </h1>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Sign in with your verified administrator credentials to manage IT
-              HUB operations and inventory.
+              Sign in with your verified administrator credentials to manage IT HUB operations and
+              inventory.
             </p>
           </div>
 
@@ -116,10 +106,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
           {/* Form */}
           <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
             <div>
-              <label
-                htmlFor="admin-email"
-                className="block text-xs font-semibold text-foreground"
-              >
+              <label htmlFor="admin-email" className="block text-xs font-semibold text-foreground">
                 Admin Email
               </label>
               <div className="relative mt-1.5">
@@ -211,26 +198,23 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 interface AdminAccessDeniedProps {
-  customerEmail: string
-  onSignOut: () => void
+  customerEmail: string;
+  onSignOut: () => void;
 }
 
-export function AdminAccessDenied({
-  customerEmail,
-  onSignOut,
-}: AdminAccessDeniedProps) {
-  const [signingOut, setSigningOut] = useState(false)
+export function AdminAccessDenied({ customerEmail, onSignOut }: AdminAccessDeniedProps) {
+  const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
-    setSigningOut(true)
-    await signOutUser()
-    setSigningOut(false)
-    onSignOut()
-  }
+    setSigningOut(true);
+    await signOutUser();
+    setSigningOut(false);
+    onSignOut();
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-12 sm:px-6 lg:px-8">
@@ -244,10 +228,8 @@ export function AdminAccessDenied({
               Access Denied
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              You are signed in as{" "}
-              <strong className="text-foreground">{customerEmail}</strong>. This
-              account does not have administrative privileges for the IT HUB
-              operations portal.
+              You are signed in as <strong className="text-foreground">{customerEmail}</strong>.
+              This account does not have administrative privileges for the IT HUB operations portal.
             </p>
           </div>
 
@@ -281,7 +263,7 @@ export function AdminAccessDenied({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export function AdminAuthLoading() {
@@ -289,11 +271,7 @@ export function AdminAuthLoading() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="text-center">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-white p-2 shadow-sm">
-          <img
-            src={logo}
-            alt="IT HUB Logo"
-            className="h-full w-full object-contain"
-          />
+          <img src={logo} alt="IT HUB Logo" className="h-full w-full object-contain" />
         </div>
         <div className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-primary">
           <LoaderCircle size={16} className="animate-spin" />
@@ -301,5 +279,5 @@ export function AdminAuthLoading() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -6,15 +6,15 @@ This document serves as the comprehensive implementation manual, architectural r
 
 ## 1. Master Phase Execution Matrix
 
-| Phase | Title | Status | Scope & Key Deliverables |
-| :--- | :--- | :--- | :--- |
-| **Phase 1** | [**Database & Security Hardening**](./phase-1-database-security.md) | **COMPLETED** | PostgreSQL schema, RLS policies, security barrier views, wholesale `cost_price` protection, 34 InitPlan performance fixes, 18 foreign key indexes. |
-| **Phase 2** | [**SMS OTP Authentication**](./phase-2-sms-otp.md) | **COMPLETED** | Indian mobile OTP (+91 E.164), Supabase Auth GoTrue integration, `send-sms-hook` Edge Function (Fast2SMS / 2Factor / MSG91), 96/96 tests. |
-| **Phase 3** | [**Live Catalog & Inventory Sync**](./phase-3-catalog-inventory.md) | **CURRENT** | Supabase `products_public` view enrichment, live catalog service (`src/lib/catalog.ts`), realtime inventory WebSocket sync, offline-first cache. |
-| **Phase 4** | [**Checkout & Razorpay Settlement**](./phase-4-checkout-razorpay.md) | **PLANNED** | Atomic `create_order` RPC, Razorpay Checkout modal, HMAC SHA-256 signature verification Edge Function, live order tracking. |
-| **Phase 5** | [**Customer Accounts & Services**](./phase-5-customer-account.md) | **PLANNED** | Multi-address book (`customer_addresses`), cloud-saved PC builds (`pc_builds`), service booking requests (`service_requests`) & tracking. |
-| **Phase 6** | [**Live Analytics & Privacy Engine**](./phase-6-visitor-analytics.md) | **PLANNED** | `log_visitor_event` RPC ingestion, IP masking & privacy controls, automated data retention pruning via `purge_visitor_data()` and `pg_cron`. |
-| **Phase 7** | [**Admin Dashboard Full Integration**](./phase-7-admin-dashboard.md) | **PLANNED** | Live catalog management, bulk CSV/XLSX import, order fulfillment workflow, brand support verification, dynamic store settings. |
+| Phase       | Title                                                                 | Status        | Scope & Key Deliverables                                                                                                                           |
+| :---------- | :-------------------------------------------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 1** | [**Database & Security Hardening**](./phase-1-database-security.md)   | **COMPLETED** | PostgreSQL schema, RLS policies, security barrier views, wholesale `cost_price` protection, 34 InitPlan performance fixes, 18 foreign key indexes. |
+| **Phase 2** | [**SMS OTP Authentication**](./phase-2-sms-otp.md)                    | **COMPLETED** | Indian mobile OTP (+91 E.164), Supabase Auth GoTrue integration, `send-sms-hook` Edge Function (Fast2SMS / 2Factor / MSG91), 96/96 tests.          |
+| **Phase 3** | [**Live Catalog & Inventory Sync**](./phase-3-catalog-inventory.md)   | **CURRENT**   | Supabase `products_public` view enrichment, live catalog service (`src/lib/catalog.ts`), realtime inventory WebSocket sync, offline-first cache.   |
+| **Phase 4** | [**Checkout & Razorpay Settlement**](./phase-4-checkout-razorpay.md)  | **PLANNED**   | Atomic `create_order` RPC, Razorpay Checkout modal, HMAC SHA-256 signature verification Edge Function, live order tracking.                        |
+| **Phase 5** | [**Customer Accounts & Services**](./phase-5-customer-account.md)     | **PLANNED**   | Multi-address book (`customer_addresses`), cloud-saved PC builds (`pc_builds`), service booking requests (`service_requests`) & tracking.          |
+| **Phase 6** | [**Live Analytics & Privacy Engine**](./phase-6-visitor-analytics.md) | **PLANNED**   | `log_visitor_event` RPC ingestion, IP masking & privacy controls, automated data retention pruning via `purge_visitor_data()` and `pg_cron`.       |
+| **Phase 7** | [**Admin Dashboard Full Integration**](./phase-7-admin-dashboard.md)  | **PLANNED**   | Live catalog management, bulk CSV/XLSX import, order fulfillment workflow, brand support verification, dynamic store settings.                     |
 
 ---
 
@@ -35,7 +35,7 @@ flowchart TD
         GoTrue["Supabase Auth (GoTrue)"]
         PostgREST["PostgREST Engine"]
         Realtime["Supabase Realtime (WebSockets)"]
-        
+
         subgraph EdgeFunctions["Deno Edge Functions"]
             SMSHook["send-sms-hook (OTP Webhook)"]
             PayHook["verify-checkout-callback (HMAC Verification)"]
@@ -83,9 +83,11 @@ flowchart TD
 ## 3. Phase 1: Database Foundation & Security Hardening (Completed)
 
 ### 3.1. Overview
+
 Hardened the PostgreSQL 15 database running on Supabase, resolved all security linter vulnerabilities, and optimized query execution paths.
 
 ### 3.2. Key Implementation Deliverables
+
 - **Canonical Schemas**: Authored [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) and [`supabase/migration.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/migration.sql).
 - **Security Definer View Remediation**:
   - Converted `products_public`, `live_offers`, and `public_coupons` views to:
@@ -110,9 +112,11 @@ Hardened the PostgreSQL 15 database running on Supabase, resolved all security l
 ## 4. Phase 2: SMS OTP Authentication & Indian Gateway Hook (Completed)
 
 ### 4.1. Overview
+
 Replaced prototype mock login with a production-grade passwordless mobile OTP flow designed specifically for Indian domestic phone numbers (+91).
 
 ### 4.2. Key Implementation Deliverables
+
 - **Client Auth Service**: [`src/lib/auth.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/auth.ts)
   - `normalizePhone()`: Formats 10-digit Indian numbers into E.164 standard (`+919847012345`).
   - `sendPhoneOtp()`: Dispatches 6-digit OTP via Supabase Auth GoTrue.
@@ -128,9 +132,11 @@ Replaced prototype mock login with a production-grade passwordless mobile OTP fl
 ## 5. Phase 3: Live Catalog & Realtime Inventory Synchronization (Current)
 
 ### 5.1. Overview
+
 Connect the customer-facing storefront to live database tables. Storefront listings, search, filtering, and stock counts reflect Supabase data with instant offline-first caching and WebSocket updates.
 
 ### 5.2. Implementation Tasks
+
 - [ ] **Task 3.1: Database View Enrichment & Full Seed**
   - Enrich `products_public` view in [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) to join `brands.name as brand` and `categories.name as category`.
   - Add primary image subquery resolution from `product_images`.
@@ -156,6 +162,7 @@ Connect the customer-facing storefront to live database tables. Storefront listi
 ## 6. Phase 4: End-to-End Checkout & Razorpay Settlement (Planned)
 
 ### 6.1. Overview
+
 Enable real Indian payment processing using Razorpay (UPI, Credit/Debit Cards, NetBanking) with server-side HMAC-SHA256 signature verification and atomic inventory reservation.
 
 ### 6.2. Workflow Architecture
@@ -201,6 +208,7 @@ sequenceDiagram
 ```
 
 ### 6.3. Implementation Tasks
+
 - [ ] **Task 4.1: Cart & Checkout UI Wiring**
   - Wire checkout action in [`src/pages/Commerce.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Commerce.tsx) to invoke `createSupabaseOrder()` from [`src/lib/payments.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/payments.ts).
 - [ ] **Task 4.2: Razorpay Modal Integration**
@@ -216,9 +224,11 @@ sequenceDiagram
 ## 7. Phase 5: Customer Account & Profile Management (Planned)
 
 ### 7.1. Overview
+
 Provide logged-in customers with full self-service capabilities: multi-address management, cloud-persisted custom PC builds, and warranty/service request tracking.
 
 ### 7.2. Implementation Tasks
+
 - [ ] **Task 5.1: Address Book Management**
   - Allow customers to add, edit, delete, and set default shipping addresses in [`src/pages/Account.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Account.tsx) (`addresses` table).
 - [ ] **Task 5.2: Cloud PC Builds Synchronization**
@@ -233,9 +243,11 @@ Provide logged-in customers with full self-service capabilities: multi-address m
 ## 8. Phase 6: Live Visitor Analytics & Privacy Engine (Planned)
 
 ### 8.1. Overview
+
 Ingest storefront visitor metrics directly into Supabase while enforcing strict privacy regulations (IP masking, GDPR/DPDP Act compliance, and automatic data purging).
 
 ### 8.2. Implementation Tasks
+
 - [ ] **Task 6.1: Client Analytics Ingestion**
   - Update [`src/lib/analytics.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/analytics.ts) to push session creation and tracking events to PostgreSQL via `log_visitor_event` RPC.
 - [ ] **Task 6.2: Privacy & Anonymization Engine**
@@ -248,9 +260,11 @@ Ingest storefront visitor metrics directly into Supabase while enforcing strict 
 ## 9. Phase 7: Full Admin Dashboard Database Integration (Planned)
 
 ### 9.1. Overview
+
 Migrate all admin operations from `localStorage` to authenticated, role-verified Supabase database queries.
 
 ### 9.2. Implementation Tasks
+
 - [ ] **Task 7.1: Live Catalog & Inventory Management**
   - Connect [`src/pages/Admin.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Admin.tsx) products tab, bulk CSV/XLSX import engine, and stock level controls directly to `products` and `inventory`.
 - [ ] **Task 7.2: Order Management & Fulfillment**
@@ -265,9 +279,9 @@ Migrate all admin operations from `localStorage` to authenticated, role-verified
 ## 10. Verification & Quality Assurance Strategy
 
 Each phase must satisfy the following criteria before being marked complete:
+
 1. **Security**: Pass all Supabase database linter checks (0 warnings, 0 errors).
 2. **Type Safety**: Clean TypeScript compilation (`tsc --noEmit`).
 3. **Build Integrity**: Zero production build errors (`pnpm build`).
 4. **Resilience**: Graceful offline fallback during network drops.
 5. **Auditing**: Git commit and push with clear semantic commit messages.
-

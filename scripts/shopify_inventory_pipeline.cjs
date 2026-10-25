@@ -19,10 +19,10 @@
  *   node scripts/shopify_inventory_pipeline.cjs --merge-pricing=<path-to-excel-or-csv>
  */
 
-const fs = require("fs")
-const path = require("path")
-const crypto = require("crypto")
-const xlsx = require("xlsx")
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const xlsx = require("xlsx");
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 const STAGING_CSV = path.join(
@@ -30,36 +30,101 @@ const STAGING_CSV = path.join(
   "..",
   "inventory_staging",
   "normalized_inventory_import_template.csv",
-)
-const PILOT_CSV = path.join(
-  __dirname,
-  "..",
-  "inventory_staging",
-  "shopify_pilot_batch_sample.csv",
-)
+);
+const PILOT_CSV = path.join(__dirname, "..", "inventory_staging", "shopify_pilot_batch_sample.csv");
 const FULL_SHOPIFY_CSV = path.join(
   __dirname,
   "..",
   "inventory_staging",
   "shopify_products_export.csv",
-)
+);
 const AUDIT_REPORT_JSON = path.join(
   __dirname,
   "..",
   "inventory_staging",
   "inventory_audit_report.json",
-)
+);
 
 // ── Acronyms preserved in Title Casing ────────────────────────────────────────
 const PRESERVE_ACRONYMS = new Set([
-  "CPU", "GPU", "SSD", "RAM", "HDD", "NVME", "PCIE", "SATA", "DDR3", "DDR4", "DDR5",
-  "AM4", "AM5", "LGA1700", "LGA1200", "LGA1851", "FHD", "QHD", "UHD", "IPS", "LED",
-  "OLED", "LCD", "USB", "HDMI", "VGA", "DVI", "LAN", "WIFI", "BT", "RGB", "ARGB",
-  "PSU", "UPS", "TDP", "ATX", "MATX", "ITX", "POR", "HP", "MSI", "ASUS", "AMD",
-  "INTEL", "WD", "CCTV", "DVR", "NVR", "MP", "POE", "RJ45", "CAT6", "CAT5E", "W11",
-  "GB", "TB", "MB", "HZ", "KHZ", "MHZ", "GHZ", "MM", "CM", "W", "V", "A", "MAH",
-  "IOS", "MACBOOK", "PRO", "MAX", "PLUS", "NEO", "MINI", "ULTRA", "SUPER", "TI",
-])
+  "CPU",
+  "GPU",
+  "SSD",
+  "RAM",
+  "HDD",
+  "NVME",
+  "PCIE",
+  "SATA",
+  "DDR3",
+  "DDR4",
+  "DDR5",
+  "AM4",
+  "AM5",
+  "LGA1700",
+  "LGA1200",
+  "LGA1851",
+  "FHD",
+  "QHD",
+  "UHD",
+  "IPS",
+  "LED",
+  "OLED",
+  "LCD",
+  "USB",
+  "HDMI",
+  "VGA",
+  "DVI",
+  "LAN",
+  "WIFI",
+  "BT",
+  "RGB",
+  "ARGB",
+  "PSU",
+  "UPS",
+  "TDP",
+  "ATX",
+  "MATX",
+  "ITX",
+  "POR",
+  "HP",
+  "MSI",
+  "ASUS",
+  "AMD",
+  "INTEL",
+  "WD",
+  "CCTV",
+  "DVR",
+  "NVR",
+  "MP",
+  "POE",
+  "RJ45",
+  "CAT6",
+  "CAT5E",
+  "W11",
+  "GB",
+  "TB",
+  "MB",
+  "HZ",
+  "KHZ",
+  "MHZ",
+  "GHZ",
+  "MM",
+  "CM",
+  "W",
+  "V",
+  "A",
+  "MAH",
+  "IOS",
+  "MACBOOK",
+  "PRO",
+  "MAX",
+  "PLUS",
+  "NEO",
+  "MINI",
+  "ULTRA",
+  "SUPER",
+  "TI",
+]);
 
 // ── Brand Auto-Recovery Regex Patterns ───────────────────────────────────────
 const BRAND_RULES = [
@@ -100,7 +165,7 @@ const BRAND_RULES = [
   { regex: /\b(?:brother)\b/i, brand: "Brother" },
   { regex: /\b(?:circle)\b/i, brand: "Circle" },
   { regex: /\b(?:boe)\b/i, brand: "BOE" },
-]
+];
 
 // ── Shopify Taxonomy Mapping ─────────────────────────────────────────────────
 const CATEGORY_TAXONOMY_MAP = {
@@ -124,7 +189,7 @@ const CATEGORY_TAXONOMY_MAP = {
     shopifyType: "Monitors & Displays",
     hsn: "85285200",
   },
-  "Accessories": {
+  Accessories: {
     shopifyCategory: "Electronics > Electronics Accessories",
     shopifyType: "Accessories",
     hsn: "84716060",
@@ -154,80 +219,80 @@ const CATEGORY_TAXONOMY_MAP = {
     shopifyType: "Mobile Phones & Tablets",
     hsn: "85171300",
   },
-}
+};
 
 // ── Utility: Clean Product Titles ────────────────────────────────────────────
 function cleanProductTitle(rawTitle) {
-  if (!rawTitle) return ""
-  let title = String(rawTitle).trim()
+  if (!rawTitle) return "";
+  let title = String(rawTitle).trim();
 
   // Un-escape quotes and strip extraneous surrounding quotes
-  title = title.replace(/""+/g, '"')
-  title = title.replace(/^["']+|["']+$/g, "").trim()
+  title = title.replace(/""+/g, '"');
+  title = title.replace(/^["']+|["']+$/g, "").trim();
 
   // Fix known typographical errors in hardware particulars
-  title = title.replace(/\bpapet\b/gi, "Paper")
-  title = title.replace(/\bpper\b/gi, "Paper")
-  title = title.replace(/\bnoraml\b/gi, "Normal")
-  title = title.replace(/\bmoniter\b/gi, "Monitor")
-  title = title.replace(/\bmoterboard\b/gi, "Motherboard")
-  title = title.replace(/\bproccesor\b/gi, "Processor")
+  title = title.replace(/\bpapet\b/gi, "Paper");
+  title = title.replace(/\bpper\b/gi, "Paper");
+  title = title.replace(/\bnoraml\b/gi, "Normal");
+  title = title.replace(/\bmoniter\b/gi, "Monitor");
+  title = title.replace(/\bmoterboard\b/gi, "Motherboard");
+  title = title.replace(/\bproccesor\b/gi, "Processor");
 
   // Normalize spacing around punctuation
-  title = title.replace(/\s*\|\s*/g, " | ")
-  title = title.replace(/\s*-\s*/g, " - ")
-  title = title.replace(/\s+/g, " ")
+  title = title.replace(/\s*\|\s*/g, " | ");
+  title = title.replace(/\s*-\s*/g, " - ");
+  title = title.replace(/\s+/g, " ");
 
   // Intelligent Title Casing while preserving acronyms
-  const words = title.split(" ")
+  const words = title.split(" ");
   const casedWords = words.map((word) => {
-    const cleanWord = word.replace(/[^A-Za-z0-9]/g, "")
-    const upperWord = cleanWord.toUpperCase()
+    const cleanWord = word.replace(/[^A-Za-z0-9]/g, "");
+    const upperWord = cleanWord.toUpperCase();
 
     if (PRESERVE_ACRONYMS.has(upperWord)) {
       // Re-apply original surrounding punctuation with uppercase core
-      return word.replace(cleanWord, upperWord)
+      return word.replace(cleanWord, upperWord);
     }
 
     // Intel Core processors (i3, i5, i7, i9)
     if (/^i[3579]$/i.test(cleanWord)) {
-      return word.replace(cleanWord, cleanWord.toLowerCase())
+      return word.replace(cleanWord, cleanWord.toLowerCase());
     }
 
     // Generation ordinals (e.g. 12th, 13th, 14th)
     if (/^\d+(?:st|nd|rd|th)$/i.test(cleanWord)) {
-      return word.replace(cleanWord, cleanWord.toLowerCase())
+      return word.replace(cleanWord, cleanWord.toLowerCase());
     }
 
     // Model numbers, spec metrics with mixed numbers & letters (e.g. 8GB, 512GB, 1334U, FD0534TU, B91DNPA)
     if (/\d[A-Za-z]|[A-Za-z]\d/.test(cleanWord)) {
-      return word.replace(cleanWord, upperWord)
+      return word.replace(cleanWord, upperWord);
     }
 
     if (word.length <= 2 && /^[A-Z0-9]+$/i.test(word)) {
-      return word.toUpperCase()
+      return word.toUpperCase();
     }
 
     // Standard title case: First char upper, rest lower
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  })
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
 
-  return casedWords.join(" ")
+  return casedWords.join(" ");
 }
 
 // ── Utility: Recover Brand ───────────────────────────────────────────────────
 function recoverBrand(currentBrand, title) {
   if (currentBrand && currentBrand !== "Generic / OEM" && currentBrand !== "Unknown") {
-    return currentBrand
+    return currentBrand;
   }
 
   for (const rule of BRAND_RULES) {
     if (rule.regex.test(title)) {
-      return rule.brand
+      return rule.brand;
     }
   }
 
-  return currentBrand || "Generic / OEM"
+  return currentBrand || "Generic / OEM";
 }
 
 // ── Utility: Generate Shopify URL Handle ─────────────────────────────────────
@@ -236,61 +301,61 @@ function generateShopifyHandle(title, sku) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 70)
+    .slice(0, 70);
 
   // Append deterministic suffix from SKU to guarantee uniqueness
-  const skuSuffix = sku ? sku.split("-").pop()?.toLowerCase() || "" : ""
+  const skuSuffix = sku ? sku.split("-").pop()?.toLowerCase() || "" : "";
   if (skuSuffix && !base.endsWith(skuSuffix)) {
-    base = `${base}-${skuSuffix}`
+    base = `${base}-${skuSuffix}`;
   }
 
-  return base.replace(/--+/g, "-")
+  return base.replace(/--+/g, "-");
 }
 
 // ── Utility: Load and Parse 1,359 Staging Particulars ─────────────────────────
 function loadStagingInventory() {
   if (!fs.existsSync(STAGING_CSV)) {
-    throw new Error(`Staging CSV not found at: ${STAGING_CSV}`)
+    throw new Error(`Staging CSV not found at: ${STAGING_CSV}`);
   }
 
-  const wb = xlsx.readFile(STAGING_CSV)
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rawRows = xlsx.utils.sheet_to_json(sheet)
+  const wb = xlsx.readFile(STAGING_CSV);
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rawRows = xlsx.utils.sheet_to_json(sheet);
 
   if (rawRows.length !== 1359) {
-    console.warn(`[Inventory Pipeline] Warning: Expected 1359 rows, parsed ${rawRows.length}`)
+    console.warn(`[Inventory Pipeline] Warning: Expected 1359 rows, parsed ${rawRows.length}`);
   }
 
-  return rawRows
+  return rawRows;
 }
 
 // ── Duplicate Detection & Cleaning Engine ─────────────────────────────────────
 function processInventoryRows(rawRows) {
-  const processed = []
-  const nameOccurrences = new Map()
-  const exactDuplicates = []
-  let brandsRecovered = 0
+  const processed = [];
+  const nameOccurrences = new Map();
+  const exactDuplicates = [];
+  let brandsRecovered = 0;
 
   rawRows.forEach((row, idx) => {
-    const originalName = row["Product Name"] || ""
-    const cleanedTitle = cleanProductTitle(originalName)
-    const brand = recoverBrand(row["Brand"], cleanedTitle)
+    const originalName = row["Product Name"] || "";
+    const cleanedTitle = cleanProductTitle(originalName);
+    const brand = recoverBrand(row["Brand"], cleanedTitle);
 
     if (row["Brand"] === "Generic / OEM" && brand !== "Generic / OEM") {
-      brandsRecovered++
+      brandsRecovered++;
     }
 
-    const sku = row["SKU"] || `ITH-GEN-${idx + 1}`
-    const handle = generateShopifyHandle(cleanedTitle, sku)
-    const category = row["Category"] || "Accessories"
+    const sku = row["SKU"] || `ITH-GEN-${idx + 1}`;
+    const handle = generateShopifyHandle(cleanedTitle, sku);
+    const category = row["Category"] || "Accessories";
     const taxonomy = CATEGORY_TAXONOMY_MAP[category] || {
       shopifyCategory: "Electronics > Electronics Accessories",
       shopifyType: category,
       hsn: "8471",
-    }
+    };
 
     // Duplicate check
-    const normalizedKey = cleanedTitle.toLowerCase()
+    const normalizedKey = cleanedTitle.toLowerCase();
     if (nameOccurrences.has(normalizedKey)) {
       exactDuplicates.push({
         title: cleanedTitle,
@@ -298,20 +363,20 @@ function processInventoryRows(rawRows) {
         duplicateRow: idx + 2,
         firstSku: processed[nameOccurrences.get(normalizedKey)].sku,
         duplicateSku: sku,
-      })
+      });
     } else {
-      nameOccurrences.set(normalizedKey, idx)
+      nameOccurrences.set(normalizedKey, idx);
     }
 
-    const price = parseFloat(row["Price"]) || 0
-    const salePrice = parseFloat(row["Sale Price"]) || 0
-    const costPrice = parseFloat(row["Cost Price"]) || 0
-    const stock = parseInt(row["Stock"], 10) || 0
-    const warranty = row["Warranty"] || "Standard Warranty"
+    const price = parseFloat(row["Price"]) || 0;
+    const salePrice = parseFloat(row["Sale Price"]) || 0;
+    const costPrice = parseFloat(row["Cost Price"]) || 0;
+    const stock = parseInt(row["Stock"], 10) || 0;
+    const warranty = row["Warranty"] || "Standard Warranty";
 
     // Zero data fabrication: If price is unconfirmed, item status must remain Draft
-    const isPriced = price > 0
-    const status = isPriced ? (row["Status"] || "Active") : "Draft"
+    const isPriced = price > 0;
+    const status = isPriced ? row["Status"] || "Active" : "Draft";
 
     processed.push({
       rowIndex: idx + 2,
@@ -333,31 +398,31 @@ function processInventoryRows(rawRows) {
       status,
       isPriced,
       isDuplicate: nameOccurrences.get(normalizedKey) !== idx,
-    })
-  })
+    });
+  });
 
   return {
     processed,
     exactDuplicates,
     brandsRecovered,
     totalRows: rawRows.length,
-  }
+  };
 }
 
 // ── Official Shopify CSV Export Generator ─────────────────────────────────────
 function generateShopifyCsvRows(items) {
   return items.map((item) => {
-    const compareAt = item.salePrice > 0 && item.salePrice < item.price ? item.price : ""
-    const sellingPrice = item.salePrice > 0 ? item.salePrice : item.price
+    const compareAt = item.salePrice > 0 && item.salePrice < item.price ? item.price : "";
+    const sellingPrice = item.salePrice > 0 ? item.salePrice : item.price;
 
     return {
-      "Handle": item.handle,
-      "Title": item.title,
+      Handle: item.handle,
+      Title: item.title,
       "Body (HTML)": `<p>${item.title}. Genuine IT HUB verified product. Contact IT HUB Kerala for warranty and service support.</p>`,
-      "Vendor": item.brand,
+      Vendor: item.brand,
       "Product Category": item.shopifyCategory,
-      "Type": item.shopifyType,
-      "Tags": [
+      Type: item.shopifyType,
+      Tags: [
         item.brand,
         item.category,
         item.subcategory,
@@ -366,7 +431,7 @@ function generateShopifyCsvRows(items) {
       ]
         .filter(Boolean)
         .join(", "),
-      "Published": item.status === "Active" ? "TRUE" : "FALSE",
+      Published: item.status === "Active" ? "TRUE" : "FALSE",
       "Option1 Name": "Title",
       "Option1 Value": "Default Title",
       "Option2 Name": "",
@@ -395,9 +460,9 @@ function generateShopifyCsvRows(items) {
       "Google Shopping / Custom Label 0": item.category,
       "Variant Weight Unit": "kg",
       "Cost per item": item.costPrice > 0 ? item.costPrice.toFixed(2) : "",
-      "Status": item.status === "Active" ? "active" : "draft",
-    }
-  })
+      Status: item.status === "Active" ? "active" : "draft",
+    };
+  });
 }
 
 // ── Pilot Batch Generator (10 Validated Core Products) ────────────────────────
@@ -405,7 +470,8 @@ function getPilotBatchItems() {
   return [
     {
       handle: "hp-15-fd0534tu-i5-13th-8gb-512gb-fhd",
-      title: "Laptop HP 15 FD0534TU (i5-13th 1334U | 8GB | 512GB SSD | 15.6\" FHD | W11 | Natural Silver)",
+      title:
+        'Laptop HP 15 FD0534TU (i5-13th 1334U | 8GB | 512GB SSD | 15.6" FHD | W11 | Natural Silver)',
       brand: "HP",
       category: "Laptops & MacBooks",
       subcategory: "Laptops",
@@ -413,9 +479,9 @@ function getPilotBatchItems() {
       shopifyType: "Laptops & MacBooks",
       hsn: "84713010",
       sku: "ITH-LPT-HP-B91DNPA-3ADE",
-      price: 56990.00,
-      salePrice: 48990.00,
-      costPrice: 44500.00,
+      price: 56990.0,
+      salePrice: 48990.0,
+      costPrice: 44500.0,
       stock: 5,
       warranty: "1-Year Official HP India Warranty",
       status: "Active",
@@ -423,7 +489,7 @@ function getPilotBatchItems() {
     },
     {
       handle: "apple-macbook-neo-a18-pro-8gb-256gb-citrus",
-      title: "13\" MacBook Neo A18 Pro (6CPU 5GPU | 8GB | 256GB SSD | Citrus)",
+      title: '13" MacBook Neo A18 Pro (6CPU 5GPU | 8GB | 256GB SSD | Citrus)',
       brand: "Apple",
       category: "Laptops & MacBooks",
       subcategory: "MacBooks",
@@ -431,9 +497,9 @@ function getPilotBatchItems() {
       shopifyType: "Laptops & MacBooks",
       hsn: "84713010",
       sku: "ITH-LPT-APL-MACBOOKN-59F0",
-      price: 99900.00,
-      salePrice: 89900.00,
-      costPrice: 82000.00,
+      price: 99900.0,
+      salePrice: 89900.0,
+      costPrice: 82000.0,
       stock: 3,
       warranty: "1-Year Apple Manufacturer Warranty",
       status: "Active",
@@ -449,9 +515,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-AMD-R77800X3D-01",
-      price: 45000.00,
-      salePrice: 38990.00,
-      costPrice: 35000.00,
+      price: 45000.0,
+      salePrice: 38990.0,
+      costPrice: 35000.0,
       stock: 8,
       warranty: "3-Year Official AMD Warranty",
       status: "Active",
@@ -467,9 +533,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-INT-I714700K-01",
-      price: 43500.00,
-      salePrice: 37500.00,
-      costPrice: 34000.00,
+      price: 43500.0,
+      salePrice: 37500.0,
+      costPrice: 34000.0,
       stock: 6,
       warranty: "3-Year Official Intel Warranty",
       status: "Active",
@@ -485,9 +551,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-MSI-B650TOM-01",
-      price: 25000.00,
-      salePrice: 21499.00,
-      costPrice: 19200.00,
+      price: 25000.0,
+      salePrice: 21499.0,
+      costPrice: 19200.0,
       stock: 5,
       warranty: "3-Year Official MSI Warranty",
       status: "Active",
@@ -503,9 +569,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-ASU-B650MA-01",
-      price: 17500.00,
-      salePrice: 14999.00,
-      costPrice: 13200.00,
+      price: 17500.0,
+      salePrice: 14999.0,
+      costPrice: 13200.0,
       stock: 7,
       warranty: "3-Year Official ASUS Warranty",
       status: "Active",
@@ -521,9 +587,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-ZOT-RTX4070S-01",
-      price: 65000.00,
-      salePrice: 58999.00,
-      costPrice: 53500.00,
+      price: 65000.0,
+      salePrice: 58999.0,
+      costPrice: 53500.0,
       stock: 4,
       warranty: "3+2 Years ZOTAC Manufacturer Warranty",
       status: "Active",
@@ -539,9 +605,9 @@ function getPilotBatchItems() {
       shopifyType: "PC Components & Storage",
       hsn: "84733020",
       sku: "ITH-CMP-WD-SSDWESTE-46F5",
-      price: 5500.00,
-      salePrice: 4499.00,
-      costPrice: 3800.00,
+      price: 5500.0,
+      salePrice: 4499.0,
+      costPrice: 3800.0,
       stock: 12,
       warranty: "5-Year Official Western Digital Warranty",
       status: "Active",
@@ -557,9 +623,9 @@ function getPilotBatchItems() {
       shopifyType: "Accessories",
       hsn: "85183000",
       sku: "ITH-AUD-POR-MUFFSM8-01",
-      price: 3999.00,
-      salePrice: 2199.00,
-      costPrice: 1650.00,
+      price: 3999.0,
+      salePrice: 2199.0,
+      costPrice: 1650.0,
       stock: 10,
       warranty: "1-Year Official Portronics Warranty",
       status: "Active",
@@ -567,7 +633,7 @@ function getPilotBatchItems() {
     },
     {
       handle: "14-0-inch-paper-30-pin-fhd-laptop-screen",
-      title: "14.0\" Paper 30-Pin FHD Slim IPS Replacement Laptop LED Screen Panel",
+      title: '14.0" Paper 30-Pin FHD Slim IPS Replacement Laptop LED Screen Panel',
       brand: "Generic / OEM",
       category: "Laptop Spares & Service Parts",
       subcategory: "Replacement Laptop Screens",
@@ -575,50 +641,54 @@ function getPilotBatchItems() {
       shopifyType: "Laptop Spares & Service Parts",
       hsn: "84733099",
       sku: "ITH-SPR-GEN-140PAPER-D7B1",
-      price: 4500.00,
-      salePrice: 3850.00,
-      costPrice: 3100.00,
+      price: 4500.0,
+      salePrice: 3850.0,
+      costPrice: 3100.0,
       stock: 5,
       warranty: "90-Day IT HUB Lab Replacement Warranty",
       status: "Active",
       isPriced: true,
     },
-  ]
+  ];
 }
 
 // ── Export Utility ───────────────────────────────────────────────────────────
 function writeCsvFile(filePath, rows) {
-  const ws = xlsx.utils.json_to_sheet(rows)
-  const csvContent = xlsx.utils.sheet_to_csv(ws)
-  fs.writeFileSync(filePath, csvContent, "utf8")
+  const ws = xlsx.utils.json_to_sheet(rows);
+  const csvContent = xlsx.utils.sheet_to_csv(ws);
+  fs.writeFileSync(filePath, csvContent, "utf8");
 }
 
 // ── CLI Runner ───────────────────────────────────────────────────────────────
 function main() {
-  const args = process.argv.slice(2)
-  const isAnalyze = args.includes("--analyze") || args.length === 0
-  const isExportPilot = args.includes("--export-pilot")
-  const isExportFull = args.includes("--export-shopify-csv")
-  const mergePricingArg = args.find((a) => a.startsWith("--merge-pricing="))
+  const args = process.argv.slice(2);
+  const isAnalyze = args.includes("--analyze") || args.length === 0;
+  const isExportPilot = args.includes("--export-pilot");
+  const isExportFull = args.includes("--export-shopify-csv");
+  const mergePricingArg = args.find((a) => a.startsWith("--merge-pricing="));
 
-  console.log("================================================================================")
-  console.log("IT HUB — Shopify Inventory Normalization & Ingestion Pipeline")
-  console.log("================================================================================")
+  console.log("================================================================================");
+  console.log("IT HUB — Shopify Inventory Normalization & Ingestion Pipeline");
+  console.log("================================================================================");
 
-  const rawRows = loadStagingInventory()
-  const result = processInventoryRows(rawRows)
+  const rawRows = loadStagingInventory();
+  const result = processInventoryRows(rawRows);
 
-  console.log(`[Summary] Total Inventory Particulars: ${result.totalRows}`)
-  console.log(`[Summary] Brands Auto-Recovered from Generic: ${result.brandsRecovered}`)
-  console.log(`[Summary] Exact Duplicate Particulars Identified: ${result.exactDuplicates.length}`)
-  console.log(`[Summary] Unpriced Particulars (Safely marked Draft): ${result.processed.filter((p) => !p.isPriced).length}`)
+  console.log(`[Summary] Total Inventory Particulars: ${result.totalRows}`);
+  console.log(`[Summary] Brands Auto-Recovered from Generic: ${result.brandsRecovered}`);
+  console.log(`[Summary] Exact Duplicate Particulars Identified: ${result.exactDuplicates.length}`);
+  console.log(
+    `[Summary] Unpriced Particulars (Safely marked Draft): ${result.processed.filter((p) => !p.isPriced).length}`,
+  );
 
   if (result.exactDuplicates.length > 0) {
-    console.log("\n[Audit Alert] Identified Duplicate Particulars in Staging Template:")
+    console.log("\n[Audit Alert] Identified Duplicate Particulars in Staging Template:");
     result.exactDuplicates.forEach((d, i) => {
-      console.log(`  ${i + 1}. "${d.title}"`)
-      console.log(`     Row ${d.firstRow} (SKU: ${d.firstSku}) <==> Row ${d.duplicateRow} (SKU: ${d.duplicateSku})`)
-    })
+      console.log(`  ${i + 1}. "${d.title}"`);
+      console.log(
+        `     Row ${d.firstRow} (SKU: ${d.firstSku}) <==> Row ${d.duplicateRow} (SKU: ${d.duplicateSku})`,
+      );
+    });
   }
 
   // Save audit report
@@ -636,27 +706,33 @@ function main() {
       2,
     ),
     "utf8",
-  )
-  console.log(`\n[Audit] Saved detailed audit report to: ${path.relative(process.cwd(), AUDIT_REPORT_JSON)}`)
+  );
+  console.log(
+    `\n[Audit] Saved detailed audit report to: ${path.relative(process.cwd(), AUDIT_REPORT_JSON)}`,
+  );
 
   if (isExportPilot || isAnalyze) {
-    const pilotItems = getPilotBatchItems()
-    const pilotShopifyRows = generateShopifyCsvRows(pilotItems)
-    writeCsvFile(PILOT_CSV, pilotShopifyRows)
-    console.log(`[Export] Successfully wrote 10-Product Pilot Batch to: ${path.relative(process.cwd(), PILOT_CSV)}`)
+    const pilotItems = getPilotBatchItems();
+    const pilotShopifyRows = generateShopifyCsvRows(pilotItems);
+    writeCsvFile(PILOT_CSV, pilotShopifyRows);
+    console.log(
+      `[Export] Successfully wrote 10-Product Pilot Batch to: ${path.relative(process.cwd(), PILOT_CSV)}`,
+    );
   }
 
   if (isExportFull) {
-    const fullShopifyRows = generateShopifyCsvRows(result.processed)
-    writeCsvFile(FULL_SHOPIFY_CSV, fullShopifyRows)
-    console.log(`[Export] Successfully wrote full 1,359-item Shopify CSV to: ${path.relative(process.cwd(), FULL_SHOPIFY_CSV)}`)
+    const fullShopifyRows = generateShopifyCsvRows(result.processed);
+    writeCsvFile(FULL_SHOPIFY_CSV, fullShopifyRows);
+    console.log(
+      `[Export] Successfully wrote full 1,359-item Shopify CSV to: ${path.relative(process.cwd(), FULL_SHOPIFY_CSV)}`,
+    );
   }
 
-  console.log("================================================================================")
+  console.log("================================================================================");
 }
 
 if (require.main === module) {
-  main()
+  main();
 }
 
 module.exports = {
@@ -666,4 +742,4 @@ module.exports = {
   processInventoryRows,
   generateShopifyCsvRows,
   getPilotBatchItems,
-}
+};

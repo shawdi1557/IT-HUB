@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef } from "react";
 import {
   Plus,
   Pencil,
@@ -12,106 +12,104 @@ import {
   RotateCcw,
   ZoomIn,
   Link as LinkIcon,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import { type CertificateItem, initialCertificates } from "../data/catalog"
-import { Button, Modal, Field, fieldClass } from "../components/ui"
+} from "lucide-react";
+import { useStore } from "../app/store";
+import { type CertificateItem, initialCertificates } from "../data/catalog";
+import { Button, Modal, Field, fieldClass } from "../components/ui";
 
 export default function AdminCertificates({ view = "all" }: { view?: string }) {
-  const store = useStore()
-  const certificates = store.certificates || initialCertificates
+  const store = useStore();
+  const certificates = store.certificates || initialCertificates;
 
-  const [search, setSearch] = useState("")
-  const [editorOpen, setEditorOpen] = useState(view === "add")
-  const [editingCert, setEditingCert] = useState<CertificateItem | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<CertificateItem | null>(
-    null,
-  )
-  const [resetConfirm, setResetConfirm] = useState(false)
-  const [previewCert, setPreviewCert] = useState<CertificateItem | null>(null)
+  const [search, setSearch] = useState("");
+  const [editorOpen, setEditorOpen] = useState(view === "add");
+  const [editingCert, setEditingCert] = useState<CertificateItem | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<CertificateItem | null>(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [previewCert, setPreviewCert] = useState<CertificateItem | null>(null);
 
   // Form Fields
-  const [text, setText] = useState("")
-  const [brand, setBrand] = useState("")
-  const [category, setCategory] = useState("")
-  const [validity, setValidity] = useState("")
-  const [description, setDescription] = useState("")
-  const [image, setImage] = useState("")
-  const [shopUrl, setShopUrl] = useState("")
-  const [formError, setFormError] = useState("")
+  const [text, setText] = useState("");
+  const [brand, setBrand] = useState("");
+  const [category, setCategory] = useState("");
+  const [validity, setValidity] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [shopUrl, setShopUrl] = useState("");
+  const [formError, setFormError] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openCreate = () => {
-    setEditingCert(null)
-    setText("")
-    setBrand("")
-    setCategory("Laptops & Computing")
-    setValidity("2026 Certified")
-    setDescription("")
-    setImage("")
-    setShopUrl("")
-    setFormError("")
-    setEditorOpen(true)
-  }
+    setEditingCert(null);
+    setText("");
+    setBrand("");
+    setCategory("Laptops & Computing");
+    setValidity("2026 Certified");
+    setDescription("");
+    setImage("");
+    setShopUrl("");
+    setFormError("");
+    setEditorOpen(true);
+  };
 
   const openEdit = (cert: CertificateItem) => {
-    setEditingCert(cert)
-    setText(cert.text)
-    setBrand(cert.brand)
-    setCategory(cert.category)
-    setValidity(cert.validity)
-    setDescription(cert.description)
-    setImage(cert.image)
-    setShopUrl(cert.shopUrl || "")
-    setFormError("")
-    setEditorOpen(true)
-  }
+    setEditingCert(cert);
+    setText(cert.text);
+    setBrand(cert.brand);
+    setCategory(cert.category);
+    setValidity(cert.validity);
+    setDescription(cert.description);
+    setImage(cert.image);
+    setShopUrl(cert.shopUrl || "");
+    setFormError("");
+    setEditorOpen(true);
+  };
 
   const handleImageFile = (files: FileList | null) => {
-    if (!files?.length) return
-    const file = files[0]
+    if (!files?.length) return;
+    const file = files[0];
     if (!file.type.startsWith("image/")) {
-      setFormError("Please upload a valid image file (JPG, PNG, WebP).")
-      return
+      setFormError("Please upload a valid image file (JPG, PNG, WebP).");
+      return;
     }
 
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = () => {
-      const img = new Image()
+      const img = new Image();
       img.onload = () => {
         // Downscale to max 900px width/height for snappy performance & localStorage persistence
-        const maxDim = 900
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
-        const canvas = document.createElement("canvas")
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
-        const ctx = canvas.getContext("2d")
+        const maxDim = 900;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
         if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
-          setImage(dataUrl)
-          setFormError("")
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          setImage(dataUrl);
+          setFormError("");
         }
-      }
-      img.src = String(reader.result)
-    }
-    reader.readAsDataURL(file)
-  }
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!text.trim()) {
-      setFormError("Please enter the certificate or partnership title.")
-      return
+      setFormError("Please enter the certificate or partnership title.");
+      return;
     }
     if (!brand.trim()) {
-      setFormError("Please specify the brand name (e.g. ASUS, Canon, Epson).")
-      return
+      setFormError("Please specify the brand name (e.g. ASUS, Canon, Epson).");
+      return;
     }
     if (!image.trim()) {
-      setFormError("Please upload a certificate photo or enter an image URL.")
-      return
+      setFormError("Please upload a certificate photo or enter an image URL.");
+      return;
     }
 
     if (editingCert) {
@@ -127,15 +125,15 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
         image: image.trim(),
         alt: `${text.trim()} Certificate for IT HUB`,
         shopUrl: shopUrl.trim() || undefined,
-      }
+      };
 
       store.set((s) => ({
         certificates: (s.certificates || initialCertificates).map((c) =>
           c.id === editingCert.id ? updated : c,
         ),
-      }))
-      store.log(`Updated showcase certificate: ${updated.text}`)
-      store.notify(`Certificate "${updated.text}" updated successfully`)
+      }));
+      store.log(`Updated showcase certificate: ${updated.text}`);
+      store.notify(`Certificate "${updated.text}" updated successfully`);
     } else {
       // Create new certificate
       const newCert: CertificateItem = {
@@ -149,52 +147,50 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
         image: image.trim(),
         alt: `${text.trim()} Certificate for IT HUB`,
         shopUrl: shopUrl.trim() || undefined,
-      }
+      };
 
       store.set((s) => ({
         certificates: [newCert, ...(s.certificates || initialCertificates)],
-      }))
-      store.log(`Added showcase certificate: ${newCert.text}`)
-      store.notify(`Certificate "${newCert.text}" published to showcase`)
+      }));
+      store.log(`Added showcase certificate: ${newCert.text}`);
+      store.notify(`Certificate "${newCert.text}" published to showcase`);
     }
 
-    setEditorOpen(false)
-  }
+    setEditorOpen(false);
+  };
 
   const handleDelete = () => {
-    if (!deleteConfirm) return
-    const id = deleteConfirm.id
-    const targetTitle = deleteConfirm.text
+    if (!deleteConfirm) return;
+    const id = deleteConfirm.id;
+    const targetTitle = deleteConfirm.text;
 
     store.set((s) => ({
-      certificates: (s.certificates || initialCertificates).filter(
-        (c) => c.id !== id,
-      ),
-    }))
-    store.log(`Deleted showcase certificate: ${targetTitle}`)
-    store.notify(`Certificate "${targetTitle}" removed from showcase`)
-    setDeleteConfirm(null)
-  }
+      certificates: (s.certificates || initialCertificates).filter((c) => c.id !== id),
+    }));
+    store.log(`Deleted showcase certificate: ${targetTitle}`);
+    store.notify(`Certificate "${targetTitle}" removed from showcase`);
+    setDeleteConfirm(null);
+  };
 
   const handleReset = () => {
     store.set(() => ({
       certificates: initialCertificates,
-    }))
-    store.log("Reset showcase certificates to default manufacturer partners")
-    store.notify("Showcase certificates restored to default manufacturer list")
-    setResetConfirm(false)
-  }
+    }));
+    store.log("Reset showcase certificates to default manufacturer partners");
+    store.notify("Showcase certificates restored to default manufacturer list");
+    setResetConfirm(false);
+  };
 
   // Filter certificates
   const filtered = certificates.filter((c) => {
-    const q = search.toLowerCase()
+    const q = search.toLowerCase();
     return (
       c.text.toLowerCase().includes(q) ||
       c.brand.toLowerCase().includes(q) ||
       c.category.toLowerCase().includes(q) ||
       c.validity.toLowerCase().includes(q)
-    )
-  })
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -211,16 +207,12 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
               </h2>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Manage manufacturer partnerships, reseller authorizations, and
-              awards shown in the Recognition section on the main website.
+              Manage manufacturer partnerships, reseller authorizations, and awards shown in the
+              Recognition section on the main website.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              variant="secondary"
-              onClick={() => setResetConfirm(true)}
-              className="text-xs"
-            >
+            <Button variant="secondary" onClick={() => setResetConfirm(true)} className="text-xs">
               <RotateCcw size={14} /> Reset Defaults
             </Button>
             <Button onClick={openCreate} className="text-xs">
@@ -232,33 +224,23 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
         {/* Quick Stats */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Active Showcase
-            </p>
-            <p className="mt-1 text-2xl font-bold text-foreground">
-              {certificates.length}
-            </p>
+            <p className="text-[11px] font-medium text-muted-foreground">Active Showcase</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{certificates.length}</p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Unique Brands
-            </p>
+            <p className="text-[11px] font-medium text-muted-foreground">Unique Brands</p>
             <p className="mt-1 text-2xl font-bold text-primary">
               {new Set(certificates.map((c) => c.brand)).size}
             </p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Product Categories
-            </p>
+            <p className="text-[11px] font-medium text-muted-foreground">Product Categories</p>
             <p className="mt-1 text-2xl font-bold text-emerald-600">
               {new Set(certificates.map((c) => c.category)).size}
             </p>
           </div>
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5">
-            <p className="text-[11px] font-medium text-muted-foreground">
-              Public Display
-            </p>
+            <p className="text-[11px] font-medium text-muted-foreground">Public Display</p>
             <p className="mt-1 text-xs font-semibold text-emerald-600 flex items-center gap-1">
               <BadgeCheck size={14} /> Live on /about
             </p>
@@ -289,9 +271,7 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-12 text-center">
           <Award size={36} className="mx-auto text-muted-foreground/60" />
-          <h3 className="mt-3 text-base font-bold text-foreground">
-            No certificates found
-          </h3>
+          <h3 className="mt-3 text-base font-bold text-foreground">No certificates found</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Try adjusting your search or add a new manufacturer certificate.
           </p>
@@ -441,9 +421,7 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
 
           {/* Certificate Image Upload & URL */}
           <div className="space-y-2">
-            <span className="block text-xs font-semibold text-foreground">
-              Certificate Image *
-            </span>
+            <span className="block text-xs font-semibold text-foreground">Certificate Image *</span>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
               <input
                 value={image}
@@ -496,16 +474,10 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
           </Field>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setEditorOpen(false)}
-            >
+            <Button type="button" variant="secondary" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit">
-              {editingCert ? "Save Changes" : "Publish to Showcase"}
-            </Button>
+            <Button type="submit">{editingCert ? "Save Changes" : "Publish to Showcase"}</Button>
           </div>
         </form>
       </Modal>
@@ -521,10 +493,8 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
             This will immediately remove{" "}
-            <span className="font-bold text-foreground">
-              {deleteConfirm?.text}
-            </span>{" "}
-            from the About page on the main storefront.
+            <span className="font-bold text-foreground">{deleteConfirm?.text}</span> from the About
+            page on the main storefront.
           </p>
           <div className="flex items-center justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
@@ -551,8 +521,7 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
       >
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Any custom certificates added will be replaced by the default
-            verified partner list.
+            Any custom certificates added will be replaced by the default verified partner list.
           </p>
           <div className="flex items-center justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setResetConfirm(false)}>
@@ -598,5 +567,5 @@ export default function AdminCertificates({ view = "all" }: { view?: string }) {
         )}
       </Modal>
     </div>
-  )
+  );
 }

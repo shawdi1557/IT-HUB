@@ -4,20 +4,19 @@
 // without hardcoded template IDs, enforces compatibility, preserves authentic prices & variant IDs,
 // and strictly avoids fabricated or placeholder recommendations when categories are incomplete.
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts"
+import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-const {
-  syncBuilderCatalogWithShopify,
-  buildBuilderCatalog,
-} = await import("../../../src/lib/builder/catalog.ts")
+const { syncBuilderCatalogWithShopify, buildBuilderCatalog } =
+  await import("../../../src/lib/builder/catalog.ts");
 
 const {
   generateRecommendations,
   generateDynamicCatalogRecommendations,
   getMissingCatalogCategories,
-} = await import("../../../src/lib/builder/recommendations.ts")
+} = await import("../../../src/lib/builder/recommendations.ts");
 
-const { checkCompatibility, compatibility } = await import("../../../src/lib/builder/compatibility.ts")
+const { checkCompatibility, compatibility } =
+  await import("../../../src/lib/builder/compatibility.ts");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 8 Authentic Shopify Test Products (Identical to Expert Mode)
@@ -38,7 +37,7 @@ const mockShopifyRyzen5600: any = {
   availableForSale: true,
   stock: 6,
   specs: {},
-}
+};
 
 const mockShopifyB550M: any = {
   id: "gid://shopify/Product/mobo-b550m-test",
@@ -54,7 +53,7 @@ const mockShopifyB550M: any = {
   availableForSale: true,
   stock: 5,
   specs: {},
-}
+};
 
 const mockShopifyRam16: any = {
   id: "gid://shopify/Product/ram-16-test",
@@ -70,7 +69,7 @@ const mockShopifyRam16: any = {
   availableForSale: true,
   stock: 10,
   specs: {},
-}
+};
 
 const mockShopifyRtx4060: any = {
   id: "gid://shopify/Product/gpu-4060-test",
@@ -86,7 +85,7 @@ const mockShopifyRtx4060: any = {
   availableForSale: true,
   stock: 4,
   specs: {},
-}
+};
 
 const mockShopifyNvme1tb: any = {
   id: "gid://shopify/Product/ssd-1tb-test",
@@ -102,7 +101,7 @@ const mockShopifyNvme1tb: any = {
   availableForSale: true,
   stock: 8,
   specs: {},
-}
+};
 
 const mockShopifyPsu550: any = {
   id: "gid://shopify/Product/psu-550-test",
@@ -118,7 +117,7 @@ const mockShopifyPsu550: any = {
   availableForSale: true,
   stock: 6,
   specs: {},
-}
+};
 
 const mockShopifyCase: any = {
   id: "gid://shopify/Product/case-matx-test",
@@ -134,7 +133,7 @@ const mockShopifyCase: any = {
   availableForSale: true,
   stock: 7,
   specs: {},
-}
+};
 
 const mockShopifyCooler: any = {
   id: "gid://shopify/Product/cooler-ag400-test",
@@ -150,7 +149,7 @@ const mockShopifyCooler: any = {
   availableForSale: true,
   stock: 5,
   specs: {},
-}
+};
 
 const eightLiveShopifyProducts = [
   mockShopifyRyzen5600,
@@ -161,19 +160,20 @@ const eightLiveShopifyProducts = [
   mockShopifyPsu550,
   mockShopifyCase,
   mockShopifyCooler,
-]
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
 Deno.test("FIND-MY-PC-1: Find My PC uses the same live Shopify catalog as Expert Mode", () => {
-  const { componentCatalog, canonicalCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+  const { componentCatalog, canonicalCatalog } =
+    syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   // Verify Expert Mode catalog has live products
-  assertEquals(componentCatalog.CPU.length, 1)
-  assertEquals(componentCatalog.CPU[0].price, 9000)
-  assertEquals(componentCatalog.CPU[0].variantId, "gid://shopify/ProductVariant/4455667788")
+  assertEquals(componentCatalog.CPU.length, 1);
+  assertEquals(componentCatalog.CPU[0].price, 9000);
+  assertEquals(componentCatalog.CPU[0].variantId, "gid://shopify/ProductVariant/4455667788");
 
   // Generate recommendations directly from store.componentCatalog
   const answers = {
@@ -182,21 +182,21 @@ Deno.test("FIND-MY-PC-1: Find My PC uses the same live Shopify catalog as Expert
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  assertEquals(recs.length > 0, true)
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  assertEquals(recs.length > 0, true);
 
-  const rec = recs[0]
-  assertEquals(Boolean(rec.parts.CPU), true)
-  assertEquals(rec.parts.CPU.id, "gid://shopify/Product/987654321")
-  assertEquals(rec.parts.CPU.price, 9000)
-  assertEquals(rec.parts.CPU.variantId, "gid://shopify/ProductVariant/4455667788")
-  assertEquals(rec.parts.CPU.isShopifyLive, true)
-})
+  const rec = recs[0];
+  assertEquals(Boolean(rec.parts.CPU), true);
+  assertEquals(rec.parts.CPU.id, "gid://shopify/Product/987654321");
+  assertEquals(rec.parts.CPU.price, 9000);
+  assertEquals(rec.parts.CPU.variantId, "gid://shopify/ProductVariant/4455667788");
+  assertEquals(rec.parts.CPU.isShopifyLive, true);
+});
 
 Deno.test("FIND-MY-PC-2: Recommends a valid build from the 8 live Shopify test products", () => {
-  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   const answers = {
     purpose: "gaming",
@@ -204,34 +204,36 @@ Deno.test("FIND-MY-PC-2: Recommends a valid build from the 8 live Shopify test p
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  assertEquals(recs.length, 1) // Exactly 1 authentic build, no fake filler builds
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  assertEquals(recs.length, 1); // Exactly 1 authentic build, no fake filler builds
 
-  const build = recs[0]
-  assertEquals(build.tradeoff, "Balanced")
-  assertEquals(build.parts.CPU.name, "[TEST] AMD Ryzen 5 5600")
-  assertEquals(build.parts.Motherboard.name, "[TEST] ASUS Prime B550M-A WiFi II")
-  assertEquals(build.parts.RAM.name, "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz")
-  assertEquals(build.parts.GPU.name, "[TEST] Gigabyte GeForce RTX 4060 Eagle OC 8GB")
-  assertEquals(build.parts.Storage.name, "[TEST] Kingston NV2 1TB M.2 2280 NVMe PCIe 4.0 SSD")
-  assertEquals(build.parts.PSU.name, "[TEST] Deepcool PK550D 550W 80 Plus Bronze Power Supply")
-  assertEquals(build.parts.Cabinet.name, "[TEST] Ant Esports ICE-100 Mid-Tower Gaming Cabinet")
-  assertEquals(build.parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
+  const build = recs[0];
+  assertEquals(build.tradeoff, "Balanced");
+  assertEquals(build.parts.CPU.name, "[TEST] AMD Ryzen 5 5600");
+  assertEquals(build.parts.Motherboard.name, "[TEST] ASUS Prime B550M-A WiFi II");
+  assertEquals(build.parts.RAM.name, "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz");
+  assertEquals(build.parts.GPU.name, "[TEST] Gigabyte GeForce RTX 4060 Eagle OC 8GB");
+  assertEquals(build.parts.Storage.name, "[TEST] Kingston NV2 1TB M.2 2280 NVMe PCIe 4.0 SSD");
+  assertEquals(build.parts.PSU.name, "[TEST] Deepcool PK550D 550W 80 Plus Bronze Power Supply");
+  assertEquals(build.parts.Cabinet.name, "[TEST] Ant Esports ICE-100 Mid-Tower Gaming Cabinet");
+  assertEquals(build.parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
 
   // Total price must be exact sum of Shopify prices: 9000 + 8999 + 3499 + 28499 + 4999 + 3699 + 2999 + 1899 = 63593
-  assertEquals(build.price, 63593)
+  assertEquals(build.price, 63593);
 
   // Hard compatibility check must pass
-  const check = compatibility(build.parts)
-  assertEquals(check.valid, true)
-})
+  const check = compatibility(build.parts);
+  assertEquals(check.valid, true);
+});
 
 Deno.test("FIND-MY-PC-3: Missing essential category produces zero fabricated builds and lists missing category", () => {
   // Catalog missing Motherboard
-  const productsMissingMobo = eightLiveShopifyProducts.filter((p) => p.productType !== "Motherboard")
-  const { componentCatalog } = syncBuilderCatalogWithShopify(productsMissingMobo)
+  const productsMissingMobo = eightLiveShopifyProducts.filter(
+    (p) => p.productType !== "Motherboard",
+  );
+  const { componentCatalog } = syncBuilderCatalogWithShopify(productsMissingMobo);
 
   const answers = {
     purpose: "gaming",
@@ -239,20 +241,22 @@ Deno.test("FIND-MY-PC-3: Missing essential category produces zero fabricated bui
     brands: ["AMD"],
     wifi: "No",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  assertEquals(recs.length, 0) // Strictly 0 recommendations when an essential category is missing
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  assertEquals(recs.length, 0); // Strictly 0 recommendations when an essential category is missing
 
-  const missingCategories = getMissingCatalogCategories(componentCatalog as any)
-  assertEquals(missingCategories.includes("Motherboard"), true)
-  assertEquals(missingCategories.includes("CPU"), false)
-})
+  const missingCategories = getMissingCatalogCategories(componentCatalog as any);
+  assertEquals(missingCategories.includes("Motherboard"), true);
+  assertEquals(missingCategories.includes("CPU"), false);
+});
 
 Deno.test("FIND-MY-PC-4: User-owned category is not required in catalog", () => {
   // Catalog missing Storage, but user already owns Storage
-  const productsMissingStorage = eightLiveShopifyProducts.filter((p) => p.productType !== "Solid State Drive")
-  const { componentCatalog } = syncBuilderCatalogWithShopify(productsMissingStorage)
+  const productsMissingStorage = eightLiveShopifyProducts.filter(
+    (p) => p.productType !== "Solid State Drive",
+  );
+  const { componentCatalog } = syncBuilderCatalogWithShopify(productsMissingStorage);
 
   const answers = {
     purpose: "gaming",
@@ -260,16 +264,16 @@ Deno.test("FIND-MY-PC-4: User-owned category is not required in catalog", () => 
     brands: ["AMD"],
     wifi: "Yes",
     owned: ["Storage"],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  assertEquals(recs.length > 0, true)
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  assertEquals(recs.length > 0, true);
 
-  const build = recs[0]
-  assertEquals(build.owned.includes("Storage"), true)
+  const build = recs[0];
+  assertEquals(build.owned.includes("Storage"), true);
   // Total price should exclude Storage (63593 - 4999 = 58594)
-  assertEquals(build.price, 58594)
-})
+  assertEquals(build.price, 58594);
+});
 
 Deno.test("FIND-MY-PC-5: Incompatible combinations are strictly rejected", () => {
   // AM5 CPU combined with AM4 Motherboard
@@ -282,7 +286,7 @@ Deno.test("FIND-MY-PC-5: Incompatible combinations are strictly rejected", () =>
     tags: ["am5", "pc-builder"],
     variantId: "gid://shopify/ProductVariant/7600",
     stock: 5,
-  }
+  };
 
   const { componentCatalog } = syncBuilderCatalogWithShopify([
     am5Cpu,
@@ -292,7 +296,7 @@ Deno.test("FIND-MY-PC-5: Incompatible combinations are strictly rejected", () =>
     mockShopifyNvme1tb,
     mockShopifyPsu550,
     mockShopifyCase,
-  ])
+  ]);
 
   const answers = {
     purpose: "gaming",
@@ -300,15 +304,15 @@ Deno.test("FIND-MY-PC-5: Incompatible combinations are strictly rejected", () =>
     brands: ["AMD"],
     wifi: "No",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
   // AM5 CPU + AM4 Motherboard is physically incompatible, so no invalid build must be produced!
-  assertEquals(recs.length, 0)
-})
+  assertEquals(recs.length, 0);
+});
 
 Deno.test("FIND-MY-PC-6: Variant IDs and prices survive recommendation-to-Expert-Mode transition", () => {
-  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   const answers = {
     purpose: "gaming",
@@ -316,23 +320,23 @@ Deno.test("FIND-MY-PC-6: Variant IDs and prices survive recommendation-to-Expert
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  const candidate = recs[0]
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  const candidate = recs[0];
 
   // Simulate "Customize in Expert Mode" action in Builder.tsx:
   // onExpert(candidate.parts, candidate.name) -> sets expertSeed.parts
-  const expertSeedParts = candidate.parts
+  const expertSeedParts = candidate.parts;
 
   for (const [slot, part] of Object.entries(expertSeedParts)) {
-    const originalShopify = eightLiveShopifyProducts.find((p) => p.name === (part as any).name)
-    assertEquals(Boolean(originalShopify), true)
-    assertEquals((part as any).price, originalShopify.price)
-    assertEquals((part as any).variantId, originalShopify.variantId)
-    assertEquals((part as any).isShopifyLive, true)
+    const originalShopify = eightLiveShopifyProducts.find((p) => p.name === (part as any).name);
+    assertEquals(Boolean(originalShopify), true);
+    assertEquals((part as any).price, originalShopify.price);
+    assertEquals((part as any).variantId, originalShopify.variantId);
+    assertEquals((part as any).isShopifyLive, true);
   }
-})
+});
 
 Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buildTemplates.ts", () => {
   // A new arbitrary product with custom ID and title not present in buildTemplates.ts
@@ -346,7 +350,7 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
     tags: ["pc-builder", "cpu", "lga1700"],
     variantId: "gid://shopify/ProductVariant/12400",
     stock: 3,
-  }
+  };
 
   const customShopifyB760M: any = {
     id: "gid://shopify/Product/custom-mobo-b760m",
@@ -358,7 +362,7 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
     tags: ["pc-builder", "motherboard", "lga1700", "b760", "ddr4"],
     variantId: "gid://shopify/ProductVariant/760",
     stock: 4,
-  }
+  };
 
   const intelCatalogProducts = [
     customShopifyCpu,
@@ -368,9 +372,9 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
     mockShopifyNvme1tb,
     mockShopifyPsu550,
     mockShopifyCase,
-  ]
+  ];
 
-  const { componentCatalog } = syncBuilderCatalogWithShopify(intelCatalogProducts)
+  const { componentCatalog } = syncBuilderCatalogWithShopify(intelCatalogProducts);
 
   const answers = {
     purpose: "gaming",
@@ -378,20 +382,20 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
     brands: ["Intel"],
     wifi: "No",
     owned: [],
-  }
+  };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers)
-  assertEquals(recs.length > 0, true)
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  assertEquals(recs.length > 0, true);
 
-  const intelBuild = recs[0]
-  assertEquals(intelBuild.parts.CPU.name, "[TEST] Intel Core i5-12400F Processor")
-  assertEquals(intelBuild.parts.Motherboard.name, "[TEST] MSI PRO B760M-P DDR4 Motherboard")
-  assertEquals(intelBuild.parts.CPU.price, 11000)
-  assertEquals(intelBuild.parts.Motherboard.price, 9500)
-})
+  const intelBuild = recs[0];
+  assertEquals(intelBuild.parts.CPU.name, "[TEST] Intel Core i5-12400F Processor");
+  assertEquals(intelBuild.parts.Motherboard.name, "[TEST] MSI PRO B760M-P DDR4 Motherboard");
+  assertEquals(intelBuild.parts.CPU.price, 11000);
+  assertEquals(intelBuild.parts.Motherboard.price, 9500);
+});
 
 Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000–₹60,000 or below it (custom budget)", () => {
-  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   // 1. Budget is ₹40,000 – ₹60,000 (id: "40-60"):
   // The only available build costs ₹63,593, which exceeds ₹60,000. It must NOT be fetched!
@@ -401,10 +405,14 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const budget4060Override = { min: 40000, max: 60000, label: "₹40,000–₹60,000" }
-  const recs4060 = generateDynamicCatalogRecommendations(componentCatalog, budget4060Answers, budget4060Override)
-  assertEquals(recs4060.length, 0) // Zero over-budget builds returned!
+  };
+  const budget4060Override = { min: 40000, max: 60000, label: "₹40,000–₹60,000" };
+  const recs4060 = generateDynamicCatalogRecommendations(
+    componentCatalog,
+    budget4060Answers,
+    budget4060Override,
+  );
+  assertEquals(recs4060.length, 0); // Zero over-budget builds returned!
 
   // 2. Custom budget below it: Around ₹10,000 (customBudget: "10000"):
   // A ₹63,593 build must NOT be fetched for a ₹10,000 budget!
@@ -415,10 +423,14 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const custom10000Override = { min: 8500, max: 10000, label: "Around ₹10,000" }
-  const recs10000 = generateDynamicCatalogRecommendations(componentCatalog, custom10000Answers, custom10000Override)
-  assertEquals(recs10000.length, 0) // Zero over-budget builds returned!
+  };
+  const custom10000Override = { min: 8500, max: 10000, label: "Around ₹10,000" };
+  const recs10000 = generateDynamicCatalogRecommendations(
+    componentCatalog,
+    custom10000Answers,
+    custom10000Override,
+  );
+  assertEquals(recs10000.length, 0); // Zero over-budget builds returned!
 
   // 3. Custom budget: Around ₹50,000 (still below ₹63,593):
   const custom50000Answers = {
@@ -428,14 +440,18 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const custom50000Override = { min: 42500, max: 50000, label: "Around ₹50,000" }
-  const recs50000 = generateDynamicCatalogRecommendations(componentCatalog, custom50000Answers, custom50000Override)
-  assertEquals(recs50000.length, 0)
-})
+  };
+  const custom50000Override = { min: 42500, max: 50000, label: "Around ₹50,000" };
+  const recs50000 = generateDynamicCatalogRecommendations(
+    componentCatalog,
+    custom50000Answers,
+    custom50000Override,
+  );
+  assertEquals(recs50000.length, 0);
+});
 
 Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between different budget queries", () => {
-  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts)
+  const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   // Query 1: Budget ₹60,000 – ₹80,000 (covers ₹63,593)
   const answers1 = {
@@ -444,12 +460,12 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const override1 = { min: 60000, max: 80000, label: "₹60,000–₹80,000" }
-  const recs1 = generateDynamicCatalogRecommendations(componentCatalog, answers1, override1)
-  assertEquals(recs1.length, 1)
-  const price1 = recs1[0].price
-  assertEquals(price1, 63593)
+  };
+  const override1 = { min: 60000, max: 80000, label: "₹60,000–₹80,000" };
+  const recs1 = generateDynamicCatalogRecommendations(componentCatalog, answers1, override1);
+  assertEquals(recs1.length, 1);
+  const price1 = recs1[0].price;
+  assertEquals(price1, 63593);
 
   // Query 2: Custom budget Around ₹70,000 (covers ₹63,593)
   const answers2 = {
@@ -459,12 +475,12 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const override2 = { min: 59500, max: 70000, label: "Around ₹70,000" }
-  const recs2 = generateDynamicCatalogRecommendations(componentCatalog, answers2, override2)
-  assertEquals(recs2.length, 1)
-  const price2 = recs2[0].price
-  assertEquals(price2, 63593)
+  };
+  const override2 = { min: 59500, max: 70000, label: "Around ₹70,000" };
+  const recs2 = generateDynamicCatalogRecommendations(componentCatalog, answers2, override2);
+  assertEquals(recs2.length, 1);
+  const price2 = recs2[0].price;
+  assertEquals(price2, 63593);
 
   // Query 3: Custom budget Around ₹1,00,000 (covers ₹63,593)
   const answers3 = {
@@ -474,20 +490,19 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
     brands: ["AMD"],
     wifi: "Yes",
     owned: [],
-  }
-  const override3 = { min: 85000, max: 100000, label: "Around ₹1,00,000" }
-  const recs3 = generateDynamicCatalogRecommendations(componentCatalog, answers3, override3)
-  assertEquals(recs3.length, 1)
-  const price3 = recs3[0].price
-  assertEquals(price3, 63593)
+  };
+  const override3 = { min: 85000, max: 100000, label: "Around ₹1,00,000" };
+  const recs3 = generateDynamicCatalogRecommendations(componentCatalog, answers3, override3);
+  assertEquals(recs3.length, 1);
+  const price3 = recs3[0].price;
+  assertEquals(price3, 63593);
 
   // The estimated price must be 100% identical and never change across queries
-  assertEquals(price1, price2)
-  assertEquals(price2, price3)
+  assertEquals(price1, price2);
+  assertEquals(price2, price3);
 
   // Cooler must be consistently included across all queries
-  assertEquals(recs1[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
-  assertEquals(recs2[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
-  assertEquals(recs3[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler")
-})
-
+  assertEquals(recs1[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
+  assertEquals(recs2[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
+  assertEquals(recs3[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
+});

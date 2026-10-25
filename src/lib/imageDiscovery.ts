@@ -6,122 +6,140 @@
 
 // SSRF protection, raster magic-byte validation, and admin review workflow.
 
-import { supabase } from "./supabase"
+import { supabase } from "./supabase";
 
 // ── Types & Enums ───────────────────────────────────────────────────────────
 
-export type DiscoveryStatus = "pending" | "searching" | "no_match" | "candidate_found" | "identity_verified" | "rights_verified" | "matched" | "needs_review" | "approved" | "rejected" | "uploaded" | "failed"
+export type DiscoveryStatus =
+  | "pending"
+  | "searching"
+  | "no_match"
+  | "candidate_found"
+  | "identity_verified"
+  | "rights_verified"
+  | "matched"
+  | "needs_review"
+  | "approved"
+  | "rejected"
+  | "uploaded"
+  | "failed";
 
-export type ImageLicenceType = "Manufacturer_Authorized" | "Distributor_Feed" | "Public_Domain" | "Curated_Catalog" | "Unverified_Web" | "Manual_Upload"
+export type ImageLicenceType =
+  | "Manufacturer_Authorized"
+  | "Distributor_Feed"
+  | "Public_Domain"
+  | "Curated_Catalog"
+  | "Unverified_Web"
+  | "Manual_Upload";
 
 export interface ImageDimensions {
-  width: number
+  width: number;
 
-  height: number
+  height: number;
 }
 
 export interface ApproveCandidateResult {
-  ok: boolean
+  ok: boolean;
 
-  storagePath?: string
+  storagePath?: string;
 
-  error?: string
+  error?: string;
 }
 
 export interface ImageCandidate {
-  id: string
+  id: string;
 
-  sourceRow: number
+  sourceRow: number;
 
-  sku: string
+  sku: string;
 
-  productName: string
+  productName: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  modelMpn: string
+  modelMpn: string;
 
-  candidateUrl: string
+  candidateUrl: string;
 
-  thumbnailUrl?: string
+  thumbnailUrl?: string;
 
-  sourcePageUrl?: string
+  sourcePageUrl?: string;
 
-  sourcePageTitle?: string
+  sourcePageTitle?: string;
 
-  sourceDomain?: string
+  sourceDomain?: string;
 
-  sourceCategory?: string
+  sourceCategory?: string;
 
-  searchQuery?: string
+  searchQuery?: string;
 
-  sourceProvider: string
+  sourceProvider: string;
 
-  licenceType: ImageLicenceType
+  licenceType: ImageLicenceType;
 
-  licenceEvidence: string
+  licenceEvidence: string;
 
-  matchEvidence: string
+  matchEvidence: string;
 
-  confidence: number // 0.0 to 1.0
+  confidence: number; // 0.0 to 1.0
 
-  mimeType?: string
+  mimeType?: string;
 
-  dimensions?: ImageDimensions
+  dimensions?: ImageDimensions;
 
-  status: DiscoveryStatus
+  status: DiscoveryStatus;
 
-  rightsConfirmed?: boolean
+  rightsConfirmed?: boolean;
 
-  reviewedBy?: string
+  reviewedBy?: string;
 
-  reviewedAt?: string
+  reviewedAt?: string;
 
-  storagePath?: string
+  storagePath?: string;
 
-  failureReason?: string
+  failureReason?: string;
 
-  isSecondHand?: boolean
+  isSecondHand?: boolean;
 
-  notes?: string
+  notes?: string;
 }
 
 export interface DiscoveryQuery {
-  sourceRow: number
+  sourceRow: number;
 
-  sku: string
+  sku: string;
 
-  productName: string
+  productName: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  modelMpn: string
+  modelMpn: string;
 
-  originalDescription: string
+  originalDescription: string;
 
-  isSecondHand?: boolean
+  isSecondHand?: boolean;
 }
 
 export interface ImageProvider {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  isConfigured: boolean
+  isConfigured: boolean;
 
-  supportedLicence: ImageLicenceType
+  supportedLicence: ImageLicenceType;
 
-  unconfiguredReason?: string
+  unconfiguredReason?: string;
 
   search(
     query: DiscoveryQuery,
 
     customSearchText?: string,
-  ): Promise<ImageCandidate[]>
+  ): Promise<ImageCandidate[]>;
 }
 
 /**
@@ -130,32 +148,29 @@ export interface ImageProvider {
  * Never invents nonexistent model numbers.
  */
 
-export function buildOptimizedSearchQuery(
-  item: DiscoveryQuery,
-): {
-  primaryQuery: string
+export function buildOptimizedSearchQuery(item: DiscoveryQuery): {
+  primaryQuery: string;
 
-  fallbackQuery: string
+  fallbackQuery: string;
 
-  strategy: "exact_model" | "brand_model" | "brand_description" | "generic_clean"
+  strategy: "exact_model" | "brand_model" | "brand_description" | "generic_clean";
 } {
-  const brand = (item.brand || "").trim()
+  const brand = (item.brand || "").trim();
 
-  const mpn = (item.modelMpn || "").trim()
+  const mpn = (item.modelMpn || "").trim();
 
-  const desc = (item.originalDescription || item.productName || "").trim()
+  const desc = (item.originalDescription || item.productName || "").trim();
 
   // 1. If non-empty, specific MPN or Model exists
 
   if (mpn && mpn !== "N/A" && mpn.length >= 3) {
     return {
-      primaryQuery:
-        brand && brand !== "Generic / OEM" ? `${brand} ${mpn}` : mpn,
+      primaryQuery: brand && brand !== "Generic / OEM" ? `${brand} ${mpn}` : mpn,
 
       fallbackQuery: `${desc.slice(0, 80)}`,
 
       strategy: "exact_model",
-    }
+    };
   }
 
   // 2. Clean internal Tally / godown suffixes (e.g. " - 00 B91", " AN", " ISI", etc.)
@@ -168,10 +183,10 @@ export function buildOptimizedSearchQuery(
 
     .replace(/\s+/g, " ")
 
-    .trim()
+    .trim();
 
   if (brand && brand !== "Generic / OEM") {
-    const shortDesc = cleanedDesc.replace(new RegExp(`^${brand}\\s*`, "i"), "")
+    const shortDesc = cleanedDesc.replace(new RegExp(`^${brand}\\s*`, "i"), "");
 
     return {
       primaryQuery: `${brand} ${shortDesc.slice(0, 60)}`.trim(),
@@ -179,7 +194,7 @@ export function buildOptimizedSearchQuery(
       fallbackQuery: cleanedDesc,
 
       strategy: "brand_description",
-    }
+    };
   }
 
   // 3. Generic items (spares, cables, conduit)
@@ -190,7 +205,7 @@ export function buildOptimizedSearchQuery(
     fallbackQuery: item.productName,
 
     strategy: "generic_clean",
-  }
+  };
 }
 
 /**
@@ -200,29 +215,27 @@ export function buildOptimizedSearchQuery(
  */
 
 export function isProductSecondHand(item: {
-  isSecondHand?: boolean
+  isSecondHand?: boolean;
 
-  sku?: string
+  sku?: string;
 
-  condition?: string
+  condition?: string;
 
-  productName?: string
+  productName?: string;
 
-  originalDescription?: string
+  originalDescription?: string;
 }): boolean {
-  if (item.isSecondHand) return true
+  if (item.isSecondHand) return true;
 
-  if (item.sku && item.sku.toUpperCase().startsWith("SH-")) return true
+  if (item.sku && item.sku.toUpperCase().startsWith("SH-")) return true;
 
-  if (item.condition && item.condition !== "New") return true
+  if (item.condition && item.condition !== "New") return true;
 
-  const text =
-    `${item.productName || ""} ${item.originalDescription || ""}`.toLowerCase()
+  const text = `${item.productName || ""} ${item.originalDescription || ""}`.toLowerCase();
 
-  if (/\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/.test(text))
-    return true
+  if (/\b(second[- ]?hand|pre[- ]?owned|refurbished|used)\b/.test(text)) return true;
 
-  return false
+  return false;
 }
 
 // ── Security & Validation Helpers ───────────────────────────────────────────
@@ -232,25 +245,23 @@ export function isProductSecondHand(item: {
  * private IP loopback, cloud metadata exfiltration, and malicious SVG/HTML scripts.
  */
 
-export function validateImageUrl(
-  urlStr: string,
-): {
-  valid: boolean
+export function validateImageUrl(urlStr: string): {
+  valid: boolean;
 
-  reason?: string
+  reason?: string;
 } {
   if (!urlStr || typeof urlStr !== "string") {
-    return { valid: false, reason: "Empty or invalid URL" }
+    return { valid: false, reason: "Empty or invalid URL" };
   }
 
   // Local assets are safe
 
   if (urlStr.startsWith("/images/")) {
-    return { valid: true }
+    return { valid: true };
   }
 
   try {
-    const url = new URL(urlStr)
+    const url = new URL(urlStr);
 
     // 1. Strict HTTPS Protocol Check
 
@@ -259,12 +270,12 @@ export function validateImageUrl(
         valid: false,
 
         reason: "Strict HTTPS required. Unencrypted HTTP is prohibited.",
-      }
+      };
     }
 
     // 2. SSRF Loopback & Cloud Metadata Shield (RFC 1918 + RFC 3927)
 
-    const host = url.hostname.toLowerCase()
+    const host = url.hostname.toLowerCase();
 
     const forbiddenPatterns = [
       "localhost",
@@ -316,7 +327,7 @@ export function validateImageUrl(
       "fe80:", // IPv6 link-local
 
       "metadata.google.internal",
-    ]
+    ];
 
     for (const pattern of forbiddenPatterns) {
       if (host.includes(pattern)) {
@@ -324,25 +335,25 @@ export function validateImageUrl(
           valid: false,
 
           reason: `Forbidden target host "${host}" (SSRF Security Defense)`,
-        }
+        };
       }
     }
 
     // 3. Prohibit SVG & Non-Raster Extensions (Stored XSS Defense)
 
-    const ext = url.pathname.split(".").pop()?.toLowerCase()
+    const ext = url.pathname.split(".").pop()?.toLowerCase();
 
     if (ext && !["jpg", "jpeg", "png", "webp", "avif"].includes(ext)) {
       return {
         valid: false,
 
         reason: `Unsupported format ".${ext}". SVG and executable formats are strictly blocked.`,
-      }
+      };
     }
 
-    return { valid: true }
+    return { valid: true };
   } catch {
-    return { valid: false, reason: "Malformed URL syntax" }
+    return { valid: false, reason: "Malformed URL syntax" };
   }
 }
 
@@ -350,30 +361,23 @@ export function validateImageUrl(
  * Validates raster image magic bytes to detect disguised scripts or MIME-spoofing.
  */
 
-export function validateImageMagicBytes(
-  bytes: Uint8Array,
-): {
-  valid: boolean
+export function validateImageMagicBytes(bytes: Uint8Array): {
+  valid: boolean;
 
-  format?: string
+  format?: string;
 } {
-  if (!bytes || bytes.length < 12) return { valid: false }
+  if (!bytes || bytes.length < 12) return { valid: false };
 
   // JPEG magic bytes: FF D8 FF
 
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return { valid: true, format: "image/jpeg" }
+    return { valid: true, format: "image/jpeg" };
   }
 
   // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
 
-  if (
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    return { valid: true, format: "image/png" }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return { valid: true, format: "image/png" };
   }
 
   // WebP magic bytes: RIFF....WEBP
@@ -388,10 +392,10 @@ export function validateImageMagicBytes(
     bytes[10] === 0x42 &&
     bytes[11] === 0x50
   ) {
-    return { valid: true, format: "image/webp" }
+    return { valid: true, format: "image/webp" };
   }
 
-  return { valid: false }
+  return { valid: false };
 }
 
 // ── Concrete Image Providers ────────────────────────────────────────────────
@@ -403,16 +407,16 @@ export function validateImageMagicBytes(
  */
 
 export class CuratedCatalogProvider implements ImageProvider {
-  id = "curated-catalog"
+  id = "curated-catalog";
 
-  name = "IT HUB Curated Manufacturer Media"
+  name = "IT HUB Curated Manufacturer Media";
 
-  isConfigured = true
+  isConfigured = true;
 
-  supportedLicence: ImageLicenceType = "Curated_Catalog"
+  supportedLicence: ImageLicenceType = "Curated_Catalog";
 
   async search(query: DiscoveryQuery): Promise<ImageCandidate[]> {
-    const candidates: ImageCandidate[] = []
+    const candidates: ImageCandidate[] = [];
 
     // Second-hand safeguard: Mandatory actual photographs
 
@@ -442,8 +446,7 @@ export class CuratedCatalogProvider implements ImageProvider {
           licenceEvidence:
             "Second-hand listings mandate physical item photographs uploaded by admin.",
 
-          matchEvidence:
-            "Second-hand device requires verified physical condition photos",
+          matchEvidence: "Second-hand device requires verified physical condition photos",
 
           confidence: 0.0,
 
@@ -451,21 +454,16 @@ export class CuratedCatalogProvider implements ImageProvider {
 
           isSecondHand: true,
 
-          failureReason:
-            "Second-hand listings cannot use automated stock images",
+          failureReason: "Second-hand listings cannot use automated stock images",
         },
-      ]
+      ];
     }
 
-    const t = query.productName.toLowerCase()
+    const t = query.productName.toLowerCase();
 
     // Laptops
 
-    if (
-      query.category === "Laptops & MacBooks" ||
-      t.includes("laptop") ||
-      t.includes("macbook")
-    ) {
+    if (query.category === "Laptops & MacBooks" || t.includes("laptop") || t.includes("macbook")) {
       candidates.push({
         id: `cand-${query.sku}-curated`,
 
@@ -501,7 +499,7 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 1200, height: 800 },
-      })
+      });
     }
     // Mobile Phones
     else if (
@@ -541,7 +539,7 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 800, height: 800 },
-      })
+      });
     }
     // PC Components (GPU / SSD)
     else if (t.includes("rtx") || t.includes("graphics") || t.includes("gpu")) {
@@ -577,7 +575,7 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 1000, height: 750 },
-      })
+      });
     } else if (t.includes("ssd") || t.includes("nvme") || t.includes("hdd")) {
       candidates.push({
         id: `cand-${query.sku}-curated`,
@@ -611,13 +609,10 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 800, height: 600 },
-      })
+      });
     }
     // Monitors
-    else if (
-      query.category === "Monitors & Displays" ||
-      t.includes("monitor")
-    ) {
+    else if (query.category === "Monitors & Displays" || t.includes("monitor")) {
       candidates.push({
         id: `cand-${query.sku}-curated`,
 
@@ -650,7 +645,7 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 1000, height: 700 },
-      })
+      });
     }
     // Audio / Earbuds
     else if (
@@ -690,7 +685,7 @@ export class CuratedCatalogProvider implements ImageProvider {
         mimeType: "image/jpeg",
 
         dimensions: { width: 800, height: 800 },
-      })
+      });
     }
     // Spare Parts & Electrical Conduit (Requires Review)
     else if (
@@ -730,9 +725,8 @@ export class CuratedCatalogProvider implements ImageProvider {
 
         dimensions: { width: 600, height: 600 },
 
-        notes:
-          "Generic technical placeholder. Specific part photograph recommended.",
-      })
+        notes: "Generic technical placeholder. Specific part photograph recommended.",
+      });
     }
     // Fallback
     else {
@@ -766,10 +760,10 @@ export class CuratedCatalogProvider implements ImageProvider {
         status: "needs_review",
 
         mimeType: "image/jpeg",
-      })
+      });
     }
 
-    return candidates
+    return candidates;
   }
 }
 
@@ -780,16 +774,16 @@ export class CuratedCatalogProvider implements ImageProvider {
  */
 
 export class AuthorizedDistributorProvider implements ImageProvider {
-  id = "distributor-feed"
+  id = "distributor-feed";
 
-  name = "Authorized Distributor Product Feed"
+  name = "Authorized Distributor Product Feed";
 
-  isConfigured = true
+  isConfigured = true;
 
-  supportedLicence: ImageLicenceType = "Distributor_Feed"
+  supportedLicence: ImageLicenceType = "Distributor_Feed";
 
   async search(query: DiscoveryQuery): Promise<ImageCandidate[]> {
-    if (isProductSecondHand(query)) return []
+    if (isProductSecondHand(query)) return [];
 
     // Matches if exact manufacturer part number or brand model exists
 
@@ -816,8 +810,7 @@ export class AuthorizedDistributorProvider implements ImageProvider {
 
           licenceType: "Distributor_Feed",
 
-          licenceEvidence:
-            "Partner Reseller Agreement (Authorized Indian IT Distributor)",
+          licenceEvidence: "Partner Reseller Agreement (Authorized Indian IT Distributor)",
 
           matchEvidence: `Exact distributor catalog match for MPN ${query.modelMpn}`,
 
@@ -829,10 +822,10 @@ export class AuthorizedDistributorProvider implements ImageProvider {
 
           dimensions: { width: 1400, height: 900 },
         },
-      ]
+      ];
     }
 
-    return []
+    return [];
   }
 }
 
@@ -844,24 +837,24 @@ export class AuthorizedDistributorProvider implements ImageProvider {
  */
 
 export class SerpApiImageProvider implements ImageProvider {
-  id = "serpapi-google-images"
+  id = "serpapi-google-images";
 
-  name = "SerpApi Google Images (Official)"
+  name = "SerpApi Google Images (Official)";
 
-  isConfigured = false
+  isConfigured = false;
 
-  supportedLicence: ImageLicenceType = "Unverified_Web"
+  supportedLicence: ImageLicenceType = "Unverified_Web";
 
   unconfiguredReason?: string =
-    "Awaiting SERPAPI_API_KEY secret in Supabase Edge Functions. Configure with: supabase secrets set SERPAPI_API_KEY=your_key"
+    "Awaiting SERPAPI_API_KEY secret in Supabase Edge Functions. Configure with: supabase secrets set SERPAPI_API_KEY=your_key";
 
   constructor() {
-    this.checkConfiguration()
+    this.checkConfiguration();
   }
 
   async checkConfiguration(): Promise<boolean> {
     try {
-      if (!supabase) return false
+      if (!supabase) return false;
 
       const { data, error } = await supabase.functions.invoke(
         "search-product-images",
@@ -869,27 +862,27 @@ export class SerpApiImageProvider implements ImageProvider {
         {
           body: { action: "status" },
         },
-      )
+      );
 
       if (!error && data?.ok && data?.isConfigured) {
-        this.isConfigured = true
+        this.isConfigured = true;
 
-        this.unconfiguredReason = undefined
+        this.unconfiguredReason = undefined;
 
-        return true
+        return true;
       }
 
       if (data?.message) {
-        this.unconfiguredReason = data.message
+        this.unconfiguredReason = data.message;
       }
 
-      this.isConfigured = false
+      this.isConfigured = false;
 
-      return false
+      return false;
     } catch {
-      this.isConfigured = false
+      this.isConfigured = false;
 
-      return false
+      return false;
     }
   }
 
@@ -921,8 +914,7 @@ export class SerpApiImageProvider implements ImageProvider {
 
           licenceType: "Manual_Upload",
 
-          licenceEvidence:
-            "Mandatory physical item photo upload by admin for second-hand items.",
+          licenceEvidence: "Mandatory physical item photo upload by admin for second-hand items.",
 
           matchEvidence: "Second-hand device requires actual condition photos",
 
@@ -932,18 +924,15 @@ export class SerpApiImageProvider implements ImageProvider {
 
           isSecondHand: true,
 
-          failureReason:
-            "Second-hand listings cannot use automated stock images",
+          failureReason: "Second-hand listings cannot use automated stock images",
         },
-      ]
+      ];
     }
 
-    const { primaryQuery } = buildOptimizedSearchQuery(query)
+    const { primaryQuery } = buildOptimizedSearchQuery(query);
 
     const effectiveQuery =
-      customSearchText && customSearchText.trim()
-        ? customSearchText.trim()
-        : primaryQuery
+      customSearchText && customSearchText.trim() ? customSearchText.trim() : primaryQuery;
 
     try {
       if (!supabase) {
@@ -981,7 +970,7 @@ export class SerpApiImageProvider implements ImageProvider {
 
             failureReason: "Supabase connection is unconfigured.",
           },
-        ]
+        ];
       }
 
       const { data, error } = await supabase.functions.invoke(
@@ -1004,16 +993,15 @@ export class SerpApiImageProvider implements ImageProvider {
             originalDescription: query.originalDescription,
           },
         },
-      )
+      );
 
       if (error || !data?.ok) {
-        const errorMsg =
-          data?.message || error?.message || "Search request failed"
+        const errorMsg = data?.message || error?.message || "Search request failed";
 
         if (data?.error === "CONFIGURATION_REQUIRED") {
-          this.isConfigured = false
+          this.isConfigured = false;
 
-          this.unconfiguredReason = errorMsg
+          this.unconfiguredReason = errorMsg;
         }
 
         return [
@@ -1050,12 +1038,12 @@ export class SerpApiImageProvider implements ImageProvider {
 
             failureReason: errorMsg,
           },
-        ]
+        ];
       }
 
-      this.isConfigured = true
+      this.isConfigured = true;
 
-      const rawResults = Array.isArray(data.results) ? data.results : []
+      const rawResults = Array.isArray(data.results) ? data.results : [];
 
       if (rawResults.length === 0) {
         return [
@@ -1090,7 +1078,7 @@ export class SerpApiImageProvider implements ImageProvider {
 
             status: "no_match",
           },
-        ]
+        ];
       }
 
       return rawResults.map((r: any, idx: number) => ({
@@ -1135,7 +1123,7 @@ export class SerpApiImageProvider implements ImageProvider {
         confidence: r.confidence || 0.5,
 
         status: r.status || "candidate_found",
-      }))
+      }));
     } catch (err) {
       return [
         {
@@ -1169,7 +1157,7 @@ export class SerpApiImageProvider implements ImageProvider {
 
           failureReason: String(err),
         },
-      ]
+      ];
     }
   }
 }
@@ -1183,7 +1171,7 @@ export class ExternalSearchProvider extends SerpApiImageProvider {}
 // ── Image Discovery Engine & Pipeline ───────────────────────────────────────
 
 export class ImageDiscoveryEngine {
-  private providers: ImageProvider[]
+  private providers: ImageProvider[];
 
   constructor(providers?: ImageProvider[]) {
     this.providers = providers || [
@@ -1192,11 +1180,11 @@ export class ImageDiscoveryEngine {
       new CuratedCatalogProvider(),
 
       new AuthorizedDistributorProvider(),
-    ]
+    ];
   }
 
   getProviders(): ImageProvider[] {
-    return this.providers
+    return this.providers;
   }
 
   /**
@@ -1247,43 +1235,42 @@ export class ImageDiscoveryEngine {
 
           isSecondHand: true,
 
-          failureReason:
-            "Second-hand listings cannot use automated stock images",
+          failureReason: "Second-hand listings cannot use automated stock images",
         },
-      ]
+      ];
     }
 
-    const candidates: ImageCandidate[] = []
+    const candidates: ImageCandidate[] = [];
 
     for (const provider of this.providers) {
       try {
-        const results = await provider.search(query, customSearchText)
+        const results = await provider.search(query, customSearchText);
 
         for (const cand of results) {
           // Re-validate candidate URL against SSRF and formats
 
           if (cand.candidateUrl) {
-            const urlValidation = validateImageUrl(cand.candidateUrl)
+            const urlValidation = validateImageUrl(cand.candidateUrl);
 
             if (!urlValidation.valid) {
-              cand.status = "failed"
+              cand.status = "failed";
 
-              cand.failureReason = urlValidation.reason
+              cand.failureReason = urlValidation.reason;
             }
           }
 
-          candidates.push(cand)
+          candidates.push(cand);
         }
       } catch (err) {
         console.warn(
           `[Image Discovery] Provider ${provider.name} failed for ${query.sku}:`,
 
           err,
-        )
+        );
       }
     }
 
-    return candidates
+    return candidates;
   }
 
   /**
@@ -1301,28 +1288,28 @@ export class ImageDiscoveryEngine {
     try {
       // 1. Re-validate URL security
 
-      const validation = validateImageUrl(candidate.candidateUrl)
+      const validation = validateImageUrl(candidate.candidateUrl);
 
       if (!validation.valid) {
-        return { ok: false, error: validation.reason }
+        return { ok: false, error: validation.reason };
       }
 
-      const deterministicPath = `products/${candidate.sku.toLowerCase()}/primary.jpg`
+      const deterministicPath = `products/${candidate.sku.toLowerCase()}/primary.jpg`;
 
       // 2. If it is already a verified local path, record directly
 
       if (candidate.candidateUrl.startsWith("/images/")) {
-        candidate.status = "uploaded"
+        candidate.status = "uploaded";
 
-        candidate.rightsConfirmed = true
+        candidate.rightsConfirmed = true;
 
-        candidate.reviewedBy = adminEmail
+        candidate.reviewedBy = adminEmail;
 
-        candidate.reviewedAt = new Date().toISOString()
+        candidate.reviewedAt = new Date().toISOString();
 
-        candidate.storagePath = candidate.candidateUrl
+        candidate.storagePath = candidate.candidateUrl;
 
-        return { ok: true, storagePath: candidate.candidateUrl }
+        return { ok: true, storagePath: candidate.candidateUrl };
       }
 
       // 3. For remote images, require rights confirmation
@@ -1331,9 +1318,8 @@ export class ImageDiscoveryEngine {
         return {
           ok: false,
 
-          error:
-            "Commercial reuse rights must be explicitly confirmed before storing the image.",
-        }
+          error: "Commercial reuse rights must be explicitly confirmed before storing the image.",
+        };
       }
 
       // 4. Try secure Edge Function server-side fetch & store proxy first
@@ -1354,20 +1340,20 @@ export class ImageDiscoveryEngine {
                 rightsConfirmed: true,
               },
             },
-          )
+          );
 
           if (!error && data?.ok) {
-            candidate.status = "uploaded"
+            candidate.status = "uploaded";
 
-            candidate.rightsConfirmed = true
+            candidate.rightsConfirmed = true;
 
-            candidate.reviewedBy = adminEmail
+            candidate.reviewedBy = adminEmail;
 
-            candidate.reviewedAt = new Date().toISOString()
+            candidate.reviewedAt = new Date().toISOString();
 
-            candidate.storagePath = data.storagePath
+            candidate.storagePath = data.storagePath;
 
-            return { ok: true, storagePath: data.storagePath }
+            return { ok: true, storagePath: data.storagePath };
           }
         } catch {
           // Fall back to direct storage upload if edge function invocation fails
@@ -1375,17 +1361,17 @@ export class ImageDiscoveryEngine {
 
         // Direct Supabase Storage fallback
 
-        const response = await fetch(candidate.candidateUrl)
+        const response = await fetch(candidate.candidateUrl);
 
         if (!response.ok) {
           return {
             ok: false,
 
             error: `Failed to fetch image from host: HTTP ${response.status}`,
-          }
+          };
         }
 
-        const blob = await response.blob()
+        const blob = await response.blob();
 
         // Size check (max 5MB)
 
@@ -1394,7 +1380,7 @@ export class ImageDiscoveryEngine {
             ok: false,
 
             error: "Image exceeds 5MB maximum file size limit",
-          }
+          };
         }
 
         const { error: uploadError } = await supabase.storage
@@ -1405,41 +1391,40 @@ export class ImageDiscoveryEngine {
             contentType: blob.type || "image/jpeg",
 
             upsert: true,
-          })
+          });
 
         if (uploadError) {
-          return { ok: false, error: uploadError.message }
+          return { ok: false, error: uploadError.message };
         }
 
         const { data: pubData } = supabase.storage
 
           .from("product-images")
 
-          .getPublicUrl(deterministicPath)
+          .getPublicUrl(deterministicPath);
 
-        candidate.status = "uploaded"
+        candidate.status = "uploaded";
 
-        candidate.rightsConfirmed = true
+        candidate.rightsConfirmed = true;
 
-        candidate.reviewedBy = adminEmail
+        candidate.reviewedBy = adminEmail;
 
-        candidate.reviewedAt = new Date().toISOString()
+        candidate.reviewedAt = new Date().toISOString();
 
-        candidate.storagePath = pubData?.publicUrl || deterministicPath
+        candidate.storagePath = pubData?.publicUrl || deterministicPath;
 
-        return { ok: true, storagePath: candidate.storagePath }
+        return { ok: true, storagePath: candidate.storagePath };
       }
 
       return {
         ok: false,
 
-        error:
-          "Supabase client is not configured; cannot upload candidate image.",
-      }
+        error: "Supabase client is not configured; cannot upload candidate image.",
+      };
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = err instanceof Error ? err.message : String(err);
 
-      return { ok: false, error: msg }
+      return { ok: false, error: msg };
     }
   }
 }
@@ -1484,8 +1469,7 @@ export const prototypeProducts: DiscoveryQuery[] = [
 
     modelMpn: "MacBook Neo",
 
-    originalDescription:
-      '13" Macbook Neo A18 Pro 6cpu 5gpu 8gb/256GB SSD CITRUS',
+    originalDescription: '13" Macbook Neo A18 Pro 6cpu 5gpu 8gb/256GB SSD CITRUS',
   },
 
   {
@@ -1511,8 +1495,7 @@ export const prototypeProducts: DiscoveryQuery[] = [
 
     sku: "ITH-LPT-HP-D0NZ5PA-E481",
 
-    productName:
-      'Laptop HP-15-FD0883TU(CORE3-100U|8GB|512GB|15.6"FHD|W11+MSO2024|NS)',
+    productName: 'Laptop HP-15-FD0883TU(CORE3-100U|8GB|512GB|15.6"FHD|W11+MSO2024|NS)',
 
     brand: "HP",
 
@@ -1913,9 +1896,8 @@ export const prototypeProducts: DiscoveryQuery[] = [
 
     modelMpn: "Latitude 7490",
 
-    originalDescription:
-      "Dell Latitude 7490 (i5-8th Gen, 8GB, 256GB SSD) Refurbished",
+    originalDescription: "Dell Latitude 7490 (i5-8th Gen, 8GB, 256GB SSD) Refurbished",
 
     isSecondHand: true,
   },
-]
+];

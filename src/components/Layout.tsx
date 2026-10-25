@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react"
-import Lenis from "lenis"
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router"
+import { useEffect, useRef, useState } from "react";
+import Lenis from "lenis";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import {
   Search,
   Heart,
@@ -24,15 +24,15 @@ import {
   LogOut,
   ChevronUp,
   Cpu,
-} from "lucide-react"
-import { AnimatePresence, motion } from "motion/react"
-import AuthModal from "./AuthModal"
-import { identify, track } from "../lib/analytics"
-import { serviceTypes, money } from "../data/catalog"
-import { useStore } from "../app/store"
-import { Logo, Modal, fieldClass, containerClass } from "./ui"
-import { signOutUser } from "../lib/auth"
-import GooeyNav, { type GooeyNavItem } from "./GooeyNav"
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import AuthModal from "./AuthModal";
+import { identify, track } from "../lib/analytics";
+import { serviceTypes, money } from "../data/catalog";
+import { useStore } from "../app/store";
+import { Logo, Modal, fieldClass, containerClass } from "./ui";
+import { signOutUser } from "../lib/auth";
+import GooeyNav, { type GooeyNavItem } from "./GooeyNav";
 
 const nav = [
   { name: "Products", to: "/products" },
@@ -41,7 +41,7 @@ const nav = [
   { name: "Blog", to: "/blog" },
   { name: "Help & Support", to: "/support" },
   { name: "About", to: "/about" },
-]
+];
 
 const navItems: GooeyNavItem[] = [
   { label: "Home", href: "/" },
@@ -51,94 +51,85 @@ const navItems: GooeyNavItem[] = [
   { label: "Blog", href: "/blog" },
   { label: "Help & Support", href: "/support" },
   { label: "About", href: "/about" },
-]
+];
 export default function Layout() {
-  const store = useStore()
-  const [mobile, setMobile] = useState(false)
-  const [search, setSearch] = useState(false)
-  const [menu, setMenu] = useState(false)
-  const [query, setQuery] = useState("")
-  const location = useLocation()
+  const store = useStore();
+  const [mobile, setMobile] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [query, setQuery] = useState("");
+  const location = useLocation();
   useEffect(() => {
-    identify(
-      store.loggedIn
-        ? store.profile.phone || store.profile.email || "customer"
-        : undefined,
-    )
-  }, [store.loggedIn, store.profile.phone, store.profile.email])
+    identify(store.loggedIn ? store.profile.phone || store.profile.email || "customer" : undefined);
+  }, [store.loggedIn, store.profile.phone, store.profile.email]);
   useEffect(() => {
-    track("Page Viewed")
-  }, [location.pathname, location.search])
-  const wasLoggedIn = useRef(store.loggedIn)
+    track("Page Viewed");
+  }, [location.pathname, location.search]);
+  const wasLoggedIn = useRef(store.loggedIn);
   useEffect(() => {
-    if (wasLoggedIn.current !== store.loggedIn)
-      track(store.loggedIn ? "Login" : "Logout")
-    wasLoggedIn.current = store.loggedIn
-  }, [store.loggedIn])
+    if (wasLoggedIn.current !== store.loggedIn) track(store.loggedIn ? "Login" : "Logout");
+    wasLoggedIn.current = store.loggedIn;
+  }, [store.loggedIn]);
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
-      const link = (event.target as HTMLElement | null)?.closest?.(
-        "a[href*='wa.me']",
-      )
+      const link = (event.target as HTMLElement | null)?.closest?.("a[href*='wa.me']");
       if (link)
         track("Contact/WhatsApp Action", {
           href: link.getAttribute("href")?.split("?")[0] || "",
-        })
-    }
-    document.addEventListener("click", onClick)
-    return () => document.removeEventListener("click", onClick)
-  }, [])
-  const navigate = useNavigate()
-  const lenis = useRef<Lenis | null>(null)
-  const [scrolled, setScrolled] = useState(false)
+        });
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+  const navigate = useNavigate();
+  const lenis = useRef<Lenis | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    document.documentElement.classList.remove("dark")
-    localStorage.removeItem("ithub-theme")
-  }, [])
+    document.documentElement.classList.remove("dark");
+    localStorage.removeItem("ithub-theme");
+  }, []);
   useEffect(() => {
-    const instance = new Lenis({ duration: 1.15, smoothWheel: true })
-    lenis.current = instance
-    instance.on("scroll", ({ scroll }: { scroll: number }) =>
-      setScrolled(scroll > 24),
-    )
-    let raf = 0
+    const instance = new Lenis({ duration: 1.15, smoothWheel: true });
+    lenis.current = instance;
+    instance.on("scroll", ({ scroll }: { scroll: number }) => setScrolled(scroll > 24));
+    let raf = 0;
     const loop = (time: number) => {
-      instance.raf(time)
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
+      instance.raf(time);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
     return () => {
-      cancelAnimationFrame(raf)
-      instance.destroy()
-    }
-  }, [])
+      cancelAnimationFrame(raf);
+      instance.destroy();
+    };
+  }, []);
   useEffect(() => {
-    if (mobile || search) lenis.current?.stop()
-    else lenis.current?.start()
-  }, [mobile, search])
+    if (mobile || search) lenis.current?.stop();
+    else lenis.current?.start();
+  }, [mobile, search]);
   useEffect(() => {
-    lenis.current?.scrollTo(0, { immediate: true })
-    setMobile(false)
-    setSearch(false)
-    setMenu(false)
-    window.scrollTo({ top: 0, behavior: "instant" })
-  }, [location.pathname])
+    lenis.current?.scrollTo(0, { immediate: true });
+    setMobile(false);
+    setSearch(false);
+    setMenu(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [location.pathname]);
   const matches = store.products.filter((product) =>
     `${product.name} ${product.brand} ${product.category} ${Object.values(product.specs).join(" ")}`
       .toLowerCase()
       .includes(query.toLowerCase()),
-  )
+  );
   const activeNavIndex = (() => {
-    const p = location.pathname
-    if (p === "/") return 0
-    if (p.startsWith("/products")) return 1
-    if (p.startsWith("/pc-builder")) return 2
-    if (p.startsWith("/services")) return 3
-    if (p.startsWith("/blog")) return 4
-    if (p.startsWith("/support")) return 5
-    if (p.startsWith("/about")) return 6
-    return -1
-  })()
+    const p = location.pathname;
+    if (p === "/") return 0;
+    if (p.startsWith("/products")) return 1;
+    if (p.startsWith("/pc-builder")) return 2;
+    if (p.startsWith("/services")) return 3;
+    if (p.startsWith("/blog")) return 4;
+    if (p.startsWith("/support")) return 5;
+    if (p.startsWith("/about")) return 6;
+    return -1;
+  })();
   return (
     <>
       <a
@@ -152,8 +143,7 @@ export default function Layout() {
           className={`${containerClass} flex h-8 items-center justify-between text-[10px] font-medium tracking-wide`}
         >
           <span className="flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-blue-400" /> Serving
-            customers since 2011
+            <span className="h-1 w-1 rounded-full bg-blue-400" /> Serving customers since 2011
           </span>
           <div className="flex items-center gap-6">
             <span className="hidden items-center gap-1.5 sm:flex">
@@ -180,11 +170,7 @@ export default function Layout() {
             scrolled ? "h-[72px]" : "h-[88px]"
           } justify-between gap-5`}
         >
-          <Link
-            to="/"
-            aria-label="IT HUB home"
-            className="flex shrink-0 items-center gap-3"
-          >
+          <Link to="/" aria-label="IT HUB home" className="flex shrink-0 items-center gap-3">
             <Logo />
             <div className="hidden border-l border-border pl-3 text-[9px] leading-4 text-muted-foreground xl:block">
               TECHNOLOGY.
@@ -197,12 +183,8 @@ export default function Layout() {
               items={navItems}
               activeIndex={activeNavIndex >= 0 ? activeNavIndex : undefined}
               onChange={(_index, item) => {
-                if (
-                  item.href &&
-                  item.href !== "#" &&
-                  location.pathname !== item.href
-                ) {
-                  navigate(item.href)
+                if (item.href && item.href !== "#" && location.pathname !== item.href) {
+                  navigate(item.href);
                 }
               }}
               theme="light"
@@ -274,9 +256,7 @@ export default function Layout() {
                       <p className="text-sm font-semibold">
                         {store.profile.name || "IT HUB customer"}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {store.profile.phone}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{store.profile.phone}</p>
                     </div>
                     {[
                       {
@@ -321,19 +301,16 @@ export default function Layout() {
                           <Icon size={17} />
                         </span>
                         <span className="flex-1 font-medium">{name}</span>
-                        <ChevronRight
-                          size={14}
-                          className="text-muted-foreground"
-                        />
+                        <ChevronRight size={14} className="text-muted-foreground" />
                       </Link>
                     ))}
                     <button
                       onClick={async () => {
-                        await signOutUser()
-                        store.set({ loggedIn: false })
-                        store.notify("You have been logged out")
-                        setMenu(false)
-                        navigate("/")
+                        await signOutUser();
+                        store.set({ loggedIn: false });
+                        store.notify("You have been logged out");
+                        setMenu(false);
+                        navigate("/");
                       }}
                       className="mt-1 flex w-full items-center gap-3 rounded-xl border-t border-border px-3 py-3 text-sm font-medium text-destructive hover:bg-muted"
                     >
@@ -388,13 +365,9 @@ export default function Layout() {
         )}
       </header>
       {location.pathname !== "/" && (
-        <div
-          className={`${containerClass} relative z-10 flex items-center gap-2 pt-5 text-xs`}
-        >
+        <div className={`${containerClass} relative z-10 flex items-center gap-2 pt-5 text-xs`}>
           <button
-            onClick={() =>
-              window.history.length > 1 ? navigate(-1) : navigate("/")
-            }
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 font-semibold transition hover:border-primary hover:text-primary"
           >
             <ArrowLeft size={14} /> Back
@@ -411,18 +384,13 @@ export default function Layout() {
               .filter(Boolean)
               .map((part) => (
                 <span key={part} className="flex items-center gap-1">
-                  <ChevronRight size={12} />{" "}
-                  {decodeURIComponent(part).replace(/-/g, " ")}
+                  <ChevronRight size={12} /> {decodeURIComponent(part).replace(/-/g, " ")}
                 </span>
               ))}
           </span>
         </div>
       )}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="min-h-[60vh] overflow-x-clip"
-      >
+      <main id="main-content" tabIndex={-1} className="min-h-[60vh] overflow-x-clip">
         <Outlet />
       </main>
       <footer className="relative mt-10 overflow-hidden rounded-t-[2.5rem] border-t border-border bg-muted">
@@ -431,9 +399,7 @@ export default function Layout() {
         >
           <div className="col-span-2 lg:col-span-1">
             <Logo />
-            <p className="mt-5 text-sm font-semibold">
-              Your neighbourhood. Your tech hub.
-            </p>
+            <p className="mt-5 text-sm font-semibold">Your neighbourhood. Your tech hub.</p>
             <p className="mt-2 max-w-60 text-xs leading-6 text-muted-foreground">
               Technology, products, service and support.
               <br />
@@ -449,14 +415,7 @@ export default function Layout() {
           {[
             {
               title: "SHOP",
-              items: [
-                "Laptops",
-                "PC Components",
-                "Mobiles",
-                "Accessories",
-                "Monitors",
-                "Audio",
-              ],
+              items: ["Laptops", "PC Components", "Mobiles", "Accessories", "Monitors", "Audio"],
               links: [
                 "/products?category=Laptops",
                 "/products?category=PC%20Components",
@@ -527,9 +486,7 @@ export default function Layout() {
             },
           ].map((group) => (
             <div key={group.title}>
-              <p className="mb-5 text-[10px] font-bold tracking-[.14em]">
-                {group.title}
-              </p>
+              <p className="mb-5 text-[10px] font-bold tracking-[.14em]">{group.title}</p>
               <ul className="space-y-3">
                 {group.items.map((item, index) => (
                   <li key={item}>
@@ -551,8 +508,7 @@ export default function Layout() {
           <p>© 2026 IT HUB. All rights reserved.</p>
           <p>Serving customers since 2011</p>
           <p className="flex items-center gap-1.5">
-            <ShieldCheck size={12} /> Interactive frontend prototype · No real
-            payments
+            <ShieldCheck size={12} /> Interactive frontend prototype · No real payments
           </p>
         </div>
       </footer>
@@ -565,16 +521,13 @@ export default function Layout() {
       >
         <form
           onSubmit={(event) => {
-            event.preventDefault()
-            navigate(`/products?q=${encodeURIComponent(query)}`)
-            setSearch(false)
+            event.preventDefault();
+            navigate(`/products?q=${encodeURIComponent(query)}`);
+            setSearch(false);
           }}
           className="relative"
         >
-          <Search
-            size={18}
-            className="absolute left-3 top-3.5 text-muted-foreground"
-          />
+          <Search size={18} className="absolute left-3 top-3.5 text-muted-foreground" />
           <input
             autoFocus
             value={query}
@@ -609,9 +562,7 @@ export default function Layout() {
         </p>
         <div className="flex flex-wrap gap-2">
           {store.catalogCategories
-            .filter((category) =>
-              category.toLowerCase().includes(query.toLowerCase()),
-            )
+            .filter((category) => category.toLowerCase().includes(query.toLowerCase()))
             .slice(0, 5)
             .map((category) => (
               <Link
@@ -624,9 +575,7 @@ export default function Layout() {
               </Link>
             ))}
           {serviceTypes
-            .filter((service) =>
-              service.toLowerCase().includes(query.toLowerCase()),
-            )
+            .filter((service) => service.toLowerCase().includes(query.toLowerCase()))
             .slice(0, 4)
             .map((service) => (
               <Link
@@ -650,5 +599,5 @@ export default function Layout() {
         </div>
       )}
     </>
-  )
+  );
 }

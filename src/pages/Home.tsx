@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Link } from "react-router"
+import { useState } from "react";
+import { Link } from "react-router";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -25,35 +25,28 @@ import {
   Wifi,
   Gamepad2,
   Code2,
-} from "lucide-react"
-import { motion, useReducedMotion } from "motion/react"
-import heroBanner from "../imports/Futuristic Blue Tech Showroom Banner.png"
-import ShinyText from "../components/ShinyText"
-import { useStore } from "../app/store"
-import { images } from "../data/catalog"
-import OurServices from "../components/OurServices"
-import WarrantyCheck from "../components/WarrantyCheck"
-import ProductCard from "../components/ProductCard"
-import {
-  ActionLink,
-  SectionHeading,
-  containerClass,
-  Logo,
-  Modal,
-  Stars,
-} from "../components/ui"
+} from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import heroBanner from "../imports/Futuristic Blue Tech Showroom Banner.png";
+import ShinyText from "../components/ShinyText";
+import { useStore } from "../app/store";
+import { images } from "../data/catalog";
+import OurServices from "../components/OurServices";
+import WarrantyCheck from "../components/WarrantyCheck";
+import ProductCard from "../components/ProductCard";
+import { ActionLink, SectionHeading, containerClass, Logo, Modal, Stars } from "../components/ui";
 import {
   CountUp,
   FadeContent,
   GradientText,
   ScrollVelocity,
   SpotlightCard,
-} from "../components/reactbits"
+} from "../components/reactbits";
 
 interface HomeCategoryEntry {
-  name: string
-  label?: string
-  Icon: typeof Laptop
+  name: string;
+  label?: string;
+  Icon: typeof Laptop;
 }
 
 const homeCategories: HomeCategoryEntry[] = [
@@ -67,7 +60,7 @@ const homeCategories: HomeCategoryEntry[] = [
   { name: "Audio", label: "Headphones & Audio", Icon: Headphones },
   { name: "Networking", Icon: Wifi },
   { name: "Gaming", Icon: Gamepad2 },
-]
+];
 const homeServices = [
   {
     name: "Laptop Services",
@@ -99,13 +92,13 @@ const homeServices = [
     text: "Websites, web apps and custom software for businesses.",
     service: "Website Development",
   },
-]
+];
 export default function Home() {
-  const store = useStore()
-  const reduce = useReducedMotion()
-  const [viewer, setViewer] = useState<number | null>(null)
-  const [showAll, setShowAll] = useState(false)
-  const SHOWCASE_LIMIT = 4
+  const store = useStore();
+  const reduce = useReducedMotion();
+  const [viewer, setViewer] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const SHOWCASE_LIMIT = 4;
   const enter = (delay: number) =>
     reduce
       ? {}
@@ -117,7 +110,7 @@ export default function Home() {
             delay,
             ease: [0.22, 1, 0.36, 1] as const,
           },
-        }
+        };
   return (
     <>
       <div className={`${containerClass} pt-7 md:pt-9`}>
@@ -158,16 +151,14 @@ export default function Home() {
                 {...enter(0.08)}
                 className="text-balance font-display text-5xl font-bold tracking-[-.04em] text-foreground sm:text-6xl md:text-7xl"
               >
-                Everything Tech.{" "}
-                <GradientText>Sales, Service & Support.</GradientText>
+                Everything Tech. <GradientText>Sales, Service & Support.</GradientText>
               </motion.h1>
               <motion.p
                 {...enter(0.16)}
                 className="mt-6 max-w-xl text-pretty text-base font-normal text-muted-foreground sm:text-lg"
               >
-                Shop laptops, computers, mobiles, printers, accessories and
-                components — backed by professional IT services and after-sales
-                support from IT HUB.
+                Shop laptops, computers, mobiles, printers, accessories and components — backed by
+                professional IT services and after-sales support from IT HUB.
               </motion.p>
               <motion.div
                 {...enter(0.24)}
@@ -221,9 +212,7 @@ export default function Home() {
             <div>
               <p className="text-sm font-bold">
                 <CountUp to={4.8} decimals={1} />{" "}
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  / 5
-                </span>{" "}
+                <span className="text-[11px] font-normal text-muted-foreground">/ 5</span>{" "}
                 <Stars size={11} className="text-amber-500" />
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
@@ -249,16 +238,10 @@ export default function Home() {
             },
           ].map(({ Icon, title, text }) => (
             <div key={title} className="flex items-center gap-3">
-              <Icon
-                size={25}
-                strokeWidth={1.5}
-                className="shrink-0 text-primary"
-              />
+              <Icon size={25} strokeWidth={1.5} className="shrink-0 text-primary" />
               <div>
                 <p className="text-xs font-semibold">{title}</p>
-                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                  {text}
-                </p>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{text}</p>
               </div>
             </div>
           ))}
@@ -274,9 +257,7 @@ export default function Home() {
         />
         <ul className="grid border-t border-border md:grid-cols-2 md:gap-x-10">
           {homeCategories.map(({ name, label, Icon }, index) => {
-            const count = store.products.filter(
-              (product) => product.category === name,
-            ).length
+            const count = store.products.filter((product) => product.category === name).length;
             return (
               <li key={name} className="border-b border-border">
                 <Link
@@ -303,7 +284,7 @@ export default function Home() {
                   />
                 </Link>
               </li>
-            )
+            );
           })}
         </ul>
       </section>
@@ -337,9 +318,9 @@ export default function Home() {
                 Certified Pre-Owned & Gadget Buyback
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Save up to 50% on thoroughly inspected, stress-tested pre-owned
-                laptops, MacBooks, GPUs, and smartphones — or trade in your old
-                devices for an instant evaluation and fair cash payout.
+                Save up to 50% on thoroughly inspected, stress-tested pre-owned laptops, MacBooks,
+                GPUs, and smartphones — or trade in your old devices for an instant evaluation and
+                fair cash payout.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -353,8 +334,7 @@ export default function Home() {
                 to="/sell"
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-xs font-semibold text-foreground transition hover:border-emerald-600 hover:text-emerald-700"
               >
-                <BadgeIndianRupee size={15} className="text-emerald-600" /> Sell
-                Your Device
+                <BadgeIndianRupee size={15} className="text-emerald-600" /> Sell Your Device
               </Link>
             </div>
           </div>
@@ -372,15 +352,13 @@ export default function Home() {
       <section className={`${containerClass} py-14`}>
         <div className="grid gap-8 rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10">
           <div>
-            <p className="text-[10px] font-bold tracking-[.15em] text-primary">
-              ON-SITE SERVICE
-            </p>
+            <p className="text-[10px] font-bold tracking-[.15em] text-primary">ON-SITE SERVICE</p>
             <h2 className="mt-3 text-2xl font-bold tracking-[-.02em] md:text-3xl">
               IT Support at Your Location
             </h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-              Professional technical assistance without needing to bring your
-              device to the store. Available within about 15 km of IT HUB.
+              Professional technical assistance without needing to bring your device to the store.
+              Available within about 15 km of IT HUB.
             </p>
             <ol className="mt-6 grid gap-2 text-xs sm:grid-cols-2">
               {[
@@ -389,10 +367,7 @@ export default function Home() {
                 "Check availability",
                 "Schedule / contact IT HUB",
               ].map((step, index) => (
-                <li
-                  key={step}
-                  className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5"
-                >
+                <li key={step} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
                     {index + 1}
                   </span>
@@ -400,10 +375,7 @@ export default function Home() {
                 </li>
               ))}
             </ol>
-            <ActionLink
-              to="/services/book?method=On-site%20service"
-              className="mt-6"
-            >
+            <ActionLink to="/services/book?method=On-site%20service" className="mt-6">
               Request On-Site Service <ArrowRight size={15} />
             </ActionLink>
           </div>
@@ -423,8 +395,7 @@ export default function Home() {
             <ShieldCheck size={26} className="text-blue-200" />
             <h3 className="mt-4 text-2xl font-bold">Need Warranty Help?</h3>
             <p className="mt-2 max-w-sm text-sm leading-6 text-blue-100">
-              Find official warranty and customer-care information for your
-              device.
+              Find official warranty and customer-care information for your device.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               {[
@@ -482,9 +453,7 @@ export default function Home() {
               >
                 <Icon size={20} className="text-primary" />
                 <h3 className="mt-3 text-sm font-semibold">{title}</h3>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {text}
-                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
               </Link>
             ))}
           </div>
@@ -507,16 +476,15 @@ export default function Home() {
                 Live Compatibility Check
               </span>
             </div>
-            <h2 className="mt-1.5 text-lg font-bold">
-              Build Your Custom PC With IT HUB
-            </h2>
+            <h2 className="mt-1.5 text-lg font-bold">Build Your Custom PC With IT HUB</h2>
             <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
-              Choose your components and get an estimated configuration price.
-              Our team in Kothamangalam helps verify compatibility, finalize parts, and assemble your dream rig.
+              Choose your components and get an estimated configuration price. Our team in
+              Kothamangalam helps verify compatibility, finalize parts, and assemble your dream rig.
             </p>
           </div>
           <ActionLink to="/pc-builder" className="shrink-0 group">
-            Start PC Builder <Cpu size={15} className="transition-transform group-hover:scale-110" />
+            Start PC Builder{" "}
+            <Cpu size={15} className="transition-transform group-hover:scale-110" />
           </ActionLink>
         </div>
       </section>
@@ -528,27 +496,26 @@ export default function Home() {
         />
         {store.showcase.length > 0 && (
           <FadeContent className="columns-2 gap-3 md:columns-4 md:gap-4">
-            {(showAll
-              ? store.showcase
-              : store.showcase.slice(0, SHOWCASE_LIMIT)
-            ).map((item, index) => (
-              <button
-                key={item.id}
-                onClick={() => setViewer(index)}
-                className="group relative mb-3 block w-full overflow-hidden rounded-2xl border border-border bg-muted text-left md:mb-4"
-              >
-                <img
-                  src={item.src}
-                  alt={item.caption}
-                  loading="lazy"
-                  className="w-full transition duration-700 group-hover:scale-[1.04]"
-                />
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
-                  {item.caption}
-                  <Stars size={13} className="text-amber-300" />
-                </span>
-              </button>
-            ))}
+            {(showAll ? store.showcase : store.showcase.slice(0, SHOWCASE_LIMIT)).map(
+              (item, index) => (
+                <button
+                  key={item.id}
+                  onClick={() => setViewer(index)}
+                  className="group relative mb-3 block w-full overflow-hidden rounded-2xl border border-border bg-muted text-left md:mb-4"
+                >
+                  <img
+                    src={item.src}
+                    alt={item.caption}
+                    loading="lazy"
+                    className="w-full transition duration-700 group-hover:scale-[1.04]"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+                    {item.caption}
+                    <Stars size={13} className="text-amber-300" />
+                  </span>
+                </button>
+              ),
+            )}
           </FadeContent>
         )}
         {store.showcase.length > SHOWCASE_LIMIT && (
@@ -557,9 +524,7 @@ export default function Home() {
               onClick={() => setShowAll(!showAll)}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-6 py-3 text-sm font-semibold transition hover:border-primary hover:text-primary"
             >
-              {showAll
-                ? "Show less"
-                : `Show more (${store.showcase.length - SHOWCASE_LIMIT} more)`}
+              {showAll ? "Show less" : `Show more (${store.showcase.length - SHOWCASE_LIMIT} more)`}
               <ChevronRight
                 size={16}
                 className={`transition ${showAll ? "-rotate-90" : "rotate-90"}`}
@@ -572,9 +537,7 @@ export default function Home() {
           open={viewer !== null}
           onOpenChange={(open) => !open && setViewer(null)}
           title="Happy customers"
-          description={
-            viewer !== null ? store.showcase[viewer]?.caption : undefined
-          }
+          description={viewer !== null ? store.showcase[viewer]?.caption : undefined}
         >
           {viewer !== null && store.showcase[viewer] && (
             <div>
@@ -586,10 +549,7 @@ export default function Home() {
               <div className="mt-5 flex items-center justify-between">
                 <button
                   onClick={() =>
-                    setViewer(
-                      (viewer - 1 + store.showcase.length) %
-                        store.showcase.length,
-                    )
+                    setViewer((viewer - 1 + store.showcase.length) % store.showcase.length)
                   }
                   className="rounded-full border border-border px-4 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
                 >
@@ -599,9 +559,7 @@ export default function Home() {
                   {viewer + 1} / {store.showcase.length}
                 </span>
                 <button
-                  onClick={() =>
-                    setViewer((viewer + 1) % store.showcase.length)
-                  }
+                  onClick={() => setViewer((viewer + 1) % store.showcase.length)}
                   className="rounded-full border border-border px-4 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
                 >
                   Next →
@@ -617,13 +575,11 @@ export default function Home() {
             <p className="text-[10px] font-bold tracking-[.16em] text-primary">
               ROOTED IN KOTHAMANGALAM
             </p>
-            <h2 className="mt-4 text-3xl font-bold">
-              Local store. Complete solutions.
-            </h2>
+            <h2 className="mt-4 text-3xl font-bold">Local store. Complete solutions.</h2>
             <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">
-              Since 2011, IT HUB brings technology products, IT services,
-              mobiles, software and after-sales support together under one roof.
-              A technology store you can actually visit and trust.
+              Since 2011, IT HUB brings technology products, IT services, mobiles, software and
+              after-sales support together under one roof. A technology store you can actually visit
+              and trust.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-4">
               <a
@@ -661,9 +617,7 @@ export default function Home() {
                 <MapPin size={17} />
               </span>
               <span>
-                <span className="block text-sm font-bold">
-                  IT HUB, Kothamangalam
-                </span>
+                <span className="block text-sm font-bold">IT HUB, Kothamangalam</span>
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-primary">
                   Get directions <ArrowUpRight size={12} />
                 </span>
@@ -673,5 +627,5 @@ export default function Home() {
         </div>
       </section>
     </>
-  )
+  );
 }

@@ -2,26 +2,22 @@
 // Database Connection Health Check Service
 // IT HUB — Kerala, India
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
-import {
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
-  validateSupabaseConfig,
-} from "./supabase"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, validateSupabaseConfig } from "./supabase";
 
-export type ConnectionStatus = "connected" | "disconnected" | "configuration_error"
+export type ConnectionStatus = "connected" | "disconnected" | "configuration_error";
 
 export interface DatabaseHealthResult {
-  connected: boolean
-  status: ConnectionStatus
-  message: string
-  latencyMs: number | null
-  checkedAt: string
+  connected: boolean;
+  status: ConnectionStatus;
+  message: string;
+  latencyMs: number | null;
+  checkedAt: string;
 }
 
 export interface CheckConnectionOptions {
-  timeoutMs?: number
-  clientOverride?: SupabaseClient
+  timeoutMs?: number;
+  clientOverride?: SupabaseClient;
 }
 
 /**
@@ -36,11 +32,11 @@ export interface CheckConnectionOptions {
 export async function checkDatabaseConnection(
   options: CheckConnectionOptions = {},
 ): Promise<DatabaseHealthResult> {
-  const checkedAt = new Date().toISOString()
-  const timeoutMs = options.timeoutMs ?? 60000
+  const checkedAt = new Date().toISOString();
+  const timeoutMs = options.timeoutMs ?? 60000;
 
   // 1. Validate environment configuration first
-  const config = validateSupabaseConfig()
+  const config = validateSupabaseConfig();
   if (!config.isConfigured) {
     return {
       connected: false,
@@ -48,51 +44,46 @@ export async function checkDatabaseConnection(
       message: config.error ?? "Supabase environment configuration is invalid.",
       latencyMs: null,
       checkedAt,
-    }
+    };
   }
 
-  const client =
-    options.clientOverride ?? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  const client = options.clientOverride ?? createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const startTime =
-    typeof performance !== "undefined" ? performance.now() : Date.now()
+  const startTime = typeof performance !== "undefined" ? performance.now() : Date.now();
 
   try {
     // 2. Wrap query in a timeout promise
-    const queryPromise = client.from("store_settings").select("id").limit(1)
+    const queryPromise = client.from("store_settings").select("id").limit(1);
 
     type HealthTimeoutError = {
-      message: string
-      name: string
-    }
+      message: string;
+      name: string;
+    };
 
     const timeoutPromise = new Promise<{
-      data: null
-      error: HealthTimeoutError
+      data: null;
+      error: HealthTimeoutError;
     }>((_, reject) => {
       const timer = setTimeout(() => {
-        clearTimeout(timer)
-        reject(
-          new Error(`Database health check timed out after ${timeoutMs}ms`),
-        )
-      }, timeoutMs)
-    })
+        clearTimeout(timer);
+        reject(new Error(`Database health check timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
 
     const response = (await Promise.race([queryPromise, timeoutPromise])) as {
-      data: any[] | null
-      error: any
-    }
+      data: any[] | null;
+      error: any;
+    };
 
     const elapsedMs = Math.round(
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
-        startTime,
-    )
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime,
+    );
 
     // 3. Handle PostgREST query errors
     if (response.error) {
-      const err = response.error
-      const message = String(err.message || "").toLowerCase()
-      const code = String(err.code || "")
+      const err = response.error;
+      const message = String(err.message || "").toLowerCase();
+      const code = String(err.code || "");
 
       // Authentication / Invalid key errors
       if (
@@ -109,7 +100,7 @@ export async function checkDatabaseConnection(
             "Authentication failed. The configured Supabase anon/publishable key is invalid.",
           latencyMs: elapsedMs,
           checkedAt,
-        }
+        };
       }
 
       // Schema not yet applied (Fresh database without tables)
@@ -127,18 +118,17 @@ export async function checkDatabaseConnection(
             "Connected to Supabase endpoint, but the initial database schema (schema.sql) has not been installed yet.",
           latencyMs: elapsedMs,
           checkedAt,
-        }
+        };
       }
 
       // Other database or RLS errors
       return {
         connected: false,
         status: "disconnected",
-        message:
-          "Database responded with an error. Please verify database availability.",
+        message: "Database responded with an error. Please verify database availability.",
         latencyMs: elapsedMs,
         checkedAt,
-      }
+      };
     }
 
     // 4. Successful connectivity
@@ -148,14 +138,13 @@ export async function checkDatabaseConnection(
       message: "Database connected and responding normally.",
       latencyMs: elapsedMs,
       checkedAt,
-    }
+    };
   } catch (error: any) {
     const elapsedMs = Math.round(
-      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
-        startTime,
-    )
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - startTime,
+    );
 
-    const errMsg = String(error?.message || "").toLowerCase()
+    const errMsg = String(error?.message || "").toLowerCase();
 
     if (errMsg.includes("timed out")) {
       return {
@@ -164,7 +153,7 @@ export async function checkDatabaseConnection(
         message: `Connection request timed out after ${timeoutMs}ms. Please verify network access or Supabase project status.`,
         latencyMs: elapsedMs,
         checkedAt,
-      }
+      };
     }
 
     if (errMsg.includes("failed to fetch") || errMsg.includes("network")) {
@@ -175,7 +164,7 @@ export async function checkDatabaseConnection(
           "Network error: Unable to reach the Supabase endpoint. Check internet connection and project URL.",
         latencyMs: null,
         checkedAt,
-      }
+      };
     }
 
     return {
@@ -184,6 +173,6 @@ export async function checkDatabaseConnection(
       message: "Unable to establish database connection.",
       latencyMs: elapsedMs,
       checkedAt,
-    }
+    };
   }
 }

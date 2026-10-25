@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Link } from "react-router"
+import { useState } from "react";
+import { Link } from "react-router";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -13,11 +13,11 @@ import {
   BadgeCheck,
   Award,
   ZoomIn,
-} from "lucide-react"
-import WhatsAppIcon from "../components/WhatsAppIcon"
-import ShinyText from "../components/ShinyText"
-import { useStore } from "../app/store"
-import { FadeContent, SplitText } from "../components/reactbits"
+} from "lucide-react";
+import WhatsAppIcon from "../components/WhatsAppIcon";
+import ShinyText from "../components/ShinyText";
+import { useStore } from "../app/store";
+import { FadeContent, SplitText } from "../components/reactbits";
 import {
   ActionLink,
   buttonClass,
@@ -30,16 +30,16 @@ import {
   PageHeading,
   fieldClass,
   Stars,
-} from "../components/ui"
+} from "../components/ui";
 
-const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
-import asusCert from "../assets/recognition/asus-premium-partner.jpg"
-import canonCert from "../assets/recognition/canon-authorised-reseller.jpg"
-import epsonCert from "../assets/recognition/epson-channel-partner.jpg"
-import numericCert from "../assets/recognition/numeric-energy-partner.jpg"
-import iggisCert from "../assets/recognition/iggis-honour-recognition.jpg"
-import intelCert from "../assets/recognition/about-store.png"
-import storeBuildingImg from "../assets/about-store-building.jpg"
+const MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8";
+import asusCert from "../assets/recognition/asus-premium-partner.jpg";
+import canonCert from "../assets/recognition/canon-authorised-reseller.jpg";
+import epsonCert from "../assets/recognition/epson-channel-partner.jpg";
+import numericCert from "../assets/recognition/numeric-energy-partner.jpg";
+import iggisCert from "../assets/recognition/iggis-honour-recognition.jpg";
+import intelCert from "../assets/recognition/about-store.png";
+import storeBuildingImg from "../assets/about-store-building.jpg";
 import {
   formatDate,
   images,
@@ -48,7 +48,7 @@ import {
   type Offer,
   type CertificateItem,
   initialCertificates,
-} from "../data/catalog"
+} from "../data/catalog";
 
 const offerLink = (offer: Offer) =>
   offer.categories[0]
@@ -57,14 +57,12 @@ const offerLink = (offer: Offer) =>
       ? `/products?brand=${encodeURIComponent(offer.brands[0])}`
       : offer.products[0]
         ? `/products/${offer.products[0]}`
-        : "/products"
+        : "/products";
 
 export function Offers() {
-  const store = useStore()
-  const active = store.offers.filter((offer) => offerStatus(offer) === "Active")
-  const upcoming = store.offers.filter(
-    (offer) => offerStatus(offer) === "Scheduled",
-  )
+  const store = useStore();
+  const active = store.offers.filter((offer) => offerStatus(offer) === "Active");
+  const upcoming = store.offers.filter((offer) => offerStatus(offer) === "Scheduled");
   return (
     <Page>
       <PageHeading
@@ -79,22 +77,14 @@ export function Offers() {
             className="flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm"
           >
             {offer.banner ? (
-              <img
-                src={offer.banner}
-                alt=""
-                className="h-40 w-full object-cover"
-              />
+              <img src={offer.banner} alt="" className="h-40 w-full object-cover" />
             ) : (
               <div className="h-2 bg-primary" />
             )}
             <div className="flex flex-1 flex-col p-7">
               <h2 className="text-xl font-bold leading-tight">{offer.name}</h2>
-              <p className="mt-4 text-3xl font-bold text-primary">
-                {offerHeadline(offer)}
-              </p>
-              <p className="mt-3 text-sm text-muted-foreground">
-                {offer.description}
-              </p>
+              <p className="mt-4 text-3xl font-bold text-primary">{offerHeadline(offer)}</p>
+              <p className="mt-3 text-sm text-muted-foreground">{offer.description}</p>
               {offer.endsAt && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Valid until {formatDate(offer.endsAt)}
@@ -114,9 +104,7 @@ export function Offers() {
       )}
       {upcoming.length > 0 && (
         <div className="mt-12">
-          <h2 className="mb-4 text-sm font-semibold text-muted-foreground">
-            Coming soon
-          </h2>
+          <h2 className="mb-4 text-sm font-semibold text-muted-foreground">Coming soon</h2>
           <div className="grid gap-4 md:grid-cols-3">
             {upcoming.map((offer) => (
               <div
@@ -125,16 +113,14 @@ export function Offers() {
               >
                 <p className="font-semibold text-foreground">{offer.name}</p>
                 <p className="mt-1">{offerHeadline(offer)}</p>
-                <p className="mt-1 text-xs">
-                  Starts {formatDate(offer.startsAt)}
-                </p>
+                <p className="mt-1 text-xs">Starts {formatDate(offer.startsAt)}</p>
               </div>
             ))}
           </div>
         </div>
       )}
     </Page>
-  )
+  );
 }
 export function LocationCard() {
   return (
@@ -151,9 +137,7 @@ export function LocationCard() {
         <MapPin size={20} className="shrink-0 text-primary" />
         <div>
           <p className="text-sm font-bold">IT HUB</p>
-          <p className="text-[11px] text-muted-foreground">
-            Kothamangalam, Kerala
-          </p>
+          <p className="text-[11px] text-muted-foreground">Kothamangalam, Kerala</p>
         </div>
         <a
           href={MAP_URL}
@@ -165,15 +149,13 @@ export function LocationCard() {
         </a>
       </div>
     </div>
-  )
+  );
 }
 export function About() {
-  const store = useStore()
-  const [viewCert, setViewCert] = useState<CertificateItem | null>(null)
+  const store = useStore();
+  const [viewCert, setViewCert] = useState<CertificateItem | null>(null);
   const certificates =
-    store.certificates && store.certificates.length > 0
-      ? store.certificates
-      : initialCertificates
+    store.certificates && store.certificates.length > 0 ? store.certificates : initialCertificates;
   return (
     <Page>
       <section className="relative pb-8 pt-4 md:py-12">
@@ -193,19 +175,13 @@ export function About() {
               <span className="text-primary">Trust.</span>
             </h1>
             <p className="mt-6 max-w-xl text-sm leading-7 text-muted-foreground">
-              Established in 2011, IT HUB has grown from an IT products and
-              services store into a complete technology solutions provider. With
-              nearly 15 years of experience in the IT industry, we have built
-              our journey around reliable products, professional services, and
-              long-term customer relationships.
+              Established in 2011, IT HUB has grown from an IT products and services store into a
+              complete technology solutions provider. With nearly 15 years of experience in the IT
+              industry, we have built our journey around reliable products, professional services,
+              and long-term customer relationships.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href={MAP_URL}
-                target="_blank"
-                rel="noreferrer"
-                className={buttonClass}
-              >
+              <a href={MAP_URL} target="_blank" rel="noreferrer" className={buttonClass}>
                 <MapPin size={16} /> Get directions
               </a>
               <Link
@@ -244,43 +220,31 @@ export function About() {
             From a local store to complete solutions.
           </h2>
           <p>
-            In 2016, we expanded into the mobile technology segment, adding
-            mobile devices and accessories to our growing range of technology
-            products.
+            In 2016, we expanded into the mobile technology segment, adding mobile devices and
+            accessories to our growing range of technology products.
           </p>
           <p>
-            In 2026, IT HUB entered the software development and digital
-            solutions field, expanding our capabilities beyond hardware and
-            retail. Our software division focuses on website development, web
-            applications, and custom software solutions, helping businesses and
-            organizations build their digital presence and streamline their
-            operations.
+            In 2026, IT HUB entered the software development and digital solutions field, expanding
+            our capabilities beyond hardware and retail. Our software division focuses on website
+            development, web applications, and custom software solutions, helping businesses and
+            organizations build their digital presence and streamline their operations.
           </p>
           <p>
-            Today, IT HUB brings together IT products, mobile technology,
-            professional services, custom PC solutions, and software development
-            under one roof.
+            Today, IT HUB brings together IT products, mobile technology, professional services,
+            custom PC solutions, and software development under one roof.
           </p>
           <p>
-            Whether you're looking for the latest technology, need a device
-            serviced, want to build a custom PC, or need a digital solution for
-            your business — IT HUB is here to help.
+            Whether you're looking for the latest technology, need a device serviced, want to build
+            a custom PC, or need a digital solution for your business — IT HUB is here to help.
           </p>
           <p className="pt-2 font-semibold text-foreground">
             IT HUB — The Complete IT Store.
             <br />
-            <span className="font-normal text-muted-foreground">
-              Serving customers since 2011.
-            </span>
+            <span className="font-normal text-muted-foreground">Serving customers since 2011.</span>
           </p>
         </FadeContent>
-        <FadeContent
-          delay={120}
-          className="rounded-3xl border border-border bg-card p-7 md:p-9"
-        >
-          <p className="text-[10px] font-semibold tracking-[.17em] text-primary">
-            OUR JOURNEY
-          </p>
+        <FadeContent delay={120} className="rounded-3xl border border-border bg-card p-7 md:p-9">
+          <p className="text-[10px] font-semibold tracking-[.17em] text-primary">OUR JOURNEY</p>
           <ol className="relative mt-7 space-y-8 border-l-2 border-primary/20 pl-7">
             {[
               [
@@ -288,11 +252,7 @@ export function About() {
                 "IT HUB Founded",
                 "Started with IT products, sales, and technical services.",
               ],
-              [
-                "2016",
-                "Mobile Technology",
-                "Expanded into mobile phone sales and accessories.",
-              ],
+              ["2016", "Mobile Technology", "Expanded into mobile phone sales and accessories."],
               [
                 "2026",
                 "Software & Digital Solutions",
@@ -301,13 +261,9 @@ export function About() {
             ].map(([year, title, text]) => (
               <li key={year} className="relative">
                 <span className="absolute -left-[37px] top-1 h-4 w-4 rounded-full border-4 border-card bg-primary ring-2 ring-primary/30" />
-                <p className="font-display text-2xl font-bold text-primary">
-                  {year}
-                </p>
+                <p className="font-display text-2xl font-bold text-primary">{year}</p>
                 <h3 className="mt-1 text-base font-semibold">{title}</h3>
-                <p className="mt-1.5 text-xs leading-6 text-muted-foreground">
-                  {text}
-                </p>
+                <p className="mt-1.5 text-xs leading-6 text-muted-foreground">{text}</p>
               </li>
             ))}
           </ol>
@@ -328,9 +284,9 @@ export function About() {
             Recognised by the World's Leading Technology Brands
           </h2>
           <p className="mt-3.5 text-sm leading-7 text-muted-foreground">
-            Every laptop, printer, component, and device sold at IT HUB comes
-            directly through authorized manufacturer channels with 100% genuine
-            brand warranty, trusted service, and direct factory backing.
+            Every laptop, printer, component, and device sold at IT HUB comes directly through
+            authorized manufacturer channels with 100% genuine brand warranty, trusted service, and
+            direct factory backing.
           </p>
         </div>
 
@@ -341,9 +297,7 @@ export function About() {
               <ShieldCheck size={20} />
             </div>
             <div>
-              <p className="text-xs font-bold text-foreground">
-                100% Genuine Inventory
-              </p>
+              <p className="text-xs font-bold text-foreground">100% Genuine Inventory</p>
               <p className="text-[11px] text-muted-foreground">
                 Direct authorized distributor sourcing
               </p>
@@ -355,9 +309,7 @@ export function About() {
               <BadgeCheck size={20} />
             </div>
             <div>
-              <p className="text-xs font-bold text-foreground">
-                Official Brand Warranty
-              </p>
+              <p className="text-xs font-bold text-foreground">Official Brand Warranty</p>
               <p className="text-[11px] text-muted-foreground">
                 Honoured at authorized service centres
               </p>
@@ -369,9 +321,7 @@ export function About() {
               <Award size={20} />
             </div>
             <div>
-              <p className="text-xs font-bold text-foreground">
-                Trusted Since 2011
-              </p>
+              <p className="text-xs font-bold text-foreground">Trusted Since 2011</p>
               <p className="text-[11px] text-muted-foreground">
                 15+ years technology retail & service
               </p>
@@ -458,33 +408,29 @@ export function About() {
           <Link key={title} to={to} className="rounded-lg bg-muted p-7">
             <Icon className="text-primary" size={25} />
             <h3 className="mt-5 text-xl font-bold">{title}</h3>
-            <p className="mt-3 text-xs leading-6 text-muted-foreground">
-              {text}
-            </p>
+            <p className="mt-3 text-xs leading-6 text-muted-foreground">{text}</p>
             <ArrowRight className="mt-5 text-primary" size={17} />
           </Link>
         ))}
       </div>
       <div className="my-12 rounded-lg bg-secondary p-8 text-center">
         <p className="flex items-center justify-center text-xl text-amber-500">
-          <Stars size={22} />{" "}
-          <span className="ml-2 font-bold text-foreground">4.8/5</span>
+          <Stars size={22} /> <span className="ml-2 font-bold text-foreground">4.8/5</span>
         </p>
         <h3 className="mt-4 text-xl font-bold">Trusted by local customers.</h3>
         <p className="mt-3 text-sm text-muted-foreground">
           Technology products, service support and local assistance.
         </p>
         <p className="mt-3 text-[10px] text-muted-foreground">
-          Customer rating · supplied static prototype value · no live review
-          integration
+          Customer rating · supplied static prototype value · no live review integration
         </p>
       </div>
       <div className="grid items-center gap-8 md:grid-cols-2">
         <div>
           <h2 className="text-3xl font-bold">Your neighbourhood tech hub.</h2>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            Visit IT HUB in Kothamangalam, Kerala. Contact the store for
-            verified directions, contact details and service availability.
+            Visit IT HUB in Kothamangalam, Kerala. Contact the store for verified directions,
+            contact details and service availability.
           </p>
           <ActionLink secondary to="/contact" className="mt-5">
             Contact IT HUB <ArrowRight size={15} />
@@ -534,17 +480,17 @@ export function About() {
         )}
       </Modal>
     </Page>
-  )
+  );
 }
 export function Contact() {
-  const store = useStore()
-  const [info, setInfo] = useState("")
+  const store = useStore();
+  const [info, setInfo] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
     type: "Product enquiry",
     message: "",
-  })
+  });
   return (
     <Page>
       <PageHeading
@@ -577,17 +523,13 @@ export function Contact() {
           <button
             key={name}
             onClick={() =>
-              name === "Service enquiry"
-                ? setInfo("Service enquiries")
-                : setInfo(name)
+              name === "Service enquiry" ? setInfo("Service enquiries") : setInfo(name)
             }
             className="rounded-lg border border-border p-6 text-left transition hover:border-primary/40"
           >
             <Icon size={24} className="text-primary" />
             <h2 className="mt-5 text-lg font-bold">{name}</h2>
-            <p className="mt-2 text-xs leading-6 text-muted-foreground">
-              {text}
-            </p>
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">{text}</p>
             <ArrowUpRight size={16} className="mt-5 text-primary" />
           </button>
         ))}
@@ -599,8 +541,7 @@ export function Contact() {
           <p className="mt-4 text-xs leading-6 text-muted-foreground">
             Molathu Building, College Jn., Kothamangalam, Kerala - 686691.
             <br />
-            Working hours: Monday to Saturday, 10:00 AM – 8:30 PM (Sunday:
-            Holiday).
+            Working hours: Monday to Saturday, 10:00 AM – 8:30 PM (Sunday: Holiday).
           </p>
           <a
             href="https://www.justdial.com/Ernakulam/IT-HUB-Ma-College-Kothamangalam-Ernakulam/0484PX484-X484-120621183943-F6M7_BZDET"
@@ -613,7 +554,7 @@ export function Contact() {
         </div>
         <form
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
             store.set((previous) => ({
               tickets: [
                 {
@@ -624,14 +565,14 @@ export function Contact() {
                 },
                 ...previous.tickets,
               ],
-            }))
+            }));
             setForm({
               name: "",
               email: "",
               type: "Product enquiry",
               message: "",
-            })
-            store.notify("Demo enquiry saved. No message was sent.")
+            });
+            store.notify("Demo enquiry saved. No message was sent.");
           }}
           className="space-y-5 rounded-lg border border-border p-7"
         >
@@ -641,9 +582,7 @@ export function Contact() {
               <input
                 required
                 value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
                 className={fieldClass}
               />
             </Field>
@@ -652,9 +591,7 @@ export function Contact() {
                 required
                 type="email"
                 value={form.email}
-                onChange={(event) =>
-                  setForm({ ...form, email: event.target.value })
-                }
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
                 className={fieldClass}
               />
             </Field>
@@ -662,16 +599,12 @@ export function Contact() {
           <Field label="Enquiry type">
             <select
               value={form.type}
-              onChange={(event) =>
-                setForm({ ...form, type: event.target.value })
-              }
+              onChange={(event) => setForm({ ...form, type: event.target.value })}
               className={fieldClass}
             >
-              {["Product enquiry", "Service enquiry", "Custom PC", "Other"].map(
-                (value) => (
-                  <option key={value}>{value}</option>
-                ),
-              )}
+              {["Product enquiry", "Service enquiry", "Custom PC", "Other"].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
             </select>
           </Field>
           <Field label="What can we help with?">
@@ -680,9 +613,7 @@ export function Contact() {
               minLength={10}
               rows={4}
               value={form.message}
-              onChange={(event) =>
-                setForm({ ...form, message: event.target.value })
-              }
+              onChange={(event) => setForm({ ...form, message: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -690,15 +621,15 @@ export function Contact() {
             Save demo enquiry <ArrowRight size={15} />
           </Button>
           <p className="text-[10px] leading-5 text-muted-foreground">
-            Frontend demonstration only. No email or message is sent. Use the
-            business listing to contact IT HUB directly.
+            Frontend demonstration only. No email or message is sent. Use the business listing to
+            contact IT HUB directly.
           </p>
         </form>
       </div>
       <Modal
         open={Boolean(info)}
         onOpenChange={(open) => {
-          if (!open) setInfo("")
+          if (!open) setInfo("");
         }}
         title={info}
       >
@@ -711,24 +642,18 @@ export function Contact() {
           </p>
           <p>
             <strong>Email:</strong>{" "}
-            <a
-              href="mailto:ithubkmgm@gmail.com"
-              className="text-primary font-semibold"
-            >
+            <a href="mailto:ithubkmgm@gmail.com" className="text-primary font-semibold">
               ithubkmgm@gmail.com
             </a>
           </p>
           <p>
-            <strong>Store Working Hours:</strong> Monday – Saturday: 10:00 AM to
-            8:30 PM
+            <strong>Store Working Hours:</strong> Monday – Saturday: 10:00 AM to 8:30 PM
           </p>
           <p>
-            <strong>Sunday:</strong>{" "}
-            <span className="font-semibold text-rose-600">Holiday</span>
+            <strong>Sunday:</strong> <span className="font-semibold text-rose-600">Holiday</span>
           </p>
           <p>
-            <strong>Address:</strong> Molathu Building, College Jn.,
-            Kothamangalam, Kerala - 686691
+            <strong>Address:</strong> Molathu Building, College Jn., Kothamangalam, Kerala - 686691
           </p>
         </div>
         <a
@@ -744,5 +669,5 @@ export function Contact() {
         </div>
       </Modal>
     </Page>
-  )
+  );
 }

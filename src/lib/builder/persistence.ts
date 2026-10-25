@@ -1,11 +1,11 @@
 // src/lib/builder/persistence.ts
 // IT HUB Secure PC Build Persistence via Supabase RLS and Local Cache
 
-import { supabase } from "../supabase"
-import type { CanonicalBuild } from "./types"
-import { checkCompatibility } from "./compatibility"
+import { supabase } from "../supabase";
+import type { CanonicalBuild } from "./types";
+import { checkCompatibility } from "./compatibility";
 
-const LOCAL_STORAGE_KEY = "ithub_guest_pc_builds"
+const LOCAL_STORAGE_KEY = "ithub_guest_pc_builds";
 
 /**
  * Persists a canonical PC build to Supabase `pc_builds` table.
@@ -17,33 +17,33 @@ export async function saveBuild(
 ): Promise<{ success: boolean; id: string; error?: string }> {
   try {
     if (!supabase) {
-      const localBuilds = getLocalGuestBuilds()
-      const existingIndex = localBuilds.findIndex((b) => b.id === build.id)
+      const localBuilds = getLocalGuestBuilds();
+      const existingIndex = localBuilds.findIndex((b) => b.id === build.id);
       const buildToSave: CanonicalBuild = {
         ...build,
         id: build.id.startsWith("guest-") ? build.id : `guest-${Date.now()}`,
         updatedAt: new Date().toISOString(),
-      }
+      };
 
       if (existingIndex >= 0) {
-        localBuilds[existingIndex] = buildToSave
+        localBuilds[existingIndex] = buildToSave;
       } else {
-        localBuilds.unshift(buildToSave)
+        localBuilds.unshift(buildToSave);
       }
 
-      saveLocalGuestBuilds(localBuilds)
-      return { success: true, id: buildToSave.id }
+      saveLocalGuestBuilds(localBuilds);
+      return { success: true, id: buildToSave.id };
     }
 
-    const { data: authData } = await supabase.auth.getUser()
-    const user = authData?.user
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
 
     const payload = {
       name: build.name.trim() || "My custom PC",
       parts: build.components,
       estimated_price: calculateBuildTotal(build),
       enquiry_status: "Draft",
-    }
+    };
 
     if (user) {
       // Authenticated user saving to Supabase
@@ -60,12 +60,12 @@ export async function saveBuild(
           .eq("id", build.id)
           .eq("user_id", user.id)
           .select("id")
-          .single()
+          .single();
 
         if (error) {
-          return { success: false, id: build.id, error: error.message }
+          return { success: false, id: build.id, error: error.message };
         }
-        return { success: true, id: data.id }
+        return { success: true, id: data.id };
       } else {
         // Insert new build
         const { data, error } = await supabase
@@ -78,34 +78,34 @@ export async function saveBuild(
             enquiry_status: "Draft",
           })
           .select("id")
-          .single()
+          .single();
 
         if (error) {
-          return { success: false, id: build.id, error: error.message }
+          return { success: false, id: build.id, error: error.message };
         }
-        return { success: true, id: data.id }
+        return { success: true, id: data.id };
       }
     } else {
       // Guest local storage fallback
-      const localBuilds = getLocalGuestBuilds()
-      const existingIndex = localBuilds.findIndex((b) => b.id === build.id)
+      const localBuilds = getLocalGuestBuilds();
+      const existingIndex = localBuilds.findIndex((b) => b.id === build.id);
       const buildToSave: CanonicalBuild = {
         ...build,
         id: build.id.startsWith("guest-") ? build.id : `guest-${Date.now()}`,
         updatedAt: new Date().toISOString(),
-      }
+      };
 
       if (existingIndex >= 0) {
-        localBuilds[existingIndex] = buildToSave
+        localBuilds[existingIndex] = buildToSave;
       } else {
-        localBuilds.unshift(buildToSave)
+        localBuilds.unshift(buildToSave);
       }
 
-      saveLocalGuestBuilds(localBuilds)
-      return { success: true, id: buildToSave.id }
+      saveLocalGuestBuilds(localBuilds);
+      return { success: true, id: buildToSave.id };
     }
   } catch (err: any) {
-    return { success: false, id: build.id, error: err?.message || "Failed to save build" }
+    return { success: false, id: build.id, error: err?.message || "Failed to save build" };
   }
 }
 
@@ -115,25 +115,25 @@ export async function saveBuild(
  */
 export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
   if (!supabase) {
-    return getLocalGuestBuilds()
+    return getLocalGuestBuilds();
   }
 
-  const { data: authData } = await supabase.auth.getUser()
-  const user = authData?.user
+  const { data: authData } = await supabase.auth.getUser();
+  const user = authData?.user;
 
   if (user) {
     const { data, error } = await supabase
       .from("pc_builds")
       .select("id, name, parts, estimated_price, enquiry_status, created_at, updated_at")
       .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
+      .order("updated_at", { ascending: false });
 
     if (error || !data) {
-      return getLocalGuestBuilds()
+      return getLocalGuestBuilds();
     }
 
     return data.map((row) => {
-      const parts = (row.parts || {}) as CanonicalBuild["components"]
+      const parts = (row.parts || {}) as CanonicalBuild["components"];
       return {
         id: row.id,
         userId: user.id,
@@ -144,11 +144,11 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
         compatibility: checkCompatibility(parts),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-      }
-    })
+      };
+    });
   }
 
-  return getLocalGuestBuilds()
+  return getLocalGuestBuilds();
 }
 
 /**
@@ -156,74 +156,75 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
  */
 export async function deleteSavedBuild(buildId: string): Promise<boolean> {
   if (!supabase) {
-    const builds = getLocalGuestBuilds().filter((b) => b.id !== buildId)
-    saveLocalGuestBuilds(builds)
-    return true
+    const builds = getLocalGuestBuilds().filter((b) => b.id !== buildId);
+    saveLocalGuestBuilds(builds);
+    return true;
   }
 
-  const { data: authData } = await supabase.auth.getUser()
-  const user = authData?.user
+  const { data: authData } = await supabase.auth.getUser();
+  const user = authData?.user;
 
   if (user && !buildId.startsWith("guest-")) {
     const { error } = await supabase
       .from("pc_builds")
       .delete()
       .eq("id", buildId)
-      .eq("user_id", user.id)
+      .eq("user_id", user.id);
 
-    return !error
+    return !error;
   }
 
-  const builds = getLocalGuestBuilds().filter((b) => b.id !== buildId)
-  saveLocalGuestBuilds(builds)
-  return true
+  const builds = getLocalGuestBuilds().filter((b) => b.id !== buildId);
+  saveLocalGuestBuilds(builds);
+  return true;
 }
 
 export function calculateBuildTotal(build: CanonicalBuild): number {
-  const owned = new Set(build.ownedSlots || [])
-  let total = 0
+  const owned = new Set(build.ownedSlots || []);
+  let total = 0;
   for (const [slot, comp] of Object.entries(build.components)) {
     if (comp && !owned.has(slot as any)) {
-      total += comp.price * (comp.quantity || 1)
+      total += comp.price * (comp.quantity || 1);
     }
   }
-  return total
+  return total;
 }
 
 export interface CustomerContactInfo {
-  name?: string
-  phone?: string
-  email?: string
+  name?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface QuotationSubmissionResult {
-  success: boolean
-  referenceId?: string
-  id?: string
-  estimatedPrice?: number
-  error?: string
-  isRateLimited?: boolean
-  requiresAuth?: boolean
-  technicianReviewRequired?: boolean
-  priceDivergence?: number
+  success: boolean;
+  referenceId?: string;
+  id?: string;
+  estimatedPrice?: number;
+  error?: string;
+  isRateLimited?: boolean;
+  requiresAuth?: boolean;
+  technicianReviewRequired?: boolean;
+  priceDivergence?: number;
 }
 
-export const PENDING_QUOTATION_STORAGE_KEY = "ithub_pending_pc_quotation"
+export const PENDING_QUOTATION_STORAGE_KEY = "ithub_pending_pc_quotation";
 
 export interface PendingQuotation {
-  mode: "wizard" | "customise"
-  build: CanonicalBuild
-  parts: Record<string, any>
-  name: string
-  intent?: any
-  ownedSlots?: string[]
-  timestamp: string
+  mode: "wizard" | "customise";
+  build: CanonicalBuild;
+  parts: Record<string, any>;
+  name: string;
+  intent?: any;
+  ownedSlots?: string[];
+  timestamp: string;
 }
 
 function getStorage(): Storage | null {
-  if (typeof window !== "undefined" && window.localStorage) return window.localStorage
-  if (typeof globalThis !== "undefined" && (globalThis as any).localStorage) return (globalThis as any).localStorage
-  return null
+  if (typeof window !== "undefined" && window.localStorage) return window.localStorage;
+  if (typeof globalThis !== "undefined" && (globalThis as any).localStorage)
+    return (globalThis as any).localStorage;
+  return null;
 }
 
 /**
@@ -232,13 +233,13 @@ function getStorage(): Storage | null {
  */
 export function savePendingQuotation(data: Omit<PendingQuotation, "timestamp">): void {
   try {
-    const storage = getStorage()
+    const storage = getStorage();
     if (storage) {
       const payload: PendingQuotation = {
         ...data,
         timestamp: new Date().toISOString(),
-      }
-      storage.setItem(PENDING_QUOTATION_STORAGE_KEY, JSON.stringify(payload))
+      };
+      storage.setItem(PENDING_QUOTATION_STORAGE_KEY, JSON.stringify(payload));
     }
   } catch {
     // LocalStorage quota safe
@@ -250,15 +251,15 @@ export function savePendingQuotation(data: Omit<PendingQuotation, "timestamp">):
  */
 export function getPendingQuotation(): PendingQuotation | null {
   try {
-    const storage = getStorage()
+    const storage = getStorage();
     if (storage) {
-      const raw = storage.getItem(PENDING_QUOTATION_STORAGE_KEY)
-      if (raw) return JSON.parse(raw) as PendingQuotation
+      const raw = storage.getItem(PENDING_QUOTATION_STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as PendingQuotation;
     }
   } catch {
     // Ignore parse error
   }
-  return null
+  return null;
 }
 
 /**
@@ -266,9 +267,9 @@ export function getPendingQuotation(): PendingQuotation | null {
  */
 export function clearPendingQuotation(): void {
   try {
-    const storage = getStorage()
+    const storage = getStorage();
     if (storage) {
-      storage.removeItem(PENDING_QUOTATION_STORAGE_KEY)
+      storage.removeItem(PENDING_QUOTATION_STORAGE_KEY);
     }
   } catch {
     // Ignore
@@ -276,9 +277,9 @@ export function clearPendingQuotation(): void {
 }
 
 export function generateQuotationReference(): string {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "")
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase()
-  return `ITH-PC-${dateStr}-${rand}`
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `ITH-PC-${dateStr}-${rand}`;
 }
 
 /**
@@ -296,12 +297,12 @@ export async function submitQuotationRequest(
   customerInfo?: CustomerContactInfo,
   deps?: { supabaseClient?: any },
 ): Promise<QuotationSubmissionResult> {
-  const activeSupabase = deps?.supabaseClient ?? supabase
-  const referenceId = generateQuotationReference()
-  const estimatedPrice = calculateBuildTotal(build)
+  const activeSupabase = deps?.supabaseClient ?? supabase;
+  const referenceId = generateQuotationReference();
+  const estimatedPrice = calculateBuildTotal(build);
 
   // Map parts into structured format containing names, Shopify product/variant IDs, and prices
-  const partsPayload: Record<string, any> = {}
+  const partsPayload: Record<string, any> = {};
   for (const [slot, comp] of Object.entries(build.components)) {
     if (comp) {
       partsPayload[slot] = {
@@ -313,24 +314,24 @@ export async function submitQuotationRequest(
         price: comp.price,
         isShopifyLive: comp.isShopifyLive ?? Boolean(comp.variantId),
         specs: comp.specs || {},
-      }
+      };
     }
   }
 
-  const compatibilityPayload = build.compatibility || checkCompatibility(build.components)
+  const compatibilityPayload = build.compatibility || checkCompatibility(build.components);
 
   try {
     if (activeSupabase) {
       // 0. Client-Side Pre-Check: Authentication is mandatory for quotation submission
       if (activeSupabase.auth && typeof activeSupabase.auth.getUser === "function") {
         try {
-          const { data: authData } = await activeSupabase.auth.getUser()
+          const { data: authData } = await activeSupabase.auth.getUser();
           if (!authData?.user) {
             return {
               success: false,
               error: "Authentication required to submit a PC quotation request. Please sign in.",
               requiresAuth: true,
-            }
+            };
           }
         } catch {
           // If auth check throws, let Edge Function perform authoritative JWT validation
@@ -338,46 +339,43 @@ export async function submitQuotationRequest(
       }
 
       // Authoritative Edge Function verification is the SOLE live submission pathway
-      let edgeData: any = null
-      let edgeErr: any = null
+      let edgeData: any = null;
+      let edgeErr: any = null;
 
       try {
-        const response = await activeSupabase.functions.invoke(
-          "verify-and-submit-pc-quotation",
-          {
-            body: {
-              buildName: build.name || "Custom PC Build",
-              parts: partsPayload,
-              estimatedPrice,
-              compatibility: compatibilityPayload,
-              customerInfo: {
-                name: customerInfo?.name?.trim() || null,
-                phone: customerInfo?.phone?.trim() || null,
-                email: customerInfo?.email?.trim() || null,
-              },
+        const response = await activeSupabase.functions.invoke("verify-and-submit-pc-quotation", {
+          body: {
+            buildName: build.name || "Custom PC Build",
+            parts: partsPayload,
+            estimatedPrice,
+            compatibility: compatibilityPayload,
+            customerInfo: {
+              name: customerInfo?.name?.trim() || null,
+              phone: customerInfo?.phone?.trim() || null,
+              email: customerInfo?.email?.trim() || null,
             },
           },
-        )
-        edgeData = response.data
-        edgeErr = response.error
+        });
+        edgeData = response.data;
+        edgeErr = response.error;
       } catch (invokeErr: any) {
-        edgeErr = invokeErr
+        edgeErr = invokeErr;
       }
 
       // 1. Detect Authentication Required (HTTP 401)
-      let isAuthRequired = false
-      let errorMessage = edgeErr?.message
+      let isAuthRequired = false;
+      let errorMessage = edgeErr?.message;
 
       if (edgeErr) {
         try {
           if (edgeErr.context && typeof edgeErr.context.json === "function") {
-            const errBody = await edgeErr.context.json()
-            if (errBody?.error) errorMessage = errBody.error
+            const errBody = await edgeErr.context.json();
+            if (errBody?.error) errorMessage = errBody.error;
             if (errBody?.requiresAuth || edgeErr.context.status === 401) {
-              isAuthRequired = true
+              isAuthRequired = true;
             }
           } else if (edgeErr.context?.status === 401 || edgeErr.status === 401) {
-            isAuthRequired = true
+            isAuthRequired = true;
           }
         } catch {
           // Context already consumed or not JSON
@@ -386,10 +384,12 @@ export async function submitQuotationRequest(
 
       if (
         edgeData?.requiresAuth ||
-        (typeof edgeData?.error === "string" && edgeData.error.toLowerCase().includes("authentication required")) ||
-        (typeof errorMessage === "string" && errorMessage.toLowerCase().includes("authentication required"))
+        (typeof edgeData?.error === "string" &&
+          edgeData.error.toLowerCase().includes("authentication required")) ||
+        (typeof errorMessage === "string" &&
+          errorMessage.toLowerCase().includes("authentication required"))
       ) {
-        isAuthRequired = true
+        isAuthRequired = true;
       }
 
       if (isAuthRequired) {
@@ -397,22 +397,22 @@ export async function submitQuotationRequest(
           success: false,
           error: "Authentication required to submit a PC quotation request. Please sign in.",
           requiresAuth: true,
-        }
+        };
       }
 
       // 2. Detect Distributed Rate Limiting (HTTP 429)
-      let isRateLimited = false
+      let isRateLimited = false;
 
       if (edgeErr) {
         try {
           if (edgeErr.context && typeof edgeErr.context.json === "function") {
-            const errBody = await edgeErr.context.json()
-            if (errBody?.error) errorMessage = errBody.error
+            const errBody = await edgeErr.context.json();
+            if (errBody?.error) errorMessage = errBody.error;
             if (errBody?.retryAfter || edgeErr.context.status === 429) {
-              isRateLimited = true
+              isRateLimited = true;
             }
           } else if (edgeErr.context?.status === 429 || edgeErr.status === 429) {
-            isRateLimited = true
+            isRateLimited = true;
           }
         } catch {
           // Context already consumed or not JSON
@@ -421,26 +421,31 @@ export async function submitQuotationRequest(
 
       if (
         edgeData?.retryAfter ||
-        (typeof edgeData?.error === "string" && edgeData.error.toLowerCase().includes("too many requests")) ||
-        (typeof errorMessage === "string" && errorMessage.toLowerCase().includes("too many requests"))
+        (typeof edgeData?.error === "string" &&
+          edgeData.error.toLowerCase().includes("too many requests")) ||
+        (typeof errorMessage === "string" &&
+          errorMessage.toLowerCase().includes("too many requests"))
       ) {
-        isRateLimited = true
+        isRateLimited = true;
       }
 
       if (isRateLimited) {
         return {
           success: false,
-          error: "Too many quotation requests. Maximum 5 requests per minute allowed. Please wait a moment before trying again.",
+          error:
+            "Too many quotation requests. Maximum 5 requests per minute allowed. Please wait a moment before trying again.",
           isRateLimited: true,
-        }
+        };
       }
 
       // 3. Network or invocation failure — Return terminal error (NO fallback to unverified RPC)
       if (edgeErr) {
         return {
           success: false,
-          error: errorMessage || "Failed to contact quotation verification service. Please try again or message IT HUB on WhatsApp.",
-        }
+          error:
+            errorMessage ||
+            "Failed to contact quotation verification service. Please try again or message IT HUB on WhatsApp.",
+        };
       }
 
       // 4. Edge Function logical rejection
@@ -451,7 +456,7 @@ export async function submitQuotationRequest(
           requiresAuth: Boolean(edgeData.requiresAuth),
           technicianReviewRequired: Boolean(edgeData.technicianReviewRequired),
           priceDivergence: edgeData.priceDivergence,
-        }
+        };
       }
 
       // 5. Successful authoritative quotation verification
@@ -463,13 +468,13 @@ export async function submitQuotationRequest(
           estimatedPrice: edgeData.authoritativePrice ?? estimatedPrice,
           technicianReviewRequired: Boolean(edgeData.technicianReviewRequired),
           priceDivergence: edgeData.priceDivergence ?? 0,
-        }
+        };
       }
 
       return {
         success: false,
         error: "Quotation verification returned an unexpected response. Please try again.",
-      }
+      };
     } else {
       // In offline/test environment without Supabase configuration
       const guestQuote = {
@@ -480,12 +485,12 @@ export async function submitQuotationRequest(
         estimated_price: estimatedPrice,
         compatibility: compatibilityPayload,
         created_at: new Date().toISOString(),
-      }
+      };
       try {
         if (typeof window !== "undefined" && window.localStorage) {
-          const stored = JSON.parse(localStorage.getItem("ithub_local_quotations") || "[]")
-          stored.unshift(guestQuote)
-          localStorage.setItem("ithub_local_quotations", JSON.stringify(stored))
+          const stored = JSON.parse(localStorage.getItem("ithub_local_quotations") || "[]");
+          stored.unshift(guestQuote);
+          localStorage.setItem("ithub_local_quotations", JSON.stringify(stored));
         }
       } catch {
         // LocalStorage mock/environment safe
@@ -496,35 +501,35 @@ export async function submitQuotationRequest(
         referenceId,
         id: guestQuote.id,
         estimatedPrice,
-      }
+      };
     }
   } catch (err: any) {
     return {
       success: false,
       error: err?.message || "Failed to submit quotation request. Please try again.",
-    }
+    };
   }
 }
 
 function getLocalGuestBuilds(): CanonicalBuild[] {
-  if (typeof window === "undefined") return []
+  if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as CanonicalBuild[]
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as CanonicalBuild[];
     return parsed.map((b) => ({
       ...b,
       compatibility: checkCompatibility(b.components),
-    }))
+    }));
   } catch {
-    return []
+    return [];
   }
 }
 
 function saveLocalGuestBuilds(builds: CanonicalBuild[]): void {
-  if (typeof window === "undefined") return
+  if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(builds.slice(0, 20)))
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(builds.slice(0, 20)));
   } catch {
     // Ignore storage quota errors
   }

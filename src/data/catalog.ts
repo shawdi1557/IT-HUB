@@ -1,6 +1,6 @@
 // ── Second-hand / Pre-owned products ──
 
-export type ProductCondition = "New" | "Like New" | "Good" | "Fair" | "For Parts"
+export type ProductCondition = "New" | "Like New" | "Good" | "Fair" | "For Parts";
 
 export const productConditions: ProductCondition[] = [
   "New",
@@ -12,91 +12,91 @@ export const productConditions: ProductCondition[] = [
   "Fair",
 
   "For Parts",
-]
+];
 
 export type Product = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  categorySource?: "taxonomy" | "productType" | "collection" | "fallback"
+  categorySource?: "taxonomy" | "productType" | "collection" | "fallback";
 
   taxonomyCategory?: {
-    id?: string
-    name: string
-    fullName?: string
-    ancestors?: string[]
-  }
+    id?: string;
+    name: string;
+    fullName?: string;
+    ancestors?: string[];
+  };
 
-  productType?: string
+  productType?: string;
 
-  collections?: string[]
+  collections?: string[];
 
-  price: number
+  price: number;
 
-  original: number
+  original: number;
 
-  image: string
+  image: string;
 
-  stock: number
+  stock: number;
 
-  rating: number
+  rating: number;
 
-  specs: Record<string, string>
+  specs: Record<string, string>;
 
-  tag?: string
+  tag?: string;
 
-  tags?: string[]
+  tags?: string[];
 
-  sku?: string
+  sku?: string;
 
-  subcategory?: string
+  subcategory?: string;
 
-  description?: string
+  description?: string;
 
-  descriptionHtml?: string
+  descriptionHtml?: string;
 
-  costPrice?: number
+  costPrice?: number;
 
-  lowStockThreshold?: number
+  lowStockThreshold?: number;
 
-  warranty?: string
+  warranty?: string;
 
-  weight?: string
+  weight?: string;
 
-  status?: "Active" | "Draft" | "Archived"
+  status?: "Active" | "Draft" | "Archived";
 
-  secondHand?: boolean
+  secondHand?: boolean;
 
-  condition?: ProductCondition
+  condition?: ProductCondition;
 
-  handle?: string
+  handle?: string;
 
-  variantId?: string
+  variantId?: string;
 
-  availableForSale?: boolean
+  availableForSale?: boolean;
 
-  images?: string[]
+  images?: string[];
 
-  options?: Array<{ id?: string; name: string; values: string[] }>
+  options?: Array<{ id?: string; name: string; values: string[] }>;
 
   variants?: Array<{
-    id: string
-    title: string
-    price: number
-    compareAtPrice?: number
-    sku?: string
-    availableForSale: boolean
-    selectedOptions: Array<{ name: string; value: string }>
-    image?: string
-  }>
-}
+    id: string;
+    title: string;
+    price: number;
+    compareAtPrice?: number;
+    sku?: string;
+    availableForSale: boolean;
+    selectedOptions: Array<{ name: string; value: string }>;
+    image?: string;
+  }>;
+};
 
-export const photo = (id: string, width = 700) => `/images/${id}.jpg`
+export const photo = (id: string, width = 700) => `/images/${id}.jpg`;
 
 export const images = {
   hero: photo("photo-1616440347437-b1c73416efc2", 1600),
@@ -122,7 +122,7 @@ export const images = {
   keyboard: photo("photo-1587829741301-dc798b83add3"),
 
   pc: "/images/pc-build.png",
-}
+};
 
 const p = (
   id: string,
@@ -164,9 +164,9 @@ const p = (
   specs,
 
   tag,
-})
+});
 
-export const initialProducts: Product[] = []
+export const initialProducts: Product[] = [];
 
 export const categories = [
   "Laptops & MacBooks",
@@ -204,7 +204,7 @@ export const categories = [
   "Accessories",
 
   "Gaming",
-]
+];
 
 export const initialBrands = [
   "Acer",
@@ -326,7 +326,7 @@ export const initialBrands = [
   "Zebronics",
 
   "Zotac",
-]
+];
 
 export const serviceTypes = [
   "Laptop Repair",
@@ -370,7 +370,7 @@ export const serviceTypes = [
   "Software Development",
 
   "Other IT Services",
-]
+];
 
 export const problems = [
   "Not turning on",
@@ -394,7 +394,7 @@ export const problems = [
   "Data recovery",
 
   "Other",
-]
+];
 
 export const problemsByDevice: Record<string, string[]> = {
   Printer: [
@@ -442,10 +442,9 @@ export const problemsByDevice: Record<string, string[]> = {
 
     "Other",
   ],
-}
+};
 
-export const problemsFor = (device: string) =>
-  problemsByDevice[device] || problems
+export const problemsFor = (device: string) => problemsByDevice[device] || problems;
 
 export const orderStatuses = [
   "Order placed",
@@ -461,7 +460,7 @@ export const orderStatuses = [
   "Out for delivery",
 
   "Delivered",
-]
+];
 
 export const serviceStatuses = [
   "Requested",
@@ -483,38 +482,38 @@ export const serviceStatuses = [
   "Ready for delivery",
 
   "Completed",
-]
+];
 
 export interface ServiceCatalogItem {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  category: "laptop" | "mobile" | "pc" | "printer" | "software" | "onsite"
+  category: "laptop" | "mobile" | "pc" | "printer" | "software" | "onsite";
 
-  tagline: string
+  tagline: string;
 
-  description: string
+  description: string;
 
-  diagnosticFee: number
+  diagnosticFee: number;
 
-  labourRange: [number, number]
+  labourRange: [number, number];
 
-  partsRangeText: string
+  partsRangeText: string;
 
-  startingTotal: number
+  startingTotal: number;
 
-  turnaroundEstimate: string
+  turnaroundEstimate: string;
 
-  commonSymptoms: string[]
+  commonSymptoms: string[];
 
-  warrantyText: string
+  warrantyText: string;
 
-  doorstepEligible: boolean
+  doorstepEligible: boolean;
 
-  courierEligible: boolean
+  courierEligible: boolean;
 
-  popular?: boolean
+  popular?: boolean;
 }
 
 export const serviceWarrantyPolicy = {
@@ -540,26 +539,26 @@ export const serviceWarrantyPolicy = {
 
     "Customer data loss: IT HUB is not liable for data loss. Customers are strongly advised to back up critical data before service.",
   ],
-}
+};
 
 export interface RepairEstimatorItem {
-  device: string
+  device: string;
 
-  issue: string
+  issue: string;
 
-  diagnosticFee: number
+  diagnosticFee: number;
 
-  labourMin: number
+  labourMin: number;
 
-  labourMax: number
+  labourMax: number;
 
-  partsMin: number
+  partsMin: number;
 
-  partsMax: number
+  partsMax: number;
 
-  turnaround: string
+  turnaround: string;
 
-  notes: string
+  notes: string;
 }
 
 export const repairEstimates: RepairEstimatorItem[] = [
@@ -580,8 +579,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "Model-specific: HD, FHD IPS, OLED or 144Hz panel pricing verified post-inspection.",
+    notes: "Model-specific: HD, FHD IPS, OLED or 144Hz panel pricing verified post-inspection.",
   },
 
   {
@@ -601,8 +599,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day to 24 hrs",
 
-    notes:
-      "Includes multi-cell diagnostic battery calibration and battery health report.",
+    notes: "Includes multi-cell diagnostic battery calibration and battery health report.",
   },
 
   {
@@ -622,8 +619,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–4 hrs)",
 
-    notes:
-      "Thermal fan ultrasonic dust purge + premium Arctic MX-4 / Grizzly thermal repaste.",
+    notes: "Thermal fan ultrasonic dust purge + premium Arctic MX-4 / Grizzly thermal repaste.",
   },
 
   {
@@ -643,8 +639,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–3 hrs)",
 
-    notes:
-      "High-speed NVMe/SATA SSD upgrade with seamless OS and user profile migration.",
+    notes: "High-speed NVMe/SATA SSD upgrade with seamless OS and user profile migration.",
   },
 
   {
@@ -664,8 +659,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "DC jack micro-soldering, charging IC repair, or USB Type-C port replacement.",
+    notes: "DC jack micro-soldering, charging IC repair, or USB Type-C port replacement.",
   },
 
   {
@@ -705,8 +699,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "Grade-A display assembly with multi-touch responsiveness calibration.",
+    notes: "Grade-A display assembly with multi-touch responsiveness calibration.",
   },
 
   {
@@ -746,8 +739,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–4 hrs)",
 
-    notes:
-      "Sub-board / CC board charging flex replacement with fast-charge testing.",
+    notes: "Sub-board / CC board charging flex replacement with fast-charge testing.",
   },
 
   {
@@ -767,8 +759,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–72 hrs",
 
-    notes:
-      "Ultrasonic board deoxidization, power rail short-circuit trace repair.",
+    notes: "Ultrasonic board deoxidization, power rail short-circuit trace repair.",
   },
 
   {
@@ -788,8 +779,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "Power supply (PSU) bench test, motherboard VRM inspection, RAM slot test.",
+    notes: "Power supply (PSU) bench test, motherboard VRM inspection, RAM slot test.",
   },
 
   {
@@ -829,8 +819,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–3 hrs)",
 
-    notes:
-      "CPU cooler cleaning, high-performance thermal paste, and airflow rebalancing.",
+    notes: "CPU cooler cleaning, high-performance thermal paste, and airflow rebalancing.",
   },
 
   {
@@ -850,8 +839,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "Paper pickup roller replacement, carriage belt alignment, driver troubleshooting.",
+    notes: "Paper pickup roller replacement, carriage belt alignment, driver troubleshooting.",
   },
 
   {
@@ -871,8 +859,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "24–48 hrs",
 
-    notes:
-      "Ultrasonic printhead flush, nozzle realignment, ink delivery tubing flush.",
+    notes: "Ultrasonic printhead flush, nozzle realignment, ink delivery tubing flush.",
   },
 
   {
@@ -892,8 +879,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day to 24 hrs",
 
-    notes:
-      "Foreign object extraction, gear sensor inspection, feeder roller cleaning.",
+    notes: "Foreign object extraction, gear sensor inspection, feeder roller cleaning.",
   },
 
   {
@@ -913,8 +899,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–3 hrs)",
 
-    notes:
-      "Genuine OS setup, motherboard chipset drivers, essential productivity suite.",
+    notes: "Genuine OS setup, motherboard chipset drivers, essential productivity suite.",
   },
 
   {
@@ -934,8 +919,7 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "Same-Day (2–4 hrs)",
 
-    notes:
-      "Deep malware rootkit scan, registry clean, security patch application.",
+    notes: "Deep malware rootkit scan, registry clean, security patch application.",
   },
 
   {
@@ -955,10 +939,9 @@ export const repairEstimates: RepairEstimatorItem[] = [
 
     turnaround: "48–72 hrs",
 
-    notes:
-      "Logical partition recovery, raw file-system carve, bad-sector disk imaging.",
+    notes: "Logical partition recovery, raw file-system carve, bad-sector disk imaging.",
   },
-]
+];
 
 export const serviceCatalogItems: ServiceCatalogItem[] = [
   {
@@ -977,8 +960,7 @@ export const serviceCatalogItems: ServiceCatalogItem[] = [
 
     labourRange: [450, 750],
 
-    partsRangeText:
-      "₹2,400 – ₹5,800 (Panel resolution & refresh rate dependent)",
+    partsRangeText: "₹2,400 – ₹5,800 (Panel resolution & refresh rate dependent)",
 
     startingTotal: 2850,
 
@@ -1368,62 +1350,62 @@ export const serviceCatalogItems: ServiceCatalogItem[] = [
 
     popular: true,
   },
-]
+];
 
 export type ComponentOption = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  price: number
+  price: number;
 
-  socket?: string
+  socket?: string;
 
-  ram?: string
+  ram?: string;
 
-  watts?: number
+  watts?: number;
 
-  capacity?: number
+  capacity?: number;
 
-  length?: number
+  length?: number;
 
-  clearance?: number
+  clearance?: number;
 
-  bios?: boolean
+  bios?: boolean;
 
-  interface?: string
+  interface?: string;
 
   /** Built-in Wi-Fi (motherboards) */
 
-  wifi?: boolean
+  wifi?: boolean;
 
   /** Units in IT HUB inventory; undefined = available, 0 = out of stock */
-  stock?: number
+  stock?: number;
 
   /** Authoritative Shopify ProductVariant GID */
-  variantId?: string
+  variantId?: string;
 
   /** True if this component is backed by live Shopify Storefront product */
-  isShopifyLive?: boolean
+  isShopifyLive?: boolean;
 
   /** True if physical & electrical specifications have been verified against hardware datasheets */
-  isVerified?: boolean
+  isVerified?: boolean;
 
   /** Specification source provenance */
-  provenance?: string
+  provenance?: string;
 
   /** Reason when component specs cannot be verified */
-  unverifiedReason?: string
+  unverifiedReason?: string;
 
   /** Internal model key for mapping with build templates */
-  matchedModelKey?: string
+  matchedModelKey?: string;
 
   /** True if CPU includes bundled factory cooler */
-  includesCooler?: boolean
+  includesCooler?: boolean;
 
   /** True if CPU includes integrated display graphics */
-  hasIntegratedGraphics?: boolean
-}
+  hasIntegratedGraphics?: boolean;
+};
 
 export const componentOptions: Record<string, ComponentOption[]> = {
   CPU: [],
@@ -1434,177 +1416,176 @@ export const componentOptions: Record<string, ComponentOption[]> = {
   PSU: [],
   Cabinet: [],
   Cooler: [],
-}
+};
 export type Build = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  parts: Record<string, ComponentOption>
+  parts: Record<string, ComponentOption>;
 
-  price: number
+  price: number;
 
   /** Smart builder context, e.g. "1440p gaming" */
 
-  designedFor?: string
+  designedFor?: string;
 
-  templateId?: string
+  templateId?: string;
 
   /** Part types the customer already owns (excluded from estimate) */
 
-  owned?: string[]
-}
+  owned?: string[];
+};
 
 export type CartItem = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  price: number
+  price: number;
 
-  image: string
+  image: string;
 
-  quantity: number
+  quantity: number;
 
-  productId?: string
+  productId?: string;
 
-  variantId?: string
+  variantId?: string;
 
-  build?: Build
-}
+  build?: Build;
+};
 
 export type Order = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  email: string
+  email: string;
 
-  phone?: string
+  phone?: string;
 
-  address: string
+  address: string;
 
-  items: CartItem[]
+  items: CartItem[];
 
-  total: number
+  total: number;
 
-  status: number
+  status: number;
 
-  statusName?: string
+  statusName?: string;
 
-  date: string
+  date: string;
 
-  payment: string
+  payment: string;
 
-  delivery: string
-}
+  delivery: string;
+};
 
-export type FindingSource = "customer" | "technician"
-export type FindingClassification = "confirmed" | "suspected" | "needs_further_testing"
-export type RepairSafety = "required" | "recommended" | "optional" | "cosmetic"
+export type FindingSource = "customer" | "technician";
+export type FindingClassification = "confirmed" | "suspected" | "needs_further_testing";
+export type RepairSafety = "required" | "recommended" | "optional" | "cosmetic";
 
 export interface DiagnosisFinding {
-  id: string
-  title: string
-  description: string
-  source: FindingSource
-  classification: FindingClassification
-  customerExplanation: string
-  attachments?: string[]
-  recommendedRepair: string
-  safety: RepairSafety
-  isEligibleForRepair: boolean
-  createdAt: string
+  id: string;
+  title: string;
+  description: string;
+  source: FindingSource;
+  classification: FindingClassification;
+  customerExplanation: string;
+  attachments?: string[];
+  recommendedRepair: string;
+  safety: RepairSafety;
+  isEligibleForRepair: boolean;
+  createdAt: string;
 }
 
-export type QuotationItemState = "pending" | "approved" | "declined" | "deferred" | "rejected"
+export type QuotationItemState = "pending" | "approved" | "declined" | "deferred" | "rejected";
 
 export interface QuotationItem {
-  id: string
-  findingId?: string
-  title: string
-  description: string
-  partCost: number
-  labourCost: number
-  quantity: number
-  discount?: number
-  lineTotal: number
-  isRequired: boolean
-  canDefer: boolean
-  dependsOn?: string[]
-  approvalState: QuotationItemState
+  id: string;
+  findingId?: string;
+  title: string;
+  description: string;
+  partCost: number;
+  labourCost: number;
+  quantity: number;
+  discount?: number;
+  lineTotal: number;
+  isRequired: boolean;
+  canDefer: boolean;
+  dependsOn?: string[];
+  approvalState: QuotationItemState;
 }
 
 export interface QuotationRevision {
-  version: number
-  publishedAt: string
-  publishedBy: string
-  items: QuotationItem[]
-  findings: DiagnosisFinding[]
-  totalAmount: number
-  notes?: string
+  version: number;
+  publishedAt: string;
+  publishedBy: string;
+  items: QuotationItem[];
+  findings: DiagnosisFinding[];
+  totalAmount: number;
+  notes?: string;
 }
-
 
 export type ServiceRequest = {
-  id: string
+  id: string;
 
-  userId?: string
+  userId?: string;
 
-  name: string
+  name: string;
 
-  email: string
+  email: string;
 
-  phone?: string
+  phone?: string;
 
-  device: string
+  device: string;
 
-  model: string
+  model: string;
 
-  problem: string
+  problem: string;
 
-  method: string
+  method: string;
 
-  address: string
+  address: string;
 
-  date: string
+  date: string;
 
-  time: string
+  time: string;
 
-  status: number
+  status: number;
 
-  statusName?: string
+  statusName?: string;
 
-  quote: number
+  quote: number;
 
-  quoteState: "pending" | "approved" | "rejected"
+  quoteState: "pending" | "approved" | "rejected";
 
-  quoteVersion?: number
+  quoteVersion?: number;
 
-  technician: string
+  technician: string;
 
-  notes: string
+  notes: string;
 
-  courierCharge?: { returnDelivery: number }
+  courierCharge?: { returnDelivery: number };
 
-  findings?: DiagnosisFinding[]
+  findings?: DiagnosisFinding[];
 
-  quotationItems?: QuotationItem[]
+  quotationItems?: QuotationItem[];
 
-  approvedItems?: string[]
+  approvedItems?: string[];
 
-  declinedItems?: string[]
+  declinedItems?: string[];
 
-  decisionNotes?: string
+  decisionNotes?: string;
 
-  decisionAt?: string
+  decisionAt?: string;
 
-  decisionActor?: string
+  decisionActor?: string;
 
-  quotationHistory?: QuotationRevision[]
+  quotationHistory?: QuotationRevision[];
 
-  payment?: string
-}
+  payment?: string;
+};
 
 // ── Offers (no coupon codes — offers apply automatically by date window) ──
 
@@ -1618,44 +1599,44 @@ export const offerTypes = [
   "Seasonal Offer",
 
   "Flash Sale",
-] as const
+] as const;
 
-export type OfferType = typeof offerTypes[number]
+export type OfferType = (typeof offerTypes)[number];
 
 export type Offer = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  description: string
+  description: string;
 
-  type: OfferType
+  type: OfferType;
 
   /** Percentage discount (0 when the offer uses a fixed amount). */
 
-  discount: number
+  discount: number;
 
   /** Fixed ₹ amount off per item (0 when the offer uses a percentage). */
 
-  amount: number
+  amount: number;
 
-  products: string[]
+  products: string[];
 
-  categories: string[]
+  categories: string[];
 
-  brands: string[]
+  brands: string[];
 
-  startsAt: string
+  startsAt: string;
 
-  endsAt: string
+  endsAt: string;
 
-  banner: string
+  banner: string;
 
-  active: boolean
-}
+  active: boolean;
+};
 
 const daysFromNow = (days: number) =>
-  new Date(Date.now() + days * 86400000).toISOString().slice(0, 16)
+  new Date(Date.now() + days * 86400000).toISOString().slice(0, 16);
 
 export const initialOffers: Offer[] = [
   {
@@ -1741,20 +1722,19 @@ export const initialOffers: Offer[] = [
 
     active: true,
   },
-]
+];
 
-export type OfferStatus = "Active" | "Scheduled" | "Expired" | "Inactive"
+export type OfferStatus = "Active" | "Scheduled" | "Expired" | "Inactive";
 
 export const offerStatus = (offer: Offer, now = Date.now()): OfferStatus => {
-  if (!offer.active) return "Inactive"
+  if (!offer.active) return "Inactive";
 
-  if (offer.startsAt && new Date(offer.startsAt).getTime() > now)
-    return "Scheduled"
+  if (offer.startsAt && new Date(offer.startsAt).getTime() > now) return "Scheduled";
 
-  if (offer.endsAt && new Date(offer.endsAt).getTime() < now) return "Expired"
+  if (offer.endsAt && new Date(offer.endsAt).getTime() < now) return "Expired";
 
-  return "Active"
-}
+  return "Active";
+};
 
 export const offerApplies = (
   offer: Offer,
@@ -1763,21 +1743,19 @@ export const offerApplies = (
 ) =>
   offer.products.includes(product.id) ||
   offer.categories.includes(product.category) ||
-  offer.brands.includes(product.brand)
+  offer.brands.includes(product.brand);
 
 export const offerHeadline = (offer: Offer) =>
-  offer.discount > 0
-    ? `UP TO ${offer.discount}% OFF`
-    : `FLAT ${money(offer.amount)} OFF`
+  offer.discount > 0 ? `UP TO ${offer.discount}% OFF` : `FLAT ${money(offer.amount)} OFF`;
 
 /** Best currently-active offer for a product and its discounted unit price. */
 
 export interface BestOfferResult {
-  offer: Offer
+  offer: Offer;
 
-  price: number
+  price: number;
 
-  saving: number
+  saving: number;
 }
 
 export const bestOffer = (
@@ -1785,26 +1763,22 @@ export const bestOffer = (
 
   product: Pick<Product, "id" | "brand" | "category" | "price">,
 ) => {
-  let best: BestOfferResult | null = null
+  let best: BestOfferResult | null = null;
 
   for (const offer of offers) {
-    if (offerStatus(offer) !== "Active" || !offerApplies(offer, product))
-      continue
+    if (offerStatus(offer) !== "Active" || !offerApplies(offer, product)) continue;
 
     const saving = Math.min(
       product.price,
 
-      offer.discount > 0
-        ? Math.round((product.price * offer.discount) / 100)
-        : offer.amount,
-    )
+      offer.discount > 0 ? Math.round((product.price * offer.discount) / 100) : offer.amount,
+    );
 
-    if (!best || saving > best.saving)
-      best = { offer, price: product.price - saving, saving }
+    if (!best || saving > best.saving) best = { offer, price: product.price - saving, saving };
   }
 
-  return best
-}
+  return best;
+};
 
 export const formatDate = (iso: string) =>
   iso
@@ -1815,27 +1789,27 @@ export const formatDate = (iso: string) =>
 
         year: "numeric",
       })
-    : ""
+    : "";
 
 // ── On-site warranty: IT HUB locations + PIN code directory ──
 
 export type ItHubLocation = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  address: string
+  address: string;
 
-  pincode: string
+  pincode: string;
 
-  latitude: number
+  latitude: number;
 
-  longitude: number
+  longitude: number;
 
-  serviceRadiusKm: number
+  serviceRadiusKm: number;
 
-  active: boolean
-}
+  active: boolean;
+};
 
 export const initialLocations: ItHubLocation[] = [
   {
@@ -1855,7 +1829,7 @@ export const initialLocations: ItHubLocation[] = [
 
     active: true,
   },
-]
+];
 
 /**
  * PIN code → approximate area centroid. Centroids are estimates, so any
@@ -1863,13 +1837,16 @@ export const initialLocations: ItHubLocation[] = [
  * (Supabase: `pincode_areas` lookup table.)
  */
 
-export const pincodeDirectory: Record<string, {
-  area: string
+export const pincodeDirectory: Record<
+  string,
+  {
+    area: string;
 
-  latitude: number
+    latitude: number;
 
-  longitude: number
-}> = {
+    longitude: number;
+  }
+> = {
   // ── Kothamangalam Administrative Division ──
 
   "686691": {
@@ -2075,9 +2052,9 @@ export const pincodeDirectory: Record<string, {
 
     longitude: 76.8731,
   },
-}
+};
 
-const toRad = (deg: number) => (deg * Math.PI) / 180
+const toRad = (deg: number) => (deg * Math.PI) / 180;
 
 export const distanceKm = (
   aLat: number,
@@ -2088,32 +2065,35 @@ export const distanceKm = (
 
   bLng: number,
 ) => {
-  const dLat = toRad(bLat - aLat)
+  const dLat = toRad(bLat - aLat);
 
-  const dLng = toRad(bLng - aLng)
+  const dLng = toRad(bLng - aLng);
 
   const h =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
 
-  return 6371 * 2 * Math.asin(Math.sqrt(h))
-}
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+};
 
-export type WarrantyResult = { status: "invalid" } | {
-  status: "unknown"
+export type WarrantyResult =
+  | { status: "invalid" }
+  | {
+      status: "unknown";
 
-  pincode: string
-} | {
-  status: "eligible" | "ineligible"
+      pincode: string;
+    }
+  | {
+      status: "eligible" | "ineligible";
 
-  pincode: string
+      pincode: string;
 
-  area: string
+      area: string;
 
-  location: ItHubLocation
+      location: ItHubLocation;
 
-  distanceKm: number | null
-}
+      distanceKm: number | null;
+    };
 
 /** Straight-line distance from the PIN centroid to the nearest active IT HUB location. */
 
@@ -2122,16 +2102,16 @@ export const checkWarranty = (
 
   locations: ItHubLocation[],
 ): WarrantyResult => {
-  const pin = pincode.trim()
+  const pin = pincode.trim();
 
-  if (!/^[1-9]\d{5}$/.test(pin)) return { status: "invalid" }
+  if (!/^[1-9]\d{5}$/.test(pin)) return { status: "invalid" };
 
-  const centroid = pincodeDirectory[pin]
+  const centroid = pincodeDirectory[pin];
 
-  const active = locations.filter((location) => location.active)
+  const active = locations.filter((location) => location.active);
 
   if (!centroid || !active.length) {
-    const fallbackLocation = active[0] || initialLocations[0]
+    const fallbackLocation = active[0] || initialLocations[0];
 
     return {
       status: "ineligible",
@@ -2143,7 +2123,7 @@ export const checkWarranty = (
       location: fallbackLocation,
 
       distanceKm: null,
-    }
+    };
   }
 
   const nearest = active
@@ -2162,13 +2142,10 @@ export const checkWarranty = (
       ),
     }))
 
-    .sort((a, b) => a.km - b.km)[0]
+    .sort((a, b) => a.km - b.km)[0];
 
   return {
-    status:
-      nearest.km <= nearest.location.serviceRadiusKm
-        ? "eligible"
-        : "ineligible",
+    status: nearest.km <= nearest.location.serviceRadiusKm ? "eligible" : "ineligible",
 
     pincode: pin,
 
@@ -2177,84 +2154,84 @@ export const checkWarranty = (
     location: nearest.location,
 
     distanceKm: Math.round(nearest.km * 10) / 10,
-  }
-}
+  };
+};
 
 export type WarrantyCheck = {
-  id: string
+  id: string;
 
-  pincode: string
+  pincode: string;
 
-  area: string
+  area: string;
 
-  result: "eligible" | "ineligible" | "unknown"
+  result: "eligible" | "ineligible" | "unknown";
 
-  distanceKm: number | null
+  distanceKm: number | null;
 
-  source: string
+  source: string;
 
-  date: string
-}
+  date: string;
+};
 
 export interface PcEnquiryPart {
-  type: string
+  type: string;
 
-  name: string
+  name: string;
 
-  price: number
+  price: number;
 }
 
 // ── PC Builder enquiries (sent to WhatsApp) ──
 
 export type PcEnquiry = {
-  id: string
+  id: string;
 
-  summary: string
+  summary: string;
 
-  parts: PcEnquiryPart[]
+  parts: PcEnquiryPart[];
 
-  estimate: number
+  estimate: number;
 
-  date: string
+  date: string;
 
-  status: "New" | "Contacted" | "Quoted" | "Closed"
-}
+  status: "New" | "Contacted" | "Quoted" | "Closed";
+};
 
 // ── Bulk import ──
 
 export type ImportRecord = {
-  id: string
+  id: string;
 
-  file: string
+  file: string;
 
-  date: string
+  date: string;
 
-  rows: number
+  rows: number;
 
-  created: number
+  created: number;
 
-  updated: number
+  updated: number;
 
-  skipped: number
+  skipped: number;
 
-  failed: number
-}
+  failed: number;
+};
 
 /** Admin navigation tree. Sub-items map to `/admin/:section?view=<view>`. */
 
 export interface AdminNavItem {
-  label: string
+  label: string;
 
-  view: string
+  view: string;
 }
 
 export type AdminNavGroup = {
-  name: string
+  name: string;
 
-  section: string
+  section: string;
 
-  items?: AdminNavItem[]
-}
+  items?: AdminNavItem[];
+};
 
 export const adminGroups: AdminNavGroup[] = [
   { name: "Dashboard", section: "dashboard" },
@@ -2484,9 +2461,9 @@ export const adminGroups: AdminNavGroup[] = [
 
     items: [{ label: "Showcase & Banners", view: "showcase" }],
   },
-]
+];
 
-export const slug = (value: string) => value.toLowerCase().replace(/ /g, "-")
+export const slug = (value: string) => value.toLowerCase().replace(/ /g, "-");
 
 export const money = (value: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -2495,7 +2472,7 @@ export const money = (value: number) =>
     currency: "INR",
 
     maximumFractionDigits: 0,
-  }).format(value)
+  }).format(value);
 
 // ── After-sales support: brand support directory ──
 
@@ -2504,20 +2481,20 @@ export const money = (value: number) =>
 // Extensible — add a category row (e.g. "monitor", "tv") without code changes.
 
 export type SupportCategory = {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
   /** lucide icon key used by the UI: laptop | smartphone | printer | monitor | tv | camera | router | gamepad | cpu */
 
-  icon: string
+  icon: string;
 
   /** Store catalog categories that map to this support category (for order-aware lookup). */
 
-  catalogCategories: string[]
+  catalogCategories: string[];
 
-  active: boolean
-}
+  active: boolean;
+};
 
 export const initialSupportCategories: SupportCategory[] = [
   {
@@ -2555,112 +2532,112 @@ export const initialSupportCategories: SupportCategory[] = [
 
     active: true,
   },
-]
+];
 
 export type BrandSupport = {
-  id: string
+  id: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  warrantyPhone: string
+  warrantyPhone: string;
 
-  customerCarePhone: string
+  customerCarePhone: string;
 
-  supportUrl: string
+  supportUrl: string;
 
-  warrantyUrl: string
+  warrantyUrl: string;
 
-  serviceLocatorUrl?: string
+  serviceLocatorUrl?: string;
 
-  email: string
+  email: string;
 
-  notes: string
+  notes: string;
 
   /** Official manufacturer page the details were taken from. */
 
-  sourceUrl: string
+  sourceUrl: string;
 
-  verifiedBy: string
+  verifiedBy: string;
 
   /** ISO date; empty = never verified — UI must show "Unverified". */
 
-  lastVerifiedAt: string
+  lastVerifiedAt: string;
 
-  region?: string
+  region?: string;
 
-  verificationStatus?: "verified" | "pending_verification" | "unverified"
+  verificationStatus?: "verified" | "pending_verification" | "unverified";
 
-  isPublished?: boolean
+  isPublished?: boolean;
 
-  popular: boolean
+  popular: boolean;
 
-  active: boolean
+  active: boolean;
 
-  createdAt: string
+  createdAt: string;
 
-  updatedAt: string
-}
+  updatedAt: string;
+};
 
 export type SupportVerification = {
-  id: string
+  id: string;
 
-  supportId: string
+  supportId: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  verifiedBy: string
+  verifiedBy: string;
 
-  sourceUrl: string
+  sourceUrl: string;
 
-  changes: string
+  changes: string;
 
-  date: string
-}
+  date: string;
+};
 
 export interface ServiceCentre {
-  id: string
+  id: string;
 
-  name: string
+  name: string;
 
-  brandId?: string
+  brandId?: string;
 
-  brandName: string
+  brandName: string;
 
-  category: string
+  category: string;
 
-  address: string
+  address: string;
 
-  city: string
+  city: string;
 
-  state: string
+  state: string;
 
-  pincode: string
+  pincode: string;
 
-  phone?: string
+  phone?: string;
 
-  email?: string
+  email?: string;
 
-  servicesOffered: string[]
+  servicesOffered: string[];
 
-  isAuthorized: boolean
+  isAuthorized: boolean;
 
-  authorizationEvidence?: string
+  authorizationEvidence?: string;
 
-  sourceUrl: string
+  sourceUrl: string;
 
-  latitude?: number
+  latitude?: number;
 
-  longitude?: number
+  longitude?: number;
 
-  active: boolean
+  active: boolean;
 
-  verifiedAt?: string
+  verifiedAt?: string;
 
-  distanceKm?: number
+  distanceKm?: number;
 }
 
 const verifiedRecord = (
@@ -2725,7 +2702,7 @@ const verifiedRecord = (
   createdAt: "2026-10-02T00:00:00.000Z",
 
   updatedAt: "2026-10-17T00:00:00.000Z",
-})
+});
 
 export const initialBrandSupport: BrandSupport[] = [
   // ── 1. Laptops ─────────────────────────────────────────────────────────────
@@ -3213,7 +3190,7 @@ export const initialBrandSupport: BrandSupport[] = [
 
     true,
   ),
-]
+];
 
 const sc = (
   id: string,
@@ -3279,7 +3256,7 @@ const sc = (
   active: true,
 
   verifiedAt: "2026-10-17T00:00:00.000Z",
-})
+});
 
 export const initialServiceCentres: ServiceCentre[] = [
   // ═════════════════════════════════════════════════════════════════════════════
@@ -9459,7 +9436,7 @@ export const initialServiceCentres: ServiceCentre[] = [
 
     "Brother Authorized Service Partner",
   ),
-]
+];
 
 /** Find the support record for a purchased product (order-aware assistance). */
 
@@ -9472,7 +9449,7 @@ export const supportForProduct = (
 ) => {
   const category = categories.find(
     (item) => item.active && item.catalogCategories.includes(product.category),
-  )
+  );
 
   const record = category
     ? records.find(
@@ -9481,10 +9458,10 @@ export const supportForProduct = (
           item.category === category.id &&
           item.brand.toLowerCase() === product.brand.toLowerCase(),
       )
-    : undefined
+    : undefined;
 
-  return { category, record }
-}
+  return { category, record };
+};
 
 /**
  * Parse a warranty period like "2 years", "1 year", "6 months".
@@ -9492,76 +9469,76 @@ export const supportForProduct = (
  */
 
 export const warrantyMonths = (text?: string) => {
-  const match = text?.trim().match(/^(\d+)\s*(year|yr|month|mo)s?$/i)
+  const match = text?.trim().match(/^(\d+)\s*(year|yr|month|mo)s?$/i);
 
-  if (!match) return null
+  if (!match) return null;
 
-  const value = Number(match[1])
+  const value = Number(match[1]);
 
-  return /^y/i.test(match[2]) ? value * 12 : value
-}
+  return /^y/i.test(match[2]) ? value * 12 : value;
+};
 
 export const warrantyUntil = (purchaseIso: string, months: number) => {
-  const date = new Date(purchaseIso)
+  const date = new Date(purchaseIso);
 
-  date.setMonth(date.getMonth() + months)
+  date.setMonth(date.getMonth() + months);
 
-  return date.toISOString()
-}
+  return date.toISOString();
+};
 
 // ── Coupons ──
 
-export type CouponType = "percentage" | "fixed"
+export type CouponType = "percentage" | "fixed";
 
-export type CouponUsageType = "one_time"
+export type CouponUsageType = "one_time";
 
 export type Coupon = {
-  id: string
+  id: string;
 
-  code: string // stored uppercase, compared case-insensitive
+  code: string; // stored uppercase, compared case-insensitive
 
-  description: string
+  description: string;
 
-  type: CouponType
+  type: CouponType;
 
-  value: number // percent (0-90) or fixed INR amount
+  value: number; // percent (0-90) or fixed INR amount
 
-  minOrderValue: number // 0 = no minimum
+  minOrderValue: number; // 0 = no minimum
 
-  maxDiscount: number // 0 = no cap (only for percentage type)
+  maxDiscount: number; // 0 = no cap (only for percentage type)
 
-  usageType?: CouponUsageType // All coupons are strictly one-time per customer
+  usageType?: CouponUsageType; // All coupons are strictly one-time per customer
 
-  totalUsageLimit: number // 0 = unlimited across all customers
+  totalUsageLimit: number; // 0 = unlimited across all customers
 
-  timesUsed: number
+  timesUsed: number;
 
-  active: boolean
+  active: boolean;
 
-  startsAt: string // ISO datetime
+  startsAt: string; // ISO datetime
 
-  endsAt: string // ISO datetime
+  endsAt: string; // ISO datetime
 
-  createdAt: string
-}
+  createdAt: string;
+};
 
 export type CouponUsage = {
-  id: string
+  id: string;
 
-  couponId: string
+  couponId: string;
 
-  couponCode: string
+  couponCode: string;
 
-  customerId: string // unique customer phone, email or profile id
+  customerId: string; // unique customer phone, email or profile id
 
-  userId?: string // backwards-compatible alias
+  userId?: string; // backwards-compatible alias
 
-  orderId: string
+  orderId: string;
 
-  discount: number
+  discount: number;
 
-  usedAt: string
-}
+  usedAt: string;
+};
 
 export const initialCoupons: Coupon[] = [
   {
@@ -9599,8 +9576,7 @@ export const initialCoupons: Coupon[] = [
 
     code: "ITHUB500",
 
-    description:
-      "Flat ₹500 discount on orders above ₹5,000 (1-time per customer)",
+    description: "Flat ₹500 discount on orders above ₹5,000 (1-time per customer)",
 
     type: "fixed",
 
@@ -9624,9 +9600,9 @@ export const initialCoupons: Coupon[] = [
 
     createdAt: "2026-01-01T00:00:00.000Z",
   },
-]
+];
 
-export const initialCouponUsages: CouponUsage[] = []
+export const initialCouponUsages: CouponUsage[] = [];
 
 /**
  * Validate a coupon code for a given cart total and customer.
@@ -9634,17 +9610,19 @@ export const initialCouponUsages: CouponUsage[] = []
  * Returns { valid: true, coupon, discount } or { valid: false, error }
  */
 
-export type CouponValidationResult = {
-  valid: true
+export type CouponValidationResult =
+  | {
+      valid: true;
 
-  coupon: Coupon
+      coupon: Coupon;
 
-  discount: number
-} | {
-  valid: false
+      discount: number;
+    }
+  | {
+      valid: false;
 
-  error: string
-}
+      error: string;
+    };
 
 export const validateCoupon = (
   code: string,
@@ -9657,62 +9635,62 @@ export const validateCoupon = (
 
   usages: CouponUsage[],
 ): CouponValidationResult => {
-  const upper = code.trim().toUpperCase()
+  const upper = code.trim().toUpperCase();
 
-  if (!upper) return { valid: false, error: "Enter a coupon code." }
+  if (!upper) return { valid: false, error: "Enter a coupon code." };
 
-  const coupon = coupons.find((c) => c.code.toUpperCase() === upper)
+  const coupon = coupons.find((c) => c.code.toUpperCase() === upper);
 
-  if (!coupon) return { valid: false, error: "Invalid coupon code." }
+  if (!coupon) return { valid: false, error: "Invalid coupon code." };
 
-  if (!coupon.active)
-    return { valid: false, error: "This coupon is no longer active." }
+  if (!coupon.active) return { valid: false, error: "This coupon is no longer active." };
 
-  const now = Date.now()
+  const now = Date.now();
 
   if (coupon.startsAt && new Date(coupon.startsAt).getTime() > now)
-    return { valid: false, error: "This coupon is not yet valid." }
+    return { valid: false, error: "This coupon is not yet valid." };
 
   if (coupon.endsAt && new Date(coupon.endsAt).getTime() < now)
-    return { valid: false, error: "This coupon has expired." }
+    return { valid: false, error: "This coupon has expired." };
 
   if (coupon.totalUsageLimit > 0 && coupon.timesUsed >= coupon.totalUsageLimit)
-    return { valid: false, error: "This coupon has reached its usage limit." }
+    return { valid: false, error: "This coupon has reached its usage limit." };
 
   // Every coupon can only be used once per customer
 
   const alreadyUsed = usages.some(
-    (u) =>
-      u.couponId === coupon.id &&
-      (u.customerId === customerId || u.userId === customerId),
-  )
+    (u) => u.couponId === coupon.id && (u.customerId === customerId || u.userId === customerId),
+  );
 
-  if (alreadyUsed)
-    return { valid: false, error: "You have already used this coupon." }
+  if (alreadyUsed) return { valid: false, error: "You have already used this coupon." };
 
   if (coupon.minOrderValue > 0 && cartTotal < coupon.minOrderValue)
     return {
       valid: false,
 
       error: `Minimum order value of ${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(coupon.minOrderValue)} required.`,
-    }
+    };
 
   let discount =
-    coupon.type === "percentage"
-      ? Math.round((cartTotal * coupon.value) / 100)
-      : coupon.value
+    coupon.type === "percentage" ? Math.round((cartTotal * coupon.value) / 100) : coupon.value;
 
   if (coupon.type === "percentage" && coupon.maxDiscount > 0)
-    discount = Math.min(discount, coupon.maxDiscount)
+    discount = Math.min(discount, coupon.maxDiscount);
 
-  discount = Math.min(discount, cartTotal)
+  discount = Math.min(discount, cartTotal);
 
-  return { valid: true, coupon, discount }
-}
+  return { valid: true, coupon, discount };
+};
 
 // ── Sell Your Item (customer submission flow) ──
 
-export type SellRequestStatus = "Pending" | "Under Review" | "Contacted" | "Approved" | "Rejected" | "Completed"
+export type SellRequestStatus =
+  | "Pending"
+  | "Under Review"
+  | "Contacted"
+  | "Approved"
+  | "Rejected"
+  | "Completed";
 
 export const sellRequestStatuses: SellRequestStatus[] = [
   "Pending",
@@ -9726,7 +9704,7 @@ export const sellRequestStatuses: SellRequestStatus[] = [
   "Rejected",
 
   "Completed",
-]
+];
 
 export const sellCategories = [
   "Phone",
@@ -9744,61 +9722,61 @@ export const sellCategories = [
   "Accessories",
 
   "Other Electronics",
-] as const
+] as const;
 
-export type SellCategory = typeof sellCategories[number]
+export type SellCategory = (typeof sellCategories)[number];
 
 export type SellRequest = {
-  id: string // e.g. SELL-XXXXXXX
+  id: string; // e.g. SELL-XXXXXXX
 
-  userId: string // store.profile.phone
+  userId: string; // store.profile.phone
 
-  customerName: string
+  customerName: string;
 
-  customerEmail: string
+  customerEmail: string;
 
-  customerPhone: string
+  customerPhone: string;
 
-  category: SellCategory
+  category: SellCategory;
 
-  productName: string
+  productName: string;
 
-  brand: string
+  brand: string;
 
-  model: string
+  model: string;
 
-  condition: ProductCondition
+  condition: ProductCondition;
 
-  description: string
+  description: string;
 
-  hasWarranty: boolean
+  hasWarranty: boolean;
 
-  warrantyProvider: string
+  warrantyProvider: string;
 
-  warrantyRemaining: string // e.g. '6 months', '1 year'
+  warrantyRemaining: string; // e.g. '6 months', '1 year'
 
-  warrantyDetails: string
+  warrantyDetails: string;
 
   /** Simulated storage paths for product images (in prototype: data URIs or filenames) */
 
-  imagePaths: string[]
+  imagePaths: string[];
 
   /** Simulated storage path for invoice document */
 
-  invoicePath: string
+  invoicePath: string;
 
-  expectedPrice?: number
+  expectedPrice?: number;
 
-  offeredPrice?: number
+  offeredPrice?: number;
 
-  status: SellRequestStatus
+  status: SellRequestStatus;
 
-  adminNotes: string
+  adminNotes: string;
 
-  submittedAt: string
+  submittedAt: string;
 
-  updatedAt: string
-}
+  updatedAt: string;
+};
 
 export const initialSellRequests: SellRequest[] = [
   {
@@ -9891,29 +9869,29 @@ export const initialSellRequests: SellRequest[] = [
 
     updatedAt: "2026-10-06T18:00:00.000Z",
   },
-]
+];
 
 export type CertificateItem = {
-  id: string
+  id: string;
 
-  text: string
+  text: string;
 
-  brand: string
+  brand: string;
 
-  category: string
+  category: string;
 
-  status: string
+  status: string;
 
-  validity: string
+  validity: string;
 
-  description: string
+  description: string;
 
-  image: string
+  image: string;
 
-  alt?: string
+  alt?: string;
 
-  shopUrl?: string
-}
+  shopUrl?: string;
+};
 
 export const initialCertificates: CertificateItem[] = [
   {
@@ -10051,4 +10029,4 @@ export const initialCertificates: CertificateItem[] = [
 
     shopUrl: "/products?brand=Intel",
   },
-]
+];

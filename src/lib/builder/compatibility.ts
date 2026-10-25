@@ -9,12 +9,12 @@ import type {
   CompatibilityStatus,
   CompatibilitySummary,
   TechnicalSpecs,
-} from "./types"
+} from "./types";
 
 export interface CheckCompatibilityOptions {
-  workload?: "gaming" | "creation" | "work" | "general"
-  budgetInr?: number
-  mode?: "automated" | "manual"
+  workload?: "gaming" | "creation" | "work" | "general";
+  budgetInr?: number;
+  mode?: "automated" | "manual";
 }
 
 /**
@@ -25,28 +25,28 @@ export interface CheckCompatibilityOptions {
 export function calculateSystemPower(
   components: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
 ): {
-  estimatedSystemLoadWatts: number
-  recommendedPsuWatts: number
-  powerHeadroomWatts: number
-  powerHeadroomStatus: "adequate" | "limited" | "deficit" | "unknown"
+  estimatedSystemLoadWatts: number;
+  recommendedPsuWatts: number;
+  powerHeadroomWatts: number;
+  powerHeadroomStatus: "adequate" | "limited" | "deficit" | "unknown";
 } {
-  const cpu = components.CPU?.specs
-  const gpu = components.GPU?.specs
-  const psu = components.PSU?.specs
+  const cpu = components.CPU?.specs;
+  const gpu = components.GPU?.specs;
+  const psu = components.PSU?.specs;
 
-  const cpuWatts = cpu?.tdpWatts || (components.CPU ? 65 : 0)
-  const gpuWatts = gpu?.powerWatts || (components.GPU ? 150 : 0)
-  const platformBaseWatts = Object.keys(components).length > 0 ? 80 : 0
+  const cpuWatts = cpu?.tdpWatts || (components.CPU ? 65 : 0);
+  const gpuWatts = gpu?.powerWatts || (components.GPU ? 150 : 0);
+  const platformBaseWatts = Object.keys(components).length > 0 ? 80 : 0;
 
-  const estimatedSystemLoadWatts = cpuWatts + gpuWatts + platformBaseWatts
+  const estimatedSystemLoadWatts = cpuWatts + gpuWatts + platformBaseWatts;
 
   // 35% headroom rounded up to nearest 50W step, or GPU manufacturer recommendation
   const calculatedRecommended = Math.max(
     350,
     Math.ceil((estimatedSystemLoadWatts * 1.35) / 50) * 50,
-  )
-  const manufacturerRecommended = gpu?.recommendedPsuWatts || 0
-  const recommendedPsuWatts = Math.max(calculatedRecommended, manufacturerRecommended)
+  );
+  const manufacturerRecommended = gpu?.recommendedPsuWatts || 0;
+  const recommendedPsuWatts = Math.max(calculatedRecommended, manufacturerRecommended);
 
   if (!psu?.ratedWattage) {
     return {
@@ -54,16 +54,16 @@ export function calculateSystemPower(
       recommendedPsuWatts,
       powerHeadroomWatts: 0,
       powerHeadroomStatus: "unknown",
-    }
+    };
   }
 
-  const powerHeadroomWatts = psu.ratedWattage - estimatedSystemLoadWatts
-  let powerHeadroomStatus: "adequate" | "limited" | "deficit" = "adequate"
+  const powerHeadroomWatts = psu.ratedWattage - estimatedSystemLoadWatts;
+  let powerHeadroomStatus: "adequate" | "limited" | "deficit" = "adequate";
 
   if (psu.ratedWattage < estimatedSystemLoadWatts) {
-    powerHeadroomStatus = "deficit"
+    powerHeadroomStatus = "deficit";
   } else if (psu.ratedWattage < recommendedPsuWatts) {
-    powerHeadroomStatus = "limited"
+    powerHeadroomStatus = "limited";
   }
 
   return {
@@ -71,7 +71,7 @@ export function calculateSystemPower(
     recommendedPsuWatts,
     powerHeadroomWatts,
     powerHeadroomStatus,
-  }
+  };
 }
 
 /**
@@ -81,23 +81,31 @@ export function checkCompatibility(
   components: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
   options: CheckCompatibilityOptions = {},
 ): CompatibilitySummary {
-  const items: CompatibilityItem[] = []
+  const items: CompatibilityItem[] = [];
 
-  const cpu = components.CPU ? { ...components.CPU, specs: components.CPU.specs || {} } : undefined
-  const mobo = components.Motherboard ? { ...components.Motherboard, specs: components.Motherboard.specs || {} } : undefined
-  const ram = components.RAM ? { ...components.RAM, specs: components.RAM.specs || {} } : undefined
-  const gpu = components.GPU ? { ...components.GPU, specs: components.GPU.specs || {} } : undefined
-  const storage = components.Storage ? { ...components.Storage, specs: components.Storage.specs || {} } : undefined
-  const psu = components.PSU ? { ...components.PSU, specs: components.PSU.specs || {} } : undefined
-  const cabinet = components.Cabinet ? { ...components.Cabinet, specs: components.Cabinet.specs || {} } : undefined
-  const cooler = components.Cooler ? { ...components.Cooler, specs: components.Cooler.specs || {} } : undefined
+  const cpu = components.CPU ? { ...components.CPU, specs: components.CPU.specs || {} } : undefined;
+  const mobo = components.Motherboard
+    ? { ...components.Motherboard, specs: components.Motherboard.specs || {} }
+    : undefined;
+  const ram = components.RAM ? { ...components.RAM, specs: components.RAM.specs || {} } : undefined;
+  const gpu = components.GPU ? { ...components.GPU, specs: components.GPU.specs || {} } : undefined;
+  const storage = components.Storage
+    ? { ...components.Storage, specs: components.Storage.specs || {} }
+    : undefined;
+  const psu = components.PSU ? { ...components.PSU, specs: components.PSU.specs || {} } : undefined;
+  const cabinet = components.Cabinet
+    ? { ...components.Cabinet, specs: components.Cabinet.specs || {} }
+    : undefined;
+  const cooler = components.Cooler
+    ? { ...components.Cooler, specs: components.Cooler.specs || {} }
+    : undefined;
 
   // ───────────────────────────────────────────────────────────────────────────
   // Rule A — CPU and Motherboard Socket & Chipset Compatibility
   // ───────────────────────────────────────────────────────────────────────────
   if (cpu && mobo) {
-    const cpuSocket = cpu.specs.socket?.toUpperCase().trim()
-    const moboSocket = mobo.specs.socket?.toUpperCase().trim()
+    const cpuSocket = cpu.specs.socket?.toUpperCase().trim();
+    const moboSocket = mobo.specs.socket?.toUpperCase().trim();
 
     if (!cpuSocket || !moboSocket) {
       items.push({
@@ -107,9 +115,13 @@ export function checkCompatibility(
         affectedSlots: ["CPU", "Motherboard"],
         label: "Socket specification unverified",
         explanation: `Unable to verify CPU socket (${cpuSocket || "unspecified"}) against motherboard socket (${moboSocket || "unspecified"}).`,
-        suggestedResolution: "Check manufacturer specifications or request manual confirmation from IT HUB.",
-        missingFields: [!cpuSocket ? "CPU.socket" : "", !moboSocket ? "Motherboard.socket" : ""].filter(Boolean),
-      })
+        suggestedResolution:
+          "Check manufacturer specifications or request manual confirmation from IT HUB.",
+        missingFields: [
+          !cpuSocket ? "CPU.socket" : "",
+          !moboSocket ? "Motherboard.socket" : "",
+        ].filter(Boolean),
+      });
     } else if (cpuSocket !== moboSocket) {
       items.push({
         ruleId: "RULE_A_SOCKET_MISMATCH",
@@ -119,10 +131,13 @@ export function checkCompatibility(
         label: "CPU & Motherboard socket mismatch",
         explanation: `The selected ${cpu.title} uses socket ${cpuSocket}, which cannot fit the ${mobo.title} (${moboSocket} socket).`,
         suggestedResolution: `Select a motherboard that supports the ${cpuSocket} socket, or choose a ${moboSocket}-compatible processor.`,
-      })
+      });
     } else {
       // Sockets match! Check BIOS update requirements
-      if (mobo.specs.requiresBiosUpdateForRyzen5000 || mobo.specs.requiresBiosUpdateForIntel13_14th) {
+      if (
+        mobo.specs.requiresBiosUpdateForRyzen5000 ||
+        mobo.specs.requiresBiosUpdateForIntel13_14th
+      ) {
         items.push({
           ruleId: "RULE_A_BIOS_UPDATE",
           severity: "warning",
@@ -130,8 +145,9 @@ export function checkCompatibility(
           affectedSlots: ["CPU", "Motherboard"],
           label: "Motherboard BIOS update may be required",
           explanation: `This motherboard requires an updated BIOS version to boot with ${cpu.title}. IT HUB provides free BIOS flashing during system assembly.`,
-          suggestedResolution: "IT HUB technicians will flash the latest stable BIOS before dispatch.",
-        })
+          suggestedResolution:
+            "IT HUB technicians will flash the latest stable BIOS before dispatch.",
+        });
       } else {
         items.push({
           ruleId: "RULE_A_SOCKET_MATCH",
@@ -140,7 +156,7 @@ export function checkCompatibility(
           affectedSlots: ["CPU", "Motherboard"],
           label: `CPU & Motherboard compatible (${cpuSocket})`,
           explanation: `Processor and motherboard both support the ${cpuSocket} interface.`,
-        })
+        });
       }
     }
   }
@@ -158,12 +174,12 @@ export function checkCompatibility(
         label: "Incompatible SO-DIMM laptop memory",
         explanation: `${ram.title} is designed for laptops (SO-DIMM) and cannot be installed in desktop motherboards.`,
         suggestedResolution: "Select standard desktop unbuffered DIMM memory modules.",
-      })
+      });
     }
 
     if (mobo) {
-      const moboRam = mobo.specs.supportedRamGeneration?.toUpperCase().trim()
-      const ramGen = ram.specs.ramGeneration?.toUpperCase().trim()
+      const moboRam = mobo.specs.supportedRamGeneration?.toUpperCase().trim();
+      const ramGen = ram.specs.ramGeneration?.toUpperCase().trim();
 
       if (!moboRam || !ramGen) {
         items.push({
@@ -172,9 +188,10 @@ export function checkCompatibility(
           status: "unknown",
           affectedSlots: ["Motherboard", "RAM"],
           label: "Memory generation unverified",
-          explanation: "Unable to confirm DDR generation compatibility between motherboard and RAM.",
+          explanation:
+            "Unable to confirm DDR generation compatibility between motherboard and RAM.",
           suggestedResolution: "Verify DDR4 vs DDR5 compatibility with IT HUB technical support.",
-        })
+        });
       } else if (moboRam !== ramGen) {
         items.push({
           ruleId: "RULE_B_RAM_MISMATCH",
@@ -184,7 +201,7 @@ export function checkCompatibility(
           label: `RAM generation mismatch (${ramGen} vs ${moboRam})`,
           explanation: `The ${mobo.title} only supports ${moboRam} memory, but ${ram.title} is ${ramGen}. Physical notches and voltages are incompatible.`,
           suggestedResolution: `Choose ${moboRam} memory modules to pair with this motherboard.`,
-        })
+        });
       } else {
         items.push({
           ruleId: "RULE_B_RAM_MATCH",
@@ -193,7 +210,7 @@ export function checkCompatibility(
           affectedSlots: ["Motherboard", "RAM"],
           label: `RAM generation matches (${ramGen})`,
           explanation: `Both motherboard and memory modules utilize the ${ramGen} standard.`,
-        })
+        });
       }
     }
   }
@@ -202,8 +219,8 @@ export function checkCompatibility(
   // Rule C — CPU and CPU Cooler Compatibility & Height
   // ───────────────────────────────────────────────────────────────────────────
   if (cpu) {
-    const hasCooler = Boolean(cooler)
-    const includesStock = Boolean(cpu.specs.includesCooler)
+    const hasCooler = Boolean(cooler);
+    const includesStock = Boolean(cpu.specs.includesCooler);
 
     if (!hasCooler && !includesStock) {
       items.push({
@@ -213,13 +230,16 @@ export function checkCompatibility(
         affectedSlots: ["CPU", "Cooler"],
         label: "Dedicated CPU cooler recommended",
         explanation: `${cpu.title} does not include a stock heatsink/fan in the retail package. An aftermarket air or liquid cooler is required.`,
-        suggestedResolution: "Add an aftermarket CPU cooler to ensure safe operational temperatures.",
-      })
+        suggestedResolution:
+          "Add an aftermarket CPU cooler to ensure safe operational temperatures.",
+      });
     }
 
     if (cooler && cpu.specs.socket) {
-      const coolerSockets = (cooler.specs.supportedSockets || []).map((s) => s.toUpperCase().trim())
-      const cpuSocket = cpu.specs.socket.toUpperCase().trim()
+      const coolerSockets = (cooler.specs.supportedSockets || []).map((s) =>
+        s.toUpperCase().trim(),
+      );
+      const cpuSocket = cpu.specs.socket.toUpperCase().trim();
 
       if (coolerSockets.length > 0 && !coolerSockets.includes(cpuSocket)) {
         items.push({
@@ -230,13 +250,13 @@ export function checkCompatibility(
           label: "Cooler bracket incompatible with CPU socket",
           explanation: `${cooler.title} does not list mounting brackets for ${cpuSocket}.`,
           suggestedResolution: `Choose a cooler with certified ${cpuSocket} mounting hardware.`,
-        })
+        });
       }
     }
 
     if (cooler && cabinet) {
-      const coolerHeight = cooler.specs.coolerHeightMm || 0
-      const caseMaxHeight = cabinet.specs.maxCoolerHeightMm || 0
+      const coolerHeight = cooler.specs.coolerHeightMm || 0;
+      const caseMaxHeight = cabinet.specs.maxCoolerHeightMm || 0;
 
       if (coolerHeight > 0 && caseMaxHeight > 0 && coolerHeight > caseMaxHeight) {
         items.push({
@@ -247,7 +267,7 @@ export function checkCompatibility(
           label: "CPU cooler exceeds case clearance",
           explanation: `${cooler.title} is ${coolerHeight}mm tall, exceeding the cabinet's maximum clearance of ${caseMaxHeight}mm. The side panel will not close.`,
           suggestedResolution: `Select a lower profile air cooler (under ${caseMaxHeight}mm) or an all-in-one liquid cooler.`,
-        })
+        });
       }
     }
   }
@@ -256,8 +276,8 @@ export function checkCompatibility(
   // Rule D — GPU Physical Clearance in Case
   // ───────────────────────────────────────────────────────────────────────────
   if (gpu && cabinet) {
-    const gpuLength = gpu.specs.lengthMm || 0
-    const caseMaxGpu = cabinet.specs.maxGpuLengthMm || 0
+    const gpuLength = gpu.specs.lengthMm || 0;
+    const caseMaxGpu = cabinet.specs.maxGpuLengthMm || 0;
 
     if (gpuLength > 0 && caseMaxGpu > 0) {
       if (gpuLength > caseMaxGpu) {
@@ -269,7 +289,7 @@ export function checkCompatibility(
           label: "Graphics card too long for cabinet",
           explanation: `${gpu.title} is ${gpuLength}mm long, exceeding the case's internal clearance limit of ${caseMaxGpu}mm.`,
           suggestedResolution: `Choose a more spacious cabinet or a dual-fan graphics card under ${caseMaxGpu}mm.`,
-        })
+        });
       } else {
         items.push({
           ruleId: "RULE_D_GPU_CLEARANCE_OK",
@@ -278,7 +298,7 @@ export function checkCompatibility(
           affectedSlots: ["GPU", "Cabinet"],
           label: `GPU fits case clearance (${gpuLength}mm / ${caseMaxGpu}mm)`,
           explanation: "Graphics card dimensions fit cleanly within cabinet internal clearances.",
-        })
+        });
       }
     } else if (gpuLength > 0 && !caseMaxGpu) {
       items.push({
@@ -289,14 +309,14 @@ export function checkCompatibility(
         label: "Chassis GPU clearance unverified",
         explanation: `Unable to verify whether ${gpu.title} (${gpuLength}mm) fits ${cabinet.title} (clearance unspecified).`,
         suggestedResolution: "Check chassis manufacturer dimensions.",
-      })
+      });
     }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Rule E & F — Power Consumption & PSU Headroom
   // ───────────────────────────────────────────────────────────────────────────
-  const power = calculateSystemPower(components)
+  const power = calculateSystemPower(components);
 
   if (psu) {
     if (!psu.specs.ratedWattage) {
@@ -306,9 +326,10 @@ export function checkCompatibility(
         status: "unknown",
         affectedSlots: ["PSU"],
         label: "PSU rated wattage unverified",
-        explanation: "Unable to calculate power headroom because the PSU rated wattage is unspecified.",
+        explanation:
+          "Unable to calculate power headroom because the PSU rated wattage is unspecified.",
         suggestedResolution: "Confirm PSU wattage specifications before ordering.",
-      })
+      });
     } else if (power.powerHeadroomStatus === "deficit") {
       items.push({
         ruleId: "RULE_E_PSU_WATTAGE_DEFICIT",
@@ -318,7 +339,7 @@ export function checkCompatibility(
         label: "PSU capacity below estimated system consumption",
         explanation: `Total estimated system peak load is ${power.estimatedSystemLoadWatts}W, but the selected ${psu.title} is only rated for ${psu.specs.ratedWattage}W. The system will trigger over-current shutdown under load.`,
         suggestedResolution: `Upgrade to at least a ${power.recommendedPsuWatts}W power supply.`,
-      })
+      });
     } else if (power.powerHeadroomStatus === "limited") {
       items.push({
         ruleId: "RULE_E_PSU_HEADROOM_LIMITED",
@@ -328,7 +349,7 @@ export function checkCompatibility(
         label: "Limited power supply headroom",
         explanation: `The ${psu.title} (${psu.specs.ratedWattage}W) handles estimated consumption (${power.estimatedSystemLoadWatts}W), but provides less than the recommended 35% safety margin (${power.recommendedPsuWatts}W recommended).`,
         suggestedResolution: `Consider a ${power.recommendedPsuWatts}W unit for optimal energy efficiency and future component upgrades.`,
-      })
+      });
     } else {
       items.push({
         ruleId: "RULE_E_PSU_HEADROOM_ADEQUATE",
@@ -337,18 +358,18 @@ export function checkCompatibility(
         affectedSlots: ["PSU"],
         label: `PSU has adequate power headroom (${psu.specs.ratedWattage}W)`,
         explanation: `Sufficient wattage for all components with healthy power headroom.`,
-      })
+      });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Rule F — PCIe Auxiliary Power Connector Requirements
     // ─────────────────────────────────────────────────────────────────────────
     if (gpu) {
-      const gpuTdp = gpu.specs.powerWatts || gpu.specs.tdpWatts || 0
+      const gpuTdp = gpu.specs.powerWatts || gpu.specs.tdpWatts || 0;
       const gpuNeedsAux =
         gpuTdp > 75 ||
-        Boolean(gpu.specs.requiredPciePins || gpu.specs.requiredPcieConnectors?.length)
-      const psuConnectors = psu.specs.pciePowerConnectors
+        Boolean(gpu.specs.requiredPciePins || gpu.specs.requiredPcieConnectors?.length);
+      const psuConnectors = psu.specs.pciePowerConnectors;
 
       if (!gpuNeedsAux) {
         items.push({
@@ -358,9 +379,9 @@ export function checkCompatibility(
           affectedSlots: ["GPU"],
           label: "PCIe slot power sufficient (≤75W)",
           explanation: `${gpu.title} draws ≤75W and does not require dedicated auxiliary PCIe power cables from the power supply.`,
-        })
+        });
       } else if (psuConnectors && psuConnectors.length > 0) {
-        const requiredCount = gpu.specs.requiredPcieConnectors?.length || (gpuTdp > 225 ? 2 : 1)
+        const requiredCount = gpu.specs.requiredPcieConnectors?.length || (gpuTdp > 225 ? 2 : 1);
         if (psuConnectors.length < requiredCount) {
           items.push({
             ruleId: "RULE_F_PCIE_POWER_INSUFFICIENT",
@@ -369,8 +390,9 @@ export function checkCompatibility(
             affectedSlots: ["GPU", "PSU"],
             label: "Insufficient PCIe power cables",
             explanation: `${gpu.title} requires ${requiredCount} PCIe power cable(s), but ${psu.title} only provides ${psuConnectors.length}.`,
-            suggestedResolution: "Select a power supply with sufficient dedicated PCIe power connectors.",
-          })
+            suggestedResolution:
+              "Select a power supply with sufficient dedicated PCIe power connectors.",
+          });
         } else {
           items.push({
             ruleId: "RULE_F_PCIE_POWER_MATCH",
@@ -379,7 +401,7 @@ export function checkCompatibility(
             affectedSlots: ["GPU", "PSU"],
             label: "PCIe power connectors compatible",
             explanation: `${psu.title} provides adequate PCIe power cables (${psuConnectors.length} available) for ${gpu.title}.`,
-          })
+          });
         }
       } else if (!psu.specs.ratedWattage) {
         items.push({
@@ -390,7 +412,7 @@ export function checkCompatibility(
           label: "PCIe power connector compatibility unverified",
           explanation: `Unable to verify PCIe auxiliary power connectors on ${psu.title} for ${gpu.title}.`,
           suggestedResolution: "Verify PSU cable configuration with IT HUB technical support.",
-        })
+        });
       } else {
         items.push({
           ruleId: "RULE_F_PCIE_POWER_ADVISORY",
@@ -399,7 +421,7 @@ export function checkCompatibility(
           affectedSlots: ["GPU", "PSU"],
           label: "Standard PCIe auxiliary power supported",
           explanation: `${psu.title} (${psu.specs.ratedWattage}W) provides standard PCIe auxiliary power cables for ${gpu.title}.`,
-        })
+        });
       }
     }
   }
@@ -408,8 +430,10 @@ export function checkCompatibility(
   // Rule G — Motherboard and Cabinet Form Factor
   // ───────────────────────────────────────────────────────────────────────────
   if (mobo && cabinet) {
-    const moboForm = mobo.specs.formFactor?.toUpperCase().trim()
-    const caseForms = (cabinet.specs.supportedMotherboards || []).map((f) => f.toUpperCase().trim())
+    const moboForm = mobo.specs.formFactor?.toUpperCase().trim();
+    const caseForms = (cabinet.specs.supportedMotherboards || []).map((f) =>
+      f.toUpperCase().trim(),
+    );
 
     if (moboForm && caseForms.length > 0) {
       if (!caseForms.includes(moboForm)) {
@@ -421,7 +445,7 @@ export function checkCompatibility(
           label: `Motherboard form factor incompatible with case (${moboForm})`,
           explanation: `${cabinet.title} does not have standoff mounting holes or clearance for a ${moboForm} motherboard (supported: ${caseForms.join(", ")}).`,
           suggestedResolution: `Select an ${moboForm}-compatible cabinet or choose a motherboard matching the case.`,
-        })
+        });
       } else {
         items.push({
           ruleId: "RULE_G_FORM_FACTOR_MATCH",
@@ -430,7 +454,7 @@ export function checkCompatibility(
           affectedSlots: ["Motherboard", "Cabinet"],
           label: `Form factor compatible (${moboForm})`,
           explanation: `Cabinet has standard standoffs and clearance for ${moboForm} motherboards.`,
-        })
+        });
       }
     }
   }
@@ -439,8 +463,8 @@ export function checkCompatibility(
   // Rule H — Storage Interface
   // ───────────────────────────────────────────────────────────────────────────
   if (storage && mobo) {
-    const storageType = storage.specs.storageInterface?.toUpperCase() || ""
-    if (storageType.includes("M.2") && (mobo.specs.m2SlotCount === 0)) {
+    const storageType = storage.specs.storageInterface?.toUpperCase() || "";
+    if (storageType.includes("M.2") && mobo.specs.m2SlotCount === 0) {
       items.push({
         ruleId: "RULE_H_STORAGE_SLOT_MISSING",
         severity: "error",
@@ -448,8 +472,9 @@ export function checkCompatibility(
         affectedSlots: ["Storage", "Motherboard"],
         label: "Motherboard lacks required M.2 slot",
         explanation: `${storage.title} is an M.2 NVMe SSD, but ${mobo.title} has 0 M.2 slots.`,
-        suggestedResolution: "Select a 2.5-inch SATA SSD or upgrade to a motherboard with M.2 NVMe slots.",
-      })
+        suggestedResolution:
+          "Select a 2.5-inch SATA SSD or upgrade to a motherboard with M.2 NVMe slots.",
+      });
     }
   }
 
@@ -457,8 +482,8 @@ export function checkCompatibility(
   // Rule I — Conditional Discrete GPU Requirement
   // ───────────────────────────────────────────────────────────────────────────
   if (cpu && !gpu) {
-    const hasIgpu = cpu.specs.hasIntegratedGraphics
-    const isGamingOrCreation = options.workload === "gaming" || options.workload === "creation"
+    const hasIgpu = cpu.specs.hasIntegratedGraphics;
+    const isGamingOrCreation = options.workload === "gaming" || options.workload === "creation";
 
     if (hasIgpu === false) {
       items.push({
@@ -469,7 +494,7 @@ export function checkCompatibility(
         label: "Discrete graphics card required for display output",
         explanation: `${cpu.title} does not contain integrated graphics. Without a dedicated graphics card, your monitor will receive no video signal.`,
         suggestedResolution: "Add a dedicated graphics card to complete the build.",
-      })
+      });
     } else if (isGamingOrCreation) {
       items.push({
         ruleId: "RULE_I_GPU_RECOMMENDED_FOR_WORKLOAD",
@@ -477,9 +502,10 @@ export function checkCompatibility(
         status: "conditional",
         affectedSlots: ["GPU"],
         label: "Discrete graphics card recommended for gaming/creation",
-        explanation: "While the CPU includes basic display graphics, a dedicated graphics card is essential for smooth frame rates in modern games and 3D rendering.",
+        explanation:
+          "While the CPU includes basic display graphics, a dedicated graphics card is essential for smooth frame rates in modern games and 3D rendering.",
         suggestedResolution: "Add a dedicated GPU to meet your performance expectations.",
-      })
+      });
     }
   }
 
@@ -492,7 +518,7 @@ export function checkCompatibility(
       (c.isVerified === false ||
         c.specs?.provenance === "unverified" ||
         (c.specs?.provenance as any) === "ambiguous_unverified"),
-  )
+  );
   if (unverifiedParts.length > 0) {
     items.push({
       ruleId: "RULE_J_SPEC_UNVERIFIED",
@@ -501,15 +527,16 @@ export function checkCompatibility(
       affectedSlots: unverifiedParts.map((p) => p.slot),
       label: "Component specifications preliminary / unverified",
       explanation: `${unverifiedParts.length} component(s) have preliminary merchant catalog specifications. IT HUB technicians inspect physical clearances before assembly.`,
-      suggestedResolution: "Our technical team reviews all custom specifications prior to order fulfillment.",
-    })
+      suggestedResolution:
+        "Our technical team reviews all custom specifications prior to order fulfillment.",
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Build Completeness & Overall Validity
   // ───────────────────────────────────────────────────────────────────────────
-  const hasErrors = items.some((i) => i.severity === "error")
-  const hasWarnings = items.some((i) => i.severity === "warning")
+  const hasErrors = items.some((i) => i.severity === "error");
+  const hasWarnings = items.some((i) => i.severity === "warning");
   const hasBlockingUnknowns =
     items.some(
       (i) =>
@@ -518,22 +545,20 @@ export function checkCompatibility(
           i.ruleId === "RULE_B_RAM_UNKNOWN" ||
           i.ruleId === "RULE_E_PSU_WATTAGE_UNKNOWN" ||
           i.ruleId === "RULE_F_PCIE_POWER_UNKNOWN"),
-    ) || Boolean(psu && !psu.specs.ratedWattage)
+    ) || Boolean(psu && !psu.specs.ratedWattage);
 
-  let overallStatus: CompatibilityStatus = "compatible"
-  if (hasErrors) overallStatus = "incompatible"
-  else if (hasBlockingUnknowns) overallStatus = "unknown"
-  else if (hasWarnings) overallStatus = "conditional"
+  let overallStatus: CompatibilityStatus = "compatible";
+  if (hasErrors) overallStatus = "incompatible";
+  else if (hasBlockingUnknowns) overallStatus = "unknown";
+  else if (hasWarnings) overallStatus = "conditional";
 
   // Core essential slots
-  const requiredPopulated = Boolean(
-    cpu && mobo && ram && storage && psu && cabinet,
-  )
-  const coolerSatisfied = Boolean(cooler || cpu?.specs.includesCooler)
-  const gpuSatisfied = Boolean(gpu || cpu?.specs.hasIntegratedGraphics !== false)
-  const complete = requiredPopulated && coolerSatisfied && gpuSatisfied
+  const requiredPopulated = Boolean(cpu && mobo && ram && storage && psu && cabinet);
+  const coolerSatisfied = Boolean(cooler || cpu?.specs.includesCooler);
+  const gpuSatisfied = Boolean(gpu || cpu?.specs.hasIntegratedGraphics !== false);
+  const complete = requiredPopulated && coolerSatisfied && gpuSatisfied;
 
-  const validForAutomatedRecommendation = !hasErrors && !hasBlockingUnknowns
+  const validForAutomatedRecommendation = !hasErrors && !hasBlockingUnknowns;
 
   return {
     status: overallStatus,
@@ -546,7 +571,7 @@ export function checkCompatibility(
     validForAutomatedRecommendation,
     hasBlockingUnknowns,
     complete,
-  }
+  };
 }
 
 /**
@@ -554,10 +579,10 @@ export function checkCompatibility(
  * { result: Array<{ label: string; state: "ok" | "warning" | "error" }>, watts, recommended, valid, complete }
  */
 export function compatibility(parts: Record<string, any>) {
-  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
+  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {};
   for (const [key, part] of Object.entries(parts)) {
-    if (!part) continue
-    const slot = key as ComponentSlotId
+    if (!part) continue;
+    const slot = key as ComponentSlotId;
     canonicalParts[slot] = {
       slot,
       productId: part.id || `part-${key}`,
@@ -586,10 +611,10 @@ export function compatibility(parts: Record<string, any>) {
       availability: "available",
       quantity: 1,
       retrievedAt: new Date().toISOString(),
-    }
+    };
   }
 
-  const summary = checkCompatibility(canonicalParts)
+  const summary = checkCompatibility(canonicalParts);
   return {
     result: summary.items.map((item) => ({
       label: item.label,
@@ -605,5 +630,5 @@ export function compatibility(parts: Record<string, any>) {
     valid: summary.valid,
     complete: Object.keys(parts).length >= 6 && summary.complete,
     summary,
-  }
+  };
 }

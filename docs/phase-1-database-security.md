@@ -56,11 +56,13 @@ flowchart TD
 ## 3. Key Implementations & Resolved Vulnerabilities
 
 ### 3.1. Relational Integrity & Schema Normalization
+
 - Complete relational models across 18 core tables:
   - `profiles`, `categories`, `brands`, `products`, `product_images`, `inventory`, `offers`, `offer_products`, `addresses`, `wishlist`, `coupons`, `coupon_usages`, `orders`, `order_items`, `service_requests`, `brand_support`, `pc_build_templates`, `pc_builds`, `visitor_sessions`, `visitor_events`, `store_settings`.
 - Cleaned and aligned UUIDs across schema and seed records, eliminating foreign key mismatch exceptions.
 
 ### 3.2. Critical Security Definer View Remediation
+
 - **Vulnerability**: Postgres views defined without `security_invoker = on` execute with the privileges of the view owner, effectively bypassing the Row Level Security (RLS) of the underlying tables.
 - **Resolution**:
   - Converted `products_public`, `live_offers`, and `public_coupons` views to:
@@ -70,6 +72,7 @@ flowchart TD
   - This guarantees that caller RLS policies and permissions are strictly evaluated and eliminates query optimization side-channels.
 
 ### 3.3. Wholesale Cost Price (`cost_price`) Data Leak Prevention
+
 - **Vulnerability**: The master `products` table stores internal procurement costs (`cost_price`) alongside retail prices (`mrp`, `our_price`). Exposing this column through PostgREST would expose business profit margins.
 - **Resolution**:
   - Revoked blanket `SELECT` on `products` from `anon` and `authenticated`.
@@ -84,6 +87,7 @@ flowchart TD
     ```
 
 ### 3.4. RPC Function Hardening & Privilege Separation
+
 - **Read-Only Functions Converted to `SECURITY INVOKER`**:
   - `health_check()`: Verifies database liveness.
   - `check_onsite_warranty(p_pincode, p_location_id)`: Calculates Haversine distance against service radius.
@@ -99,6 +103,7 @@ flowchart TD
   - **Pinned Search Path**: All `SECURITY DEFINER` functions explicitly set `SET search_path = public, pg_temp` to prevent malicious schema injection.
 
 ### 3.5. Performance & Database Linter Optimizations
+
 - **Fixed 34 `auth_rls_initplan` Warnings**:
   - Calling `auth.uid()` directly forces PostgreSQL to re-evaluate the function on every single examined row.
   - Wrapped all occurrences with `(select auth.uid())`, allowing PostgreSQL to evaluate the identity once per statement and cache it as an `InitPlan`.
@@ -113,12 +118,11 @@ flowchart TD
 
 ## 4. Verification & Audit Results
 
-| Linter / Audit Category | Before Fix | After Fix |
-| :--- | :--- | :--- |
-| **Security Definer Views** | 3 Critical Warnings | **0 (Clean)** |
-| **Column-Level Cost Price Exposure** | Exposed to authenticated | **Strictly Revoked** |
-| **Auth RLS InitPlan Performance** | 34 Warnings | **0 (All Cached)** |
-| **Multiple Permissive Policies** | 100+ Warnings | **0 (Consolidated)** |
-| **Duplicate Indexes** | 1 Found (`brand_support`) | **0 (Dropped)** |
-| **Unindexed Foreign Keys** | 18 Found | **0 (All Indexed)** |
-
+| Linter / Audit Category              | Before Fix                | After Fix            |
+| :----------------------------------- | :------------------------ | :------------------- |
+| **Security Definer Views**           | 3 Critical Warnings       | **0 (Clean)**        |
+| **Column-Level Cost Price Exposure** | Exposed to authenticated  | **Strictly Revoked** |
+| **Auth RLS InitPlan Performance**    | 34 Warnings               | **0 (All Cached)**   |
+| **Multiple Permissive Policies**     | 100+ Warnings             | **0 (Consolidated)** |
+| **Duplicate Indexes**                | 1 Found (`brand_support`) | **0 (Dropped)**      |
+| **Unindexed Foreign Keys**           | 18 Found                  | **0 (All Indexed)**  |

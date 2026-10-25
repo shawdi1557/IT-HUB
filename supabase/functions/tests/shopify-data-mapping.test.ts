@@ -2,7 +2,7 @@
 // Automated Tests for Phase 3: Shopify Data Model, GID parsers, and Catalog/Component Mappers
 // IT HUB — Kerala, India
 
-import { assertEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts"
+import { assertEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import {
   parseShopifyGid,
   toProductGid,
@@ -13,22 +13,25 @@ import {
   mapShopifyProductToCatalog,
   mapShopifyVariantToPcComponent,
   type ShopifyProductNode,
-} from "../../../src/lib/shopify-schema.ts"
+} from "../../../src/lib/shopify-schema.ts";
 
 Deno.test("MAP-1: parseShopifyGid extracts numerical ID from Shopify GraphQL GIDs", () => {
-  assertEquals(parseShopifyGid("gid://shopify/Product/789123456"), "789123456")
-  assertEquals(parseShopifyGid("gid://shopify/ProductVariant/445566778"), "445566778")
-  assertEquals(parseShopifyGid("gid://shopify/Order/11223344"), "11223344")
-  assertEquals(parseShopifyGid("raw-id-999"), "raw-id-999")
-  assertEquals(parseShopifyGid(""), "")
-})
+  assertEquals(parseShopifyGid("gid://shopify/Product/789123456"), "789123456");
+  assertEquals(parseShopifyGid("gid://shopify/ProductVariant/445566778"), "445566778");
+  assertEquals(parseShopifyGid("gid://shopify/Order/11223344"), "11223344");
+  assertEquals(parseShopifyGid("raw-id-999"), "raw-id-999");
+  assertEquals(parseShopifyGid(""), "");
+});
 
 Deno.test("MAP-2: toProductGid and toVariantGid format GIDs idempotently", () => {
-  assertEquals(toProductGid("12345"), "gid://shopify/Product/12345")
-  assertEquals(toProductGid("gid://shopify/Product/12345"), "gid://shopify/Product/12345")
-  assertEquals(toVariantGid("67890"), "gid://shopify/ProductVariant/67890")
-  assertEquals(toVariantGid("gid://shopify/ProductVariant/67890"), "gid://shopify/ProductVariant/67890")
-})
+  assertEquals(toProductGid("12345"), "gid://shopify/Product/12345");
+  assertEquals(toProductGid("gid://shopify/Product/12345"), "gid://shopify/Product/12345");
+  assertEquals(toVariantGid("67890"), "gid://shopify/ProductVariant/67890");
+  assertEquals(
+    toVariantGid("gid://shopify/ProductVariant/67890"),
+    "gid://shopify/ProductVariant/67890",
+  );
+});
 
 Deno.test("MAP-3: getMetafield extracts targeted namespace and key safely", () => {
   const metafields = [
@@ -36,56 +39,101 @@ Deno.test("MAP-3: getMetafield extracts targeted namespace and key safely", () =
     { namespace: "pc_builder", key: "watts", value: "65", type: "number_integer" },
     { namespace: "custom", key: "condition", value: "Like New", type: "single_line_text_field" },
     null,
-  ]
+  ];
 
-  assertEquals(getMetafield(metafields, "pc_builder", "socket"), "AM5")
-  assertEquals(getMetafield(metafields, "pc_builder", "watts"), "65")
-  assertEquals(getMetafield(metafields, "custom", "condition"), "Like New")
-  assertEquals(getMetafield(metafields, "custom", "non_existent"), undefined)
-  assertEquals(getMetafield([], "custom", "key"), undefined)
-  assertEquals(getMetafield(undefined, "custom", "key"), undefined)
-})
+  assertEquals(getMetafield(metafields, "pc_builder", "socket"), "AM5");
+  assertEquals(getMetafield(metafields, "pc_builder", "watts"), "65");
+  assertEquals(getMetafield(metafields, "custom", "condition"), "Like New");
+  assertEquals(getMetafield(metafields, "custom", "non_existent"), undefined);
+  assertEquals(getMetafield([], "custom", "key"), undefined);
+  assertEquals(getMetafield(undefined, "custom", "key"), undefined);
+});
 
 Deno.test("MAP-4: parseProductSpecs parses tags and overlays metafields", () => {
-  const tags = ["brand:ASUS", "form_factor=ATX", "gaming-grade", "socket:LGA1700"]
+  const tags = ["brand:ASUS", "form_factor=ATX", "gaming-grade", "socket:LGA1700"];
   const metafields = [
-    { namespace: "pc_builder", key: "ram_generation", value: "DDR5", type: "single_line_text_field" },
-  ]
+    {
+      namespace: "pc_builder",
+      key: "ram_generation",
+      value: "DDR5",
+      type: "single_line_text_field",
+    },
+  ];
 
-  const specs = parseProductSpecs(tags, metafields)
-  assertEquals(specs["brand"], "ASUS")
-  assertEquals(specs["form_factor"], "ATX")
-  assertEquals(specs["socket"], "LGA1700")
-  assertEquals(specs["ram_generation"], "DDR5")
-})
+  const specs = parseProductSpecs(tags, metafields);
+  assertEquals(specs["brand"], "ASUS");
+  assertEquals(specs["form_factor"], "ATX");
+  assertEquals(specs["socket"], "LGA1700");
+  assertEquals(specs["ram_generation"], "DDR5");
+});
 
 Deno.test("MAP-5: resolveProductCondition maps condition tags and metafields accurately", () => {
   // 1. Metafield precedence
   assertEquals(
-    resolveProductCondition([], [{ namespace: "custom", key: "condition", value: "Like New", type: "single_line_text_field" }]),
+    resolveProductCondition(
+      [],
+      [
+        {
+          namespace: "custom",
+          key: "condition",
+          value: "Like New",
+          type: "single_line_text_field",
+        },
+      ],
+    ),
     "Like New",
-  )
+  );
   assertEquals(
-    resolveProductCondition([], [{ namespace: "custom", key: "condition", value: "Fair condition", type: "single_line_text_field" }]),
+    resolveProductCondition(
+      [],
+      [
+        {
+          namespace: "custom",
+          key: "condition",
+          value: "Fair condition",
+          type: "single_line_text_field",
+        },
+      ],
+    ),
     "Fair",
-  )
+  );
   assertEquals(
-    resolveProductCondition([], [{ namespace: "custom", key: "condition", value: "Salvage / Parts", type: "single_line_text_field" }]),
+    resolveProductCondition(
+      [],
+      [
+        {
+          namespace: "custom",
+          key: "condition",
+          value: "Salvage / Parts",
+          type: "single_line_text_field",
+        },
+      ],
+    ),
     "For Parts",
-  )
+  );
   assertEquals(
-    resolveProductCondition([], [{ namespace: "custom", key: "condition", value: "Refurbished Certified", type: "single_line_text_field" }]),
+    resolveProductCondition(
+      [],
+      [
+        {
+          namespace: "custom",
+          key: "condition",
+          value: "Refurbished Certified",
+          type: "single_line_text_field",
+        },
+      ],
+    ),
     "Good",
-  )
+  );
 
   // 2. Tag fallback
-  assertEquals(resolveProductCondition(["condition:like-new"]), "Like New")
-  assertEquals(resolveProductCondition(["second-hand", "tested"]), "Good")
-  assertEquals(resolveProductCondition(["refurbished-pc"]), "Good")
+  assertEquals(resolveProductCondition(["condition:like-new"]), "Like New");
+  assertEquals(resolveProductCondition(["second-hand", "tested"]), "Good");
+  assertEquals(resolveProductCondition(["refurbished-pc"]), "Good");
 
   // 3. Default to New
-  assertEquals(resolveProductCondition(["brand:Intel", "sealed"]), "New")
-})
+  assertEquals(resolveProductCondition(["brand:Intel", "sealed"]), "New");
+});
 
 Deno.test("MAP-6: mapShopifyProductToCatalog accurately maps product, pricing, MRP, and discount deal tags", () => {
   const mockNode: ShopifyProductNode = {
@@ -117,26 +165,31 @@ Deno.test("MAP-6: mapShopifyProductToCatalog accurately maps product, pricing, M
       ],
     },
     metafields: [
-      { namespace: "custom", key: "warranty_summary", value: "3-Year Official AMD Warranty", type: "single_line_text_field" },
+      {
+        namespace: "custom",
+        key: "warranty_summary",
+        value: "3-Year Official AMD Warranty",
+        type: "single_line_text_field",
+      },
     ],
-  }
+  };
 
-  const catalogProduct = mapShopifyProductToCatalog(mockNode)
+  const catalogProduct = mapShopifyProductToCatalog(mockNode);
 
-  assertEquals(catalogProduct.id, "98765")
-  assertEquals(catalogProduct.name, "AMD Ryzen 7 7800X3D Gaming Processor")
-  assertEquals(catalogProduct.brand, "AMD")
-  assertEquals(catalogProduct.category, "Processors")
-  assertEquals(catalogProduct.price, 38990)
-  assertEquals(catalogProduct.original, 45000)
-  assertEquals(catalogProduct.sku, "AMD-R7-7800X3D")
-  assertEquals(catalogProduct.stock, 15)
-  assertEquals(catalogProduct.secondHand, false)
-  assertEquals(catalogProduct.condition, "New")
-  assertEquals(catalogProduct.warranty, "3-Year Official AMD Warranty")
-  assertEquals(catalogProduct.tag, "Deal")
-  assertEquals(catalogProduct.image, "https://cdn.shopify.com/products/7800x3d.jpg")
-})
+  assertEquals(catalogProduct.id, "98765");
+  assertEquals(catalogProduct.name, "AMD Ryzen 7 7800X3D Gaming Processor");
+  assertEquals(catalogProduct.brand, "AMD");
+  assertEquals(catalogProduct.category, "Processors");
+  assertEquals(catalogProduct.price, 38990);
+  assertEquals(catalogProduct.original, 45000);
+  assertEquals(catalogProduct.sku, "AMD-R7-7800X3D");
+  assertEquals(catalogProduct.stock, 15);
+  assertEquals(catalogProduct.secondHand, false);
+  assertEquals(catalogProduct.condition, "New");
+  assertEquals(catalogProduct.warranty, "3-Year Official AMD Warranty");
+  assertEquals(catalogProduct.tag, "Deal");
+  assertEquals(catalogProduct.image, "https://cdn.shopify.com/products/7800x3d.jpg");
+});
 
 Deno.test("MAP-7: mapShopifyVariantToPcComponent extracts hardware specifications for PC builder compatibility", () => {
   const mockNode: ShopifyProductNode = {
@@ -165,25 +218,30 @@ Deno.test("MAP-7: mapShopifyVariantToPcComponent extracts hardware specification
     },
     metafields: [
       { namespace: "pc_builder", key: "socket", value: "AM5", type: "single_line_text_field" },
-      { namespace: "pc_builder", key: "ram_generation", value: "DDR5", type: "single_line_text_field" },
+      {
+        namespace: "pc_builder",
+        key: "ram_generation",
+        value: "DDR5",
+        type: "single_line_text_field",
+      },
       { namespace: "pc_builder", key: "watts", value: "50", type: "number_integer" },
       { namespace: "pc_builder", key: "wifi", value: "true", type: "boolean" },
       { namespace: "pc_builder", key: "bios_update_required", value: "false", type: "boolean" },
     ],
-  }
+  };
 
-  const component = mapShopifyVariantToPcComponent(mockNode)
+  const component = mapShopifyVariantToPcComponent(mockNode);
 
-  assertEquals(component?.id, "333444")
-  assertEquals(component?.name, "MSI MAG B650 TOMAHAWK WIFI Motherboard")
-  assertEquals(component?.price, 21499)
-  assertEquals(component?.socket, "AM5")
-  assertEquals(component?.ram, "DDR5")
-  assertEquals(component?.watts, 50)
-  assertEquals(component?.wifi, true)
-  assertEquals(component?.bios, false)
-  assertEquals(component?.stock, 8)
-})
+  assertEquals(component?.id, "333444");
+  assertEquals(component?.name, "MSI MAG B650 TOMAHAWK WIFI Motherboard");
+  assertEquals(component?.price, 21499);
+  assertEquals(component?.socket, "AM5");
+  assertEquals(component?.ram, "DDR5");
+  assertEquals(component?.watts, 50);
+  assertEquals(component?.wifi, true);
+  assertEquals(component?.bios, false);
+  assertEquals(component?.stock, 8);
+});
 
 Deno.test("MAP-8: GPU clearance and PSU capacity metafield mapping in mapShopifyVariantToPcComponent", () => {
   const gpuNode: ShopifyProductNode = {
@@ -212,11 +270,11 @@ Deno.test("MAP-8: GPU clearance and PSU capacity metafield mapping in mapShopify
       { namespace: "pc_builder", key: "gpu_length_mm", value: "234", type: "number_integer" },
       { namespace: "pc_builder", key: "watts", value: "220", type: "number_integer" },
     ],
-  }
+  };
 
-  const gpuComponent = mapShopifyVariantToPcComponent(gpuNode)
-  assertEquals(gpuComponent?.length, 234)
-  assertEquals(gpuComponent?.watts, 220)
+  const gpuComponent = mapShopifyVariantToPcComponent(gpuNode);
+  assertEquals(gpuComponent?.length, 234);
+  assertEquals(gpuComponent?.watts, 220);
 
   const psuNode: ShopifyProductNode = {
     id: "gid://shopify/Product/444555",
@@ -243,9 +301,9 @@ Deno.test("MAP-8: GPU clearance and PSU capacity metafield mapping in mapShopify
     metafields: [
       { namespace: "pc_builder", key: "capacity_watts", value: "750", type: "number_integer" },
     ],
-  }
+  };
 
-  const psuComponent = mapShopifyVariantToPcComponent(psuNode)
-  assertEquals(psuComponent?.capacity, 750)
-  assertEquals(psuComponent?.stock, 0)
-})
+  const psuComponent = mapShopifyVariantToPcComponent(psuNode);
+  assertEquals(psuComponent?.capacity, 750);
+  assertEquals(psuComponent?.stock, 0);
+});

@@ -1,31 +1,22 @@
-import { useEffect, useState } from "react"
-import { Link } from "react-router"
-import {
-  Heart,
-  Plus,
-  Eye,
-  Star,
-  Cpu,
-  ShieldCheck,
-  RefreshCw,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import { bestOffer, money, offerHeadline, type Product } from "../data/catalog"
-import { Badge, Button, Modal, ActionLink } from "./ui"
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import { Heart, Plus, Eye, Star, Cpu, ShieldCheck, RefreshCw } from "lucide-react";
+import { useStore } from "../app/store";
+import { bestOffer, money, offerHeadline, type Product } from "../data/catalog";
+import { Badge, Button, Modal, ActionLink } from "./ui";
 
 export function ProductImage({
   product,
   src,
   className = "",
 }: {
-  product: Product
-  src?: string
-  className?: string
+  product: Product;
+  src?: string;
+  className?: string;
 }) {
-  const [failed, setFailed] = useState(false)
-  const imageSrc =
-    src || product.image || "/images/photo-1616440347437-b1c73416efc2.jpg"
-  useEffect(() => setFailed(false), [imageSrc])
+  const [failed, setFailed] = useState(false);
+  const imageSrc = src || product.image || "/images/photo-1616440347437-b1c73416efc2.jpg";
+  useEffect(() => setFailed(false), [imageSrc]);
   return failed ? (
     <div className={`flex items-center justify-center bg-muted ${className}`}>
       <div className="text-center p-3">
@@ -44,12 +35,12 @@ export function ProductImage({
       loading="lazy"
       decoding="async"
     />
-  )
+  );
 }
 export default function ProductCard({ product }: { product: Product }) {
-  const store = useStore()
-  const [quick, setQuick] = useState(false)
-  const deal = bestOffer(store.offers, product)
+  const store = useStore();
+  const [quick, setQuick] = useState(false);
+  const deal = bestOffer(store.offers, product);
   const add = () =>
     store.addCart({
       id: product.id,
@@ -57,7 +48,7 @@ export default function ProductCard({ product }: { product: Product }) {
       name: product.name,
       price: product.price,
       image: product.image,
-    })
+    });
   return (
     <>
       <article className="group relative overflow-hidden rounded-2xl border border-border bg-card transition duration-300 hover:border-primary/40 hover:shadow-sm">
@@ -65,8 +56,7 @@ export default function ProductCard({ product }: { product: Product }) {
           {(deal ||
             product.tag ||
             product.secondHand ||
-            (product.stock > 0 &&
-              product.stock <= (product.lowStockThreshold || 5))) && (
+            (product.stock > 0 && product.stock <= (product.lowStockThreshold || 5))) && (
             <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1">
               {product.secondHand && (
                 <Badge tone="amber">
@@ -75,13 +65,10 @@ export default function ProductCard({ product }: { product: Product }) {
                 </Badge>
               )}
               {deal && <Badge tone="green">{offerHeadline(deal.offer)}</Badge>}
-              {product.tag && !product.secondHand && (
-                <Badge>{product.tag}</Badge>
+              {product.tag && !product.secondHand && <Badge>{product.tag}</Badge>}
+              {product.stock > 0 && product.stock <= (product.lowStockThreshold || 5) && (
+                <Badge tone="amber">Only {product.stock} left!</Badge>
               )}
-              {product.stock > 0 &&
-                product.stock <= (product.lowStockThreshold || 5) && (
-                  <Badge tone="amber">Only {product.stock} left!</Badge>
-                )}
             </div>
           )}
           <button
@@ -91,11 +78,7 @@ export default function ProductCard({ product }: { product: Product }) {
           >
             <Heart
               size={16}
-              className={
-                store.wishlist.includes(product.id)
-                  ? "fill-primary text-primary"
-                  : ""
-              }
+              className={store.wishlist.includes(product.id) ? "fill-primary text-primary" : ""}
             />
           </button>
           <Link to={`/products/${product.id}`} className="h-full w-full">
@@ -140,10 +123,7 @@ export default function ProductCard({ product }: { product: Product }) {
               </strong>
               {product.original > (deal ? deal.price : product.price) && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  MRP{" "}
-                  <span className="line-through">
-                    {money(product.original)}
-                  </span>
+                  MRP <span className="line-through">{money(product.original)}</span>
                 </p>
               )}
               {deal && (
@@ -153,7 +133,9 @@ export default function ProductCard({ product }: { product: Product }) {
               )}
             </div>
             <button
-              disabled={product.availableForSale !== undefined ? !product.availableForSale : !product.stock}
+              disabled={
+                product.availableForSale !== undefined ? !product.availableForSale : !product.stock
+              }
               onClick={add}
               aria-label={`Add ${product.name} to cart`}
               className="rounded-md border border-border p-2.5 text-primary transition hover:bg-primary hover:text-white disabled:opacity-40"
@@ -171,9 +153,7 @@ export default function ProductCard({ product }: { product: Product }) {
             ) : product.stock > 5 ? (
               <span className="text-emerald-700">● In stock</span>
             ) : product.stock > 0 ? (
-              <span className="font-semibold text-amber-700">
-                ● Only {product.stock} left!
-              </span>
+              <span className="font-semibold text-amber-700">● Only {product.stock} left!</span>
             ) : (
               <span className="text-muted-foreground">● Out of stock</span>
             )}
@@ -185,28 +165,31 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
       </article>
       <Modal open={quick} onOpenChange={setQuick} title={product.name}>
-        <ProductImage
-          product={product}
-          className="mx-auto h-56 w-full rounded-md bg-muted p-5"
-        />
+        <ProductImage product={product} className="mx-auto h-56 w-full rounded-md bg-muted p-5" />
         <div className="my-5 flex justify-between">
-          <strong className="text-2xl">
-            {money(deal ? deal.price : product.price)}
-          </strong>
+          <strong className="text-2xl">{money(deal ? deal.price : product.price)}</strong>
           <Badge
             tone={
               product.availableForSale !== undefined
-                ? (product.availableForSale ? "green" : "gray")
-                : (product.stock > 5 ? "green" : product.stock > 0 ? "amber" : "gray")
+                ? product.availableForSale
+                  ? "green"
+                  : "gray"
+                : product.stock > 5
+                  ? "green"
+                  : product.stock > 0
+                    ? "amber"
+                    : "gray"
             }
           >
             {product.availableForSale !== undefined
-              ? (product.availableForSale ? "In stock" : "Out of stock")
-              : (product.stock > 5
-                  ? "In stock"
-                  : product.stock > 0
-                    ? `Only ${product.stock} left!`
-                    : "Out of stock")}
+              ? product.availableForSale
+                ? "In stock"
+                : "Out of stock"
+              : product.stock > 5
+                ? "In stock"
+                : product.stock > 0
+                  ? `Only ${product.stock} left!`
+                  : "Out of stock"}
           </Badge>
         </div>
         <div className="mb-6 grid grid-cols-2 gap-3">
@@ -218,7 +201,12 @@ export default function ProductCard({ product }: { product: Product }) {
           ))}
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button disabled={product.availableForSale !== undefined ? !product.availableForSale : !product.stock} onClick={add}>
+          <Button
+            disabled={
+              product.availableForSale !== undefined ? !product.availableForSale : !product.stock
+            }
+            onClick={add}
+          >
             Add to cart
           </Button>
           <ActionLink secondary to={`/products/${product.id}`}>
@@ -227,5 +215,5 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
       </Modal>
     </>
-  )
+  );
 }

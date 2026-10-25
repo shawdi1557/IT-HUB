@@ -9,45 +9,45 @@ import type {
   HardwareProductRecord,
   HardwareVariantRecord,
   SpecVerificationStatus,
-} from "./types"
-import type { Product, ComponentOption } from "../../data/catalog"
-import { shopifyConfig, fetchShopifyCatalog } from "../shopify"
-import { toVariantGid } from "../shopify-schema"
-import { supabase } from "../supabase"
+} from "./types";
+import type { Product, ComponentOption } from "../../data/catalog";
+import { shopifyConfig, fetchShopifyCatalog } from "../shopify";
+import { toVariantGid } from "../shopify-schema";
+import { supabase } from "../supabase";
 
 export interface DatabaseHardwareMapping {
-  product: Partial<HardwareProductRecord>
-  variant: Partial<HardwareVariantRecord>
+  product: Partial<HardwareProductRecord>;
+  variant: Partial<HardwareVariantRecord>;
 }
 
 // In-memory registry for database-synced hardware specifications
-const registeredDatabaseSpecs: Map<string, DatabaseHardwareMapping> = new Map()
+const registeredDatabaseSpecs: Map<string, DatabaseHardwareMapping> = new Map();
 
 export function registerDatabaseHardwareSpec(
   variantId: string,
   mapping: DatabaseHardwareMapping,
 ): void {
-  registeredDatabaseSpecs.set(toVariantGid(variantId), mapping)
+  registeredDatabaseSpecs.set(toVariantGid(variantId), mapping);
 }
 
 export function clearRegisteredDatabaseSpecs(): void {
-  registeredDatabaseSpecs.clear()
+  registeredDatabaseSpecs.clear();
 }
 
 export async function loadDatabaseHardwareSpecs(): Promise<void> {
-  if (!supabase) return
+  if (!supabase) return;
   try {
     const { data: variants, error: vErr } = await supabase
       .from("hardware_variants")
       .select("*, hardware_products(*)")
-      .neq("verification_status", "quarantined_rejected")
+      .neq("verification_status", "quarantined_rejected");
 
-    if (vErr || !variants) return
+    if (vErr || !variants) return;
 
     for (const v of variants) {
-      const p = v.hardware_products as HardwareProductRecord
+      const p = v.hardware_products as HardwareProductRecord;
       if (p && p.verification_status !== "quarantined_rejected") {
-        registeredDatabaseSpecs.set(v.shopify_variant_id, { product: p, variant: v })
+        registeredDatabaseSpecs.set(v.shopify_variant_id, { product: p, variant: v });
       }
     }
   } catch {
@@ -55,12 +55,11 @@ export async function loadDatabaseHardwareSpecs(): Promise<void> {
   }
 }
 
-
 export interface VerifiedSpecEntry {
-  specs: TechnicalSpecs
-  defaultPrice: number
-  title: string
-  aliases?: string[]
+  specs: TechnicalSpecs;
+  defaultPrice: number;
+  title: string;
+  aliases?: string[];
 }
 
 /**
@@ -426,7 +425,7 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       lastVerifiedAt: "2026-01-20",
     },
   },
-}
+};
 
 /**
  * Normalizes title for hardware matching by stripping test flags and bracketed prefixes.
@@ -436,7 +435,7 @@ export function normalizeHardwareTitle(title: string): string {
     .replace(/^\[(?:TEST|SAMPLE|PROD|DEMO)\]\s*/i, "")
     .replace(/^\((?:TEST|SAMPLE|PROD|DEMO)\)\s*/i, "")
     .replace(/^TEST[-:\s]+/i, "")
-    .trim()
+    .trim();
 }
 
 /**
@@ -448,45 +447,74 @@ export function detectComponentSlot(
   tags: string[] = [],
   category: string = "",
 ): ComponentSlotId | null {
-  const normTitle = title.toLowerCase()
-  const normType = productType.toLowerCase()
-  const normCat = category.toLowerCase()
-  const allTags = tags.map((t) => t.toLowerCase())
+  const normTitle = title.toLowerCase();
+  const normType = productType.toLowerCase();
+  const normCat = category.toLowerCase();
+  const allTags = tags.map((t) => t.toLowerCase());
 
   // 1. Tag based detection (most specific)
-  if (allTags.includes("cpu") || allTags.includes("processor")) return "CPU"
-  if (allTags.includes("motherboard") || allTags.includes("mainboard")) return "Motherboard"
-  if (allTags.includes("ram") || allTags.includes("memory")) return "RAM"
-  if (allTags.includes("gpu") || allTags.includes("graphics-card") || allTags.includes("vga")) return "GPU"
-  if (allTags.includes("storage") || allTags.includes("ssd") || allTags.includes("nvme") || allTags.includes("hdd")) return "Storage"
-  if (allTags.includes("psu") || allTags.includes("power-supply") || allTags.includes("smps")) return "PSU"
-  if (allTags.includes("cabinet") || allTags.includes("case") || allTags.includes("chassis")) return "Cabinet"
-  if (allTags.includes("cooler") || allTags.includes("aio") || allTags.includes("cooling")) return "Cooler"
-  if (allTags.includes("monitor") || allTags.includes("display")) return "Monitor"
+  if (allTags.includes("cpu") || allTags.includes("processor")) return "CPU";
+  if (allTags.includes("motherboard") || allTags.includes("mainboard")) return "Motherboard";
+  if (allTags.includes("ram") || allTags.includes("memory")) return "RAM";
+  if (allTags.includes("gpu") || allTags.includes("graphics-card") || allTags.includes("vga"))
+    return "GPU";
+  if (
+    allTags.includes("storage") ||
+    allTags.includes("ssd") ||
+    allTags.includes("nvme") ||
+    allTags.includes("hdd")
+  )
+    return "Storage";
+  if (allTags.includes("psu") || allTags.includes("power-supply") || allTags.includes("smps"))
+    return "PSU";
+  if (allTags.includes("cabinet") || allTags.includes("case") || allTags.includes("chassis"))
+    return "Cabinet";
+  if (allTags.includes("cooler") || allTags.includes("aio") || allTags.includes("cooling"))
+    return "Cooler";
+  if (allTags.includes("monitor") || allTags.includes("display")) return "Monitor";
 
   // 2. ProductType / Category based detection
-  if (normType.includes("processor") || normCat.includes("processor")) return "CPU"
-  if (normType.includes("motherboard") || normCat.includes("motherboard")) return "Motherboard"
-  if (normType.includes("memory") || normCat.includes("memory")) return "RAM"
-  if (normType.includes("graphics") || normCat.includes("graphics")) return "GPU"
-  if (normType.includes("storage") || normType.includes("solid state") || normCat.includes("storage")) return "Storage"
-  if (normType.includes("power supply") || normCat.includes("power supply")) return "PSU"
-  if (normType.includes("cabinet") || normType.includes("case") || normCat.includes("cabinet") || normCat.includes("case")) return "Cabinet"
-  if (normType.includes("cooler") || normCat.includes("cooler")) return "Cooler"
-  if (normType.includes("monitor") || normCat.includes("monitor")) return "Monitor"
+  if (normType.includes("processor") || normCat.includes("processor")) return "CPU";
+  if (normType.includes("motherboard") || normCat.includes("motherboard")) return "Motherboard";
+  if (normType.includes("memory") || normCat.includes("memory")) return "RAM";
+  if (normType.includes("graphics") || normCat.includes("graphics")) return "GPU";
+  if (
+    normType.includes("storage") ||
+    normType.includes("solid state") ||
+    normCat.includes("storage")
+  )
+    return "Storage";
+  if (normType.includes("power supply") || normCat.includes("power supply")) return "PSU";
+  if (
+    normType.includes("cabinet") ||
+    normType.includes("case") ||
+    normCat.includes("cabinet") ||
+    normCat.includes("case")
+  )
+    return "Cabinet";
+  if (normType.includes("cooler") || normCat.includes("cooler")) return "Cooler";
+  if (normType.includes("monitor") || normCat.includes("monitor")) return "Monitor";
 
   // 3. Title keyword heuristics
-  if (/\b(?:ryzen|core i[3579]|lga1700|lga1200|am4 cpu|am5 cpu)\b/i.test(normTitle)) return "CPU"
-  if (/\b(?:b550|b650|b760|z790|a620|x670|h610|x570|b450|z690|motherboard|mainboard)/i.test(normTitle)) return "Motherboard"
-  if (/\b(?:ddr4|ddr5|desktop ram|dimm|so-dimm)\b/i.test(normTitle)) return "RAM"
-  if (/\b(?:rtx\s*\d{4}|gtx\s*\d{4}|rx\s*\d{4}|radeon|geforce|graphics card)\b/i.test(normTitle)) return "GPU"
-  if (/\b(?:nvme|m\.2 ssd|sata ssd|gen4 ssd|gen3 ssd)\b/i.test(normTitle)) return "Storage"
-  if (/\b(?:power supply|80\s*plus|bronze psu|gold psu|550w|650w|750w|850w smps)\b/i.test(normTitle)) return "PSU"
-  if (/\b(?:cabinet|mid-tower|case|chassis)\b/i.test(normTitle)) return "Cabinet"
-  if (/\b(?:liquid cooler|aio|air cooler|cpu cooler|heatsink)\b/i.test(normTitle)) return "Cooler"
-  if (/\b(?:monitor|gaming display|144hz|180hz|240hz display|qhd monitor|r27qe)\b/i.test(normTitle)) return "Monitor"
+  if (/\b(?:ryzen|core i[3579]|lga1700|lga1200|am4 cpu|am5 cpu)\b/i.test(normTitle)) return "CPU";
+  if (
+    /\b(?:b550|b650|b760|z790|a620|x670|h610|x570|b450|z690|motherboard|mainboard)/i.test(normTitle)
+  )
+    return "Motherboard";
+  if (/\b(?:ddr4|ddr5|desktop ram|dimm|so-dimm)\b/i.test(normTitle)) return "RAM";
+  if (/\b(?:rtx\s*\d{4}|gtx\s*\d{4}|rx\s*\d{4}|radeon|geforce|graphics card)\b/i.test(normTitle))
+    return "GPU";
+  if (/\b(?:nvme|m\.2 ssd|sata ssd|gen4 ssd|gen3 ssd)\b/i.test(normTitle)) return "Storage";
+  if (
+    /\b(?:power supply|80\s*plus|bronze psu|gold psu|550w|650w|750w|850w smps)\b/i.test(normTitle)
+  )
+    return "PSU";
+  if (/\b(?:cabinet|mid-tower|case|chassis)\b/i.test(normTitle)) return "Cabinet";
+  if (/\b(?:liquid cooler|aio|air cooler|cpu cooler|heatsink)\b/i.test(normTitle)) return "Cooler";
+  if (/\b(?:monitor|gaming display|144hz|180hz|240hz display|qhd monitor|r27qe)\b/i.test(normTitle))
+    return "Monitor";
 
-  return null
+  return null;
 }
 
 /**
@@ -496,30 +524,32 @@ export function matchShopifyProductToComponent(
   product: Product,
   slotHint?: ComponentSlotId,
 ): CanonicalBuildComponent | null {
-  const slot = slotHint || detectComponentSlot(product.name, product.productType, product.tags || [], product.category)
-  if (!slot) return null
+  const slot =
+    slotHint ||
+    detectComponentSlot(product.name, product.productType, product.tags || [], product.category);
+  if (!slot) return null;
 
-  const cleanedTitle = normalizeHardwareTitle(product.name)
-  const normCleaned = cleanedTitle.toLowerCase()
+  const cleanedTitle = normalizeHardwareTitle(product.name);
+  const normCleaned = cleanedTitle.toLowerCase();
 
   // Ensure authentic variant ID
-  const variantId = product.variantId ? toVariantGid(product.variantId) : ""
+  const variantId = product.variantId ? toVariantGid(product.variantId) : "";
 
   // 1. Check Database Specification Registry
   if (variantId && registeredDatabaseSpecs.has(variantId)) {
-    const { product: dbProd, variant: dbVar } = registeredDatabaseSpecs.get(variantId)!
+    const { product: dbProd, variant: dbVar } = registeredDatabaseSpecs.get(variantId)!;
 
     // Strict Quarantine Check: If parent or variant is quarantined, block immediately
     if (
       dbProd.verification_status === "quarantined_rejected" ||
       dbVar.verification_status === "quarantined_rejected"
     ) {
-      return null
+      return null;
     }
 
     const isVerified =
       dbVar.verification_status === "verified_manufacturer" ||
-      dbVar.verification_status === "verified_technician"
+      dbVar.verification_status === "verified_technician";
 
     const specs: TechnicalSpecs = {
       socket: dbProd.socket,
@@ -541,7 +571,7 @@ export function matchShopifyProductToComponent(
       speedMhz: dbVar.speed_mhz,
       provenance: dbVar.verification_status as any,
       lastVerifiedAt: dbVar.last_verified_at || dbProd.last_verified_at,
-    }
+    };
 
     return {
       slot,
@@ -555,43 +585,46 @@ export function matchShopifyProductToComponent(
       productUrl: `/products/${product.handle || product.id}`,
       imageUrl: product.image,
       specs,
-      availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+      availability:
+        (product.availableForSale ?? true) && (product.stock ?? 1) > 0
+          ? "available"
+          : "unavailable",
       quantity: 1,
       retrievedAt: new Date().toISOString(),
       isShopifyLive: true,
       isVerified,
       matchedModelKey: `db-${dbProd.id || dbVar.id || variantId}`,
-    }
+    };
   }
 
   // 2. Match against verified hardware specifications
-  let matchedKey: string | undefined
-  let matchedEntry: VerifiedSpecEntry | undefined
+  let matchedKey: string | undefined;
+  let matchedEntry: VerifiedSpecEntry | undefined;
 
   for (const [key, entry] of Object.entries(VERIFIED_HARDWARE_SPECS)) {
     // Check aliases
     if (entry.aliases?.some((alias) => normCleaned.includes(alias.toLowerCase()))) {
-      matchedKey = key
-      matchedEntry = entry
-      break
+      matchedKey = key;
+      matchedEntry = entry;
+      break;
     }
     // Check key model part
-    const bareModel = key.replace(/^(cpu|mobo|ram|gpu|ssd|psu|case|cooler|monitor)-/, "")
+    const bareModel = key.replace(/^(cpu|mobo|ram|gpu|ssd|psu|case|cooler|monitor)-/, "");
     if (bareModel.length > 2 && normCleaned.includes(bareModel.replace(/-/g, " "))) {
-      matchedKey = key
-      matchedEntry = entry
-      break
+      matchedKey = key;
+      matchedEntry = entry;
+      break;
     }
   }
 
   if (matchedEntry && matchedKey) {
-    const specs = { ...matchedEntry.specs }
+    const specs = { ...matchedEntry.specs };
     if (normCleaned.includes("ddr4")) {
-      specs.supportedRamGeneration = "DDR4"
-      specs.ramGeneration = "DDR4"
+      specs.supportedRamGeneration = "DDR4";
+      specs.ramGeneration = "DDR4";
     } else if (normCleaned.includes("ddr5")) {
-      specs.supportedRamGeneration = "DDR5"
-      specs.ramGeneration = "DDR5"
+      specs.supportedRamGeneration = "DDR5";
+      specs.ramGeneration = "DDR5";
     }
 
     return {
@@ -609,33 +642,60 @@ export function matchShopifyProductToComponent(
         ...specs,
         provenance: "manufacturer_verified",
       },
-      availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+      availability:
+        (product.availableForSale ?? true) && (product.stock ?? 1) > 0
+          ? "available"
+          : "unavailable",
       quantity: 1,
       retrievedAt: new Date().toISOString(),
       isShopifyLive: true,
       isVerified: true,
       matchedModelKey: matchedKey,
-    }
+    };
   }
 
   // Parse structured specifications from product specs or tags/title
-  const pSpecs = product.specs || {}
-  const allTags = (product.tags || []).map((t: string) => t.toLowerCase())
-  let socket = pSpecs["Socket"] || pSpecs["socket"]
+  const pSpecs = product.specs || {};
+  const allTags = (product.tags || []).map((t: string) => t.toLowerCase());
+  let socket = pSpecs["Socket"] || pSpecs["socket"];
   if (!socket) {
-    if (allTags.includes("am5") || normCleaned.includes("am5") || normCleaned.includes("b650") || normCleaned.includes("x670")) socket = "AM5"
-    else if (allTags.includes("am4") || normCleaned.includes("am4") || normCleaned.includes("b550") || normCleaned.includes("a520")) socket = "AM4"
-    else if (allTags.includes("lga1700") || allTags.includes("1700") || normCleaned.includes("lga1700") || normCleaned.includes("b760") || normCleaned.includes("z790") || normCleaned.includes("12400") || normCleaned.includes("13400") || normCleaned.includes("14400")) socket = "LGA1700"
+    if (
+      allTags.includes("am5") ||
+      normCleaned.includes("am5") ||
+      normCleaned.includes("b650") ||
+      normCleaned.includes("x670")
+    )
+      socket = "AM5";
+    else if (
+      allTags.includes("am4") ||
+      normCleaned.includes("am4") ||
+      normCleaned.includes("b550") ||
+      normCleaned.includes("a520")
+    )
+      socket = "AM4";
+    else if (
+      allTags.includes("lga1700") ||
+      allTags.includes("1700") ||
+      normCleaned.includes("lga1700") ||
+      normCleaned.includes("b760") ||
+      normCleaned.includes("z790") ||
+      normCleaned.includes("12400") ||
+      normCleaned.includes("13400") ||
+      normCleaned.includes("14400")
+    )
+      socket = "LGA1700";
   }
 
-  let ramGen = pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"]
+  let ramGen = pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"];
   if (!ramGen) {
-    if (allTags.includes("ddr5") || normCleaned.includes("ddr5") || socket === "AM5") ramGen = "DDR5"
-    else if (allTags.includes("ddr4") || normCleaned.includes("ddr4") || socket === "AM4") ramGen = "DDR4"
+    if (allTags.includes("ddr5") || normCleaned.includes("ddr5") || socket === "AM5")
+      ramGen = "DDR5";
+    else if (allTags.includes("ddr4") || normCleaned.includes("ddr4") || socket === "AM4")
+      ramGen = "DDR4";
   }
 
-  const tdp = parseInt(pSpecs["TDP"] || pSpecs["tdp_watts"] || "0", 10) || undefined
-  const hasMetafields = Boolean(socket || ramGen || tdp)
+  const tdp = parseInt(pSpecs["TDP"] || pSpecs["tdp_watts"] || "0", 10) || undefined;
+  const hasMetafields = Boolean(socket || ramGen || tdp);
 
   const inferredSpecs: TechnicalSpecs = {
     socket: socket || undefined,
@@ -645,7 +705,7 @@ export function matchShopifyProductToComponent(
     hasWifi: allTags.includes("wifi") || normCleaned.includes("wifi"),
     includesCooler: normCleaned.includes("12400") || normCleaned.includes("5600"),
     provenance: (pSpecs.provenance as any) || (hasMetafields ? "supplier_spec" : "unverified"),
-  }
+  };
 
   return {
     slot,
@@ -659,12 +719,13 @@ export function matchShopifyProductToComponent(
     productUrl: `/products/${product.handle || product.id}`,
     imageUrl: product.image,
     specs: inferredSpecs,
-    availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+    availability:
+      (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
     quantity: 1,
     retrievedAt: new Date().toISOString(),
     isShopifyLive: true,
     isVerified: hasMetafields,
-  }
+  };
 }
 
 /**
@@ -686,23 +747,18 @@ export function buildBuilderCatalog(
     Cooler: [],
     CaseFans: [],
     Monitor: [],
-  }
+  };
 
   // Process authentic Shopify products (Authoritative)
   for (const product of shopifyProducts) {
-    const comp = matchShopifyProductToComponent(product)
+    const comp = matchShopifyProductToComponent(product);
     // Only available, eligible products with valid variant IDs and prices are selectable
-    if (
-      comp &&
-      comp.availability === "available" &&
-      comp.variantId &&
-      comp.price > 0
-    ) {
-      catalog[comp.slot].push(comp)
+    if (comp && comp.availability === "available" && comp.variantId && comp.price > 0) {
+      catalog[comp.slot].push(comp);
     }
   }
 
-  return catalog
+  return catalog;
 }
 
 /**
@@ -715,7 +771,7 @@ export function toComponentOption(comp: CanonicalBuildComponent): ComponentOptio
     price: comp.price,
     variantId: comp.variantId || undefined,
     isShopifyLive: comp.isShopifyLive,
-    isVerified: comp.isVerified ?? (comp.specs.provenance !== "unverified"),
+    isVerified: comp.isVerified ?? comp.specs.provenance !== "unverified",
     provenance: comp.specs.provenance,
     matchedModelKey: comp.matchedModelKey,
     socket: comp.specs.socket,
@@ -730,7 +786,7 @@ export function toComponentOption(comp: CanonicalBuildComponent): ComponentOptio
     stock: comp.availability === "available" ? 6 : 0,
     includesCooler: comp.specs.includesCooler,
     hasIntegratedGraphics: comp.specs.hasIntegratedGraphics,
-  }
+  };
 }
 
 /**
@@ -742,10 +798,10 @@ export function syncBuilderCatalogWithShopify(
   shopifyProducts: Product[] = [],
   _baselineCatalog?: Record<string, ComponentOption[]>,
 ): {
-  componentCatalog: Record<string, ComponentOption[]>
-  canonicalCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]>
+  componentCatalog: Record<string, ComponentOption[]>;
+  canonicalCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]>;
 } {
-  const canonicalCatalog = buildBuilderCatalog(shopifyProducts)
+  const canonicalCatalog = buildBuilderCatalog(shopifyProducts);
   const componentCatalog: Record<string, ComponentOption[]> = {
     CPU: [],
     Motherboard: [],
@@ -755,43 +811,45 @@ export function syncBuilderCatalogWithShopify(
     PSU: [],
     Cabinet: [],
     Cooler: [],
-  }
+  };
 
   for (const [slot, items] of Object.entries(canonicalCatalog)) {
-    if (slot === "CaseFans") continue
-    componentCatalog[slot] = items.map(toComponentOption)
+    if (slot === "CaseFans") continue;
+    componentCatalog[slot] = items.map(toComponentOption);
   }
 
-  return { componentCatalog, canonicalCatalog }
+  return { componentCatalog, canonicalCatalog };
 }
 
-const CATALOG_CACHE_TTL_MS = 60_000
-let cachedBuilderCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]> | null = null
-let lastCatalogFetchTime = 0
+const CATALOG_CACHE_TTL_MS = 60_000;
+let cachedBuilderCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]> | null = null;
+let lastCatalogFetchTime = 0;
 
 /**
  * Fetches builder components directly using the live Shopify catalog when configured.
  */
-export async function fetchBuilderComponents(): Promise<Record<ComponentSlotId, CanonicalBuildComponent[]>> {
-  const now = Date.now()
+export async function fetchBuilderComponents(): Promise<
+  Record<ComponentSlotId, CanonicalBuildComponent[]>
+> {
+  const now = Date.now();
   if (cachedBuilderCatalog && now - lastCatalogFetchTime < CATALOG_CACHE_TTL_MS) {
-    return cachedBuilderCatalog
+    return cachedBuilderCatalog;
   }
 
-  let products: Product[] = []
+  let products: Product[] = [];
   if (shopifyConfig.isConfigured) {
     try {
-      const res = await fetchShopifyCatalog({ first: 100 })
+      const res = await fetchShopifyCatalog({ first: 100 });
       if (res.products && res.products.length > 0) {
-        products = res.products
+        products = res.products;
       }
     } catch {
       // Fallback to reference catalog
     }
   }
 
-  const catalog = buildBuilderCatalog(products)
-  cachedBuilderCatalog = catalog
-  lastCatalogFetchTime = now
-  return catalog
+  const catalog = buildBuilderCatalog(products);
+  cachedBuilderCatalog = catalog;
+  lastCatalogFetchTime = now;
+  return catalog;
 }

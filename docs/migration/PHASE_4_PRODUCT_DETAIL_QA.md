@@ -1,4 +1,5 @@
 # IT HUB — Phase 4.2 Product Detail QA & Fix Report
+
 **Shopify Product Description & Multi-Image Gallery Resolution**  
 **Date**: October 23, 2026  
 **Branch**: `fix/shopify-catalog-integration`  
@@ -20,6 +21,7 @@ Both issues have been remediated cleanly, securely (with strict HTML sanitizatio
 ## 2. Root Cause Analysis
 
 ### Issue A: Product Descriptions
+
 1. **Frontend Rendering Gap**: In [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx), the `Overview` tab content was hardcoded to:
    ```tsx
    <p className="max-w-3xl text-muted-foreground">
@@ -30,6 +32,7 @@ Both issues have been remediated cleanly, securely (with strict HTML sanitizatio
 2. **Schema & Model Omission**: The frontend `Product` interface in [`src/data/catalog.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/data/catalog.ts) lacked `descriptionHtml?: string`. While Shopify Storefront queries fetched `description` and `descriptionHtml`, `mapShopifyProductToCatalog()` in [`src/lib/shopify-schema.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify-schema.ts) dropped `descriptionHtml`.
 
 ### Issue B: Multi-Image Product Gallery
+
 1. **Mapper Reduction Bug**: In [`src/lib/shopify-schema.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify-schema.ts), `mapShopifyProductToCatalog()` extracted only a single `primaryImage` scalar. The `images` array property was completely absent from the returned `Product` object.
 2. **Legacy Supabase Gallery Hook**: In [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx), the gallery effect invoked `fetchProductGallery(product.id)`, querying the Supabase `product_images` table. Because Shopify products exist exclusively in Shopify, this query returned `[]`. The component fell back to `[product.image]`, collapsing multi-image products into a single photo without thumbnails.
 3. **Missing Variant Image in Queries**: `fetchShopifyProductByHandle` and `fetchShopifyProductById` omitted `image { url altText }` from `variants(first: 20)`, which prevented variant-specific imagery from being associated with products.
@@ -39,15 +42,15 @@ Both issues have been remediated cleanly, securely (with strict HTML sanitizatio
 
 ## 3. Files Modified
 
-| File | Changes Made |
-| :--- | :--- |
-| [`src/lib/sanitize.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/sanitize.ts) | **New file**: Created HTML sanitization utility using `dompurify` with safe fallback for SSR/test environments. Strips `<script>`, `<iframe>`, `<object>`, inline event handlers (`onclick`, `onerror`), and `javascript:` URIs while preserving paragraphs, lists, bold, and links. Includes `resolveProductDescription(product)` helper that handles HTML, plain-text fallback, empty HTML tag handling (`<p><br></p>`), and graceful empty notices. |
-| [`src/data/catalog.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/data/catalog.ts) | Added `descriptionHtml?: string` and `images?: string[]` to the core `Product` type definition. |
-| [`src/lib/shopify.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify.ts) | Expanded `images(first: 20)` in `PRODUCTS_QUERY`, `fetchShopifyProductByHandle()`, and `fetchShopifyProductById()`. Added `image { url altText }` to variant selections. |
-| [`src/lib/shopify-schema.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify-schema.ts) | Updated `mapShopifyProductToCatalog()`: collects unique image URLs from variants, featured image, and `images.edges` without duplicates; maps `images: productImages`, `description`, and `descriptionHtml`. |
-| [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx) | Updated `ProductDetail`: supports case-insensitive route matching by `id`, `sku`, `handle`, and `variantId`; loads direct products via `fetchShopifyProduct()`; uses `product.images` for `allImages` gallery; resets `activeImageIndex` on product change; adds above-the-fold description excerpt; renames primary tab to "Description"; introduces `<h3 id="product-description-heading">Product Description</h3>`; renders sanitized `descriptionHtml` with rich typography styles or `description` with graceful empty notice; updates stock badge to sync with `product.availableForSale`. |
-| [`scripts/test_storefront_api.cjs`](file:///d:/mario/IT%20HUB/ITHUB_WEB/scripts/test_storefront_api.cjs) | Added `description`, `descriptionHtml`, and `images(first: 20)` to diagnostic query; logs gallery count and description preview. |
-| [`supabase/functions/tests/shopify-catalog-integration.test.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/functions/tests/shopify-catalog-integration.test.ts) | Added automated regression test cases `SHOP-FIX-11` through `SHOP-FIX-16`. |
+| File                                                                                                                                                               | Changes Made                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`src/lib/sanitize.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/sanitize.ts)                                                                                   | **New file**: Created HTML sanitization utility using `dompurify` with safe fallback for SSR/test environments. Strips `<script>`, `<iframe>`, `<object>`, inline event handlers (`onclick`, `onerror`), and `javascript:` URIs while preserving paragraphs, lists, bold, and links. Includes `resolveProductDescription(product)` helper that handles HTML, plain-text fallback, empty HTML tag handling (`<p><br></p>`), and graceful empty notices.                                                                                                                                           |
+| [`src/data/catalog.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/data/catalog.ts)                                                                                   | Added `descriptionHtml?: string` and `images?: string[]` to the core `Product` type definition.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| [`src/lib/shopify.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify.ts)                                                                                     | Expanded `images(first: 20)` in `PRODUCTS_QUERY`, `fetchShopifyProductByHandle()`, and `fetchShopifyProductById()`. Added `image { url altText }` to variant selections.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| [`src/lib/shopify-schema.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/shopify-schema.ts)                                                                       | Updated `mapShopifyProductToCatalog()`: collects unique image URLs from variants, featured image, and `images.edges` without duplicates; maps `images: productImages`, `description`, and `descriptionHtml`.                                                                                                                                                                                                                                                                                                                                                                                     |
+| [`src/pages/Products.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Products.tsx)                                                                             | Updated `ProductDetail`: supports case-insensitive route matching by `id`, `sku`, `handle`, and `variantId`; loads direct products via `fetchShopifyProduct()`; uses `product.images` for `allImages` gallery; resets `activeImageIndex` on product change; adds above-the-fold description excerpt; renames primary tab to "Description"; introduces `<h3 id="product-description-heading">Product Description</h3>`; renders sanitized `descriptionHtml` with rich typography styles or `description` with graceful empty notice; updates stock badge to sync with `product.availableForSale`. |
+| [`scripts/test_storefront_api.cjs`](file:///d:/mario/IT%20HUB/ITHUB_WEB/scripts/test_storefront_api.cjs)                                                           | Added `description`, `descriptionHtml`, and `images(first: 20)` to diagnostic query; logs gallery count and description preview.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| [`supabase/functions/tests/shopify-catalog-integration.test.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/functions/tests/shopify-catalog-integration.test.ts) | Added automated regression test cases `SHOP-FIX-11` through `SHOP-FIX-16`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -60,8 +63,8 @@ query getProductByHandle($handle: String!) {
     id
     title
     handle
-    description          # Plain text description
-    descriptionHtml      # Rich formatted HTML description
+    description # Plain text description
+    descriptionHtml # Rich formatted HTML description
     vendor
     productType
     tags
@@ -70,7 +73,8 @@ query getProductByHandle($handle: String!) {
       url
       altText
     }
-    images(first: 20) {  # Expanded from first: 10 to first: 20
+    images(first: 20) {
+      # Expanded from first: 10 to first: 20
       edges {
         node {
           url
@@ -85,9 +89,16 @@ query getProductByHandle($handle: String!) {
           title
           sku
           availableForSale
-          price { amount currencyCode }
-          compareAtPrice { amount currencyCode }
-          image {        # Added variant image selection
+          price {
+            amount
+            currencyCode
+          }
+          compareAtPrice {
+            amount
+            currencyCode
+          }
+          image {
+            # Added variant image selection
             url
             altText
           }
@@ -103,6 +114,7 @@ query getProductByHandle($handle: String!) {
 ## 5. Security Invariants & HTML Sanitization
 
 To ensure zero risk of Cross-Site Scripting (XSS) from stored content in Shopify Admin:
+
 - **Sanitizer Engine**: DOMPurify configured with `USE_PROFILES: { html: true }`.
 - **Allowed Tags**: `p`, `br`, `strong`, `em`, `b`, `i`, `u`, `s`, `ul`, `ol`, `li`, `h1`-`h6`, `blockquote`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `span`, `div`, `hr`, `a`.
 - **Prohibited Tags**: `<script>`, `<iframe>`, `<object>`, `<embed>`, `<style>`, `<link>`.
@@ -114,7 +126,9 @@ To ensure zero risk of Cross-Site Scripting (XSS) from stored content in Shopify
 ## 6. Verification & Automated Test Results
 
 ### Automated Test Suite
+
 Command: `npm test`
+
 ```
 running 16 tests from ./supabase/functions/tests/shopify-catalog-integration.test.ts
 ...
@@ -129,10 +143,12 @@ ok | 215 passed | 0 failed (1s)
 ```
 
 ### TypeScript Typecheck
+
 Command: `npx tsc --noEmit`
 Result: Clean exit (code 0), 0 errors.
 
 ### Vite Production Build
+
 Command: `npm run build`
 Result: Clean compilation (11.35s), dist assets generated successfully.
 
@@ -154,8 +170,8 @@ Result: Clean compilation (11.35s), dist assets generated successfully.
    - The **Description** tab is selected by default.
    - Verify the clearly labelled `<h3 id="product-description-heading">Product Description</h3>` section header.
    - Verify the authentic description from Shopify Admin is rendered with proper paragraphs, bullet points, and formatting:
-     * Bullet points render with standard disc markers (`[&_ul]:list-disc [&_ul]:pl-6`).
-     * Bold text, numbers, and paragraphs retain full structural clarity.
+     - Bullet points render with standard disc markers (`[&_ul]:list-disc [&_ul]:pl-6`).
+     - Bold text, numbers, and paragraphs retain full structural clarity.
    - Confirm that generic placeholder text (`Explore ... at IT HUB. Get personal assistance...`) is no longer displayed.
 4. **Verify Single-Image Products**:
    - View any product with only one image.
@@ -170,8 +186,9 @@ Result: Clean compilation (11.35s), dist assets generated successfully.
 ## 8. Rollback Procedure
 
 All changes are isolated on branch `fix/shopify-catalog-integration`. To revert:
+
 ```bash
 git checkout migration/shopify-integration
 ```
-Commit `0a738c5` remains completely untouched on `migration/shopify-integration`.
 
+Commit `0a738c5` remains completely untouched on `migration/shopify-integration`.

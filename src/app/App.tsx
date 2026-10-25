@@ -1,98 +1,94 @@
-import { lazy as reactLazy, Suspense, type ComponentType } from "react"
+import { lazy as reactLazy, Suspense, type ComponentType } from "react";
 import {
   createBrowserRouter,
   RouterProvider,
   isRouteErrorResponse,
   useRouteError,
-} from "react-router"
-import { StoreProvider } from "./store"
-import Layout from "../components/Layout"
-import Home from "../pages/Home"
-import { Empty, Loading, Page } from "../components/ui"
+} from "react-router";
+import { StoreProvider } from "./store";
+import Layout from "../components/Layout";
+import Home from "../pages/Home";
+import { Empty, Loading, Page } from "../components/ui";
 
 // A stale module URL (after a hot update) makes dynamic imports fail;
 // reload the page once to fetch fresh modules instead of crashing.
-const lazy = <T extends ComponentType<any>,>(
-  load: () => Promise<{ default: T }>,
-) =>
+const lazy = <T extends ComponentType<any>>(load: () => Promise<{ default: T }>) =>
   reactLazy(() =>
     load().then(
       (module) => {
-        sessionStorage.removeItem("ithub-chunk-reload")
-        return module
+        sessionStorage.removeItem("ithub-chunk-reload");
+        return module;
       },
       (error) => {
         if (!sessionStorage.getItem("ithub-chunk-reload")) {
-          sessionStorage.setItem("ithub-chunk-reload", "1")
-          window.location.reload()
-          return new Promise<never>(() => {})
+          sessionStorage.setItem("ithub-chunk-reload", "1");
+          window.location.reload();
+          return new Promise<never>(() => {});
         }
-        throw error
+        throw error;
       },
     ),
-  )
+  );
 const Products = lazy(() =>
   import("../pages/Products").then((module) => ({ default: module.Products })),
-)
+);
 const ProductDetail = lazy(() =>
   import("../pages/Products").then((module) => ({
     default: module.ProductDetail,
   })),
-)
-const Cart = lazy(() =>
-  import("../pages/Commerce").then((module) => ({ default: module.Cart })),
-)
+);
+const Cart = lazy(() => import("../pages/Commerce").then((module) => ({ default: module.Cart })));
 const Checkout = lazy(() =>
   import("../pages/Commerce").then((module) => ({ default: module.Checkout })),
-)
+);
 const OrderSuccess = lazy(() =>
   import("../pages/Commerce").then((module) => ({
     default: module.OrderSuccess,
   })),
-)
+);
 const OrderTracking = lazy(() =>
   import("../pages/Commerce").then((module) => ({
     default: module.OrderTracking,
   })),
-)
-const DevRequest = lazy(() => import("../pages/DevRequest"))
+);
+const DevRequest = lazy(() => import("../pages/DevRequest"));
 const Services = lazy(() =>
   import("../pages/Services").then((module) => ({ default: module.Services })),
-)
+);
 const ServiceBooking = lazy(() =>
   import("../pages/Services").then((module) => ({
     default: module.ServiceBooking,
   })),
-)
+);
 const ServiceSuccess = lazy(() =>
   import("../pages/Services").then((module) => ({
     default: module.ServiceSuccess,
   })),
-)
+);
 const ServiceTracking = lazy(() =>
   import("../pages/Services").then((module) => ({
     default: module.ServiceTracking,
   })),
-)
-const Builder = lazy(() => import("../pages/Builder"))
-const Blog = lazy(() => import("../pages/Blog"))
+);
+const Builder = lazy(() => import("../pages/Builder"));
+const Blog = lazy(() => import("../pages/Blog"));
 const ArticleDetail = lazy(() =>
   import("../pages/Blog").then((module) => ({ default: module.ArticleDetail })),
-)
-const Account = lazy(() => import("../pages/Account"))
+);
+const Account = lazy(() => import("../pages/Account"));
 const About = lazy(() =>
   import("../pages/Information").then((module) => ({ default: module.About })),
-)
+);
 const Offers = lazy(() =>
   import("../pages/Information").then((module) => ({ default: module.Offers })),
-)
+);
 const Contact = lazy(() =>
   import("../pages/Information").then((module) => ({
     default: module.Contact,
   })),
-)
-const Support = lazy(() => import("../pages/Support"))
-const Admin = lazy(() => import("../pages/Admin"))
+);
+const Support = lazy(() => import("../pages/Support"));
+const Admin = lazy(() => import("../pages/Admin"));
 function NotFound() {
   return (
     <Page>
@@ -103,10 +99,10 @@ function NotFound() {
         label="Back to IT HUB"
       />
     </Page>
-  )
+  );
 }
 function RouteError() {
-  const error = useRouteError()
+  const error = useRouteError();
   return (
     <Page>
       <Empty
@@ -120,7 +116,7 @@ function RouteError() {
         label="Back to IT HUB"
       />
     </Page>
-  )
+  );
 }
 const router = createBrowserRouter([
   {
@@ -159,7 +155,7 @@ const router = createBrowserRouter([
   },
   { path: "/admin", Component: Admin, errorElement: <RouteError /> },
   { path: "/admin/:section", Component: Admin, errorElement: <RouteError /> },
-])
+]);
 export default function App() {
   return (
     <StoreProvider>
@@ -167,5 +163,5 @@ export default function App() {
         <RouterProvider router={router} />
       </Suspense>
     </StoreProvider>
-  )
+  );
 }

@@ -2,14 +2,16 @@
 
 **Project:** IT HUB E-Commerce & IT Services Platform (Kerala, India)  
 **Database:** PostgreSQL 15+ (Supabase)  
-**Testing Scope:** DDL, RLS, Edge Functions, Storage API, Razorpay Verification, Concurrency & Rollback  
+**Testing Scope:** DDL, RLS, Edge Functions, Storage API, Razorpay Verification, Concurrency & Rollback
 
 ---
 
 ## 1. Testing Methodology & Execution Constraints
 
 ### A. Execution Status Classifications
+
 In accordance with production audit standards, every test case below is strictly labeled with its true verification state:
+
 - `Not run` — Structured and syntactically validated code, but not yet executed on a running database.
 - `Requires manual configuration` — Depends on external third-party infrastructure (e.g. Razorpay test sandbox or live Edge Function endpoints).
 - `Run successfully` — Executed in an automated test harness or live environment with verified return values.
@@ -18,6 +20,7 @@ In accordance with production audit standards, every test case below is strictly
 > [!NOTE]
 > **Automated Edge Function & Logic Unit Test Suites:**
 > 80 automated unit and invariant tests have been **actually executed** locally using the Deno test runner (`deno test --allow-net --allow-env --allow-read supabase/functions/tests/`) and **passed 100% (80 passed, 0 failed)**:
+>
 > 1. `verify-checkout-callback.test.ts`: **43 passed | 0 failed** (121ms) — Tests CORS, origin validation, Razorpay order mapping, network timeouts (502), customer ownership, and payment status checks.
 > 2. `verify-razorpay-webhook.test.ts`: **19 passed | 0 failed** (37ms) — Tests HMAC-SHA256 signature verification, non-payment event filtering, notes UUID validation, and RPC error handling.
 > 3. `security-fixes-audit.test.ts`: **18 passed | 0 failed** (20ms) — Tests Fixes A through J schema invariants, NULL-safe comparisons, deterministic item sorting, visitor allowlists, and coupon logic.
@@ -26,6 +29,7 @@ In accordance with production audit standards, every test case below is strictly
 > Tests `TEST-01` through `TEST-20` (Sections 3 & 4) require a connected Supabase PostgreSQL instance and are marked as **`Not run`** pending staging database connection. Do NOT run them on a live production database.
 
 ### B. Transaction Boundary & Savepoint Isolation
+
 - In PostgreSQL, when any statement inside a transaction block raises an exception, the entire transaction is aborted unless isolated with a **`SAVEPOINT`**.
 - All negative test cases expecting SQL exceptions below use `SAVEPOINT <name>;` followed by `ROLLBACK TO SAVEPOINT <name>;`, enabling the entire suite to run continuously within a single transaction in the Supabase SQL Editor.
 
@@ -33,40 +37,40 @@ In accordance with production audit standards, every test case below is strictly
 
 ## 2. Test Suite Traceability Matrix
 
-| Test ID | Category | Objective | Security Property Tested | Execution Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **TEST-01** | Schema | Validate DDL structure, constraints, and foreign key graphs | DDL & Type Consistency | Not run |
-| **TEST-02** | Migration | Validate non-destructive schema evolution from v1.0 | Non-Destructive Schema Evolution | Not run |
-| **TEST-03** | Auth | Profile creation on auth.users insert | Default Customer Role Assertion | Not run |
-| **TEST-04** | Auth/Role | Customer self-promotion to `admin` blocked by trigger | Privilege Escalation Defense | Not run |
-| **TEST-05** | Catalog | Direct `products` table query blocked for anonymous visitors | Wholesale Cost Margin Shielding | Not run |
-| **TEST-06** | Catalog | Validate `mrp`, `price`, `sale_price` and `effective_price` | Commercial Pricing Integrity | Not run |
-| **TEST-07** | Orders | Direct `INSERT` into `orders` blocked by RLS | Client Price Forgery Defense | Not run |
-| **TEST-08** | Orders | Server-side `create_order` price calculation & 30m TTL | Authoritative Totals & Reservation | Not run |
-| **TEST-09** | Orders | Concurrent checkout overselling defense | Race Condition & Negative Stock Defense | Not run |
-| **TEST-10A** | Orders | Unpaid checkout expiration & automatic stock release | Inventory Leakage Prevention | Not run |
-| **TEST-10B** | Orders | Double stock restoration prevention on repeated cleanup | Restoration Idempotency | Not run |
-| **TEST-10C** | Orders | Late payment arrives post-expiration: atomic re-reservation or refund alert | Late Settlement Reconciliation | Not run |
-| **TEST-11** | Orders | Customer order cancellation restores stock idempotently | Customer Self-Service Cancellation | Not run |
-| **TEST-12** | Payment | Direct client call to `record_order_payment` rejected | Execution Privilege Boundary | Not run |
-| **TEST-13** | Payment | Trusted `service_role` payment finalization | Authoritative Settlement Authority | Not run |
-| **TEST-14A** | Payment | Duplicate webhook delivery returns idempotent success | Replay Defense | Not run |
-| **TEST-14B** | Payment | Mismatched Razorpay order ID rejected | Gateway Mapping Validation | Not run |
-| **TEST-14C** | Payment | Underpayment / amount mismatch rejected | Financial Discrepancy Defense | Not run |
-| **TEST-14D** | Payment | Unsupported currency rejected (non-INR) | Currency Tamper Defense | Not run |
-| **TEST-14E-CB** | Payment | Checkout callback invalid HMAC signature rejected | Cryptographic Authenticity (Callback) | Requires manual configuration |
-| **TEST-14E-WH** | Payment | Webhook invalid HMAC signature rejected | Cryptographic Authenticity (Webhook) | Requires manual configuration |
-| **TEST-15A** | Coupons | One-time coupon redemption per customer enforced | Single Redemption Invariant | Not run |
-| **TEST-15B** | Coupons | Concurrent checkouts with same single-use coupon blocked | Checkout Race Condition Defense | Not run |
-| **TEST-15C** | Coupons | Post-payment coupon conflict audit alert reconciliation | Post-Payment Conflict Auditing | Not run |
-| **TEST-16** | Coupons | Cross-customer coupon usage allowed within global limits | Global vs User Limit Invariant | Not run |
-| **TEST-17** | Services | Customer unauthorized modification of diagnostic quote blocked | Billing Tamper Defense | Not run |
-| **TEST-18** | Services | Customer permitted quote response (`pending` $\rightarrow$ `approved`) | Permitted State Transition Validation | Not run |
-| **TEST-19A** | Storage | Cross-customer private invoice read blocked | Multi-Tenant Data Isolation | Not run |
-| **TEST-19B** | Storage | Photo upload rejected without owned `Pending` request | Request Association Enforcement | Not run |
-| **TEST-19C** | Storage | Photo delete blocked once request moves past `Pending` | Audit Trail Preservation | Not run |
-| **TEST-19D** | Storage | Storage Client API upload & signed URL verification | Storage REST API Integration | Requires manual configuration |
-| **TEST-20** | Analytics | IP masking verification & retention purge | Privacy Compliance & Data Minimization | Not run |
+| Test ID         | Category  | Objective                                                                   | Security Property Tested                | Execution Status              |
+| :-------------- | :-------- | :-------------------------------------------------------------------------- | :-------------------------------------- | :---------------------------- |
+| **TEST-01**     | Schema    | Validate DDL structure, constraints, and foreign key graphs                 | DDL & Type Consistency                  | Not run                       |
+| **TEST-02**     | Migration | Validate non-destructive schema evolution from v1.0                         | Non-Destructive Schema Evolution        | Not run                       |
+| **TEST-03**     | Auth      | Profile creation on auth.users insert                                       | Default Customer Role Assertion         | Not run                       |
+| **TEST-04**     | Auth/Role | Customer self-promotion to `admin` blocked by trigger                       | Privilege Escalation Defense            | Not run                       |
+| **TEST-05**     | Catalog   | Direct `products` table query blocked for anonymous visitors                | Wholesale Cost Margin Shielding         | Not run                       |
+| **TEST-06**     | Catalog   | Validate `mrp`, `price`, `sale_price` and `effective_price`                 | Commercial Pricing Integrity            | Not run                       |
+| **TEST-07**     | Orders    | Direct `INSERT` into `orders` blocked by RLS                                | Client Price Forgery Defense            | Not run                       |
+| **TEST-08**     | Orders    | Server-side `create_order` price calculation & 30m TTL                      | Authoritative Totals & Reservation      | Not run                       |
+| **TEST-09**     | Orders    | Concurrent checkout overselling defense                                     | Race Condition & Negative Stock Defense | Not run                       |
+| **TEST-10A**    | Orders    | Unpaid checkout expiration & automatic stock release                        | Inventory Leakage Prevention            | Not run                       |
+| **TEST-10B**    | Orders    | Double stock restoration prevention on repeated cleanup                     | Restoration Idempotency                 | Not run                       |
+| **TEST-10C**    | Orders    | Late payment arrives post-expiration: atomic re-reservation or refund alert | Late Settlement Reconciliation          | Not run                       |
+| **TEST-11**     | Orders    | Customer order cancellation restores stock idempotently                     | Customer Self-Service Cancellation      | Not run                       |
+| **TEST-12**     | Payment   | Direct client call to `record_order_payment` rejected                       | Execution Privilege Boundary            | Not run                       |
+| **TEST-13**     | Payment   | Trusted `service_role` payment finalization                                 | Authoritative Settlement Authority      | Not run                       |
+| **TEST-14A**    | Payment   | Duplicate webhook delivery returns idempotent success                       | Replay Defense                          | Not run                       |
+| **TEST-14B**    | Payment   | Mismatched Razorpay order ID rejected                                       | Gateway Mapping Validation              | Not run                       |
+| **TEST-14C**    | Payment   | Underpayment / amount mismatch rejected                                     | Financial Discrepancy Defense           | Not run                       |
+| **TEST-14D**    | Payment   | Unsupported currency rejected (non-INR)                                     | Currency Tamper Defense                 | Not run                       |
+| **TEST-14E-CB** | Payment   | Checkout callback invalid HMAC signature rejected                           | Cryptographic Authenticity (Callback)   | Requires manual configuration |
+| **TEST-14E-WH** | Payment   | Webhook invalid HMAC signature rejected                                     | Cryptographic Authenticity (Webhook)    | Requires manual configuration |
+| **TEST-15A**    | Coupons   | One-time coupon redemption per customer enforced                            | Single Redemption Invariant             | Not run                       |
+| **TEST-15B**    | Coupons   | Concurrent checkouts with same single-use coupon blocked                    | Checkout Race Condition Defense         | Not run                       |
+| **TEST-15C**    | Coupons   | Post-payment coupon conflict audit alert reconciliation                     | Post-Payment Conflict Auditing          | Not run                       |
+| **TEST-16**     | Coupons   | Cross-customer coupon usage allowed within global limits                    | Global vs User Limit Invariant          | Not run                       |
+| **TEST-17**     | Services  | Customer unauthorized modification of diagnostic quote blocked              | Billing Tamper Defense                  | Not run                       |
+| **TEST-18**     | Services  | Customer permitted quote response (`pending` $\rightarrow$ `approved`)      | Permitted State Transition Validation   | Not run                       |
+| **TEST-19A**    | Storage   | Cross-customer private invoice read blocked                                 | Multi-Tenant Data Isolation             | Not run                       |
+| **TEST-19B**    | Storage   | Photo upload rejected without owned `Pending` request                       | Request Association Enforcement         | Not run                       |
+| **TEST-19C**    | Storage   | Photo delete blocked once request moves past `Pending`                      | Audit Trail Preservation                | Not run                       |
+| **TEST-19D**    | Storage   | Storage Client API upload & signed URL verification                         | Storage REST API Integration            | Requires manual configuration |
+| **TEST-20**     | Analytics | IP masking verification & retention purge                                   | Privacy Compliance & Data Minimization  | Not run                       |
 
 ---
 
@@ -562,7 +566,10 @@ async function testStorageAPI() {
   const { error: uploadUnowned } = await clientAlpha.storage
     .from("sell-request-photos")
     .upload(unownedPath, dummyImage);
-  console.assert(uploadUnowned !== null, "Upload to non-existent request should fail with RLS error");
+  console.assert(
+    uploadUnowned !== null,
+    "Upload to non-existent request should fail with RLS error",
+  );
 
   // TEST-19D.3: Customer Beta attempts to download Customer Alpha's photo -> MUST FAIL (403 / null data)
   const { data: betaDownload, error: betaErr } = await clientBeta.storage
@@ -574,7 +581,10 @@ async function testStorageAPI() {
   const { data: signedData, error: signedErr } = await clientAlpha.storage
     .from("sell-request-photos")
     .createSignedUrl(validPath, 300);
-  console.assert(!signedErr && signedData?.signedUrl.includes("token="), "Signed URL generation should succeed");
+  console.assert(
+    !signedErr && signedData?.signedUrl.includes("token="),
+    "Signed URL generation should succeed",
+  );
 
   console.log("Storage API Integration Tests Completed.");
 }

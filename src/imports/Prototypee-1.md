@@ -5,6 +5,7 @@ You are a senior product designer, UX architect, UI engineer, and frontend devel
 Build a COMPLETE, HIGH-FIDELITY, FULLY INTERACTIVE prototype for a real technology business called:
 
 # IT HUB
+
 ### THE COMPLETE IT STORE
 
 The uploaded image/logo is the official IT HUB brand logo.
@@ -223,12 +224,9 @@ The website must look PREMIUM.
 
 Think:
 
-Apple-level simplicity
-+
-Modern technology marketplace
-+
-Professional IT service company
-+
+Apple-level simplicity +
+Modern technology marketplace +
+Professional IT service company +
 Modern Indian e-commerce
 
 DO NOT make it look like:
@@ -949,8 +947,10 @@ Subtotal
 
 Allow:
 
-+
 -
+
+*
+
 Remove
 Wishlist
 
@@ -1468,6 +1468,7 @@ Sidebar:
 Dashboard
 
 Commerce
+
 - Orders
 - Products
 - Categories
@@ -1475,31 +1476,37 @@ Commerce
 - Offers
 
 Services
+
 - Service Requests
 - Quotations
 - Technicians
 
 Logistics
+
 - Shipments
 - Courier
 
 Customers
+
 - Customers
 - Reviews
 - Support
 
 PC Builder
+
 - Components
 - Compatibility
 - Saved Builds
 
 Reports
+
 - Revenue
 - Orders
 - Products
 - Services
 
 System
+
 - Users
 - Roles
 - Settings
@@ -1617,7 +1624,7 @@ OUT OF STOCK
 
 Add:
 
-+ ADD STOCK
+- ADD STOCK
 
 ---
 
@@ -2102,48 +2109,27 @@ The final prototype should be BIG.
 
 It should contain:
 
-Customer storefront
-+
-Product marketplace
-+
-Product details
-+
-Cart
-+
-Checkout
-+
-Order tracking
-+
-IT service booking
-+
-Service tracking
-+
-Service quotation
-+
-PC Builder
-+
-Customer account
-+
-Warranty
-+
-Offers
-+
-About IT HUB
-+
-Contact
-+
-Admin dashboard
-+
-Inventory
-+
-Products
-+
-Orders
-+
-Services
-+
-Customers
-+
+Customer storefront +
+Product marketplace +
+Product details +
+Cart +
+Checkout +
+Order tracking +
+IT service booking +
+Service tracking +
+Service quotation +
+PC Builder +
+Customer account +
+Warranty +
+Offers +
+About IT HUB +
+Contact +
+Admin dashboard +
+Inventory +
+Products +
+Orders +
+Services +
+Customers +
 Analytics
 
 Everything should be connected through navigation.

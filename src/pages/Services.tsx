@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
-import { LoginGate } from "../components/AuthModal"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router"
+import { useEffect, useMemo, useState } from "react";
+import { LoginGate } from "../components/AuthModal";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Laptop,
   Smartphone,
@@ -31,11 +31,11 @@ import {
   Sparkles,
   PhoneCall,
   RotateCcw,
-} from "lucide-react"
-import WhatsAppIcon from "../components/WhatsAppIcon"
-import OurServices from "../components/OurServices"
-import { useStore } from "../app/store"
-import { track } from "../lib/analytics"
+} from "lucide-react";
+import WhatsAppIcon from "../components/WhatsAppIcon";
+import OurServices from "../components/OurServices";
+import { useStore } from "../app/store";
+import { track } from "../lib/analytics";
 import {
   serviceTypes,
   problemsFor,
@@ -46,7 +46,7 @@ import {
   money,
   type ServiceCatalogItem,
   type ServiceRequest,
-} from "../data/catalog"
+} from "../data/catalog";
 import {
   createServiceBooking,
   updateServiceQuoteDecision,
@@ -55,7 +55,7 @@ import {
   isUserTicketOwner,
   fetchServiceRequestById,
   type SafePublicTracking,
-} from "../lib/services"
+} from "../lib/services";
 import {
   ActionLink,
   Badge,
@@ -70,34 +70,32 @@ import {
   fieldClass,
   buttonClass,
   secondaryClass,
-} from "../components/ui"
-import QuotationApprovalPanel from "../components/QuotationApprovalPanel"
+} from "../components/ui";
+import QuotationApprovalPanel from "../components/QuotationApprovalPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. MAIN SERVICES LANDING PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Services() {
-  const store = useStore()
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(null)
+  const store = useStore();
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(null);
 
   // Estimator State
-  const [estimatorDevice, setEstimatorDevice] = useState<string>("Laptop")
-  const availableProblems = useMemo(
-    () => problemsFor(estimatorDevice),
-    [estimatorDevice],
-  )
-  const [estimatorIssue, setEstimatorIssue] = useState<string>("Screen issue")
-  const [estimatorDelivery, setEstimatorDelivery] =
-    useState<"walkin" | "courier" | "onsite">("walkin")
+  const [estimatorDevice, setEstimatorDevice] = useState<string>("Laptop");
+  const availableProblems = useMemo(() => problemsFor(estimatorDevice), [estimatorDevice]);
+  const [estimatorIssue, setEstimatorIssue] = useState<string>("Screen issue");
+  const [estimatorDelivery, setEstimatorDelivery] = useState<"walkin" | "courier" | "onsite">(
+    "walkin",
+  );
 
   // Update issue when device changes if needed
   useEffect(() => {
     if (!availableProblems.includes(estimatorIssue)) {
-      setEstimatorIssue(availableProblems[0] || "Screen issue")
+      setEstimatorIssue(availableProblems[0] || "Screen issue");
     }
-  }, [availableProblems, estimatorIssue])
+  }, [availableProblems, estimatorIssue]);
 
   // Lookup matching estimate rule
   const matchedEstimate = useMemo(() => {
@@ -105,8 +103,8 @@ export function Services() {
       (e) =>
         e.device.toLowerCase() === estimatorDevice.toLowerCase() &&
         e.issue.toLowerCase() === estimatorIssue.toLowerCase(),
-    )
-    if (match) return match
+    );
+    if (match) return match;
 
     // Default fallback calculation if no exact combination exists
     return {
@@ -119,79 +117,65 @@ export function Services() {
       partsMax: 2500,
       turnaround: "24–48 hrs",
       notes: "Quotation provided after workbench diagnostic assessment.",
-    }
-  }, [estimatorDevice, estimatorIssue])
+    };
+  }, [estimatorDevice, estimatorIssue]);
 
   const deliveryCost =
-    estimatorDelivery === "courier"
-      ? 150
-      : estimatorDelivery === "onsite"
-        ? 250
-        : 0
-  const estimatedMinTotal =
-    matchedEstimate.labourMin + matchedEstimate.partsMin + deliveryCost
-  const estimatedMaxTotal =
-    matchedEstimate.labourMax + matchedEstimate.partsMax + deliveryCost
+    estimatorDelivery === "courier" ? 150 : estimatorDelivery === "onsite" ? 250 : 0;
+  const estimatedMinTotal = matchedEstimate.labourMin + matchedEstimate.partsMin + deliveryCost;
+  const estimatedMaxTotal = matchedEstimate.labourMax + matchedEstimate.partsMax + deliveryCost;
 
   // Service Coverage State
-  const [coveragePin, setCoveragePin] = useState<string>("686691")
+  const [coveragePin, setCoveragePin] = useState<string>("686691");
   const coverageResult = useMemo(
     () => checkServiceCoverage(coveragePin, store.locations),
     [coveragePin, store.locations],
-  )
+  );
 
   // Live Quick Tracker State
-  const [trackQuery, setTrackQuery] = useState<string>("")
-  const [searchedId, setSearchedId] = useState<string>("")
-  const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false)
+  const [trackQuery, setTrackQuery] = useState<string>("");
+  const [searchedId, setSearchedId] = useState<string>("");
+  const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false);
 
   const matchedRequest = useMemo(() => {
-    if (!searchedId.trim()) return null
-    const q = searchedId.trim().toUpperCase()
-    return store.requests.find(
-      (r) => r.id.toUpperCase() === q || r.id.toUpperCase().includes(q),
-    )
-  }, [searchedId, store.requests])
+    if (!searchedId.trim()) return null;
+    const q = searchedId.trim().toUpperCase();
+    return store.requests.find((r) => r.id.toUpperCase() === q || r.id.toUpperCase().includes(q));
+  }, [searchedId, store.requests]);
 
   // Async fallback: fetch from Supabase if not found in local cache
   useEffect(() => {
-    const cleanId = searchedId.trim()
+    const cleanId = searchedId.trim();
     if (cleanId && !matchedRequest && !isSearchingRemote) {
-      setIsSearchingRemote(true)
+      setIsSearchingRemote(true);
       fetchServiceRequestById(cleanId)
         .then((fetched) => {
           if (fetched) {
             store.set((prev) => {
-              if (prev.requests.some((r) => r.id === fetched.id)) return prev
-              return { requests: [...prev.requests, fetched] }
-            })
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev;
+              return { requests: [...prev.requests, fetched] };
+            });
           }
         })
-        .finally(() => setIsSearchingRemote(false))
+        .finally(() => setIsSearchingRemote(false));
     }
-  }, [searchedId, matchedRequest, isSearchingRemote])
+  }, [searchedId, matchedRequest, isSearchingRemote]);
 
   const safeTrackData: SafePublicTracking | null = useMemo(() => {
-    if (!matchedRequest) return null
+    if (!matchedRequest) return null;
     const isOwner = isUserTicketOwner(matchedRequest, store.profile, {
       id: store.profile.id,
       email: store.profile.email,
       phone: store.profile.phone,
-    })
-    return maskServiceRequestForPublicTracking(
-      matchedRequest,
-      isOwner,
-      serviceStatuses,
-    )
-  }, [matchedRequest, store.profile])
+    });
+    return maskServiceRequestForPublicTracking(matchedRequest, isOwner, serviceStatuses);
+  }, [matchedRequest, store.profile]);
 
   // Filter Catalog Items
   const filteredCatalog = useMemo(() => {
-    if (selectedCategory === "all") return serviceCatalogItems
-    return serviceCatalogItems.filter(
-      (item) => item.category === selectedCategory,
-    )
-  }, [selectedCategory])
+    if (selectedCategory === "all") return serviceCatalogItems;
+    return serviceCatalogItems.filter((item) => item.category === selectedCategory);
+  }, [selectedCategory]);
 
   // Safe WhatsApp prefill link
   const safeWhatsappLink = useMemo(() => {
@@ -201,14 +185,9 @@ export function Services() {
         : estimatorDelivery === "courier"
           ? "Insured Courier Pickup"
           : "Doorstep Technician Visit"
-    }\n\nI am attaching photos/videos of the device issue for preliminary assessment.`
-    return `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(text)}`
-  }, [
-    estimatorDevice,
-    estimatorIssue,
-    estimatorDelivery,
-    store.settings.whatsapp,
-  ])
+    }\n\nI am attaching photos/videos of the device issue for preliminary assessment.`;
+    return `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(text)}`;
+  }, [estimatorDevice, estimatorIssue, estimatorDelivery, store.settings.whatsapp]);
 
   return (
     <Page>
@@ -236,8 +215,7 @@ export function Services() {
           <div>
             <h3 className="text-sm font-bold">Fair Diagnostic Policy</h3>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Bench inspection fee is credited directly when you approve the
-              repair.
+              Bench inspection fee is credited directly when you approve the repair.
             </p>
           </div>
         </div>
@@ -278,8 +256,7 @@ export function Services() {
               Professional Repair Catalog & Starting Rates
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Transparent baseline pricing, diagnostics policies, and turnaround
-              estimates.
+              Transparent baseline pricing, diagnostics policies, and turnaround estimates.
             </p>
           </div>
 
@@ -328,12 +305,8 @@ export function Services() {
                   )}
                 </div>
 
-                <h3 className="mt-3 text-lg font-bold text-foreground">
-                  {service.name}
-                </h3>
-                <p className="mt-1 text-xs font-medium text-primary/80">
-                  {service.tagline}
-                </p>
+                <h3 className="mt-3 text-lg font-bold text-foreground">{service.name}</h3>
+                <p className="mt-1 text-xs font-medium text-primary/80">{service.tagline}</p>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   {service.description}
                 </p>
@@ -341,9 +314,7 @@ export function Services() {
                 {/* Pricing & Commercial Structure */}
                 <div className="mt-4 rounded-xl border border-border/80 bg-secondary/40 p-3.5 text-xs">
                   <div className="flex items-baseline justify-between border-b border-border/60 pb-2">
-                    <span className="font-semibold text-muted-foreground">
-                      Starting From
-                    </span>
+                    <span className="font-semibold text-muted-foreground">Starting From</span>
                     <span className="text-base font-extrabold text-foreground">
                       {money(service.startingTotal)}*
                     </span>
@@ -361,8 +332,7 @@ export function Services() {
                     <p className="flex justify-between">
                       <span>Est. Labour:</span>
                       <span className="font-medium text-foreground">
-                        {money(service.labourRange[0])} –{" "}
-                        {money(service.labourRange[1])}
+                        {money(service.labourRange[0])} – {money(service.labourRange[1])}
                       </span>
                     </p>
                     <p className="flex justify-between">
@@ -382,10 +352,7 @@ export function Services() {
                   <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
                     {service.commonSymptoms.map((sym, idx) => (
                       <li key={idx} className="flex items-center gap-1.5">
-                        <Check
-                          size={13}
-                          className="shrink-0 text-emerald-600"
-                        />
+                        <Check size={13} className="shrink-0 text-emerald-600" />
                         <span>{sym}</span>
                       </li>
                     ))}
@@ -440,8 +407,7 @@ export function Services() {
               Instant Repair Cost & Timeline Estimator
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ballpark estimates separating diagnostic fees, labour, parts, and
-              courier logistics.
+              Ballpark estimates separating diagnostic fees, labour, parts, and courier logistics.
             </p>
           </div>
           <Badge tone="amber">
@@ -531,12 +497,8 @@ export function Services() {
                     }`}
                   >
                     <p className="text-xs font-bold">{m.title}</p>
-                    <p className="mt-0.5 text-[11px] font-medium text-foreground">
-                      {m.fee}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {m.note}
-                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-foreground">{m.fee}</p>
+                    <p className="text-[10px] text-muted-foreground">{m.note}</p>
                   </button>
                 ))}
               </div>
@@ -557,9 +519,7 @@ export function Services() {
 
               <div className="mt-4 space-y-2.5 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Bench Diagnostic Fee:
-                  </span>
+                  <span className="text-muted-foreground">Bench Diagnostic Fee:</span>
                   <span className="font-semibold text-foreground">
                     {matchedEstimate.diagnosticFee > 0
                       ? `${money(matchedEstimate.diagnosticFee)}*`
@@ -568,19 +528,14 @@ export function Services() {
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Estimated Labour:
-                  </span>
+                  <span className="text-muted-foreground">Estimated Labour:</span>
                   <span className="font-semibold text-foreground">
-                    {money(matchedEstimate.labourMin)} –{" "}
-                    {money(matchedEstimate.labourMax)}
+                    {money(matchedEstimate.labourMin)} – {money(matchedEstimate.labourMax)}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Indicative Parts Range:
-                  </span>
+                  <span className="text-muted-foreground">Indicative Parts Range:</span>
                   <span className="font-semibold text-foreground">
                     {matchedEstimate.partsMin > 0
                       ? `${money(matchedEstimate.partsMin)} – ${money(matchedEstimate.partsMax)}`
@@ -592,37 +547,29 @@ export function Services() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
                       Logistics Charge (
-                      {estimatorDelivery === "courier"
-                        ? "Courier Return"
-                        : "Doorstep Visit"}
+                      {estimatorDelivery === "courier" ? "Courier Return" : "Doorstep Visit"}
                       ):
                     </span>
-                    <span className="font-semibold text-foreground">
-                      {money(deliveryCost)}
-                    </span>
+                    <span className="font-semibold text-foreground">{money(deliveryCost)}</span>
                   </div>
                 )}
 
                 <div className="border-t border-border/80 pt-3">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-bold text-foreground">
-                      Estimated Total:
-                    </span>
+                    <span className="text-sm font-bold text-foreground">Estimated Total:</span>
                     <span className="text-xl font-extrabold text-primary">
                       {money(estimatedMinTotal)} – {money(estimatedMaxTotal)}
                     </span>
                   </div>
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    * Diagnostic fee is credited in full against total invoice
-                    when repair proceeds.
+                    * Diagnostic fee is credited in full against total invoice when repair proceeds.
                   </p>
                 </div>
               </div>
 
               <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
-                <strong>Notice:</strong> This is a ballpark range. Fixed pricing
-                and exact part availability are confirmed following physical
-                bench diagnosis.
+                <strong>Notice:</strong> This is a ballpark range. Fixed pricing and exact part
+                availability are confirmed following physical bench diagnosis.
               </p>
             </div>
 
@@ -662,23 +609,18 @@ export function Services() {
               Send Device Photos/Videos for Preliminary Diagnosis
             </h3>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              Have a broken screen, strange motherboard beep, or printer error
-              code? Send a photo or video directly to our Kothamangalam service
-              team for quick triage and parts availability check.
+              Have a broken screen, strange motherboard beep, or printer error code? Send a photo or
+              video directly to our Kothamangalam service team for quick triage and parts
+              availability check.
             </p>
 
             {/* Crucial Security Notice */}
             <div className="mt-3.5 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 text-xs text-amber-900">
-              <ShieldAlert
-                size={16}
-                className="mt-0.5 shrink-0 text-amber-700"
-              />
+              <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-700" />
               <p className="text-[11px] leading-relaxed">
-                <strong>Security & Privacy Advisory:</strong> Please{" "}
-                <strong>never</strong> send device unlock PINs, passwords,
-                UPI/banking OTPs, or confidential personal files. IT HUB
-                technicians will never request personal passwords over WhatsApp
-                or phone.
+                <strong>Security & Privacy Advisory:</strong> Please <strong>never</strong> send
+                device unlock PINs, passwords, UPI/banking OTPs, or confidential personal files. IT
+                HUB technicians will never request personal passwords over WhatsApp or phone.
               </p>
             </div>
           </div>
@@ -689,8 +631,7 @@ export function Services() {
             rel="noopener noreferrer"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            <WhatsAppIcon size={16} /> Open WhatsApp Chat{" "}
-            <ArrowUpRight size={14} />
+            <WhatsAppIcon size={16} /> Open WhatsApp Chat <ArrowUpRight size={14} />
           </a>
         </div>
       </section>
@@ -711,8 +652,7 @@ export function Services() {
               Kerala Service Coverage Checker
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Enter your PIN code to check exact doorstep vs. courier service
-              eligibility.
+              Enter your PIN code to check exact doorstep vs. courier service eligibility.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -730,18 +670,11 @@ export function Services() {
             <div className="mt-2 flex gap-2">
               <input
                 value={coveragePin}
-                onChange={(e) =>
-                  setCoveragePin(
-                    e.target.value.replace(/[^0-9]/g, "").slice(0, 6),
-                  )
-                }
+                onChange={(e) => setCoveragePin(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
                 placeholder="e.g. 686691"
                 className={`${fieldClass} text-xs font-semibold`}
               />
-              <Button
-                variant="secondary"
-                onClick={() => setCoveragePin(coveragePin.trim())}
-              >
+              <Button variant="secondary" onClick={() => setCoveragePin(coveragePin.trim())}>
                 Check
               </Button>
             </div>
@@ -763,8 +696,7 @@ export function Services() {
               </div>
               <h4 className="font-bold text-foreground">Store Walk-In</h4>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Direct drop-off at IT HUB Kothamangalam. No logistics fee. Open
-                Mon–Sat 9AM–7:30PM.
+                Direct drop-off at IT HUB Kothamangalam. No logistics fee. Open Mon–Sat 9AM–7:30PM.
               </p>
               <span className="mt-3 inline-block rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                 All Customers
@@ -777,8 +709,8 @@ export function Services() {
               </div>
               <h4 className="font-bold text-foreground">Insured Courier</h4>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Available across all 14 Kerala districts. We return serviced
-                devices via insured courier.
+                Available across all 14 Kerala districts. We return serviced devices via insured
+                courier.
               </p>
               <span className="mt-3 inline-block rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
                 Whole Kerala
@@ -791,8 +723,8 @@ export function Services() {
               </div>
               <h4 className="font-bold text-foreground">Doorstep Visit</h4>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Certified technician on-site visit for PCs, Wi-Fi and setup
-                within local ~15km radius.
+                Certified technician on-site visit for PCs, Wi-Fi and setup within local ~15km
+                radius.
               </p>
               <span className="mt-3 inline-block rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                 Local Radius Only
@@ -818,14 +750,11 @@ export function Services() {
               Track Your Repair in Real Time
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Enter your Service Request ID to check status. Customer details
-              are masked for your privacy.
+              Enter your Service Request ID to check status. Customer details are masked for your
+              privacy.
             </p>
           </div>
-          <Link
-            to="/track-service"
-            className="text-xs font-semibold text-primary hover:underline"
-          >
+          <Link to="/track-service" className="text-xs font-semibold text-primary hover:underline">
             Open Full Tracking Page →
           </Link>
         </div>
@@ -833,8 +762,8 @@ export function Services() {
         <div className="mt-6">
           <form
             onSubmit={(e) => {
-              e.preventDefault()
-              setSearchedId(trackQuery.trim())
+              e.preventDefault();
+              setSearchedId(trackQuery.trim());
             }}
             className="flex max-w-xl gap-2"
           >
@@ -857,9 +786,7 @@ export function Services() {
               {isSearchingRemote ? (
                 <div className="rounded-2xl border border-border bg-white p-8 text-center text-xs text-muted-foreground shadow-sm">
                   <Loading />
-                  <p className="mt-2 font-medium">
-                    Looking up ticket {searchedId}...
-                  </p>
+                  <p className="mt-2 font-medium">Looking up ticket {searchedId}...</p>
                 </div>
               ) : safeTrackData && matchedRequest ? (
                 <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
@@ -868,9 +795,7 @@ export function Services() {
                       <span className="text-[10px] font-bold uppercase text-muted-foreground">
                         Ticket ID
                       </span>
-                      <h3 className="text-lg font-extrabold text-foreground">
-                        {safeTrackData.id}
-                      </h3>
+                      <h3 className="text-lg font-extrabold text-foreground">{safeTrackData.id}</h3>
                       <p className="text-xs text-muted-foreground">
                         Device: <strong>{safeTrackData.device}</strong> · Issue:{" "}
                         <strong>{safeTrackData.problem}</strong>
@@ -885,10 +810,7 @@ export function Services() {
                   </div>
 
                   <div className="mt-6">
-                    <Timeline
-                      steps={serviceStatuses}
-                      current={safeTrackData.status}
-                    />
+                    <Timeline steps={serviceStatuses} current={safeTrackData.status} />
                   </div>
 
                   {/* Customer-facing Quotation Actions on Embedded Tracker */}
@@ -902,17 +824,13 @@ export function Services() {
 
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-4 text-xs">
                     <div>
-                      <span className="font-semibold text-foreground">
-                        Technician:
-                      </span>{" "}
+                      <span className="font-semibold text-foreground">Technician:</span>{" "}
                       <span className="text-muted-foreground">
                         {safeTrackData.technicianPublic}
                       </span>
                     </div>
                     <div>
-                      <span className="font-semibold text-foreground">
-                        Quote Status:
-                      </span>{" "}
+                      <span className="font-semibold text-foreground">Quote Status:</span>{" "}
                       <span className="capitalize text-muted-foreground">
                         {safeTrackData.quoteState}
                       </span>
@@ -931,8 +849,8 @@ export function Services() {
                     No active service ticket found for "{searchedId}".
                   </p>
                   <p className="mt-1">
-                    Please check the ticket ID format (e.g. SRV-XXXXXXX) or view
-                    your account bookings.
+                    Please check the ticket ID format (e.g. SRV-XXXXXXX) or view your account
+                    bookings.
                   </p>
                 </div>
               )}
@@ -961,9 +879,7 @@ export function Services() {
             {
               title: "What does the 90-day warranty cover?",
               content:
-                serviceWarrantyPolicy.coverageScope +
-                " " +
-                serviceWarrantyPolicy.partsGuarantee,
+                serviceWarrantyPolicy.coverageScope + " " + serviceWarrantyPolicy.partsGuarantee,
             },
             {
               title: "How does the Diagnostic Assessment Fee work?",
@@ -980,7 +896,7 @@ export function Services() {
                 "IT HUB strictly respects customer privacy. We do not access, copy, or browse personal photo galleries, documents, or browser histories during hardware repairs. However, storage drive repairs always carry risk of data corruption, so customers are advised to create backups prior to servicing.",
             },
           ].map((item, idx) => {
-            const isOpen = faqOpenIndex === idx
+            const isOpen = faqOpenIndex === idx;
             return (
               <div
                 key={idx}
@@ -994,9 +910,7 @@ export function Services() {
                   <ChevronDown
                     size={16}
                     className={`transition duration-200 ${
-                      isOpen
-                        ? "rotate-180 text-primary"
-                        : "text-muted-foreground"
+                      isOpen ? "rotate-180 text-primary" : "text-muted-foreground"
                     }`}
                   />
                 </button>
@@ -1004,7 +918,9 @@ export function Services() {
                   <div className="border-t border-border/70 p-4 text-xs leading-relaxed text-muted-foreground">
                     {item.isList ? (
                       <ul className="space-y-1.5 list-disc list-inside">
-                        {item.items?.map((it, i) => <li key={i}>{it}</li>)}
+                        {item.items?.map((it, i) => (
+                          <li key={i}>{it}</li>
+                        ))}
                       </ul>
                     ) : (
                       <p>{item.content}</p>
@@ -1012,7 +928,7 @@ export function Services() {
                   </div>
                 )}
               </div>
-            )
+            );
           })}
         </div>
       </section>
@@ -1029,37 +945,21 @@ export function Services() {
             </h2>
           </div>
           <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-            Seven clear steps, with updates at every stage. Nothing is repaired
-            without your approval.
+            Seven clear steps, with updates at every stage. Nothing is repaired without your
+            approval.
           </p>
         </div>
         <ol className="grid gap-x-4 gap-y-8 px-7 py-10 sm:grid-cols-2 md:px-10 lg:grid-cols-7">
           {[
-            [
-              CalendarCheck,
-              "Book",
-              "Choose your service and a convenient slot.",
-            ],
-            [
-              Truck,
-              "Pickup / drop-off",
-              "Visit the store or schedule a courier.",
-            ],
+            [CalendarCheck, "Book", "Choose your service and a convenient slot."],
+            [Truck, "Pickup / drop-off", "Visit the store or schedule a courier."],
             [Search, "Diagnosis", "Our technicians find the root cause."],
-            [
-              ClipboardCheck,
-              "Approval",
-              "You approve the quote before any work.",
-            ],
+            [ClipboardCheck, "Approval", "You approve the quote before any work."],
             [Wrench, "Repair", "Fixed with genuine, quality parts."],
-            [
-              ShieldCheck,
-              "Quality check",
-              "Tested thoroughly before handover.",
-            ],
+            [ShieldCheck, "Quality check", "Tested thoroughly before handover."],
             [PackageCheck, "Return", "Collect it or get it delivered back."],
           ].map(([Icon, step, text], index, all) => {
-            const StepIcon = Icon as typeof Wrench
+            const StepIcon = Icon as typeof Wrench;
             return (
               <li key={step as string} className="relative flex gap-4 lg:block">
                 {index < all.length - 1 && (
@@ -1075,21 +975,16 @@ export function Services() {
                   <p className="text-[11px] font-bold tracking-wider text-primary">
                     STEP {String(index + 1).padStart(2, "0")}
                   </p>
-                  <h3 className="mt-1 text-sm font-semibold">
-                    {step as string}
-                  </h3>
-                  <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                    {text as string}
-                  </p>
+                  <h3 className="mt-1 text-sm font-semibold">{step as string}</h3>
+                  <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{text as string}</p>
                 </div>
               </li>
-            )
+            );
           })}
         </ol>
         <p className="flex items-center gap-2 border-t border-border px-7 py-5 text-xs text-muted-foreground md:px-10">
-          <Truck size={15} className="shrink-0 text-primary" /> Send your device
-          to IT HUB through courier and receive it back after service. Insured
-          logistics available across Kerala.
+          <Truck size={15} className="shrink-0 text-primary" /> Send your device to IT HUB through
+          courier and receive it back after service. Insured logistics available across Kerala.
         </p>
       </section>
 
@@ -1099,12 +994,10 @@ export function Services() {
         className="mt-10 mb-8 flex flex-col gap-4 rounded-2xl border border-border bg-card p-7 md:flex-row md:items-center md:justify-between"
       >
         <div>
-          <h2 className="text-xl font-bold">
-            Need Manufacturer Warranty Contacts?
-          </h2>
+          <h2 className="text-xl font-bold">Need Manufacturer Warranty Contacts?</h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Looking for authorized service centres for Apple, Dell, HP, Lenovo
-            or Samsung across Kerala? Check our official manufacturer directory.
+            Looking for authorized service centres for Apple, Dell, HP, Lenovo or Samsung across
+            Kerala? Check our official manufacturer directory.
           </p>
         </div>
         <ActionLink to="/support?view=warranty">
@@ -1112,7 +1005,7 @@ export function Services() {
         </ActionLink>
       </section>
     </Page>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1120,21 +1013,18 @@ export function Services() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ServiceBooking() {
-  const COURIER_CHARGE_PER_LEG = 150
-  const store = useStore()
-  const navigate = useNavigate()
-  const [params] = useSearchParams()
+  const COURIER_CHARGE_PER_LEG = 150;
+  const store = useStore();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
 
-  const chosen = params.get("service") || "Laptop Repair"
-  const presetDevice = params.get("device")
-  const [step, setStep] = useState(0)
+  const chosen = params.get("service") || "Laptop Repair";
+  const presetDevice = params.get("device");
+  const [step, setStep] = useState(0);
 
-  useEffect(
-    () => track("Service Booking Started", { service: chosen }),
-    [chosen],
-  )
+  useEffect(() => track("Service Booking Started", { service: chosen }), [chosen]);
 
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(false);
   const [details, setDetails] = useState({
     device:
       presetDevice ||
@@ -1152,40 +1042,30 @@ export function ServiceBooking() {
         ? "Not printing"
         : "Screen issue",
     notes: "",
-    method: params.get("method")?.includes("On-site")
-      ? "On-site service"
-      : "Visit IT HUB",
+    method: params.get("method")?.includes("On-site") ? "On-site service" : "Visit IT HUB",
     name: store.profile.name,
     email: store.profile.email,
     address: store.profile.address,
     date: "",
     time: "10:00 – 12:00",
-  })
+  });
 
-  const update = (key: string, value: string) =>
-    setDetails({ ...details, [key]: value })
+  const update = (key: string, value: string) => setDetails({ ...details, [key]: value });
 
-  const steps = [
-    "Device",
-    "Problem",
-    "Service method",
-    "Your details",
-    "Date & time",
-    "Confirm",
-  ]
+  const steps = ["Device", "Problem", "Service method", "Your details", "Date & time", "Confirm"];
 
   const next = async () => {
     if (step < 5) {
-      setStep(step + 1)
-      return
+      setStep(step + 1);
+      return;
     }
 
-    setBusy(true)
+    setBusy(true);
 
-    const isCourier = details.method === "Courier to IT HUB"
-    const currentUserId = (store.profile as any)?.id || undefined
+    const isCourier = details.method === "Courier to IT HUB";
+    const currentUserId = (store.profile as any)?.id || undefined;
 
-    const { id } = await createServiceBooking(details, currentUserId)
+    const { id } = await createServiceBooking(details, currentUserId);
 
     const request = {
       ...details,
@@ -1199,26 +1079,23 @@ export function ServiceBooking() {
           returnDelivery: COURIER_CHARGE_PER_LEG,
         },
       }),
-    }
+    };
 
     track("Service Request Created", {
       request: id,
       device: details.device,
       problem: details.problem,
-    })
+    });
 
     store.set((previous) => ({
       requests: [request, ...previous.requests],
-      notifications: [
-        `Service request ${id} created`,
-        ...previous.notifications,
-      ],
-    }))
+      notifications: [`Service request ${id} created`, ...previous.notifications],
+    }));
 
-    store.log(`Service request ${id} submitted`)
-    store.notify("Service request submitted successfully")
-    navigate(`/service-success/${id}`)
-  }
+    store.log(`Service request ${id} submitted`);
+    store.notify("Service request submitted successfully");
+    navigate(`/service-success/${id}`);
+  };
 
   if (!store.loggedIn)
     return (
@@ -1228,7 +1105,7 @@ export function ServiceBooking() {
           text="Sign in with your mobile number to book a repair, schedule a pickup, and track your service request."
         />
       </Page>
-    )
+    );
 
   return (
     <Page>
@@ -1288,9 +1165,7 @@ export function ServiceBooking() {
                   }`}
                 >
                   <Icon size={24} />
-                  <span className="text-xs font-bold text-foreground">
-                    {id}
-                  </span>
+                  <span className="text-xs font-bold text-foreground">{id}</span>
                 </button>
               ))}
             </div>
@@ -1387,12 +1262,8 @@ export function ServiceBooking() {
                   <m.Icon size={22} className="mt-0.5 shrink-0 text-primary" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-bold text-foreground">
-                        {m.title}
-                      </p>
-                      <span className="text-xs font-semibold text-primary">
-                        {m.charge}
-                      </span>
+                      <p className="text-sm font-bold text-foreground">{m.title}</p>
+                      <span className="text-xs font-semibold text-primary">{m.charge}</span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                       {m.description}
@@ -1409,9 +1280,7 @@ export function ServiceBooking() {
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Customer Contact Details</h3>
             <div>
-              <label className="block text-xs font-bold text-foreground">
-                Your Full Name:
-              </label>
+              <label className="block text-xs font-bold text-foreground">Your Full Name:</label>
               <input
                 value={details.name}
                 onChange={(e) => update("name", e.target.value)}
@@ -1419,9 +1288,7 @@ export function ServiceBooking() {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-foreground">
-                Email Address:
-              </label>
+              <label className="block text-xs font-bold text-foreground">Email Address:</label>
               <input
                 type="email"
                 value={details.email}
@@ -1447,13 +1314,9 @@ export function ServiceBooking() {
         {/* Step 4: Preferred Date & Time */}
         {step === 4 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-bold">
-              Preferred Appointment / Handover
-            </h3>
+            <h3 className="text-lg font-bold">Preferred Appointment / Handover</h3>
             <div>
-              <label className="block text-xs font-bold text-foreground">
-                Preferred Date:
-              </label>
+              <label className="block text-xs font-bold text-foreground">Preferred Date:</label>
               <input
                 type="date"
                 value={details.date}
@@ -1504,21 +1367,16 @@ export function ServiceBooking() {
               </div>
               <div className="flex justify-between border-b border-border/80 pb-2">
                 <span className="text-muted-foreground">Reported Issue:</span>
-                <span className="font-bold text-foreground">
-                  {details.problem}
-                </span>
+                <span className="font-bold text-foreground">{details.problem}</span>
               </div>
               <div className="flex justify-between border-b border-border/80 pb-2">
                 <span className="text-muted-foreground">Delivery Mode:</span>
-                <span className="font-bold text-foreground">
-                  {details.method}
-                </span>
+                <span className="font-bold text-foreground">{details.method}</span>
               </div>
               <div className="flex justify-between border-b border-border/80 pb-2">
                 <span className="text-muted-foreground">Appointment:</span>
                 <span className="font-bold text-foreground">
-                  {details.date ? details.date : "Earliest Available"} ·{" "}
-                  {details.time}
+                  {details.date ? details.date : "Earliest Available"} · {details.time}
                 </span>
               </div>
               <div className="flex justify-between border-b border-border/80 pb-2">
@@ -1528,9 +1386,7 @@ export function ServiceBooking() {
                 </span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-muted-foreground">
-                  Initial Diagnostic Deposit:
-                </span>
+                <span className="text-muted-foreground">Initial Diagnostic Deposit:</span>
                 <span className="font-bold text-foreground">
                   ₹299 (Credited in full when repair proceeds)
                 </span>
@@ -1538,9 +1394,8 @@ export function ServiceBooking() {
             </div>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              By submitting this request, you authorize IT HUB to perform bench
-              diagnostics. No repair will be carried out without your advance
-              quotation approval.
+              By submitting this request, you authorize IT HUB to perform bench diagnostics. No
+              repair will be carried out without your advance quotation approval.
             </p>
           </div>
         )}
@@ -1549,24 +1404,18 @@ export function ServiceBooking() {
         <div className="mt-8 flex justify-between gap-3 border-t border-border pt-4">
           <Button
             variant="secondary"
-            onClick={() =>
-              step > 0 ? setStep(step - 1) : navigate("/services")
-            }
+            onClick={() => (step > 0 ? setStep(step - 1) : navigate("/services"))}
           >
             {step === 0 ? "Cancel" : "Back"}
           </Button>
 
           <Button onClick={next} disabled={busy}>
-            {busy
-              ? "Submitting..."
-              : step === 5
-                ? "Submit Service Request"
-                : "Continue"}
+            {busy ? "Submitting..." : step === 5 ? "Submit Service Request" : "Continue"}
           </Button>
         </div>
       </div>
     </Page>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1574,9 +1423,9 @@ export function ServiceBooking() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ServiceSuccess() {
-  const { id } = useParams()
-  const store = useStore()
-  const request = store.requests.find((item) => item.id === id)
+  const { id } = useParams();
+  const store = useStore();
+  const request = store.requests.find((item) => item.id === id);
 
   return (
     <Page>
@@ -1584,51 +1433,36 @@ export function ServiceSuccess() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
           <CheckCircle2 size={36} />
         </div>
-        <h1 className="mt-4 text-3xl font-extrabold text-foreground">
-          Service Request Booked!
-        </h1>
+        <h1 className="mt-4 text-3xl font-extrabold text-foreground">Service Request Booked!</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Your request ID is{" "}
-          <strong className="font-mono text-primary text-base font-bold">
-            {id}
-          </strong>
-          . Keep this code to track your device status.
+          <strong className="font-mono text-primary text-base font-bold">{id}</strong>. Keep this
+          code to track your device status.
         </p>
 
         {request && (
           <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-left text-xs space-y-2.5 shadow-sm">
             <p className="flex justify-between">
               <span className="text-muted-foreground">Device:</span>
-              <span className="font-bold text-foreground">
-                {request.device}
-              </span>
+              <span className="font-bold text-foreground">{request.device}</span>
             </p>
             <p className="flex justify-between">
               <span className="text-muted-foreground">Reported Issue:</span>
-              <span className="font-bold text-foreground">
-                {request.problem}
-              </span>
+              <span className="font-bold text-foreground">{request.problem}</span>
             </p>
             <p className="flex justify-between">
               <span className="text-muted-foreground">Method:</span>
-              <span className="font-bold text-foreground">
-                {request.method}
-              </span>
+              <span className="font-bold text-foreground">{request.method}</span>
             </p>
             <p className="flex justify-between">
               <span className="text-muted-foreground">Initial Status:</span>
-              <span className="font-bold text-emerald-600">
-                Booked & Queued
-              </span>
+              <span className="font-bold text-emerald-600">Booked & Queued</span>
             </p>
           </div>
         )}
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link
-            to={`/track-service/${encodeURIComponent(id || "")}`}
-            className={buttonClass}
-          >
+          <Link to={`/track-service/${encodeURIComponent(id || "")}`} className={buttonClass}>
             Track Status Now
           </Link>
           <Link to="/services" className={secondaryClass}>
@@ -1637,7 +1471,7 @@ export function ServiceSuccess() {
         </div>
       </div>
     </Page>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1645,47 +1479,43 @@ export function ServiceSuccess() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ServiceTracking() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const store = useStore()
-  const [query, setQuery] = useState(id || "")
-  const [isFetchingRemote, setIsFetchingRemote] = useState(false)
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const store = useStore();
+  const [query, setQuery] = useState(id || "");
+  const [isFetchingRemote, setIsFetchingRemote] = useState(false);
 
-  const request = store.requests.find((item) => item.id === id)
+  const request = store.requests.find((item) => item.id === id);
 
   // Fetch from Supabase if not in local store cache
   useEffect(() => {
     if (id && !request && !isFetchingRemote) {
-      setIsFetchingRemote(true)
+      setIsFetchingRemote(true);
       fetchServiceRequestById(id)
         .then((fetched) => {
           if (fetched) {
             store.set((prev) => {
-              if (prev.requests.some((r) => r.id === fetched.id)) return prev
-              return { requests: [...prev.requests, fetched] }
-            })
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev;
+              return { requests: [...prev.requests, fetched] };
+            });
           }
         })
-        .finally(() => setIsFetchingRemote(false))
+        .finally(() => setIsFetchingRemote(false));
     }
-  }, [id, request, isFetchingRemote])
+  }, [id, request, isFetchingRemote]);
 
   const isOwnerOrAdmin = useMemo(() => {
     return isUserTicketOwner(request, store.profile, {
       id: store.profile.id,
       email: store.profile.email,
       phone: store.profile.phone,
-    })
-  }, [request, store.profile])
+    });
+  }, [request, store.profile]);
 
   const safeData: SafePublicTracking | null = useMemo(() => {
-    if (!request) return null
-    return maskServiceRequestForPublicTracking(
-      request,
-      isOwnerOrAdmin,
-      serviceStatuses,
-    )
-  }, [request, isOwnerOrAdmin])
+    if (!request) return null;
+    return maskServiceRequestForPublicTracking(request, isOwnerOrAdmin, serviceStatuses);
+  }, [request, isOwnerOrAdmin]);
 
   return (
     <Page>
@@ -1696,8 +1526,8 @@ export function ServiceTracking() {
 
       <form
         onSubmit={(event) => {
-          event.preventDefault()
-          navigate(`/track-service/${encodeURIComponent(query.trim())}`)
+          event.preventDefault();
+          navigate(`/track-service/${encodeURIComponent(query.trim())}`);
         }}
         className="mb-8 flex max-w-xl gap-3"
       >
@@ -1717,9 +1547,7 @@ export function ServiceTracking() {
       {isFetchingRemote ? (
         <div className="rounded-2xl border border-border bg-white p-12 text-center text-xs text-muted-foreground shadow-sm">
           <Loading />
-          <p className="mt-3 font-medium">
-            Loading ticket details from workbench...
-          </p>
+          <p className="mt-3 font-medium">Loading ticket details from workbench...</p>
         </div>
       ) : request && safeData ? (
         <div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr]">
@@ -1729,9 +1557,7 @@ export function ServiceTracking() {
                 <span className="text-[10px] font-bold uppercase text-muted-foreground">
                   Ticket ID
                 </span>
-                <h2 className="text-xl font-extrabold text-foreground">
-                  {safeData.id}
-                </h2>
+                <h2 className="text-xl font-extrabold text-foreground">{safeData.id}</h2>
               </div>
               <Badge>{safeData.statusLabel}</Badge>
             </div>
@@ -1740,28 +1566,21 @@ export function ServiceTracking() {
 
           <div className="space-y-6">
             <div className="rounded-2xl border border-border bg-card p-7 shadow-sm">
-              <h2 className="mb-5 text-base font-bold text-foreground">
-                Service Overview
-              </h2>
+              <h2 className="mb-5 text-base font-bold text-foreground">Service Overview</h2>
               <dl className="grid grid-cols-2 gap-5 text-xs">
                 <div>
                   <dt className="text-muted-foreground">Device / Model</dt>
                   <dd className="mt-1 font-semibold text-foreground">
-                    {safeData.device}{" "}
-                    {safeData.model ? `(${safeData.model})` : ""}
+                    {safeData.device} {safeData.model ? `(${safeData.model})` : ""}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Reported Issue</dt>
-                  <dd className="mt-1 font-semibold text-foreground">
-                    {safeData.problem}
-                  </dd>
+                  <dd className="mt-1 font-semibold text-foreground">{safeData.problem}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Service Method</dt>
-                  <dd className="mt-1 font-semibold text-foreground">
-                    {safeData.method}
-                  </dd>
+                  <dd className="mt-1 font-semibold text-foreground">{safeData.method}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Technician</dt>
@@ -1776,20 +1595,15 @@ export function ServiceTracking() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">
-                    Delivery / Service Area
-                  </dt>
-                  <dd className="mt-1 font-semibold text-foreground">
-                    {safeData.maskedAddress}
-                  </dd>
+                  <dt className="text-muted-foreground">Delivery / Service Area</dt>
+                  <dd className="mt-1 font-semibold text-foreground">{safeData.maskedAddress}</dd>
                 </div>
               </dl>
 
               {!safeData.isOwnerOrAdmin && (
                 <p className="mt-4 rounded-lg bg-secondary/70 p-2.5 text-[11px] text-muted-foreground">
-                  <Lock size={12} className="inline mr-1 text-primary" />{" "}
-                  Customer personal details, invoices, and direct approvals
-                  require signing in as the ticket owner.
+                  <Lock size={12} className="inline mr-1 text-primary" /> Customer personal details,
+                  invoices, and direct approvals require signing in as the ticket owner.
                 </p>
               )}
             </div>
@@ -1811,5 +1625,5 @@ export function ServiceTracking() {
         />
       )}
     </Page>
-  )
+  );
 }

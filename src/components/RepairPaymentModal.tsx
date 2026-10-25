@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState } from "react";
 import {
   ShieldCheck,
   Clock,
@@ -16,33 +16,26 @@ import {
   Receipt,
   Check,
   Info,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import {
-  money,
-  type ServiceRequest,
-  type QuotationItem,
-} from "../data/catalog"
-import {
-  submitCustomerQuoteDecision,
-  type calculateQuotationTotals,
-} from "../lib/services"
-import { Modal, Button, Badge } from "./ui"
+} from "lucide-react";
+import { useStore } from "../app/store";
+import { money, type ServiceRequest, type QuotationItem } from "../data/catalog";
+import { submitCustomerQuoteDecision, type calculateQuotationTotals } from "../lib/services";
+import { Modal, Button, Badge } from "./ui";
 
 interface RepairPaymentModalProps {
-  open: boolean
-  onClose: () => void
-  request: ServiceRequest
-  quotationItems: QuotationItem[]
-  selectedItemIds: string[]
-  calc: ReturnType<typeof calculateQuotationTotals>
-  decisionNotes: string
-  onDecisionNotesChange: (notes: string) => void
-  onSuccess: (updatedRequest: ServiceRequest) => void
+  open: boolean;
+  onClose: () => void;
+  request: ServiceRequest;
+  quotationItems: QuotationItem[];
+  selectedItemIds: string[];
+  calc: ReturnType<typeof calculateQuotationTotals>;
+  decisionNotes: string;
+  onDecisionNotesChange: (notes: string) => void;
+  onSuccess: (updatedRequest: ServiceRequest) => void;
 }
 
-type ModalStep = "breakdown" | "payment" | "success"
-type PaymentMethod = "upi" | "card" | "netbanking" | "store"
+type ModalStep = "breakdown" | "payment" | "success";
+type PaymentMethod = "upi" | "card" | "netbanking" | "store";
 
 export default function RepairPaymentModal({
   open,
@@ -55,67 +48,62 @@ export default function RepairPaymentModal({
   onDecisionNotesChange,
   onSuccess,
 }: RepairPaymentModalProps) {
-  const store = useStore()
+  const store = useStore();
 
-  const [step, setStep] = useState<ModalStep>("breakdown")
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("upi")
+  const [step, setStep] = useState<ModalStep>("breakdown");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("upi");
   const [upiId, setUpiId] = useState(
     store.profile.phone ? `${store.profile.phone}@oksbi` : "customer@okaxis",
-  )
-  const [selectedBank, setSelectedBank] = useState("Federal Bank")
+  );
+  const [selectedBank, setSelectedBank] = useState("Federal Bank");
 
   // Payment execution state
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [processingStatusText, setProcessingStatusText] = useState("")
-  const [paymentError, setPaymentError] = useState<string | null>(null)
-  const [completedPaymentId, setCompletedPaymentId] = useState<string>("")
-  const [completedRequest, setCompletedRequest] =
-    useState<ServiceRequest | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatusText, setProcessingStatusText] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [completedPaymentId, setCompletedPaymentId] = useState<string>("");
+  const [completedRequest, setCompletedRequest] = useState<ServiceRequest | null>(null);
 
   // Items split
-  const approvedItemsList = quotationItems.filter((i) =>
-    selectedItemIds.includes(i.id),
-  )
-  const deferredItemsList = quotationItems.filter(
-    (i) => !selectedItemIds.includes(i.id),
-  )
+  const approvedItemsList = quotationItems.filter((i) => selectedItemIds.includes(i.id));
+  const deferredItemsList = quotationItems.filter((i) => !selectedItemIds.includes(i.id));
 
   // Reset modal state on close
   const handleModalClose = () => {
-    if (isProcessing) return // don't close mid-transaction
-    setPaymentError(null)
+    if (isProcessing) return; // don't close mid-transaction
+    setPaymentError(null);
     if (step === "success" && completedRequest) {
-      onSuccess(completedRequest)
+      onSuccess(completedRequest);
     }
-    setStep("breakdown")
-    onClose()
-  }
+    setStep("breakdown");
+    onClose();
+  };
 
   // Simulate payment authorization
   const handleSimulatePayment = async () => {
-    setIsProcessing(true)
-    setPaymentError(null)
+    setIsProcessing(true);
+    setPaymentError(null);
 
-    const mockPayId = `pay_mock_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-    setCompletedPaymentId(mockPayId)
+    const mockPayId = `pay_mock_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    setCompletedPaymentId(mockPayId);
 
     try {
       // Step A: Gateway simulation animation
-      setProcessingStatusText("Connecting to Razorpay Gateway...")
-      await new Promise((r) => setTimeout(r, 600))
+      setProcessingStatusText("Connecting to Razorpay Gateway...");
+      await new Promise((r) => setTimeout(r, 600));
 
       setProcessingStatusText(
         `Authorizing ${money(calc.totalPayable)} with issuing bank (${paymentMethod.toUpperCase()})...`,
-      )
-      await new Promise((r) => setTimeout(r, 800))
+      );
+      await new Promise((r) => setTimeout(r, 800));
 
-      setProcessingStatusText("Payment authorized! Syncing service ticket...")
+      setProcessingStatusText("Payment authorized! Syncing service ticket...");
 
       // Step B: Authoritative decision submission
-      const paymentSummaryNote = `[Razorpay Mock PayID: ${mockPayId} | Method: ${paymentMethod} | Amount: ${money(calc.totalPayable)}]`
+      const paymentSummaryNote = `[Razorpay Mock PayID: ${mockPayId} | Method: ${paymentMethod} | Amount: ${money(calc.totalPayable)}]`;
       const combinedNotes = decisionNotes.trim()
         ? `${decisionNotes.trim()} ${paymentSummaryNote}`
-        : paymentSummaryNote
+        : paymentSummaryNote;
 
       const result = await submitCustomerQuoteDecision(
         request.id,
@@ -125,66 +113,60 @@ export default function RepairPaymentModal({
         combinedNotes,
         request.quote,
         request,
-      )
+      );
 
       if (!result.ok) {
         throw new Error(
           result.error ||
             "Unable to record authorization. Please try again or contact IT HUB support.",
-        )
+        );
       }
 
       // Step C: Update local store state
-      const nextStatus = result.nextStatus ?? 5 // In Progress
+      const nextStatus = result.nextStatus ?? 5; // In Progress
       const updated: ServiceRequest = {
         ...request,
         quoteState: "approved",
         status: nextStatus,
         quote: result.totalAmount ?? calc.totalPayable,
         approvedItems: result.approvedItems || selectedItemIds,
-        declinedItems:
-          result.declinedItems || deferredItemsList.map((i) => i.id),
+        declinedItems: result.declinedItems || deferredItemsList.map((i) => i.id),
         decisionNotes: combinedNotes,
         decisionAt: new Date().toISOString(),
         payment: `Razorpay Mock (${mockPayId})`,
-      }
+      };
 
-      setCompletedRequest(updated)
+      setCompletedRequest(updated);
 
       store.set((prev) => ({
-        requests: prev.requests.map((r) =>
-          r.id === request.id ? updated : r,
-        ),
-      }))
+        requests: prev.requests.map((r) => (r.id === request.id ? updated : r)),
+      }));
 
       store.notify(
         `Payment of ${money(calc.totalPayable)} authorized via Razorpay! Repair started.`,
-      )
+      );
 
-      setStep("success")
+      setStep("success");
     } catch (err: any) {
-      setPaymentError(
-        err?.message ||
-          "Payment processing was interrupted. Please retry.",
-      )
+      setPaymentError(err?.message || "Payment processing was interrupted. Please retry.");
     } finally {
-      setIsProcessing(false)
-      setProcessingStatusText("")
+      setIsProcessing(false);
+      setProcessingStatusText("");
     }
-  }
+  };
 
   // Simulate payment decline/failure
   const handleSimulateDecline = () => {
     setPaymentError(
       "Simulated Gateway Error: Transaction cancelled by user or declined by issuing bank (Mock Failure Test). You can re-try or switch methods.",
-    )
-  }
+    );
+  };
 
   return (
     <Modal
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) handleModalClose()
+        if (!isOpen) handleModalClose();
       }}
       title={
         step === "breakdown"
@@ -206,16 +188,12 @@ export default function RepairPaymentModal({
       <div className="mb-6 flex items-center justify-between border-b border-border pb-3 text-xs">
         <div
           className={`flex items-center gap-2 font-semibold ${
-            step === "breakdown"
-              ? "text-primary font-bold"
-              : "text-muted-foreground"
+            step === "breakdown" ? "text-primary font-bold" : "text-muted-foreground"
           }`}
         >
           <span
             className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-              step === "breakdown"
-                ? "bg-primary text-white"
-                : "bg-emerald-100 text-emerald-800"
+              step === "breakdown" ? "bg-primary text-white" : "bg-emerald-100 text-emerald-800"
             }`}
           >
             {step === "breakdown" ? "1" : <Check size={12} />}
@@ -252,16 +230,12 @@ export default function RepairPaymentModal({
 
         <div
           className={`flex items-center gap-2 font-semibold ${
-            step === "success"
-              ? "text-emerald-700 font-bold"
-              : "text-muted-foreground"
+            step === "success" ? "text-emerald-700 font-bold" : "text-muted-foreground"
           }`}
         >
           <span
             className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-              step === "success"
-                ? "bg-emerald-600 text-white"
-                : "bg-muted text-muted-foreground"
+              step === "success" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
             }`}
           >
             3
@@ -285,7 +259,10 @@ export default function RepairPaymentModal({
                 {request.device} {request.model ? `· ${request.model}` : ""}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Ticket ID: <span className="font-mono font-medium">#{request.id.slice(0, 8).toUpperCase()}</span>
+                Ticket ID:{" "}
+                <span className="font-mono font-medium">
+                  #{request.id.slice(0, 8).toUpperCase()}
+                </span>
                 {request.quoteVersion && ` (Estimate v${request.quoteVersion})`}
               </p>
             </div>
@@ -323,16 +300,12 @@ export default function RepairPaymentModal({
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {item.description}
-                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.description}</p>
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
                       <span>Part: {money(item.partCost)}</span>
                       <span>•</span>
                       <span>Labour: {money(item.labourCost)}</span>
-                      {item.quantity > 1 && (
-                        <span>• Qty: {item.quantity}</span>
-                      )}
+                      {item.quantity > 1 && <span>• Qty: {item.quantity}</span>}
                     </div>
                   </div>
                   <div className="text-right font-extrabold text-foreground text-sm shrink-0">
@@ -368,42 +341,32 @@ export default function RepairPaymentModal({
 
             <div className="flex justify-between text-muted-foreground">
               <span>Genuine Replacement Parts Subtotal:</span>
-              <span className="font-semibold text-foreground">
-                {money(calc.partsTotal)}
-              </span>
+              <span className="font-semibold text-foreground">{money(calc.partsTotal)}</span>
             </div>
 
             <div className="flex justify-between text-muted-foreground">
               <span>Technician Workbench Labour & Testing:</span>
-              <span className="font-semibold text-foreground">
-                {money(calc.labourTotal)}
-              </span>
+              <span className="font-semibold text-foreground">{money(calc.labourTotal)}</span>
             </div>
 
             <div className="flex justify-between text-muted-foreground">
               <span>Diagnostic Assessment & Inspection Fee:</span>
               <span className="font-bold text-emerald-700 flex items-center gap-1">
-                <span className="line-through text-muted-foreground font-normal">
-                  ₹300
-                </span>{" "}
-                ₹0 (Waived upon repair authorization)
+                <span className="line-through text-muted-foreground font-normal">₹300</span> ₹0
+                (Waived upon repair authorization)
               </span>
             </div>
 
             {calc.courierFee > 0 && (
               <div className="flex justify-between text-muted-foreground">
                 <span>Insured Return Courier Delivery (Kerala):</span>
-                <span className="font-semibold text-foreground">
-                  {money(calc.courierFee)}
-                </span>
+                <span className="font-semibold text-foreground">{money(calc.courierFee)}</span>
               </div>
             )}
 
             <div className="flex justify-between text-muted-foreground">
               <span>Applicable GST / Taxes:</span>
-              <span className="font-semibold text-foreground">
-                Included (18% GST on services)
-              </span>
+              <span className="font-semibold text-foreground">Included (18% GST on services)</span>
             </div>
 
             <div className="border-t border-border pt-3 flex items-baseline justify-between">
@@ -455,8 +418,8 @@ export default function RepairPaymentModal({
 
             <Button
               onClick={() => {
-                setPaymentError(null)
-                setStep("payment")
+                setPaymentError(null);
+                setStep("payment");
               }}
               className="bg-primary hover:bg-primary/90 text-white font-bold"
             >
@@ -481,9 +444,7 @@ export default function RepairPaymentModal({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-sm tracking-wide">
-                      Razorpay
-                    </span>
+                    <span className="font-extrabold text-sm tracking-wide">Razorpay</span>
                     <span className="rounded bg-white/15 px-1.5 py-0.5 text-[9px] font-bold text-sky-200 uppercase">
                       Trusted Business
                     </span>
@@ -534,16 +495,10 @@ export default function RepairPaymentModal({
               >
                 <Smartphone
                   size={18}
-                  className={
-                    paymentMethod === "upi" ? "text-primary" : "text-muted-foreground"
-                  }
+                  className={paymentMethod === "upi" ? "text-primary" : "text-muted-foreground"}
                 />
-                <span className="mt-1.5 block font-bold text-foreground text-[11px]">
-                  UPI / QR
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  GPay, PhonePe
-                </span>
+                <span className="mt-1.5 block font-bold text-foreground text-[11px]">UPI / QR</span>
+                <span className="text-[10px] text-muted-foreground">GPay, PhonePe</span>
               </button>
 
               <button
@@ -557,16 +512,10 @@ export default function RepairPaymentModal({
               >
                 <CreditCard
                   size={18}
-                  className={
-                    paymentMethod === "card" ? "text-primary" : "text-muted-foreground"
-                  }
+                  className={paymentMethod === "card" ? "text-primary" : "text-muted-foreground"}
                 />
-                <span className="mt-1.5 block font-bold text-foreground text-[11px]">
-                  Cards
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Credit / Debit
-                </span>
+                <span className="mt-1.5 block font-bold text-foreground text-[11px]">Cards</span>
+                <span className="text-[10px] text-muted-foreground">Credit / Debit</span>
               </button>
 
               <button
@@ -581,17 +530,13 @@ export default function RepairPaymentModal({
                 <Building2
                   size={18}
                   className={
-                    paymentMethod === "netbanking"
-                      ? "text-primary"
-                      : "text-muted-foreground"
+                    paymentMethod === "netbanking" ? "text-primary" : "text-muted-foreground"
                   }
                 />
                 <span className="mt-1.5 block font-bold text-foreground text-[11px]">
                   Net Banking
                 </span>
-                <span className="text-[10px] text-muted-foreground">
-                  All Indian Banks
-                </span>
+                <span className="text-[10px] text-muted-foreground">All Indian Banks</span>
               </button>
 
               <button
@@ -605,18 +550,12 @@ export default function RepairPaymentModal({
               >
                 <Receipt
                   size={18}
-                  className={
-                    paymentMethod === "store"
-                      ? "text-primary"
-                      : "text-muted-foreground"
-                  }
+                  className={paymentMethod === "store" ? "text-primary" : "text-muted-foreground"}
                 />
                 <span className="mt-1.5 block font-bold text-foreground text-[11px]">
                   Pay at Store
                 </span>
-                <span className="text-[10px] text-muted-foreground">
-                  Upon Collection
-                </span>
+                <span className="text-[10px] text-muted-foreground">Upon Collection</span>
               </button>
             </div>
           </div>
@@ -626,9 +565,7 @@ export default function RepairPaymentModal({
             {paymentMethod === "upi" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground text-xs">
-                    UPI Instant Transfer
-                  </span>
+                  <span className="font-bold text-foreground text-xs">UPI Instant Transfer</span>
                   <div className="flex items-center gap-1.5">
                     <span className="rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5">
                       Fastest
@@ -644,11 +581,7 @@ export default function RepairPaymentModal({
                     <button
                       key={app}
                       type="button"
-                      onClick={() =>
-                        setUpiId(
-                          `${app.toLowerCase().replace(/\s+/g, "")}@oksbi`,
-                        )
-                      }
+                      onClick={() => setUpiId(`${app.toLowerCase().replace(/\s+/g, "")}@oksbi`)}
                       className="rounded-lg border border-border bg-white px-2.5 py-1 text-[11px] font-semibold text-foreground hover:border-primary/50"
                     >
                       {app}
@@ -699,9 +632,7 @@ export default function RepairPaymentModal({
 
             {paymentMethod === "netbanking" && (
               <div className="space-y-3">
-                <span className="font-bold text-foreground text-xs block">
-                  Select Bank
-                </span>
+                <span className="font-bold text-foreground text-xs block">Select Bank</span>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {[
                     "Federal Bank",
@@ -734,9 +665,9 @@ export default function RepairPaymentModal({
                   Pay at IT HUB Showroom upon Device Collection
                 </span>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  You can authorize the workbench repair now. The technician will
-                  complete the authorized work, and payment ({money(calc.totalPayable)})
-                  will be collected at the showroom counter via Cash, Card, or UPI upon testing your device.
+                  You can authorize the workbench repair now. The technician will complete the
+                  authorized work, and payment ({money(calc.totalPayable)}) will be collected at the
+                  showroom counter via Cash, Card, or UPI upon testing your device.
                 </p>
               </div>
             )}
@@ -757,9 +688,7 @@ export default function RepairPaymentModal({
           {isProcessing && (
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
               <Loader2 size={24} className="animate-spin text-primary mx-auto" />
-              <p className="font-bold text-foreground text-xs">
-                {processingStatusText}
-              </p>
+              <p className="font-bold text-foreground text-xs">{processingStatusText}</p>
               <p className="text-[10px] text-muted-foreground">
                 Please do not close this window. Your session is encrypted.
               </p>
@@ -772,8 +701,8 @@ export default function RepairPaymentModal({
               variant="secondary"
               disabled={isProcessing}
               onClick={() => {
-                setPaymentError(null)
-                setStep("breakdown")
+                setPaymentError(null);
+                setStep("breakdown");
               }}
             >
               <ArrowLeft size={14} />
@@ -803,9 +732,7 @@ export default function RepairPaymentModal({
                 ) : (
                   <>
                     <Lock size={13} className="text-sky-300" />
-                    <span>
-                      Pay {money(calc.totalPayable)} (Mock Razorpay)
-                    </span>
+                    <span>Pay {money(calc.totalPayable)} (Mock Razorpay)</span>
                   </>
                 )}
               </Button>
@@ -829,25 +756,21 @@ export default function RepairPaymentModal({
             </h4>
             <p className="text-xs text-muted-foreground mt-1">
               Your service ticket has transitioned to{" "}
-              <strong className="text-foreground">In Progress</strong>. Our workshop
-              bench has been assigned to work on your authorized scope.
+              <strong className="text-foreground">In Progress</strong>. Our workshop bench has been
+              assigned to work on your authorized scope.
             </p>
           </div>
 
           {/* Payment Receipt Box */}
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-secondary/30 p-4 text-left space-y-2">
             <div className="flex justify-between items-center border-b border-border pb-2">
-              <span className="font-bold text-foreground">
-                Payment Transaction Receipt
-              </span>
+              <span className="font-bold text-foreground">Payment Transaction Receipt</span>
               <Badge tone="green">CAPTURED</Badge>
             </div>
 
             <div className="flex justify-between text-muted-foreground">
               <span>Razorpay Reference:</span>
-              <span className="font-mono font-bold text-foreground">
-                {completedPaymentId}
-              </span>
+              <span className="font-mono font-bold text-foreground">{completedPaymentId}</span>
             </div>
 
             <div className="flex justify-between text-muted-foreground">
@@ -873,15 +796,13 @@ export default function RepairPaymentModal({
 
             <div className="border-t border-border pt-2 flex justify-between items-baseline text-sm font-extrabold">
               <span className="text-foreground">Total Paid / Authorized:</span>
-              <span className="text-primary text-base">
-                {money(calc.totalPayable)}
-              </span>
+              <span className="text-primary text-base">{money(calc.totalPayable)}</span>
             </div>
           </div>
 
           <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
-            You will receive live status milestones and diagnostic updates as our
-            technician progresses with the hardware repair.
+            You will receive live status milestones and diagnostic updates as our technician
+            progresses with the hardware repair.
           </p>
 
           <div className="pt-2">
@@ -895,6 +816,5 @@ export default function RepairPaymentModal({
         </div>
       )}
     </Modal>
-  )
+  );
 }
-

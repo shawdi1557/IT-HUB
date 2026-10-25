@@ -3,23 +3,23 @@
 // IT HUB — Molathu Building, College Junction, Kothamangalam, Kerala
 
 export interface BlogArticle {
-  id: string
-  title: string
-  slug: string
-  excerpt: string
-  contentHtml: string
-  publishedAt: string
-  author: string
-  authorRole: string
-  image: string
-  imageAlt: string
-  tags: string[]
-  category: "Hardware Reviews" | "Repair & Maintenance" | "Guides & Tutorials" | "Industry News"
-  readTimeMinutes: number
-  source: "shopify" | "editorial"
-  relatedProductHandles?: string[]
-  relatedServicePath?: string
-  relatedServiceLabel?: string
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  contentHtml: string;
+  publishedAt: string;
+  author: string;
+  authorRole: string;
+  image: string;
+  imageAlt: string;
+  tags: string[];
+  category: "Hardware Reviews" | "Repair & Maintenance" | "Guides & Tutorials" | "Industry News";
+  readTimeMinutes: number;
+  source: "shopify" | "editorial";
+  relatedProductHandles?: string[];
+  relatedServicePath?: string;
+  relatedServiceLabel?: string;
 }
 
 export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
@@ -27,7 +27,8 @@ export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
     id: "blog-lenovo-legion-r27qe",
     title: "Lenovo Legion R27qe Gen 2 Review: Why 200Hz Fast IPS is the Sweet Spot for Gaming",
     slug: "lenovo-legion-r27qe-gen-2-review",
-    excerpt: "A deep dive into Lenovo's 27-inch 2K QHD Fast IPS gaming monitor with 200Hz refresh rate, 0.5ms MPRT response time, and 99% sRGB color accuracy.",
+    excerpt:
+      "A deep dive into Lenovo's 27-inch 2K QHD Fast IPS gaming monitor with 200Hz refresh rate, 0.5ms MPRT response time, and 99% sRGB color accuracy.",
     contentHtml: `
       <p>Finding the optimal balance between visual clarity, fluid motion, and affordability has long been a challenge for competitive and casual gamers alike. The <strong>Lenovo Legion R27qe Gen 2</strong> aims to solve that compromise by offering a 27-inch Quad HD (2560 × 1440) Fast IPS panel with an overclockable 200Hz refresh rate and a rapid 0.5ms response time.</p>
       
@@ -60,7 +61,8 @@ export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
     id: "blog-laptop-battery-health",
     title: "Laptop Battery Health & Replacement Guide: Extending Li-ion Longevity",
     slug: "laptop-battery-health-and-replacement-guide",
-    excerpt: "Key warning signs that your laptop battery is degrading, how to optimize charge cycles in tropical climates, and when genuine OEM replacement is required.",
+    excerpt:
+      "Key warning signs that your laptop battery is degrading, how to optimize charge cycles in tropical climates, and when genuine OEM replacement is required.",
     contentHtml: `
       <p>Modern lithium-ion laptop batteries are designed to retain approximately 80% of their original capacity after 300 to 500 complete charge cycles. However, environmental factors like high ambient temperatures and sustained high-voltage states can accelerate chemical degradation.</p>
       
@@ -94,7 +96,8 @@ export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
     id: "blog-custom-pc-compatibility",
     title: "Custom PC Component Compatibility 101: AM5, DDR5 & Thermal Headroom Explained",
     slug: "custom-pc-component-compatibility-guide",
-    excerpt: "A beginner-to-advanced compatibility blueprint covering CPU socket pairings, RAM generation matching, power supply headroom, and GPU chassis clearance.",
+    excerpt:
+      "A beginner-to-advanced compatibility blueprint covering CPU socket pairings, RAM generation matching, power supply headroom, and GPU chassis clearance.",
     contentHtml: `
       <p>Building your own computer is an empowering experience, but component mismatches are the most frequent cause of post-assembly POST failures and thermal throttling. Before ordering parts, verifying hardware compatibility across five core dimensions is essential.</p>
       
@@ -130,7 +133,8 @@ export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
     id: "blog-smartphones-on-device-ai",
     title: "Smartphones in 2026: The Rise of On-Device AI & Advanced Display Glass",
     slug: "smartphones-on-device-ai-and-display-tech",
-    excerpt: "Exploring next-generation mobile silicon, neural processing units, battery efficiency gains, and ceramic durability across modern flagship devices.",
+    excerpt:
+      "Exploring next-generation mobile silicon, neural processing units, battery efficiency gains, and ceramic durability across modern flagship devices.",
     contentHtml: `
       <p>The smartphone landscape has shifted from incremental camera megapixel increases to localized artificial intelligence processing and advanced material science. Modern mobile architectures now dedicate substantial die area to dedicated Neural Processing Units (NPUs) capable of multi-billion parameter model execution directly on device without cloud latency or privacy compromises.</p>
       
@@ -155,5 +159,4 @@ export const VERIFIED_BLOG_ARTICLES: BlogArticle[] = [
     relatedServicePath: "/sell",
     relatedServiceLabel: "Looking to upgrade? Value your old device with IT HUB Trade-In",
   },
-]
-
+];

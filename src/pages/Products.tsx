@@ -1,11 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router"
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Search,
   SlidersHorizontal,
@@ -27,31 +21,21 @@ import {
   CheckCircle2,
   MessageSquare,
   PenLine,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import { track } from "../lib/analytics"
-import {
-  fetchProductGallery,
-  fetchProductById,
-  DEFAULT_IMAGE_FALLBACK,
-} from "../lib/catalog"
-import {
-  bestOffer,
-  categories,
-  money,
-  offerHeadline,
-  type Product,
-} from "../data/catalog"
+} from "lucide-react";
+import { useStore } from "../app/store";
+import { track } from "../lib/analytics";
+import { fetchProductGallery, fetchProductById, DEFAULT_IMAGE_FALLBACK } from "../lib/catalog";
+import { bestOffer, categories, money, offerHeadline, type Product } from "../data/catalog";
 import {
   fetchShopifyProduct,
   shopifyConfig,
   createShopifyCart,
   checkShopifyAvailability,
   toVariantGid,
-} from "../lib/shopify"
-import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize"
-import ProductCard, { ProductImage } from "../components/ProductCard"
-import SellYourItem from "../components/SellYourItem"
+} from "../lib/shopify";
+import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize";
+import ProductCard, { ProductImage } from "../components/ProductCard";
+import SellYourItem from "../components/SellYourItem";
 import {
   ActionLink,
   Badge,
@@ -63,73 +47,72 @@ import {
   fieldClass,
   Stars,
   Select,
-} from "../components/ui"
+} from "../components/ui";
 
 export function Products() {
-  const store = useStore()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
-  const [brand, setBrand] = useState(params.get("brand") || "")
-  const [max, setMax] = useState(150000)
-  const [available, setAvailable] = useState(false)
-  const [rating, setRating] = useState(0)
-  const [sort, setSort] = useState("Relevance")
-  const [showFilters, setShowFilters] = useState(false)
-  const [specs, setSpecs] = useState<Record<string, string>>({})
-  const category = params.get("category") || ""
-  const query = params.get("q") || ""
+  const store = useStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [brand, setBrand] = useState(params.get("brand") || "");
+  const [max, setMax] = useState(150000);
+  const [available, setAvailable] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [sort, setSort] = useState("Relevance");
+  const [showFilters, setShowFilters] = useState(false);
+  const [specs, setSpecs] = useState<Record<string, string>>({});
+  const category = params.get("category") || "";
+  const query = params.get("q") || "";
   const update = (key: string, value: string) => {
     if (key === "section" && location.pathname !== "/products") {
-      navigate(value === "fresh" ? "/products" : `/products?section=${value}`)
-      return
+      navigate(value === "fresh" ? "/products" : `/products?section=${value}`);
+      return;
     }
     setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      value ? next.set(key, value) : next.delete(key)
-      return next
-    })
-  }
+      const next = new URLSearchParams(previous);
+      value ? next.set(key, value) : next.delete(key);
+      return next;
+    });
+  };
 
   const defaultSection =
     location.pathname === "/second-hand"
       ? "secondhand"
       : location.pathname === "/sell" || location.pathname === "/sell-your-item"
         ? "sell"
-        : "fresh"
+        : "fresh";
 
-  const section = (params.get("section") ||
-    defaultSection) as "fresh" | "secondhand" | "sell"
+  const section = (params.get("section") || defaultSection) as "fresh" | "secondhand" | "sell";
 
   const sectionProducts = useMemo(
     () =>
       store.products.filter((product) => {
-        if (section === "secondhand") return Boolean(product.secondHand)
-        if (section === "fresh") return !product.secondHand
-        return true
+        if (section === "secondhand") return Boolean(product.secondHand);
+        if (section === "fresh") return !product.secondHand;
+        return true;
       }),
     [store.products, section],
-  )
+  );
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const counts: Record<string, number> = {};
     for (const p of sectionProducts) {
       if (p.category) {
-        counts[p.category] = (counts[p.category] || 0) + 1
+        counts[p.category] = (counts[p.category] || 0) + 1;
       }
     }
-    return counts
-  }, [sectionProducts])
+    return counts;
+  }, [sectionProducts]);
 
   const brandCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const counts: Record<string, number> = {};
     for (const p of sectionProducts) {
       if (p.brand) {
-        counts[p.brand] = (counts[p.brand] || 0) + 1
+        counts[p.brand] = (counts[p.brand] || 0) + 1;
       }
     }
-    return counts
-  }, [sectionProducts])
+    return counts;
+  }, [sectionProducts]);
 
   const filtered = useMemo(
     () =>
@@ -149,15 +132,16 @@ export function Products() {
                 ].includes(product.category))) &&
             (!brand || product.brand === brand) &&
             product.price <= max &&
-            (!available || (product.availableForSale !== undefined ? product.availableForSale : product.stock > 0)) &&
+            (!available ||
+              (product.availableForSale !== undefined
+                ? product.availableForSale
+                : product.stock > 0)) &&
             product.rating >= rating &&
             `${product.name} ${product.brand} ${product.category} ${Object.values(product.specs).join(" ")}`
               .toLowerCase()
               .includes(query.toLowerCase()) &&
-            Object.entries(specs).every(
-              ([key, value]) => !value || product.specs[key] === value,
-            )
-          )
+            Object.entries(specs).every(([key, value]) => !value || product.specs[key] === value)
+          );
         })
         .sort((first, second) =>
           sort === "Price: Low to High"
@@ -170,39 +154,28 @@ export function Products() {
                   ? second.id.localeCompare(first.id)
                   : 0,
         ),
-    [
-      store.products,
-      section,
-      category,
-      brand,
-      max,
-      available,
-      rating,
-      query,
-      specs,
-      sort,
-    ],
-  )
+    [store.products, section, category, brand, max, available, rating, query, specs, sort],
+  );
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const PAGE_SIZE = 12
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 12;
 
   // Reset to page 1 whenever any filter, search query, or category changes
   useEffect(() => {
-    setCurrentPage(1)
-  }, [category, brand, max, available, rating, query, section, sort, specs])
+    setCurrentPage(1);
+  }, [category, brand, max, available, rating, query, section, sort, specs]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(Math.max(1, currentPage), totalPages)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const paginatedProducts = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, safePage])
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
 
   const specificKeys =
     category === "Laptops"
       ? ["Processor", "RAM", "Storage", "GPU", "Screen"]
-      : ["Socket", "Generation", "Capacity", "Interface"]
+      : ["Socket", "Generation", "Capacity", "Interface"];
   return (
     <Page>
       <PageHeading
@@ -289,9 +262,7 @@ export function Products() {
             {section === "sell" && <Badge tone="green">ACTIVE</Badge>}
           </div>
           <div className="mt-4">
-            <h3 className="text-base font-bold text-foreground">
-              SELL YOUR ITEM
-            </h3>
+            <h3 className="text-base font-bold text-foreground">SELL YOUR ITEM</h3>
             <p className="mt-1 text-xs text-muted-foreground">
               Sell your device · Get an evaluation and instant deal from IT HUB
             </p>
@@ -309,9 +280,8 @@ export function Products() {
               <div className="flex items-center gap-2">
                 <RefreshCw size={15} className="text-amber-800 shrink-0" />
                 <span>
-                  <strong>IT HUB Verified Pre-Owned Collection:</strong> Every
-                  second-hand device undergoes multi-point hardware diagnostics
-                  and includes testing certification.
+                  <strong>IT HUB Verified Pre-Owned Collection:</strong> Every second-hand device
+                  undergoes multi-point hardware diagnostics and includes testing certification.
                 </span>
               </div>
               <button
@@ -325,10 +295,7 @@ export function Products() {
           )}
           <div className="mb-7 flex flex-wrap gap-3">
             <div className="relative min-w-48 flex-1">
-              <Search
-                size={17}
-                className="absolute left-3 top-3.5 text-muted-foreground"
-              />
+              <Search size={17} className="absolute left-3 top-3.5 text-muted-foreground" />
               <input
                 aria-label="Search products"
                 value={query}
@@ -368,12 +335,12 @@ export function Products() {
                 <h2 className="text-sm font-bold">Filters</h2>
                 <button
                   onClick={() => {
-                    setParams({})
-                    setBrand("")
-                    setMax(150000)
-                    setAvailable(false)
-                    setRating(0)
-                    setSpecs({})
+                    setParams({});
+                    setBrand("");
+                    setMax(150000);
+                    setAvailable(false);
+                    setRating(0);
+                    setSpecs({});
                   }}
                   className="text-[11px] text-primary"
                 >
@@ -385,8 +352,8 @@ export function Products() {
                   label="Category"
                   value={category}
                   onChange={(value) => {
-                    update("category", value)
-                    setSpecs({})
+                    update("category", value);
+                    setSpecs({});
                   }}
                   options={[
                     {
@@ -412,13 +379,7 @@ export function Products() {
                       value: "",
                       label: `All brands (${sectionProducts.length})`,
                     },
-                    ...[
-                      ...new Set(
-                        sectionProducts
-                          .map((product) => product.brand)
-                          .filter(Boolean),
-                      ),
-                    ]
+                    ...[...new Set(sectionProducts.map((product) => product.brand).filter(Boolean))]
                       .sort((a, b) => a.localeCompare(b))
                       .map((value) => ({
                         value,
@@ -474,15 +435,13 @@ export function Products() {
                         .map((product) => product.specs[key])
                         .filter(Boolean),
                     ),
-                  ]
+                  ];
                   return values.length ? (
                     <Field key={key} label={key}>
                       <Select
                         label={key}
                         value={specs[key] || ""}
-                        onChange={(value) =>
-                          setSpecs({ ...specs, [key]: value })
-                        }
+                        onChange={(value) => setSpecs({ ...specs, [key]: value })}
                         options={[
                           { value: "", label: `All ${key.toLowerCase()}` },
                           ...values.map((value) => ({
@@ -492,7 +451,7 @@ export function Products() {
                         ]}
                       />
                     </Field>
-                  ) : null
+                  ) : null;
                 })}
             </aside>
             <div>
@@ -541,14 +500,13 @@ export function Products() {
                               filtered.length,
                             )}`}
                       </strong>{" "}
-                      of{" "}
-                      <strong className="text-foreground">
-                        {filtered.length}
-                      </strong>{" "}
-                      products
+                      of <strong className="text-foreground">{filtered.length}</strong> products
                       {store.catalogLive ? (
                         <span className="ml-2 inline-flex items-center font-medium text-emerald-600">
-                          · {store.catalogSource === "shopify" ? "Shopify Storefront" : "Live Catalog"}
+                          ·{" "}
+                          {store.catalogSource === "shopify"
+                            ? "Shopify Storefront"
+                            : "Live Catalog"}
                         </span>
                       ) : null}
                     </p>
@@ -573,8 +531,8 @@ export function Products() {
                             variant="secondary"
                             disabled={safePage === 1}
                             onClick={() => {
-                              setCurrentPage((p) => Math.max(1, p - 1))
-                              window.scrollTo({ top: 0, behavior: "smooth" })
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 text-xs"
                           >
@@ -582,18 +540,15 @@ export function Products() {
                           </Button>
 
                           <div className="flex items-center gap-1">
-                            {Array.from(
-                              { length: totalPages },
-                              (_, i) => i + 1,
-                            ).map((pageNum) => (
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                               <button
                                 key={pageNum}
                                 onClick={() => {
-                                  setCurrentPage(pageNum)
+                                  setCurrentPage(pageNum);
                                   window.scrollTo({
                                     top: 0,
                                     behavior: "smooth",
-                                  })
+                                  });
                                 }}
                                 className={`h-8 w-8 rounded-lg text-xs font-semibold transition ${
                                   safePage === pageNum
@@ -610,8 +565,8 @@ export function Products() {
                             variant="secondary"
                             disabled={safePage === totalPages}
                             onClick={() => {
-                              setCurrentPage((p) => Math.min(totalPages, p + 1))
-                              window.scrollTo({ top: 0, behavior: "smooth" })
+                              setCurrentPage((p) => Math.min(totalPages, p + 1));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 text-xs"
                           >
@@ -643,119 +598,119 @@ export function Products() {
         </>
       )}
     </Page>
-  )
+  );
 }
 export interface CustomerReview {
-  id: string
-  productId: string
-  author: string
-  rating: number
-  title?: string
-  comment: string
-  date: string
-  verified: boolean
+  id: string;
+  productId: string;
+  author: string;
+  rating: number;
+  title?: string;
+  comment: string;
+  date: string;
+  verified: boolean;
 }
 
 export function ProductDetail() {
-  const { id } = useParams()
-  const store = useStore()
-  const navigate = useNavigate()
-  const [directProduct, setDirectProduct] = useState<Product | null>(null)
-  const [fetchingDirect, setFetchingDirect] = useState(false)
+  const { id } = useParams();
+  const store = useStore();
+  const navigate = useNavigate();
+  const [directProduct, setDirectProduct] = useState<Product | null>(null);
+  const [fetchingDirect, setFetchingDirect] = useState(false);
 
-  const [reviews, setReviews] = useState<CustomerReview[]>([])
-  const [showReviewForm, setShowReviewForm] = useState(false)
-  const [formRating, setFormRating] = useState(5)
-  const [hoverRating, setHoverRating] = useState(0)
-  const [formAuthor, setFormAuthor] = useState("")
-  const [formTitle, setFormTitle] = useState("")
-  const [formComment, setFormComment] = useState("")
-  const [formSubmitting, setFormSubmitting] = useState(false)
-  const [buyingNow, setBuyingNow] = useState(false)
-  const [buyNowError, setBuyNowError] = useState<string | null>(null)
+  const [reviews, setReviews] = useState<CustomerReview[]>([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [formRating, setFormRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [formAuthor, setFormAuthor] = useState("");
+  const [formTitle, setFormTitle] = useState("");
+  const [formComment, setFormComment] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [buyingNow, setBuyingNow] = useState(false);
+  const [buyNowError, setBuyNowError] = useState<string | null>(null);
 
   const product = useMemo(() => {
-    if (!id) return directProduct
-    const searchKey = decodeURIComponent(id).trim().toLowerCase()
+    if (!id) return directProduct;
+    const searchKey = decodeURIComponent(id).trim().toLowerCase();
     return (
       store.products.find((item) => {
-        if (!item) return false
-        const itemId = String(item.id || "").toLowerCase()
-        const itemSku = String(item.sku || "").toLowerCase()
-        const itemHandle = String(item.handle || "").toLowerCase()
-        const itemVariant = String(item.variantId || "").toLowerCase()
+        if (!item) return false;
+        const itemId = String(item.id || "").toLowerCase();
+        const itemSku = String(item.sku || "").toLowerCase();
+        const itemHandle = String(item.handle || "").toLowerCase();
+        const itemVariant = String(item.variantId || "").toLowerCase();
         return (
           itemId === searchKey ||
           itemSku === searchKey ||
           itemHandle === searchKey ||
           itemVariant === searchKey
-        )
+        );
       }) || directProduct
-    )
-  }, [store.products, directProduct, id])
+    );
+  }, [store.products, directProduct, id]);
 
   useEffect(() => {
     if (!product && id) {
-      let isMounted = true
-      setFetchingDirect(true)
+      let isMounted = true;
+      setFetchingDirect(true);
 
       const loadDirectProduct = async () => {
         try {
           if (shopifyConfig.isConfigured) {
-            const shopifyRes = await fetchShopifyProduct(id)
+            const shopifyRes = await fetchShopifyProduct(id);
             if (isMounted && shopifyRes.product) {
-              setDirectProduct(shopifyRes.product)
-              setFetchingDirect(false)
-              return
+              setDirectProduct(shopifyRes.product);
+              setFetchingDirect(false);
+              return;
             }
           }
-          const dbProduct = await fetchProductById(id)
+          const dbProduct = await fetchProductById(id);
           if (isMounted) {
-            setDirectProduct(dbProduct)
-            setFetchingDirect(false)
+            setDirectProduct(dbProduct);
+            setFetchingDirect(false);
           }
         } catch {
-          if (isMounted) setFetchingDirect(false)
+          if (isMounted) setFetchingDirect(false);
         }
-      }
+      };
 
-      loadDirectProduct()
+      loadDirectProduct();
       return () => {
-        isMounted = false
-      }
+        isMounted = false;
+      };
     }
-  }, [product, id])
+  }, [product, id]);
 
-  const [galleryImages, setGalleryImages] = useState<string[]>([])
-  const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
     if (product?.id && (!product.images || product.images.length <= 1)) {
       fetchProductGallery(product.id).then((imgs) => {
         if (isMounted && imgs && imgs.length > 0) {
-          setGalleryImages(imgs)
+          setGalleryImages(imgs);
         }
-      })
+      });
     }
     return () => {
-      isMounted = false
-    }
-  }, [product?.id, product?.images])
+      isMounted = false;
+    };
+  }, [product?.id, product?.images]);
 
   useEffect(() => {
-    setActiveImageIndex(0)
-  }, [product?.id, product?.handle])
+    setActiveImageIndex(0);
+  }, [product?.id, product?.handle]);
 
   const allImages = useMemo(() => {
     if (product?.images && product.images.length > 0) {
-      return product.images
+      return product.images;
     }
-    if (galleryImages.length > 0) return galleryImages
-    return [product?.image || DEFAULT_IMAGE_FALLBACK]
-  }, [product?.images, galleryImages, product?.image])
+    if (galleryImages.length > 0) return galleryImages;
+    return [product?.image || DEFAULT_IMAGE_FALLBACK];
+  }, [product?.images, galleryImages, product?.image]);
 
-  const activeImage = allImages[activeImageIndex] || allImages[0]
+  const activeImage = allImages[activeImageIndex] || allImages[0];
 
   useEffect(() => {
     if (product)
@@ -763,39 +718,39 @@ export function ProductDetail() {
         product: product.name,
         productId: product.id,
         category: product.category,
-      })
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product?.id])
-  const [quantity, setQuantity] = useState(1)
-  const [tab, setTab] = useState("Description")
+  }, [product?.id]);
+  const [quantity, setQuantity] = useState(1);
+  const [tab, setTab] = useState("Description");
 
   useEffect(() => {
-    if (!product?.id) return
+    if (!product?.id) return;
     try {
-      const saved = localStorage.getItem(`ithub_product_reviews_${product.id}`)
+      const saved = localStorage.getItem(`ithub_product_reviews_${product.id}`);
       if (saved) {
-        const parsed = JSON.parse(saved)
+        const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setReviews(parsed)
-          return
+          setReviews(parsed);
+          return;
         }
       }
     } catch (err) {
-      console.warn("Failed to load reviews from localStorage", err)
+      console.warn("Failed to load reviews from localStorage", err);
     }
-    setReviews([])
-  }, [product?.id])
+    setReviews([]);
+  }, [product?.id]);
 
   useEffect(() => {
     if (store.profile?.name && !formAuthor) {
-      setFormAuthor(store.profile.name)
+      setFormAuthor(store.profile.name);
     }
-  }, [store.profile?.name, formAuthor])
+  }, [store.profile?.name, formAuthor]);
 
   const handleReviewSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formAuthor.trim() || !formComment.trim() || !product) return
-    setFormSubmitting(true)
+    e.preventDefault();
+    if (!formAuthor.trim() || !formComment.trim() || !product) return;
+    setFormSubmitting(true);
 
     const newReview: CustomerReview = {
       id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -810,27 +765,24 @@ export function ProductDetail() {
         year: "numeric",
       }),
       verified: true,
-    }
+    };
 
-    const updated = [newReview, ...reviews]
-    setReviews(updated)
+    const updated = [newReview, ...reviews];
+    setReviews(updated);
 
     try {
-      localStorage.setItem(
-        `ithub_product_reviews_${product.id}`,
-        JSON.stringify(updated),
-      )
+      localStorage.setItem(`ithub_product_reviews_${product.id}`, JSON.stringify(updated));
     } catch (err) {
-      console.warn("Could not save review to localStorage", err)
+      console.warn("Could not save review to localStorage", err);
     }
 
     if (store.loggedIn && store.profile?.id) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         product.id,
-      )
+      );
       if (isUuid) {
         import("../lib/supabase").then(async ({ supabase }) => {
-          if (!supabase) return
+          if (!supabase) return;
           try {
             await supabase.from("reviews").insert({
               user_id: store.profile.id,
@@ -838,36 +790,34 @@ export function ProductDetail() {
               rating: formRating,
               body: formComment.trim(),
               status: "Pending",
-            })
+            });
           } catch {
             // Handled gracefully
           }
-        })
+        });
       }
     }
 
-    store.notify("Review submitted successfully! Thank you for your feedback.")
-    setFormTitle("")
-    setFormComment("")
-    setFormRating(5)
-    setShowReviewForm(false)
-    setFormSubmitting(false)
-  }
+    store.notify("Review submitted successfully! Thank you for your feedback.");
+    setFormTitle("");
+    setFormComment("");
+    setFormRating(5);
+    setShowReviewForm(false);
+    setFormSubmitting(false);
+  };
 
   if (!product && (store.catalogLoading || fetchingDirect)) {
     return (
       <Page>
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-primary" />
-          <h3 className="text-base font-semibold text-foreground">
-            Loading product details...
-          </h3>
+          <h3 className="text-base font-semibold text-foreground">Loading product details...</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             Retrieving live data from IT HUB catalog
           </p>
         </div>
       </Page>
-    )
+    );
   }
 
   if (!product)
@@ -879,91 +829,86 @@ export function ProductDetail() {
           to="/products"
         />
       </Page>
-    )
+    );
   // Multi-variant state & resolution
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   // Initialize selectedOptions when product changes
   useEffect(() => {
-    if (!product) return
+    if (!product) return;
     if (product.variants && product.variants.length > 0) {
       const preferredVariant =
-        product.variants.find((v) => v.availableForSale) || product.variants[0]
-      const map: Record<string, string> = {}
+        product.variants.find((v) => v.availableForSale) || product.variants[0];
+      const map: Record<string, string> = {};
       if (preferredVariant?.selectedOptions) {
         for (const opt of preferredVariant.selectedOptions) {
-          map[opt.name] = opt.value
+          map[opt.name] = opt.value;
         }
       }
-      setSelectedOptions(map)
+      setSelectedOptions(map);
     } else {
-      setSelectedOptions({})
+      setSelectedOptions({});
     }
-  }, [product?.id, product?.handle])
+  }, [product?.id, product?.handle]);
 
   // Resolve active variant from selectedOptions
   const activeVariant = useMemo(() => {
-    if (!product?.variants || product.variants.length === 0) return null
-    const optionKeys = Object.keys(selectedOptions)
-    if (optionKeys.length === 0) return product.variants[0] || null
+    if (!product?.variants || product.variants.length === 0) return null;
+    const optionKeys = Object.keys(selectedOptions);
+    if (optionKeys.length === 0) return product.variants[0] || null;
 
     return (
       product.variants.find((variant) => {
         return optionKeys.every((key) => {
           const matching = variant.selectedOptions.find(
             (so) => so.name.toLowerCase() === key.toLowerCase(),
-          )
-          return (
-            matching &&
-            matching.value.toLowerCase() === selectedOptions[key].toLowerCase()
-          )
-        })
+          );
+          return matching && matching.value.toLowerCase() === selectedOptions[key].toLowerCase();
+        });
       }) || product.variants[0]
-    )
-  }, [product?.variants, selectedOptions])
+    );
+  }, [product?.variants, selectedOptions]);
 
   // Sync image when active variant specifies an image
   useEffect(() => {
     if (activeVariant?.image) {
-      const idx = allImages.findIndex((img) => img === activeVariant.image)
+      const idx = allImages.findIndex((img) => img === activeVariant.image);
       if (idx !== -1) {
-        setActiveImageIndex(idx)
+        setActiveImageIndex(idx);
       }
     }
-  }, [activeVariant?.image, allImages])
+  }, [activeVariant?.image, allImages]);
 
-  const activePrice = activeVariant ? activeVariant.price : product.price
+  const activePrice = activeVariant ? activeVariant.price : product.price;
   const activeOriginal = activeVariant
-    ? (activeVariant.compareAtPrice && activeVariant.compareAtPrice > activeVariant.price
-        ? activeVariant.compareAtPrice
-        : activeVariant.price)
-    : product.original
-  const activeSku = activeVariant?.sku || product.sku
+    ? activeVariant.compareAtPrice && activeVariant.compareAtPrice > activeVariant.price
+      ? activeVariant.compareAtPrice
+      : activeVariant.price
+    : product.original;
+  const activeSku = activeVariant?.sku || product.sku;
   const isSoldOut = activeVariant
     ? !activeVariant.availableForSale
     : product.availableForSale !== undefined
       ? !product.availableForSale
-      : !product.stock || product.stock <= 0
-  const selectedVariantId = activeVariant?.id || product.variantId
+      : !product.stock || product.stock <= 0;
+  const selectedVariantId = activeVariant?.id || product.variantId;
 
   // Option compatibility and availability checks
   const getOptionValueAvailability = (optionName: string, optionValue: string) => {
-    if (!product?.variants) return { exists: false, available: false }
+    if (!product?.variants) return { exists: false, available: false };
     const matchingVariants = product.variants.filter((v) => {
       const hasThisValue = v.selectedOptions.some(
         (so) =>
           so.name.toLowerCase() === optionName.toLowerCase() &&
           so.value.toLowerCase() === optionValue.toLowerCase(),
-      )
-      if (!hasThisValue) return false
+      );
+      if (!hasThisValue) return false;
       return Object.entries(selectedOptions).every(([k, vVal]) => {
-        if (k.toLowerCase() === optionName.toLowerCase()) return true
-        const match = v.selectedOptions.find(
-          (so) => so.name.toLowerCase() === k.toLowerCase(),
-        )
-        return match ? match.value.toLowerCase() === vVal.toLowerCase() : true
-      })
-    })
+        if (k.toLowerCase() === optionName.toLowerCase()) return true;
+        const match = v.selectedOptions.find((so) => so.name.toLowerCase() === k.toLowerCase());
+        return match ? match.value.toLowerCase() === vVal.toLowerCase() : true;
+      });
+    });
 
     if (matchingVariants.length === 0) {
       const anyExists = product.variants.some((v) =>
@@ -972,19 +917,19 @@ export function ProductDetail() {
             so.name.toLowerCase() === optionName.toLowerCase() &&
             so.value.toLowerCase() === optionValue.toLowerCase(),
         ),
-      )
-      return { exists: anyExists, available: false }
+      );
+      return { exists: anyExists, available: false };
     }
 
     return {
       exists: true,
       available: matchingVariants.some((v) => v.availableForSale),
-    }
-  }
+    };
+  };
 
   const handleSelectOption = (name: string, value: string) => {
-    if (!product?.variants) return
-    const nextSelections = { ...selectedOptions, [name]: value }
+    if (!product?.variants) return;
+    const nextSelections = { ...selectedOptions, [name]: value };
     const exactMatch = product.variants.find((v) =>
       Object.entries(nextSelections).every(([k, val]) =>
         v.selectedOptions.some(
@@ -993,10 +938,10 @@ export function ProductDetail() {
             so.value.toLowerCase() === val.toLowerCase(),
         ),
       ),
-    )
+    );
     if (exactMatch) {
-      setSelectedOptions(nextSelections)
-      return
+      setSelectedOptions(nextSelections);
+      return;
     }
     const fallbackVariant = product.variants.find((v) =>
       v.selectedOptions.some(
@@ -1004,20 +949,20 @@ export function ProductDetail() {
           so.name.toLowerCase() === name.toLowerCase() &&
           so.value.toLowerCase() === value.toLowerCase(),
       ),
-    )
+    );
     if (fallbackVariant) {
-      const newMap: Record<string, string> = {}
+      const newMap: Record<string, string> = {};
       fallbackVariant.selectedOptions.forEach((so) => {
-        newMap[so.name] = so.value
-      })
-      setSelectedOptions(newMap)
+        newMap[so.name] = so.value;
+      });
+      setSelectedOptions(newMap);
     }
-  }
+  };
 
   const add = () => {
     if (isSoldOut) {
-      store.notify("Sorry, this item is currently sold out.")
-      return
+      store.notify("Sorry, this item is currently sold out.");
+      return;
     }
     store.addCart(
       {
@@ -1025,61 +970,58 @@ export function ProductDetail() {
         productId: product.id,
         variantId: selectedVariantId,
         name:
-          activeVariant &&
-          activeVariant.title &&
-          activeVariant.title !== "Default Title"
+          activeVariant && activeVariant.title && activeVariant.title !== "Default Title"
             ? `${product.name} - ${activeVariant.title}`
             : product.name,
         price: activePrice,
         image: activeImage,
       },
       quantity,
-    )
-  }
+    );
+  };
 
   const handleBuyNow = async () => {
-    setBuyNowError(null)
+    setBuyNowError(null);
 
     if (isSoldOut) {
-      setBuyNowError("Sorry, this item is currently sold out.")
-      return
+      setBuyNowError("Sorry, this item is currently sold out.");
+      return;
     }
 
     if (quantity < 1) {
-      setBuyNowError("Please select a valid quantity (at least 1).")
-      return
+      setBuyNowError("Please select a valid quantity (at least 1).");
+      return;
     }
 
     if (shopifyConfig.isConfigured) {
-      setBuyingNow(true)
+      setBuyingNow(true);
       try {
-        let variantId = selectedVariantId
+        let variantId = selectedVariantId;
         if (!variantId && (product.handle || product.id)) {
-          const fresh = await fetchShopifyProduct(product.handle || product.id)
+          const fresh = await fetchShopifyProduct(product.handle || product.id);
           if (fresh.product?.variantId) {
-            variantId = fresh.product.variantId
+            variantId = fresh.product.variantId;
           }
         }
 
         if (!variantId) {
           setBuyNowError(
             "Unable to resolve Shopify product variant for checkout. Please refresh the page.",
-          )
-          setBuyingNow(false)
-          return
+          );
+          setBuyingNow(false);
+          return;
         }
 
-        const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`
+        const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`;
 
         // Real-time pre-flight availability check before creating checkout URL
-        const availability = await checkShopifyAvailability([variantId])
-        const gid = toVariantGid(variantId)
-        const info =
-          availability.availability[gid] || availability.availability[variantId]
+        const availability = await checkShopifyAvailability([variantId]);
+        const gid = toVariantGid(variantId);
+        const info = availability.availability[gid] || availability.availability[variantId];
         if (info && !info.availableForSale) {
-          setBuyNowError("Sorry, this item is currently sold out.")
-          setBuyingNow(false)
-          return
+          setBuyNowError("Sorry, this item is currently sold out.");
+          setBuyingNow(false);
+          return;
         }
 
         const res = await createShopifyCart(
@@ -1097,38 +1039,36 @@ export function ProductDetail() {
               },
             ],
           },
-        )
+        );
 
         if (res.cart?.checkoutUrl) {
-          window.location.href = res.cart.checkoutUrl
-          return
+          window.location.href = res.cart.checkoutUrl;
+          return;
         }
 
-        const rawError =
-          res.error || "Unable to initiate Shopify checkout. Please try again."
+        const rawError = res.error || "Unable to initiate Shopify checkout. Please try again.";
         const isStockIssue =
           rawError.toLowerCase().includes("sold out") ||
           rawError.toLowerCase().includes("not available") ||
-          rawError.toLowerCase().includes("out of stock")
+          rawError.toLowerCase().includes("out of stock");
 
         setBuyNowError(
           isStockIssue
             ? "Sorry, this item is currently sold out or the requested quantity is unavailable."
             : rawError,
-        )
+        );
       } catch (err: any) {
         setBuyNowError(
-          err.message ||
-            "Network error while connecting to checkout. Please try again.",
-        )
+          err.message || "Network error while connecting to checkout. Please try again.",
+        );
       } finally {
-        setBuyingNow(false)
+        setBuyingNow(false);
       }
     } else {
-      add()
-      navigate("/checkout")
+      add();
+      navigate("/checkout");
     }
-  }
+  };
   return (
     <Page>
       <div className="mb-8 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1153,17 +1093,12 @@ export function ProductDetail() {
               <span className="absolute left-5 top-5 flex flex-col gap-1.5">
                 {product.secondHand && (
                   <Badge tone="amber">
-                    <RefreshCw
-                      size={10}
-                      className="mr-1 inline text-amber-700"
-                    />
+                    <RefreshCw size={10} className="mr-1 inline text-amber-700" />
                     PRE-OWNED
                     {product.condition ? ` · ${product.condition}` : ""}
                   </Badge>
                 )}
-                {product.tag && !product.secondHand && (
-                  <Badge>{product.tag}</Badge>
-                )}
+                {product.tag && !product.secondHand && <Badge>{product.tag}</Badge>}
               </span>
             )}
             {allImages.length > 1 && (
@@ -1209,9 +1144,7 @@ export function ProductDetail() {
           <p className="mb-3 text-xs font-semibold uppercase tracking-[.14em] text-primary">
             {product.brand}
           </p>
-          <h1 className="text-3xl font-bold leading-tight lg:text-4xl">
-            {product.name}
-          </h1>
+          <h1 className="text-3xl font-bold leading-tight lg:text-4xl">{product.name}</h1>
           <button
             type="button"
             onClick={() => setTab("Reviews")}
@@ -1220,30 +1153,25 @@ export function ProductDetail() {
             <Stars size={15} />{" "}
             <span className="ml-2 text-foreground font-semibold">
               {reviews.length > 0
-                ? (
-                    reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-                  ).toFixed(1)
+                ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
                 : product.rating}
               /5
             </span>
             <span className="ml-2 text-xs text-muted-foreground hover:underline">
               {reviews.length > 0
-                ? `(${reviews.length} customer ${
-                    reviews.length === 1 ? "review" : "reviews"
-                  })`
+                ? `(${reviews.length} customer ${reviews.length === 1 ? "review" : "reviews"})`
                 : "Customer reviews"}
             </span>
           </button>
           {(() => {
-            const deal = bestOffer(store.offers, product)
-            const shown = deal ? deal.price : activePrice
-            const originalPrice = activeOriginal > shown ? activeOriginal : 0
+            const deal = bestOffer(store.offers, product);
+            const shown = deal ? deal.price : activePrice;
+            const originalPrice = activeOriginal > shown ? activeOriginal : 0;
             return (
               <div className="my-6">
                 {deal && (
                   <p className="mb-2 text-xs font-semibold text-primary">
-                    {deal.offer.name} · {offerHeadline(deal.offer)} · applied
-                    automatically
+                    {deal.offer.name} · {offerHeadline(deal.offer)} · applied automatically
                   </p>
                 )}
                 <div className="inline-grid gap-1 rounded-2xl border border-border bg-secondary/50 px-5 py-4">
@@ -1260,21 +1188,16 @@ export function ProductDetail() {
                   </div>
                   {originalPrice > shown && (
                     <p className="text-sm text-muted-foreground">
-                      MRP{" "}
-                      <span className="line-through">
-                        {money(originalPrice)}
-                      </span>
+                      MRP <span className="line-through">{money(originalPrice)}</span>
                       <span className="ml-2 font-semibold text-emerald-700">
                         You save {money(originalPrice - shown)}
                       </span>
                     </p>
                   )}
-                  <p className="text-[11px] text-muted-foreground">
-                    Inclusive of all taxes
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">Inclusive of all taxes</p>
                 </div>
               </div>
-            )
+            );
           })()}
           <Badge
             tone={
@@ -1315,73 +1238,75 @@ export function ProductDetail() {
               </div>
               <p className="mt-1.5 leading-5 text-amber-950/80">
                 Condition:{" "}
-                <strong className="text-amber-950">
-                  {product.condition || "Inspected"}
-                </strong>{" "}
-                · Multi-point diagnostics passed · Serviced & tested · Covered
-                by {product.specs.Warranty || "IT HUB Warranty"}.
+                <strong className="text-amber-950">{product.condition || "Inspected"}</strong> ·
+                Multi-point diagnostics passed · Serviced & tested · Covered by{" "}
+                {product.specs.Warranty || "IT HUB Warranty"}.
               </p>
             </div>
           )}
           {/* Multi-Variant Selector */}
-          {product.options && product.options.length > 0 && product.variants && product.variants.length > 1 && (
-            <div className="my-5 space-y-4 rounded-xl border border-border/80 bg-secondary/30 p-4">
-              {product.options.map((option) => {
-                const currentSelected = selectedOptions[option.name] || ""
-                return (
-                  <div key={option.name} className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-foreground">
-                        {option.name}:{" "}
-                        <span className="font-normal text-muted-foreground">
-                          {currentSelected}
+          {product.options &&
+            product.options.length > 0 &&
+            product.variants &&
+            product.variants.length > 1 && (
+              <div className="my-5 space-y-4 rounded-xl border border-border/80 bg-secondary/30 p-4">
+                {product.options.map((option) => {
+                  const currentSelected = selectedOptions[option.name] || "";
+                  return (
+                    <div key={option.name} className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-foreground">
+                          {option.name}:{" "}
+                          <span className="font-normal text-muted-foreground">
+                            {currentSelected}
+                          </span>
                         </span>
-                      </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {option.values.map((val) => {
+                          const isSelected = currentSelected.toLowerCase() === val.toLowerCase();
+                          const { exists, available } = getOptionValueAvailability(
+                            option.name,
+                            val,
+                          );
+                          return (
+                            <button
+                              type="button"
+                              key={val}
+                              onClick={() => handleSelectOption(option.name, val)}
+                              disabled={!exists}
+                              className={`relative rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
+                                isSelected
+                                  ? "border-2 border-primary bg-primary/10 text-primary font-semibold shadow-xs"
+                                  : exists
+                                    ? available
+                                      ? "border border-border bg-background hover:border-primary/50 text-foreground cursor-pointer"
+                                      : "border border-border/60 bg-muted/40 text-muted-foreground hover:border-border line-through cursor-pointer"
+                                    : "border border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed line-through"
+                              }`}
+                              aria-pressed={isSelected}
+                              title={!available ? `${val} (Sold out)` : val}
+                            >
+                              {val}
+                              {!available && exists && (
+                                <span className="ml-1.5 text-[10px] text-muted-foreground font-normal no-underline">
+                                  (Sold out)
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {option.values.map((val) => {
-                        const isSelected =
-                          currentSelected.toLowerCase() === val.toLowerCase()
-                        const { exists, available } =
-                          getOptionValueAvailability(option.name, val)
-                        return (
-                          <button
-                            type="button"
-                            key={val}
-                            onClick={() => handleSelectOption(option.name, val)}
-                            disabled={!exists}
-                            className={`relative rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
-                              isSelected
-                                ? "border-2 border-primary bg-primary/10 text-primary font-semibold shadow-xs"
-                                : exists
-                                  ? available
-                                    ? "border border-border bg-background hover:border-primary/50 text-foreground cursor-pointer"
-                                    : "border border-border/60 bg-muted/40 text-muted-foreground hover:border-border line-through cursor-pointer"
-                                  : "border border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed line-through"
-                            }`}
-                            aria-pressed={isSelected}
-                            title={!available ? `${val} (Sold out)` : val}
-                          >
-                            {val}
-                            {!available && exists && (
-                              <span className="ml-1.5 text-[10px] text-muted-foreground font-normal no-underline">
-                                (Sold out)
-                              </span>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-              {activeSku && (
-                <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
-                  SKU: <span className="font-mono text-foreground">{activeSku}</span>
-                </p>
-              )}
-            </div>
-          )}
+                  );
+                })}
+                {activeSku && (
+                  <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+                    SKU: <span className="font-mono text-foreground">{activeSku}</span>
+                  </p>
+                )}
+              </div>
+            )}
           <div className="my-6 flex flex-wrap gap-3">
             <div className="flex items-center rounded-md border border-border">
               <button
@@ -1392,9 +1317,7 @@ export function ProductDetail() {
               >
                 <Minus size={15} />
               </button>
-              <span className="w-7 text-center text-sm">
-                {isSoldOut ? 0 : quantity}
-              </span>
+              <span className="w-7 text-center text-sm">{isSoldOut ? 0 : quantity}</span>
               <button
                 aria-label="Increase quantity"
                 disabled={isSoldOut || quantity >= 10}
@@ -1404,11 +1327,7 @@ export function ProductDetail() {
                 <Plus size={15} />
               </button>
             </div>
-            <Button
-              disabled={isSoldOut}
-              onClick={add}
-              className="flex-1"
-            >
+            <Button disabled={isSoldOut} onClick={add} className="flex-1">
               Add to cart
             </Button>
             <button
@@ -1418,11 +1337,7 @@ export function ProductDetail() {
             >
               <Heart
                 size={18}
-                className={
-                  store.wishlist.includes(product.id)
-                    ? "fill-primary text-primary"
-                    : ""
-                }
+                className={store.wishlist.includes(product.id) ? "fill-primary text-primary" : ""}
               />
             </button>
           </div>
@@ -1446,10 +1361,7 @@ export function ProductDetail() {
           {buyNowError && (
             <div className="mt-3 rounded-xl border border-red-200 bg-red-50/90 p-3.5 text-xs text-red-900 shadow-xs">
               <div className="flex items-start gap-2">
-                <AlertTriangle
-                  size={15}
-                  className="text-red-600 shrink-0 mt-0.5"
-                />
+                <AlertTriangle size={15} className="text-red-600 shrink-0 mt-0.5" />
                 <div className="flex-1 space-y-1.5">
                   <p className="font-semibold">{buyNowError}</p>
                   <div className="flex items-center gap-3 pt-0.5">
@@ -1473,8 +1385,7 @@ export function ProductDetail() {
           )}
           <div className="mt-6 space-y-3 text-xs text-muted-foreground">
             <p className="flex gap-2">
-              <Truck size={15} className="text-primary" /> All Kerala delivery
-              available
+              <Truck size={15} className="text-primary" /> All Kerala delivery available
             </p>
             <p className="flex gap-2">
               <ShieldCheck size={15} className="text-primary" /> Warranty:{" "}
@@ -1486,10 +1397,7 @@ export function ProductDetail() {
                 Warranty help →
               </Link>
             </p>
-            <p>
-              Prices, availability and discounts are illustrative prototype
-              data.
-            </p>
+            <p>Prices, availability and discounts are illustrative prototype data.</p>
           </div>
         </div>
       </div>
@@ -1515,54 +1423,50 @@ export function ProductDetail() {
           ))}
         </div>
         <div className="min-h-44 py-7 text-sm leading-7">
-          {(tab === "Description" || tab === "Overview") && (() => {
-            const desc = resolveProductDescription(product)
-            return (
-              <section
-                aria-labelledby="product-description-heading"
-                className="max-w-3xl space-y-4"
-              >
-                <h3
-                  id="product-description-heading"
-                  className="text-lg font-bold text-foreground"
+          {(tab === "Description" || tab === "Overview") &&
+            (() => {
+              const desc = resolveProductDescription(product);
+              return (
+                <section
+                  aria-labelledby="product-description-heading"
+                  className="max-w-3xl space-y-4"
                 >
-                  Product Description
-                </h3>
-                {desc.type === "html" ? (
-                  <div
-                    className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80"
-                    dangerouslySetInnerHTML={{
-                      __html: desc.content,
-                    }}
-                  />
-                ) : desc.type === "text" ? (
-                  <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
-                    {desc.content}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground italic">
-                    {desc.content}
-                  </p>
-                )}
-              </section>
-            )
-          })()}
+                  <h3
+                    id="product-description-heading"
+                    className="text-lg font-bold text-foreground"
+                  >
+                    Product Description
+                  </h3>
+                  {desc.type === "html" ? (
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80"
+                      dangerouslySetInnerHTML={{
+                        __html: desc.content,
+                      }}
+                    />
+                  ) : desc.type === "text" ? (
+                    <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
+                      {desc.content}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground italic">{desc.content}</p>
+                  )}
+                </section>
+              );
+            })()}
           {tab === "Reviews" && (
             <div className="max-w-3xl space-y-6">
               {/* Header & Rating Overview */}
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card/60 p-6 shadow-xs">
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">
-                    Customer Reviews
-                  </h3>
+                  <h3 className="text-lg font-bold text-foreground">Customer Reviews</h3>
                   <div className="mt-2 flex items-center gap-3">
                     <div className="flex items-center text-amber-400">
                       {[1, 2, 3, 4, 5].map((star) => {
                         const avg =
                           reviews.length > 0
-                            ? reviews.reduce((s, r) => s + r.rating, 0) /
-                              reviews.length
-                            : product.rating
+                            ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+                            : product.rating;
                         return (
                           <Star
                             key={star}
@@ -1573,20 +1477,14 @@ export function ProductDetail() {
                                 : "text-muted-foreground/30"
                             }
                           />
-                        )
+                        );
                       })}
                     </div>
                     <span className="text-base font-bold text-foreground">
                       {reviews.length > 0
-                        ? (
-                            reviews.reduce((s, r) => s + r.rating, 0) /
-                            reviews.length
-                          ).toFixed(1)
+                        ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
                         : product.rating}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        {" "}
-                        / 5
-                      </span>
+                      <span className="text-sm font-normal text-muted-foreground"> / 5</span>
                     </span>
                     <span className="text-xs text-muted-foreground">
                       ·{" "}
@@ -1614,9 +1512,7 @@ export function ProductDetail() {
                   className="rounded-2xl border border-primary/30 bg-card p-6 shadow-sm space-y-4 transition-all"
                 >
                   <div className="flex items-center justify-between border-b border-border pb-3">
-                    <h4 className="text-base font-bold text-foreground">
-                      Write a Customer Review
-                    </h4>
+                    <h4 className="text-base font-bold text-foreground">Write a Customer Review</h4>
                     <span className="text-xs text-muted-foreground truncate max-w-xs">
                       For {product.name}
                     </span>
@@ -1713,11 +1609,7 @@ export function ProductDetail() {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={
-                        formSubmitting ||
-                        !formAuthor.trim() ||
-                        !formComment.trim()
-                      }
+                      disabled={formSubmitting || !formAuthor.trim() || !formComment.trim()}
                     >
                       {formSubmitting ? "Submitting…" : "Post Review"}
                     </Button>
@@ -1747,9 +1639,7 @@ export function ProductDetail() {
                             </span>
                           </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {rev.date}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{rev.date}</span>
                       </div>
 
                       <div className="flex items-center gap-1 text-amber-400">
@@ -1767,9 +1657,7 @@ export function ProductDetail() {
                       </div>
 
                       {rev.title && (
-                        <h4 className="text-sm font-bold text-foreground">
-                          {rev.title}
-                        </h4>
+                        <h4 className="text-sm font-bold text-foreground">{rev.title}</h4>
                       )}
 
                       <p className="text-sm text-foreground/90 whitespace-pre-line leading-relaxed">
@@ -1785,8 +1673,8 @@ export function ProductDetail() {
                     No customer reviews yet
                   </h4>
                   <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-                    Be the first customer to share your hands-on experience,
-                    performance feedback, and rating for this product.
+                    Be the first customer to share your hands-on experience, performance feedback,
+                    and rating for this product.
                   </p>
                   {!showReviewForm && (
                     <Button
@@ -1810,8 +1698,7 @@ export function ProductDetail() {
             .filter((item) => item.id !== product.id)
             .sort(
               (a, b) =>
-                Number(b.category === product.category) -
-                Number(a.category === product.category),
+                Number(b.category === product.category) - Number(a.category === product.category),
             )
             .slice(0, 4)
             .map((item) => (
@@ -1851,25 +1738,19 @@ export function ProductDetail() {
           ].map((service) => (
             <Link
               key={service.name}
-              to={
-                service.to ||
-                `/services/book?service=${encodeURIComponent(service.name)}`
-              }
+              to={service.to || `/services/book?service=${encodeURIComponent(service.name)}`}
               className="group rounded-2xl border border-border bg-card p-5 transition hover:border-primary/40"
             >
               <ShieldCheck size={20} className="text-primary" />
               <h3 className="mt-4 text-sm font-semibold">{service.name}</h3>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {service.text}
-              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{service.text}</p>
               <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                {service.to ? "Get help" : "Request Service"}{" "}
-                <ArrowRight size={13} />
+                {service.to ? "Get help" : "Request Service"} <ArrowRight size={13} />
               </span>
             </Link>
           ))}
         </div>
       </div>
     </Page>
-  )
+  );
 }

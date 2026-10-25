@@ -3,12 +3,10 @@
 // Rigorous verification covering Rule F (PCIe power), Tri-State UNKNOWN blocking,
 // and Specification Provenance transparency.
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts"
+import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-const {
-  checkCompatibility,
-  calculateSystemPower,
-} = await import("../../../src/lib/builder/compatibility.ts")
+const { checkCompatibility, calculateSystemPower } =
+  await import("../../../src/lib/builder/compatibility.ts");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 2 Unit Tests
@@ -38,15 +36,15 @@ Deno.test("PHASE2-1: Rule F — GPU requiring auxiliary PCIe power triggers erro
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  assertEquals(result.valid, false)
-  const pcieError = result.items.find((i) => i.ruleId === "RULE_F_PCIE_POWER_INSUFFICIENT")
-  assertEquals(Boolean(pcieError), true)
-  assertEquals(pcieError?.severity, "error")
-  assertEquals(pcieError?.status, "incompatible")
-})
+  const result = checkCompatibility(parts);
+  assertEquals(result.valid, false);
+  const pcieError = result.items.find((i) => i.ruleId === "RULE_F_PCIE_POWER_INSUFFICIENT");
+  assertEquals(Boolean(pcieError), true);
+  assertEquals(pcieError?.severity, "error");
+  assertEquals(pcieError?.status, "incompatible");
+});
 
 Deno.test("PHASE2-2: Rule F — Low-power GPU (<=75W) passes without requiring auxiliary PCIe power", () => {
   const parts: any = {
@@ -72,13 +70,13 @@ Deno.test("PHASE2-2: Rule F — Low-power GPU (<=75W) passes without requiring a
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const notRequiredInfo = result.items.find((i) => i.ruleId === "RULE_F_PCIE_POWER_NOT_REQUIRED")
-  assertEquals(Boolean(notRequiredInfo), true)
-  assertEquals(notRequiredInfo?.status, "compatible")
-})
+  const result = checkCompatibility(parts);
+  const notRequiredInfo = result.items.find((i) => i.ruleId === "RULE_F_PCIE_POWER_NOT_REQUIRED");
+  assertEquals(Boolean(notRequiredInfo), true);
+  assertEquals(notRequiredInfo?.status, "compatible");
+});
 
 Deno.test("PHASE2-3: UNKNOWN is never treated as PASS — Automated mode rejects blocking unknowns", () => {
   const partsWithUnknownSocket: any = {
@@ -104,20 +102,20 @@ Deno.test("PHASE2-3: UNKNOWN is never treated as PASS — Automated mode rejects
       availability: "available",
       quantity: 1,
     },
-  }
+  };
 
   // In Manual / Expert Mode: Displays warning, does not block manual quote request
-  const manualResult = checkCompatibility(partsWithUnknownSocket, { mode: "manual" })
-  assertEquals(manualResult.valid, true)
-  assertEquals(manualResult.hasBlockingUnknowns, true)
-  assertEquals(manualResult.validForAutomatedRecommendation, false)
+  const manualResult = checkCompatibility(partsWithUnknownSocket, { mode: "manual" });
+  assertEquals(manualResult.valid, true);
+  assertEquals(manualResult.hasBlockingUnknowns, true);
+  assertEquals(manualResult.validForAutomatedRecommendation, false);
 
   // In Automated Mode (Find My PC recommendation engine): UNKNOWN strictly blocks recommendation
-  const automatedResult = checkCompatibility(partsWithUnknownSocket, { mode: "automated" })
-  assertEquals(automatedResult.valid, false) // Blocked!
-  assertEquals(automatedResult.validForAutomatedRecommendation, false)
-  assertEquals(automatedResult.status, "unknown")
-})
+  const automatedResult = checkCompatibility(partsWithUnknownSocket, { mode: "automated" });
+  assertEquals(automatedResult.valid, false); // Blocked!
+  assertEquals(automatedResult.validForAutomatedRecommendation, false);
+  assertEquals(automatedResult.status, "unknown");
+});
 
 Deno.test("PHASE2-4: Rule E — Missing PSU rated wattage is marked as blocking unknown", () => {
   const parts: any = {
@@ -130,16 +128,16 @@ Deno.test("PHASE2-4: Rule E — Missing PSU rated wattage is marked as blocking 
       title: "Unspecified Brand PSU",
       specs: { ratedWattage: undefined }, // UNKNOWN wattage
     },
-  }
+  };
 
-  const result = checkCompatibility(parts, { mode: "automated" })
-  assertEquals(result.hasBlockingUnknowns, true)
-  assertEquals(result.validForAutomatedRecommendation, false)
-  assertEquals(result.valid, false)
-  const unknownWattage = result.items.find((i) => i.ruleId === "RULE_E_PSU_WATTAGE_UNKNOWN")
-  assertEquals(Boolean(unknownWattage), true)
-  assertEquals(unknownWattage?.status, "unknown")
-})
+  const result = checkCompatibility(parts, { mode: "automated" });
+  assertEquals(result.hasBlockingUnknowns, true);
+  assertEquals(result.validForAutomatedRecommendation, false);
+  assertEquals(result.valid, false);
+  const unknownWattage = result.items.find((i) => i.ruleId === "RULE_E_PSU_WATTAGE_UNKNOWN");
+  assertEquals(Boolean(unknownWattage), true);
+  assertEquals(unknownWattage?.status, "unknown");
+});
 
 Deno.test("PHASE2-5: Rule J — Provenance audit transparently flags unverified specifications", () => {
   const parts: any = {
@@ -155,12 +153,11 @@ Deno.test("PHASE2-5: Rule J — Provenance audit transparently flags unverified 
       isVerified: false,
       specs: { socket: "AM4", supportedRamGeneration: "DDR4", provenance: "ambiguous_unverified" },
     },
-  }
+  };
 
-  const result = checkCompatibility(parts)
-  const unverifiedItem = result.items.find((i) => i.ruleId === "RULE_J_SPEC_UNVERIFIED")
-  assertEquals(Boolean(unverifiedItem), true)
-  assertEquals(unverifiedItem?.status, "conditional")
-  assertEquals(unverifiedItem?.affectedSlots.includes("Motherboard"), true)
-})
-
+  const result = checkCompatibility(parts);
+  const unverifiedItem = result.items.find((i) => i.ruleId === "RULE_J_SPEC_UNVERIFIED");
+  assertEquals(Boolean(unverifiedItem), true);
+  assertEquals(unverifiedItem?.status, "conditional");
+  assertEquals(unverifiedItem?.affectedSlots.includes("Motherboard"), true);
+});

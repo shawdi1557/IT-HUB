@@ -1,6 +1,8 @@
 /* Layered so Tailwind utilities on cards (border, radius, bg) still win. */
 @layer components {
-  :root { --glare-tint: rgba(26, 79, 214, 0.16); }
+  :root {
+    --glare-tint: rgba(26, 79, 214, 0.16);
+  }
   .glare-hover {
     --gh-width: auto;
     --gh-height: auto;

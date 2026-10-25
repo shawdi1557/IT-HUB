@@ -28,16 +28,16 @@ The system is architected as a decoupled, responsive single-page application (SP
 
 ### Technology Stack
 
-| Layer | Technologies | Role & Key Features |
-| :--- | :--- | :--- |
-| **Frontend UI** | React 19, TypeScript 5.7, Vite 8 | Ultra-fast SPA with client-side routing, code splitting, and strict type safety |
-| **Styling & Motion** | Tailwind CSS v4, Motion, Lenis | Responsive styling, brand tokens (`#1a4fd6`, `#ecf1ff`, `#0c2f8a`), smooth scrolling |
-| **Component Primitives** | Radix UI, Lucide Icons | Accessible dialogs, dropdowns, accessible modal overlays with wheel-scroll isolation |
-| **E-Commerce & Catalog** | Shopify Storefront API (GraphQL) | Live catalog queries, variant GID resolution, inventory levels, cart lines, and checkout |
-| **Database & Auth** | Supabase (PostgreSQL 15), GoTrue | Relational database, Row Level Security (RLS), custom RPCs, E.164 phone OTP & email auth |
-| **Edge Functions** | Deno runtime | Server-side quotation price verification, distributed rate limiting, and cryptographic payment webhooks |
-| **Payments** | Razorpay SDK | UPI, Debit/Credit cards, Net Banking, and Pay on Delivery options |
-| **State Management** | Centralized Store with localStorage | Persistent cart, customer session, pending quotation preservation, live inventory hydration |
+| Layer                    | Technologies                        | Role & Key Features                                                                                     |
+| :----------------------- | :---------------------------------- | :------------------------------------------------------------------------------------------------------ |
+| **Frontend UI**          | React 19, TypeScript 5.7, Vite 8    | Ultra-fast SPA with client-side routing, code splitting, and strict type safety                         |
+| **Styling & Motion**     | Tailwind CSS v4, Motion, Lenis      | Responsive styling, brand tokens (`#1a4fd6`, `#ecf1ff`, `#0c2f8a`), smooth scrolling                    |
+| **Component Primitives** | Radix UI, Lucide Icons              | Accessible dialogs, dropdowns, accessible modal overlays with wheel-scroll isolation                    |
+| **E-Commerce & Catalog** | Shopify Storefront API (GraphQL)    | Live catalog queries, variant GID resolution, inventory levels, cart lines, and checkout                |
+| **Database & Auth**      | Supabase (PostgreSQL 15), GoTrue    | Relational database, Row Level Security (RLS), custom RPCs, E.164 phone OTP & email auth                |
+| **Edge Functions**       | Deno runtime                        | Server-side quotation price verification, distributed rate limiting, and cryptographic payment webhooks |
+| **Payments**             | Razorpay SDK                        | UPI, Debit/Credit cards, Net Banking, and Pay on Delivery options                                       |
+| **State Management**     | Centralized Store with localStorage | Persistent cart, customer session, pending quotation preservation, live inventory hydration             |
 
 ### Security & Data Isolation Architecture
 
@@ -57,16 +57,16 @@ The **Find My PC** engine (`src/lib/builder/recommendations.ts`) dynamically gen
 
 - **Dynamic Candidate Synthesis**: Evaluates combinatorial component candidates from live Shopify products rather than static hardcoded templates.
 - **Five Purpose Profiles**:
-  1. *Esports & High-FPS Gaming*: GPU/CPU allocation weighted toward high frame rates and low latency.
-  2. *AAA Cinematic Gaming*: Visual fidelity, VRAM capacity, and GPU headroom prioritization.
-  3. *Content Creation & Video Editing*: Multi-threaded CPU performance, high-capacity RAM, and fast NVMe storage.
-  4. *Software Development & Engineering*: High core counts, fast compilation memory, and multi-monitor expansion.
-  5. *Everyday Office & Productivity*: Balanced, power-efficient, reliable baseline configurations.
+  1. _Esports & High-FPS Gaming_: GPU/CPU allocation weighted toward high frame rates and low latency.
+  2. _AAA Cinematic Gaming_: Visual fidelity, VRAM capacity, and GPU headroom prioritization.
+  3. _Content Creation & Video Editing_: Multi-threaded CPU performance, high-capacity RAM, and fast NVMe storage.
+  4. _Software Development & Engineering_: High core counts, fast compilation memory, and multi-monitor expansion.
+  5. _Everyday Office & Productivity_: Balanced, power-efficient, reliable baseline configurations.
 - **Tri-Variant Delivery**: Produces three distinct build perspectives per valid query:
   - **Best Value**: Maximizes benchmark performance per rupee strictly within budget.
   - **Balanced Choice**: Optimal component synergy, cooling headroom, and power efficiency.
   - **Best Performance**: Top-tier silicon with zero unverified bottlenecks.
-- **Honest Shortfall UI**: When a customer's budget cannot satisfy hard minimum baseline requirements (e.g. ₹25,000 for a dedicated gaming rig requiring discrete graphics), the engine refuses to pad recommendations with sub-par components. Instead, it transparently displays the exact rupee shortfall (e.g., *"Shortfall: ₹18,499 to meet minimum gaming baseline"*).
+- **Honest Shortfall UI**: When a customer's budget cannot satisfy hard minimum baseline requirements (e.g. ₹25,000 for a dedicated gaming rig requiring discrete graphics), the engine refuses to pad recommendations with sub-par components. Instead, it transparently displays the exact rupee shortfall (e.g., _"Shortfall: ₹18,499 to meet minimum gaming baseline"_).
 
 ### 3.2. Hardware Specification & Compatibility Engine
 
@@ -87,7 +87,7 @@ The compatibility engine (`src/lib/builder/compatibility.ts`) enforces 10 strict
 
 Custom PC fabrication requires technician review, component reservation, and custom assembly:
 
-- **Seamless Guest Preservation**: Guests can freely configure builds, adjust parts, and inspect compatibility. Clicking *"Request Quotation"* saves the pending build and preferences to `localStorage` (`savePendingQuotation`) and directs the user to sign in.
+- **Seamless Guest Preservation**: Guests can freely configure builds, adjust parts, and inspect compatibility. Clicking _"Request Quotation"_ saves the pending build and preferences to `localStorage` (`savePendingQuotation`) and directs the user to sign in.
 - **Post-Login Confirmation**: Upon successful authentication, the pending build is restored into the customer's view for explicit review and confirmation before submission. No quotation is ever submitted without explicit customer consent.
 - **Authoritative Server Dispatch**: Dispatched to `verify-and-submit-pc-quotation` Deno Edge Function with customer JWT, returning an immutable `reference_id` (e.g. `IH-PC-20261026-XXXX`).
 
@@ -203,6 +203,7 @@ ITHUB_WEB/
 ## 6. Getting Started
 
 ### 6.1. Prerequisites
+
 - **Node.js**: v20 or higher
 - **Deno**: v1.40 or higher (for running test suites)
 - **Package Manager**: `npm` or `pnpm`
@@ -210,18 +211,21 @@ ITHUB_WEB/
 ### 6.2. Installation & Local Development
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/shawdi1557/IT-HUB.git
    cd IT-HUB
    ```
 
 2. **Install dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Configure Environment Variables**:
    Create a `.env.local` file in the root directory:
+
    ```env
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key

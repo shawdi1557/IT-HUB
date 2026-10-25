@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
-import { LoginGate } from "../components/AuthModal"
-import { Link, useNavigate, useParams } from "react-router"
+import { useEffect, useState } from "react";
+import { LoginGate } from "../components/AuthModal";
+import { Link, useNavigate, useParams } from "react-router";
 import {
   ArrowRight,
   CheckCircle2,
@@ -15,9 +15,9 @@ import {
   ShieldCheck,
   LoaderCircle,
   AlertTriangle,
-} from "lucide-react"
-import { useStore } from "../app/store"
-import { track } from "../lib/analytics"
+} from "lucide-react";
+import { useStore } from "../app/store";
+import { track } from "../lib/analytics";
 import {
   bestOffer,
   money,
@@ -25,19 +25,15 @@ import {
   validateCoupon,
   type CartItem,
   type Coupon,
-} from "../data/catalog"
+} from "../data/catalog";
 import {
   RAZORPAY_KEY_ID,
   createSupabaseOrder,
   launchRazorpayModal,
   verifyCheckoutCallback,
-} from "../lib/payments"
-import WarrantyCheck from "../components/WarrantyCheck"
-import {
-  shopifyConfig,
-  createShopifyCart,
-  revalidateCartAvailability,
-} from "../lib/shopify"
+} from "../lib/payments";
+import WarrantyCheck from "../components/WarrantyCheck";
+import { shopifyConfig, createShopifyCart, revalidateCartAvailability } from "../lib/shopify";
 import {
   ActionLink,
   Badge,
@@ -48,30 +44,28 @@ import {
   PageHeading,
   Timeline,
   fieldClass,
-} from "../components/ui"
+} from "../components/ui";
 
 function offerTotals(store: ReturnType<typeof useStore>) {
-  let discount = 0
-  const applied = new Set<string>()
+  let discount = 0;
+  const applied = new Set<string>();
   const subtotal = store.cart.reduce((sum, item) => {
     const product =
       item.productId && !item.build
         ? store.products.find((row) => row.id === item.productId)
-        : undefined
-    const best = product
-      ? bestOffer(store.offers, { ...product, price: item.price })
-      : null
+        : undefined;
+    const best = product ? bestOffer(store.offers, { ...product, price: item.price }) : null;
     if (best) {
-      discount += best.saving * item.quantity
-      applied.add(best.offer.name)
+      discount += best.saving * item.quantity;
+      applied.add(best.offer.name);
     }
-    return sum + item.price * item.quantity
-  }, 0)
-  return { subtotal, discount, applied: [...applied] }
+    return sum + item.price * item.quantity;
+  }, 0);
+  return { subtotal, discount, applied: [...applied] };
 }
 
 export function Cart() {
-  const store = useStore()
+  const store = useStore();
   if (!store.loggedIn) {
     return (
       <Page>
@@ -80,73 +74,73 @@ export function Cart() {
           text="Sign in with your mobile number to manage your items, apply coupons, and proceed to checkout."
         />
       </Page>
-    )
+    );
   }
-  const navigate = useNavigate()
-  const [checkingOut, setCheckingOut] = useState(false)
-  const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const [unavailableIds, setUnavailableIds] = useState<string[]>([])
-  const [promoInput, setPromoInput] = useState("")
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null)
-  const [promoError, setPromoError] = useState<string | null>(null)
-  const [promoSuccess, setPromoSuccess] = useState<string | null>(null)
+  const navigate = useNavigate();
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (shopifyConfig.isConfigured && store.cart.length > 0) {
       revalidateCartAvailability(store.cart)
         .then((reval) => {
           if (!reval.valid) {
-            setUnavailableIds(reval.unavailableItems.map((u) => u.cartItemId))
+            setUnavailableIds(reval.unavailableItems.map((u) => u.cartItemId));
           } else {
-            setUnavailableIds([])
+            setUnavailableIds([]);
           }
         })
-        .catch(() => {})
+        .catch(() => {});
     } else {
-      setUnavailableIds([])
+      setUnavailableIds([]);
     }
-  }, [store.cart.length])
+  }, [store.cart.length]);
 
   const handleCheckout = async () => {
     if (shopifyConfig.isConfigured) {
-      setCheckingOut(true)
-      setCheckoutError(null)
+      setCheckingOut(true);
+      setCheckoutError(null);
 
       // 1. Pre-flight real-time Storefront availability check
       try {
-        const reval = await revalidateCartAvailability(store.cart)
+        const reval = await revalidateCartAvailability(store.cart);
         if (!reval.valid) {
-          const flagged = reval.unavailableItems.map((u) => u.cartItemId)
-          setUnavailableIds(flagged)
-          const names = reval.unavailableItems.map((u) => `"${u.name}"`).join(", ")
+          const flagged = reval.unavailableItems.map((u) => u.cartItemId);
+          setUnavailableIds(flagged);
+          const names = reval.unavailableItems.map((u) => `"${u.name}"`).join(", ");
           setCheckoutError(
             `Sorry, ${names} ${
               reval.unavailableItems.length === 1 ? "is" : "are"
             } currently sold out. Please remove ${
               reval.unavailableItems.length === 1 ? "it" : "them"
             } to proceed.`,
-          )
-          setCheckingOut(false)
-          return
+          );
+          setCheckingOut(false);
+          return;
         }
       } catch {
         // Proceed if network error during pre-check
       }
 
       // 2. Build lines with validated merchandiseId (variantId) and quantity
-      const returnUrl = `${window.location.origin}/cart`
+      const returnUrl = `${window.location.origin}/cart`;
       const lines = store.cart.map((item) => {
         const resolvedVariantId =
           item.variantId ||
-          store.products.find((p) => p.id === item.productId || p.id === item.id)?.variantId
+          store.products.find((p) => p.id === item.productId || p.id === item.id)?.variantId;
         if (!resolvedVariantId) {
-          throw new Error(`Unable to resolve Shopify variant for item "${item.name}".`)
+          throw new Error(`Unable to resolve Shopify variant for item "${item.name}".`);
         }
         return {
           merchandiseId: resolvedVariantId,
           quantity: item.quantity,
-        }
-      })
+        };
+      });
 
       const res = await createShopifyCart(lines, {
         attributes: [
@@ -156,77 +150,74 @@ export function Cart() {
           },
         ],
         discountCodes: appliedPromo ? [appliedPromo] : undefined,
-      })
+      });
 
       if (res.cart?.checkoutUrl) {
         if (appliedPromo && res.cart.discountCodes) {
           const codeInfo = res.cart.discountCodes.find(
             (d) => d.code.toUpperCase() === appliedPromo.toUpperCase(),
-          )
+          );
           if (codeInfo && !codeInfo.applicable) {
             setCheckoutError(
               `Notice: Promo code "${appliedPromo}" is not valid or not applicable to items in your cart.`,
-            )
-            setCheckingOut(false)
-            return
+            );
+            setCheckingOut(false);
+            return;
           }
         }
-        window.location.href = res.cart.checkoutUrl
-        return
+        window.location.href = res.cart.checkoutUrl;
+        return;
       }
 
       // 3. Handle Shopify rejection or race conditions (e.g. inventory became 0 during cart creation)
       if (res.userErrors && res.userErrors.length > 0) {
-        const newlyUnavailable: string[] = []
+        const newlyUnavailable: string[] = [];
         res.userErrors.forEach((err) => {
           if (err.lineIndex !== undefined && store.cart[err.lineIndex]) {
-            newlyUnavailable.push(store.cart[err.lineIndex].id)
+            newlyUnavailable.push(store.cart[err.lineIndex].id);
           }
-        })
+        });
 
         if (newlyUnavailable.length > 0) {
-          setUnavailableIds((prev) =>
-            Array.from(new Set([...prev, ...newlyUnavailable])),
-          )
+          setUnavailableIds((prev) => Array.from(new Set([...prev, ...newlyUnavailable])));
         }
 
-        const rawMsg = res.error || "Unable to proceed to checkout."
+        const rawMsg = res.error || "Unable to proceed to checkout.";
         const isStock =
           rawMsg.toLowerCase().includes("sold out") ||
           rawMsg.toLowerCase().includes("not available") ||
-          rawMsg.toLowerCase().includes("out of stock")
+          rawMsg.toLowerCase().includes("out of stock");
 
         setCheckoutError(
           isStock
             ? "Inventory updated: One or more items in your cart just became sold out. Please remove them or adjust quantity before checkout."
             : rawMsg,
-        )
-        setCheckingOut(false)
-        return
+        );
+        setCheckingOut(false);
+        return;
       }
 
       setCheckoutError(
-        res.error ||
-          "Unable to initiate Shopify checkout. Please check cart items.",
-      )
-      setCheckingOut(false)
+        res.error || "Unable to initiate Shopify checkout. Please check cart items.",
+      );
+      setCheckingOut(false);
     } else {
-      navigate("/checkout")
+      navigate("/checkout");
     }
-  }
+  };
 
-  const { subtotal, discount, applied } = offerTotals(store)
+  const { subtotal, discount, applied } = offerTotals(store);
   const hasInsufficientStock =
     unavailableIds.length > 0 ||
     store.cart.some((item) => {
-      if (!item.productId) return false
-      const product = store.products.find((row) => row.id === item.productId)
+      if (!item.productId) return false;
+      const product = store.products.find((row) => row.id === item.productId);
       return product
         ? product.availableForSale !== undefined
           ? !product.availableForSale
           : item.quantity > product.stock
-        : false
-    })
+        : false;
+    });
   return (
     <Page>
       <PageHeading
@@ -238,9 +229,7 @@ export function Cart() {
           <div className="flex items-start gap-2.5">
             <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 space-y-2">
-              <p className="font-semibold text-sm leading-snug">
-                {checkoutError}
-              </p>
+              <p className="font-semibold text-sm leading-snug">{checkoutError}</p>
               <div className="flex flex-wrap items-center gap-4">
                 <Link
                   to="/products"
@@ -273,20 +262,20 @@ export function Cart() {
             {store.cart.map((item) => {
               const product = item.productId
                 ? store.products.find((row) => row.id === item.productId)
-                : undefined
+                : undefined;
               const isOutOfStock = Boolean(
                 unavailableIds.includes(item.id) ||
-                  (product &&
-                    (product.availableForSale !== undefined
-                      ? !product.availableForSale
-                      : product.stock <= 0)),
-              )
+                (product &&
+                  (product.availableForSale !== undefined
+                    ? !product.availableForSale
+                    : product.stock <= 0)),
+              );
               const isOverStock = Boolean(
                 product &&
-                  product.availableForSale === undefined &&
-                  product.stock > 0 &&
-                  item.quantity > product.stock,
-              )
+                product.availableForSale === undefined &&
+                product.stock > 0 &&
+                item.quantity > product.stock,
+              );
 
               return (
                 <div
@@ -308,7 +297,7 @@ export function Cart() {
                         alt={item.name}
                         className="h-full w-full object-contain p-2"
                         onError={(event) => {
-                          event.currentTarget.hidden = true
+                          event.currentTarget.hidden = true;
                         }}
                       />
                     )}
@@ -324,9 +313,7 @@ export function Cart() {
                     ) : (
                       <p className="text-sm font-semibold">{item.name}</p>
                     )}
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {money(item.price)} each
-                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">{money(item.price)} each</p>
                     {item.build && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {Object.keys(item.build.parts).length} components
@@ -343,14 +330,10 @@ export function Cart() {
                             type="button"
                             onClick={() => {
                               store.set({
-                                cart: store.cart.filter(
-                                  (row) => row.id !== item.id,
-                                ),
-                              })
-                              setUnavailableIds((prev) =>
-                                prev.filter((id) => id !== item.id),
-                              )
-                              store.notify(`Removed ${item.name} from cart`)
+                                cart: store.cart.filter((row) => row.id !== item.id),
+                              });
+                              setUnavailableIds((prev) => prev.filter((id) => id !== item.id));
+                              store.notify(`Removed ${item.name} from cart`);
                             }}
                             className="font-medium text-red-700 underline hover:text-red-900"
                           >
@@ -367,22 +350,17 @@ export function Cart() {
                     )}
                     {isOverStock && (
                       <p className="mt-2 text-xs font-semibold text-amber-700">
-                        Only {product!.stock} available. Please reduce quantity
-                        to {product!.stock}.
+                        Only {product!.stock} available. Please reduce quantity to {product!.stock}.
                       </p>
                     )}
                     {!isOutOfStock && (
                       <button
                         onClick={() => {
                           store.set({
-                            cart: store.cart.filter(
-                              (row) => row.id !== item.id,
-                            ),
-                          })
-                          setUnavailableIds((prev) =>
-                            prev.filter((id) => id !== item.id),
-                          )
-                          store.notify("Removed from cart")
+                            cart: store.cart.filter((row) => row.id !== item.id),
+                          });
+                          setUnavailableIds((prev) => prev.filter((id) => id !== item.id));
+                          store.notify("Removed from cart");
                         }}
                         className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-red-600"
                       >
@@ -409,24 +387,19 @@ export function Cart() {
                     >
                       <Minus size={13} />
                     </button>
-                    <span className="w-5 text-center text-sm">
-                      {item.quantity}
-                    </span>
+                    <span className="w-5 text-center text-sm">{item.quantity}</span>
                     <button
                       aria-label={`Increase ${item.name} quantity`}
                       disabled={
                         Boolean(item.productId) &&
                         item.quantity >=
-                          (store.products.find(
-                            (product) => product.id === item.productId,
-                          )?.stock || 0)
+                          (store.products.find((product) => product.id === item.productId)?.stock ||
+                            0)
                       }
                       onClick={() =>
                         store.set({
                           cart: store.cart.map((row) =>
-                            row.id === item.id
-                              ? { ...row, quantity: row.quantity + 1 }
-                              : row,
+                            row.id === item.id ? { ...row, quantity: row.quantity + 1 } : row,
                           ),
                         })
                       }
@@ -439,7 +412,7 @@ export function Cart() {
                     {money(item.price * item.quantity)}
                   </strong>
                 </div>
-              )
+              );
             })}
             <ActionLink secondary to="/products">
               Continue shopping
@@ -457,9 +430,7 @@ export function Cart() {
                 <span className="text-emerald-700">−{money(discount)}</span>
               </div>
               {applied.length > 0 && (
-                <p className="text-xs text-primary">
-                  Applied automatically: {applied.join(", ")}
-                </p>
+                <p className="text-xs text-primary">Applied automatically: {applied.join(", ")}</p>
               )}
               <p className="text-xs text-muted-foreground">
                 Delivery calculated at checkout. Prices include demo taxes.
@@ -483,9 +454,9 @@ export function Cart() {
                     <button
                       type="button"
                       onClick={() => {
-                        setAppliedPromo(null)
-                        setPromoSuccess(null)
-                        setPromoError(null)
+                        setAppliedPromo(null);
+                        setPromoSuccess(null);
+                        setPromoError(null);
                       }}
                       className="font-medium text-muted-foreground underline hover:text-red-600"
                     >
@@ -498,8 +469,8 @@ export function Cart() {
                       type="text"
                       value={promoInput}
                       onChange={(e) => {
-                        setPromoInput(e.target.value)
-                        setPromoError(null)
+                        setPromoInput(e.target.value);
+                        setPromoError(null);
                       }}
                       placeholder="e.g. FESTIVE10"
                       className={`${fieldClass} text-xs uppercase`}
@@ -507,17 +478,17 @@ export function Cart() {
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        const trimmed = promoInput.trim().toUpperCase()
+                        const trimmed = promoInput.trim().toUpperCase();
                         if (!trimmed) {
-                          setPromoError("Please enter a discount code.")
-                          return
+                          setPromoError("Please enter a discount code.");
+                          return;
                         }
-                        setAppliedPromo(trimmed)
+                        setAppliedPromo(trimmed);
                         setPromoSuccess(
                           `Code "${trimmed}" will be verified & applied by Shopify at checkout.`,
-                        )
-                        setPromoError(null)
-                        setPromoInput("")
+                        );
+                        setPromoError(null);
+                        setPromoInput("");
                       }}
                       className="shrink-0 px-3 text-xs"
                     >
@@ -526,35 +497,23 @@ export function Cart() {
                   </div>
                 )}
                 {promoSuccess && (
-                  <p className="mt-1.5 text-[11px] text-emerald-700">
-                    {promoSuccess}
-                  </p>
+                  <p className="mt-1.5 text-[11px] text-emerald-700">{promoSuccess}</p>
                 )}
-                {promoError && (
-                  <p className="mt-1.5 text-[11px] text-red-600">{promoError}</p>
-                )}
+                {promoError && <p className="mt-1.5 text-[11px] text-red-600">{promoError}</p>}
               </div>
             )}
             {hasInsufficientStock ? (
               <div className="mt-6">
-                <Button
-                  disabled
-                  className="w-full cursor-not-allowed opacity-50"
-                >
+                <Button disabled className="w-full cursor-not-allowed opacity-50">
                   Proceed to checkout <ArrowRight size={16} />
                 </Button>
                 <p className="mt-2 text-center text-xs font-medium text-red-600">
-                  Please adjust cart quantities or remove sold-out items before
-                  proceeding.
+                  Please adjust cart quantities or remove sold-out items before proceeding.
                 </p>
               </div>
             ) : shopifyConfig.isConfigured ? (
               <div className="mt-6">
-                <Button
-                  onClick={handleCheckout}
-                  disabled={checkingOut}
-                  className="w-full"
-                >
+                <Button onClick={handleCheckout} disabled={checkingOut} className="w-full">
                   {checkingOut ? (
                     <>
                       <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -572,7 +531,8 @@ export function Cart() {
                   </p>
                 )}
                 <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
-                  <LockKeyhole size={12} className="text-emerald-600" /> Secure checkout powered by Shopify
+                  <LockKeyhole size={12} className="text-emerald-600" /> Secure checkout powered by
+                  Shopify
                 </p>
               </div>
             ) : (
@@ -589,19 +549,19 @@ export function Cart() {
         </div>
       )}
     </Page>
-  )
+  );
 }
 export function Checkout() {
-  const store = useStore()
-  const navigate = useNavigate()
+  const store = useStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Phase 5 Route Guard: Direct navigation to /checkout is intercepted when Shopify is active.
     // Redirects safely to /cart so the customer can review their shopping bag and proceed to Shopify Hosted Checkout.
     if (shopifyConfig.isConfigured) {
-      navigate("/cart", { replace: true })
+      navigate("/cart", { replace: true });
     }
-  }, [navigate])
+  }, [navigate]);
 
   if (shopifyConfig.isConfigured) {
     return (
@@ -614,16 +574,13 @@ export function Checkout() {
           </p>
         </div>
       </Page>
-    )
+    );
   }
 
-  const [step, setStep] = useState(0)
-  useEffect(
-    () => track("Checkout Started", { items: String(store.cart.length) }),
-    [],
-  )
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const [step, setStep] = useState(0);
+  useEffect(() => track("Checkout Started", { items: String(store.cart.length) }), []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [details, setDetails] = useState({
     name: store.profile.name,
     email: store.profile.email,
@@ -632,63 +589,44 @@ export function Checkout() {
     city: "Kothamangalam",
     pin: "",
     delivery: "Kerala delivery",
-    payment: RAZORPAY_KEY_ID
-      ? "Razorpay (UPI, Cards, NetBanking)"
-      : "UPI (demo)",
-  })
-  const [couponInput, setCouponInput] = useState("")
+    payment: RAZORPAY_KEY_ID ? "Razorpay (UPI, Cards, NetBanking)" : "UPI (demo)",
+  });
+  const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{
-    coupon: Coupon
-    discount: number
-  } | null>(null)
-  const [couponError, setCouponError] = useState("")
+    coupon: Coupon;
+    discount: number;
+  } | null>(null);
+  const [couponError, setCouponError] = useState("");
 
-  const { subtotal, discount, applied } = offerTotals(store)
-  const cartNet = Math.max(0, subtotal - discount)
-  const couponDiscount = appliedCoupon ? appliedCoupon.discount : 0
-  const shipping = details.delivery === "Store pickup" ? 0 : 99
-  const total = Math.max(0, cartNet - couponDiscount + shipping)
+  const { subtotal, discount, applied } = offerTotals(store);
+  const cartNet = Math.max(0, subtotal - discount);
+  const couponDiscount = appliedCoupon ? appliedCoupon.discount : 0;
+  const shipping = details.delivery === "Store pickup" ? 0 : 99;
+  const total = Math.max(0, cartNet - couponDiscount + shipping);
 
   const customerId =
-    store.profile.phone ||
-    details.phone ||
-    store.profile.email ||
-    details.email ||
-    "customer"
+    store.profile.phone || details.phone || store.profile.email || details.email || "customer";
 
   const handleApplyCoupon = () => {
-    setCouponError("")
-    const res = validateCoupon(
-      couponInput,
-      cartNet,
-      customerId,
-      store.coupons,
-      store.couponUsages,
-    )
+    setCouponError("");
+    const res = validateCoupon(couponInput, cartNet, customerId, store.coupons, store.couponUsages);
     if (!res.valid) {
-      setCouponError(res.error)
-      return
+      setCouponError(res.error);
+      return;
     }
-    setAppliedCoupon({ coupon: res.coupon, discount: res.discount })
-    store.notify(
-      `Coupon ${res.coupon.code} applied! Saved ${money(res.discount)}.`,
-    )
-  }
+    setAppliedCoupon({ coupon: res.coupon, discount: res.discount });
+    store.notify(`Coupon ${res.coupon.code} applied! Saved ${money(res.discount)}.`);
+  };
 
   const handleRemoveCoupon = () => {
-    setAppliedCoupon(null)
-    setCouponInput("")
-    setCouponError("")
-  }
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+  };
 
-  const update = (key: string, value: string) =>
-    setDetails({ ...details, [key]: value })
+  const update = (key: string, value: string) => setDetails({ ...details, [key]: value });
 
-  const finalizeOrder = (
-    id: string,
-    orderTotal: number,
-    paymentRef?: string,
-  ) => {
+  const finalizeOrder = (id: string, orderTotal: number, paymentRef?: string) => {
     const order = {
       id,
       name: details.name,
@@ -703,8 +641,8 @@ export function Checkout() {
       date: new Date().toISOString(),
       payment: paymentRef ? `Razorpay (${paymentRef})` : details.payment,
       delivery: details.delivery,
-    }
-    track("Order Created", { order: order.id, total: String(order.total) })
+    };
+    track("Order Created", { order: order.id, total: String(order.total) });
     store.set((previous) => ({
       orders: [order, ...previous.orders],
       cart: [],
@@ -723,9 +661,7 @@ export function Checkout() {
           ...previous.couponUsages,
         ],
         coupons: previous.coupons.map((c) =>
-          c.id === appliedCoupon.coupon.id
-            ? { ...c, timesUsed: c.timesUsed + 1 }
-            : c,
+          c.id === appliedCoupon.coupon.id ? { ...c, timesUsed: c.timesUsed + 1 } : c,
         ),
       }),
       profile: {
@@ -739,45 +675,41 @@ export function Checkout() {
         stock: Math.max(
           0,
           product.stock -
-            (previous.cart.find((item) => item.productId === product.id)
-              ?.quantity || 0),
+            (previous.cart.find((item) => item.productId === product.id)?.quantity || 0),
         ),
       })),
       notifications: [`Order ${id} placed`, ...previous.notifications],
-    }))
-    store.log(`Order ${id} created`)
+    }));
+    store.log(`Order ${id} created`);
     if (appliedCoupon) {
       store.log(
         `Coupon Used: ${appliedCoupon.coupon.code} on Order ${id} (-₹${appliedCoupon.discount})`,
-      )
+      );
     }
-    setBusy(false)
+    setBusy(false);
     store.notify(
       paymentRef
         ? "Order placed & payment verified successfully!"
         : "Order placed successfully — demo transaction",
-    )
-    navigate(`/order-success/${id}`)
-  }
+    );
+    navigate(`/order-success/${id}`);
+  };
 
   const submit = async () => {
-    setError("")
+    setError("");
     if (step < 2) {
-      setStep(step + 1)
-      return
+      setStep(step + 1);
+      return;
     }
     const unavailable = store.cart.find(
       (item) =>
         item.productId &&
         item.quantity >
-          (store.products.find((product) => product.id === item.productId)
-            ?.stock || 0),
-    )
+          (store.products.find((product) => product.id === item.productId)?.stock || 0),
+    );
     if (unavailable) {
-      setError(
-        `${unavailable.name} has insufficient stock. Please update your cart.`,
-      )
-      return
+      setError(`${unavailable.name} has insufficient stock. Please update your cart.`);
+      return;
     }
     if (appliedCoupon) {
       const recheck = validateCoupon(
@@ -786,21 +718,21 @@ export function Checkout() {
         customerId,
         store.coupons,
         store.couponUsages,
-      )
+      );
       if (!recheck.valid) {
-        setError(`Coupon error: ${recheck.error}`)
-        setAppliedCoupon(null)
-        return
+        setError(`Coupon error: ${recheck.error}`);
+        setAppliedCoupon(null);
+        return;
       }
     }
-    setBusy(true)
+    setBusy(true);
 
-    const isRazorpay = details.payment.includes("Razorpay")
+    const isRazorpay = details.payment.includes("Razorpay");
 
     // If Razorpay gateway is chosen and public key is available
     if (isRazorpay && RAZORPAY_KEY_ID) {
-      let activeOrderId = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
-      let activeOrderTotal = total
+      let activeOrderId = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+      let activeOrderTotal = total;
 
       // Attempt server-side order reservation in Supabase
       const itemsPayload = store.cart
@@ -808,7 +740,7 @@ export function Checkout() {
         .map((item) => ({
           product_id: item.productId as string,
           quantity: item.quantity,
-        }))
+        }));
 
       if (itemsPayload.length > 0) {
         const sbOrder = await createSupabaseOrder({
@@ -817,11 +749,11 @@ export function Checkout() {
           paymentMethod: "Razorpay",
           couponCode: appliedCoupon?.coupon.code || null,
           notes: `Customer: ${details.name}, Phone: ${details.phone}`,
-        })
+        });
 
         if (sbOrder.ok && sbOrder.orderId) {
-          activeOrderId = sbOrder.orderId
-          if (sbOrder.total) activeOrderTotal = sbOrder.total
+          activeOrderId = sbOrder.orderId;
+          if (sbOrder.total) activeOrderTotal = sbOrder.total;
         }
       }
 
@@ -833,48 +765,41 @@ export function Checkout() {
         customerEmail: details.email || "customer@ithub.in",
         customerPhone: details.phone || "9876543210",
         onSuccess: async (payload) => {
-          store.notify("Payment completed. Verifying with gateway…")
+          store.notify("Payment completed. Verifying with gateway…");
           const verifyResult = await verifyCheckoutCallback({
             ...payload,
             order_id: activeOrderId,
-          })
+          });
 
           if (!verifyResult.ok) {
-            console.warn("[Payment Verification]", verifyResult.error)
-            store.notify(
-              verifyResult.error ||
-                "Payment verification pending. Reference saved.",
-            )
+            console.warn("[Payment Verification]", verifyResult.error);
+            store.notify(verifyResult.error || "Payment verification pending. Reference saved.");
           }
 
-          finalizeOrder(
-            activeOrderId,
-            activeOrderTotal,
-            payload.razorpay_payment_id,
-          )
+          finalizeOrder(activeOrderId, activeOrderTotal, payload.razorpay_payment_id);
         },
         onDismiss: () => {
-          setBusy(false)
-          store.notify("Payment window closed.")
+          setBusy(false);
+          store.notify("Payment window closed.");
         },
         onError: (errMsg) => {
-          setBusy(false)
-          setError(errMsg)
-          store.notify(errMsg)
+          setBusy(false);
+          setError(errMsg);
+          store.notify(errMsg);
         },
-      })
+      });
 
       if (!launched) {
-        setBusy(false)
+        setBusy(false);
       }
-      return
+      return;
     }
 
     // Fallback: Simulated local order placement
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    const id = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
-    finalizeOrder(id, total)
-  }
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const id = `ITH-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+    finalizeOrder(id, total);
+  };
   if (!store.cart.length)
     return (
       <Page>
@@ -884,7 +809,7 @@ export function Checkout() {
           to="/products"
         />
       </Page>
-    )
+    );
   if (!store.loggedIn)
     return (
       <Page>
@@ -893,7 +818,7 @@ export function Checkout() {
           text="Your cart is saved. Sign in with your mobile number to continue to checkout and track your order."
         />
       </Page>
-    )
+    );
   return (
     <Page>
       <PageHeading
@@ -901,35 +826,31 @@ export function Checkout() {
         description="This is a simulated checkout. No payment will be collected."
       />
       <div className="mb-9 flex max-w-xl items-center gap-4">
-        {["Your details", "Delivery & payment", "Review"].map(
-          (label, index) => (
-            <button
-              disabled={index > step}
-              onClick={() => setStep(index)}
-              key={label}
-              className={`flex items-center gap-2 text-xs ${
-                step === index
-                  ? "font-bold text-primary"
-                  : "text-muted-foreground"
+        {["Your details", "Delivery & payment", "Review"].map((label, index) => (
+          <button
+            disabled={index > step}
+            onClick={() => setStep(index)}
+            key={label}
+            className={`flex items-center gap-2 text-xs ${
+              step === index ? "font-bold text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <span
+              className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                index <= step ? "bg-primary text-white" : "bg-muted"
               }`}
             >
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                  index <= step ? "bg-primary text-white" : "bg-muted"
-                }`}
-              >
-                {index + 1}
-              </span>
-              {label}
-            </button>
-          ),
-        )}
+              {index + 1}
+            </span>
+            {label}
+          </button>
+        ))}
       </div>
       <div className="grid gap-8 lg:grid-cols-[1fr_350px]">
         <form
           onSubmit={(event) => {
-            event.preventDefault()
-            void submit()
+            event.preventDefault();
+            void submit();
           }}
           className="rounded-lg border border-border p-6 md:p-8"
         >
@@ -992,19 +913,12 @@ export function Checkout() {
                     inputMode="numeric"
                     maxLength={6}
                     value={details.pin}
-                    onChange={(event) =>
-                      update("pin", event.target.value.replace(/\D/g, ""))
-                    }
+                    onChange={(event) => update("pin", event.target.value.replace(/\D/g, ""))}
                     className={fieldClass}
                   />
                 </Field>
               </div>
-              <WarrantyCheck
-                compact
-                source="Checkout"
-                pincode={details.pin}
-                className="mt-5"
-              />
+              <WarrantyCheck compact source="Checkout" pincode={details.pin} className="mt-5" />
             </>
           )}
           {step === 1 && (
@@ -1031,16 +945,12 @@ export function Checkout() {
                       {value}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {value === "Store pickup"
-                        ? "Free"
-                        : "₹99 · 3–5 business days (demo)"}
+                      {value === "Store pickup" ? "Free" : "₹99 · 3–5 business days (demo)"}
                     </span>
                   </label>
                 ))}
               </div>
-              <h3 className="mb-4 mt-8 text-sm font-semibold">
-                Payment method
-              </h3>
+              <h3 className="mb-4 mt-8 text-sm font-semibold">Payment method</h3>
               {[
                 "Razorpay (UPI, Cards, NetBanking)",
                 "Cash on delivery (Kerala)",
@@ -1074,9 +984,8 @@ export function Checkout() {
               ))}
               {details.payment.includes("Razorpay") && !RAZORPAY_KEY_ID && (
                 <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
-                  <strong>Developer Note:</strong>{" "}
-                  <code>VITE_RAZORPAY_KEY_ID</code> is not configured in local
-                  environment. Orders with this method will proceed in safe
+                  <strong>Developer Note:</strong> <code>VITE_RAZORPAY_KEY_ID</code> is not
+                  configured in local environment. Orders with this method will proceed in safe
                   simulated prototype mode.
                 </p>
               )}
@@ -1084,9 +993,7 @@ export function Checkout() {
           )}
           {step === 2 && (
             <>
-              <h2 className="mb-6 text-xl font-bold">
-                Make sure everything looks right.
-              </h2>
+              <h2 className="mb-6 text-xl font-bold">Make sure everything looks right.</h2>
               <div className="space-y-5 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Customer</p>
@@ -1106,11 +1013,7 @@ export function Checkout() {
                   <p className="mt-1 font-medium">{details.payment}</p>
                 </div>
                 <label className="flex items-start gap-2.5 rounded-xl bg-secondary/60 border border-primary/20 p-4 text-xs leading-6">
-                  <input
-                    required
-                    type="checkbox"
-                    className="mt-1 accent-primary"
-                  />{" "}
+                  <input required type="checkbox" className="mt-1 accent-primary" />{" "}
                   <span>
                     {details.payment.includes("Razorpay") && RAZORPAY_KEY_ID
                       ? "I authorize IT HUB to process my order and initiate Razorpay 3D-Secure payment."
@@ -1130,11 +1033,7 @@ export function Checkout() {
           )}
           <div className="mt-8 flex justify-between gap-3">
             {step > 0 ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setStep(step - 1)}
-              >
+              <Button type="button" variant="secondary" onClick={() => setStep(step - 1)}>
                 Back
               </Button>
             ) : (
@@ -1157,16 +1056,11 @@ export function Checkout() {
         <aside className="self-start rounded-lg bg-muted p-6">
           <h2 className="mb-5 text-lg font-bold">Your order</h2>
           {store.cart.map((item) => (
-            <div
-              key={item.id}
-              className="mb-4 flex justify-between gap-3 text-xs"
-            >
+            <div key={item.id} className="mb-4 flex justify-between gap-3 text-xs">
               <span>
                 {item.name} × {item.quantity}
               </span>
-              <span className="shrink-0 font-semibold">
-                {money(item.price * item.quantity)}
-              </span>
+              <span className="shrink-0 font-semibold">{money(item.price * item.quantity)}</span>
             </div>
           ))}
           <div className="mt-6 space-y-3 border-t border-border pt-5 text-sm">
@@ -1178,9 +1072,7 @@ export function Checkout() {
               <span>Offer savings</span>
               <span className="text-emerald-700">−{money(discount)}</span>
             </p>
-            {applied.length > 0 && (
-              <p className="text-xs text-primary">{applied.join(", ")}</p>
-            )}
+            {applied.length > 0 && <p className="text-xs text-primary">{applied.join(", ")}</p>}
             {appliedCoupon && (
               <p className="flex justify-between font-medium text-emerald-700">
                 <span className="flex items-center gap-1.5">
@@ -1201,9 +1093,7 @@ export function Checkout() {
 
           {/* Have a Coupon? */}
           <div className="mt-6 border-t border-border pt-5">
-            <p className="mb-2.5 text-xs font-semibold text-foreground">
-              Have a Coupon?
-            </p>
+            <p className="mb-2.5 text-xs font-semibold text-foreground">Have a Coupon?</p>
             {appliedCoupon ? (
               <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-900">
                 <div>
@@ -1231,13 +1121,13 @@ export function Checkout() {
                     placeholder="Enter coupon code"
                     value={couponInput}
                     onChange={(event) => {
-                      setCouponInput(event.target.value.toUpperCase())
-                      setCouponError("")
+                      setCouponInput(event.target.value.toUpperCase());
+                      setCouponError("");
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
-                        event.preventDefault()
-                        handleApplyCoupon()
+                        event.preventDefault();
+                        handleApplyCoupon();
                       }
                     }}
                     className="w-full rounded-lg border border-border bg-white px-3 py-2 text-xs uppercase tracking-wider focus:border-primary focus:outline-none"
@@ -1262,12 +1152,12 @@ export function Checkout() {
         </aside>
       </div>
     </Page>
-  )
+  );
 }
 export function OrderSuccess() {
-  const { id } = useParams()
-  const store = useStore()
-  const order = store.orders.find((item) => item.id === id)
+  const { id } = useParams();
+  const store = useStore();
+  const order = store.orders.find((item) => item.id === id);
   if (!order)
     return (
       <Page>
@@ -1277,7 +1167,7 @@ export function OrderSuccess() {
           to="/products"
         />
       </Page>
-    )
+    );
   return (
     <Page>
       <div className="mx-auto max-w-2xl rounded-xl border border-border p-7 text-center md:p-12">
@@ -1285,9 +1175,7 @@ export function OrderSuccess() {
           <CheckCircle2 size={32} />
         </div>
         <Badge tone="green">ORDER CONFIRMED</Badge>
-        <h1 className="mt-5 text-3xl font-bold">
-          Your next upgrade is on its way.
-        </h1>
+        <h1 className="mt-5 text-3xl font-bold">Your next upgrade is on its way.</h1>
         <p className="mt-4 text-sm text-muted-foreground">
           Thanks, {order.name}. Your demo order has been placed.
         </p>
@@ -1314,14 +1202,14 @@ export function OrderSuccess() {
         </p>
       </div>
     </Page>
-  )
+  );
 }
 export function OrderTracking() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const store = useStore()
-  const [query, setQuery] = useState(id || "")
-  const order = store.orders.find((item) => item.id === id)
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const store = useStore();
+  const [query, setQuery] = useState(id || "");
+  const order = store.orders.find((item) => item.id === id);
   return (
     <Page>
       <PageHeading
@@ -1330,8 +1218,8 @@ export function OrderTracking() {
       />
       <form
         onSubmit={(event) => {
-          event.preventDefault()
-          navigate(`/track-order/${encodeURIComponent(query.trim())}`)
+          event.preventDefault();
+          navigate(`/track-order/${encodeURIComponent(query.trim())}`);
         }}
         className="mb-8 flex max-w-xl gap-3"
       >
@@ -1352,9 +1240,7 @@ export function OrderTracking() {
           <div className="rounded-lg border border-border p-7">
             <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{order.id}</h2>
-              <Badge>
-                {order.status < 0 ? "Cancelled" : orderStatuses[order.status]}
-              </Badge>
+              <Badge>{order.status < 0 ? "Cancelled" : orderStatuses[order.status]}</Badge>
             </div>
             <Timeline steps={orderStatuses} current={order.status} />
           </div>
@@ -1364,15 +1250,10 @@ export function OrderTracking() {
               <dl className="space-y-4 text-sm">
                 {[
                   ["Shipping address", order.address],
-                  [
-                    "Courier",
-                    order.status >= 4 ? "Demo courier" : "To be assigned",
-                  ],
+                  ["Courier", order.status >= 4 ? "Demo courier" : "To be assigned"],
                   [
                     "Tracking ID",
-                    order.status >= 4
-                      ? `DEMO-${order.id.slice(-6)}`
-                      : "Available after dispatch",
+                    order.status >= 4 ? `DEMO-${order.id.slice(-6)}` : "Available after dispatch",
                   ],
                   [
                     "Expected delivery",
@@ -1392,10 +1273,7 @@ export function OrderTracking() {
             <div className="rounded-lg border border-border p-7">
               <h3 className="mb-4 font-bold">Items in your order</h3>
               {order.items.map((item) => (
-                <p
-                  key={item.id}
-                  className="mb-3 flex justify-between gap-3 text-sm"
-                >
+                <p key={item.id} className="mb-3 flex justify-between gap-3 text-sm">
                   <span>
                     {item.name} × {item.quantity}
                     <Link
@@ -1417,8 +1295,7 @@ export function OrderTracking() {
               Need help with this order?
             </ActionLink>
             <p className="text-xs text-muted-foreground">
-              Statuses are simulated. Change them in Admin → Orders to explore
-              the full flow.
+              Statuses are simulated. Change them in Admin → Orders to explore the full flow.
             </p>
           </div>
         </div>
@@ -1435,5 +1312,5 @@ export function OrderTracking() {
         />
       )}
     </Page>
-  )
+  );
 }

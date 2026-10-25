@@ -46,12 +46,16 @@ The database covers 12 core business domains:
 To deploy IT HUB on an empty Supabase project, execute the migration and setup scripts in the exact sequence below.
 
 ### Step 1: Database Schema Deployment
+
 Execute the canonical schema script:
+
 ```bash
 # Path: supabase/schema.sql
 # In Supabase Dashboard -> SQL Editor, run the full contents of schema.sql
 ```
+
 This script creates:
+
 - Core extensions (`pgcrypto`, `uuid-ossp`).
 - Enum types (`user_role`, `order_status`, `payment_status`, `service_status`, `sell_status`).
 - All 20 application tables with primary keys, foreign keys, check constraints, and performance indexes.
@@ -60,23 +64,31 @@ This script creates:
 - Stored procedures (RPCs) with exact parameter types and hardened execution grants.
 
 ### Step 2: Storage Buckets & Policies
+
 Execute the storage isolation script:
+
 ```bash
 # Path: supabase/storage-policies.sql
 # Run in Supabase SQL Editor
 ```
+
 This creates and secures 3 storage buckets:
+
 - `product-images` (Public read for active products; upload restricted to Admin; SVGs disallowed to prevent XSS).
 - `sell-request-photos` (Private; path-isolated to `{user_id}/{request_id}/*`; Admin full access).
 - `customer-invoices` (Strictly private; accessible only by the owning customer or Admin).
 
 ### Step 3: Base Configuration & Seed Data
+
 Execute the safe seed script:
+
 ```bash
 # Path: supabase/seed.sql
 # Run in Supabase SQL Editor
 ```
+
 This populates baseline data without inventing dummy credentials or fake users:
+
 - Default store settings (Kerala GSTIN, contact numbers, delivery fees, operational switches).
 - 8 Categories and 5 Subcategories (Laptops, Processors, Graphics Cards, Motherboards, RAM, Storage, etc.).
 - 16 Hardware Brands (Intel, AMD, NVIDIA, ASUS, MSI, Corsair, Kingston, Samsung, etc.).
@@ -85,6 +97,7 @@ This populates baseline data without inventing dummy credentials or fake users:
 - 4 PC Builder Starter Templates (Entry Office, Budget Gaming, Pro Creator, High-End Enthusiast).
 
 ### Step 4: First-Admin Bootstrap (One-Time Trusted Operation)
+
 By default, all new user registrations in Supabase Auth are created as `customer`. To establish the initial administrator safely without exposing public role-escalation APIs:
 
 1. Have the store owner sign up through the regular auth flow (email/password or OTP) to generate their Auth UUID.
@@ -92,7 +105,7 @@ By default, all new user registrations in Supabase Auth are created as `customer
    ```sql
    SELECT bootstrap_first_admin('00000000-0000-0000-0000-000000000000'::uuid);
    ```
-   *(Replace `'00000000-...'` with the user's actual `auth.users.id`).*
+   _(Replace `'00000000-...'` with the user's actual `auth.users.id`)._
 3. The function verifies that:
    - The user exists in `auth.users`.
    - The user has not already been assigned a role.
@@ -103,24 +116,24 @@ By default, all new user registrations in Supabase Auth are created as `customer
 
 ## 4. Privilege & Access Control Matrix
 
-| Table / Object | Anon (Guest) | Authenticated (Customer) | Admin (`role = 'admin'`) | Edge Functions (`service_role`) |
-| :--- | :--- | :--- | :--- | :--- |
-| `products` (raw table) | Direct Access Blocked (Uses View) | Direct Access Blocked (Uses View) | Full CRUD | Full CRUD |
-| `public_products` (view) | `SELECT` (active only; `cost_price` omitted) | `SELECT` (active only; `cost_price` omitted) | N/A (Admin queries table) | Full Access |
-| `inventory` | Blocked | Blocked | Full CRUD | Managed via RPCs |
-| `coupons` (raw table) | Blocked | Blocked | Full CRUD | Managed via RPCs |
-| `public_coupons` (view) | `SELECT` (active & public only) | `SELECT` (active & public only) | Full Access | Full Access |
-| `orders` | Blocked | `SELECT` (own orders only) | Full CRUD | Managed via RPCs |
-| `order_items` | Blocked | `SELECT` (items of own orders) | Full CRUD | Managed via RPCs |
-| `profiles` | Blocked | `SELECT`, `UPDATE` (own row; role protected) | Full CRUD | Full CRUD |
-| `addresses` | Blocked | Full CRUD (own addresses only) | Full CRUD | Full CRUD |
-| `reviews` | Blocked (Uses View) | `SELECT` own; `INSERT` (pending only) | Full CRUD (moderation) | Full CRUD |
-| `public_reviews` (view) | `SELECT` (approved only) | `SELECT` (approved only) | Full Access | Full Access |
-| `service_requests` | Blocked | `SELECT` own; `INSERT` (customer fields) | Full CRUD (quotes, status) | Full CRUD |
-| `sell_requests` | Blocked | `SELECT` own; `INSERT` / `UPDATE` quotes | Full CRUD (evaluate, pay) | Full CRUD |
-| `pc_builds` | `SELECT` (shared builds) | Full CRUD (own builds) | Full CRUD | Full CRUD |
-| `visitor_analytics` | `INSERT` only (sanitized events) | `INSERT` only (sanitized events) | `SELECT`, Delete/Purge | Full CRUD |
-| `store_settings` | `SELECT` (public configs) | `SELECT` (public configs) | Full CRUD | Full CRUD |
+| Table / Object           | Anon (Guest)                                 | Authenticated (Customer)                     | Admin (`role = 'admin'`)   | Edge Functions (`service_role`) |
+| :----------------------- | :------------------------------------------- | :------------------------------------------- | :------------------------- | :------------------------------ |
+| `products` (raw table)   | Direct Access Blocked (Uses View)            | Direct Access Blocked (Uses View)            | Full CRUD                  | Full CRUD                       |
+| `public_products` (view) | `SELECT` (active only; `cost_price` omitted) | `SELECT` (active only; `cost_price` omitted) | N/A (Admin queries table)  | Full Access                     |
+| `inventory`              | Blocked                                      | Blocked                                      | Full CRUD                  | Managed via RPCs                |
+| `coupons` (raw table)    | Blocked                                      | Blocked                                      | Full CRUD                  | Managed via RPCs                |
+| `public_coupons` (view)  | `SELECT` (active & public only)              | `SELECT` (active & public only)              | Full Access                | Full Access                     |
+| `orders`                 | Blocked                                      | `SELECT` (own orders only)                   | Full CRUD                  | Managed via RPCs                |
+| `order_items`            | Blocked                                      | `SELECT` (items of own orders)               | Full CRUD                  | Managed via RPCs                |
+| `profiles`               | Blocked                                      | `SELECT`, `UPDATE` (own row; role protected) | Full CRUD                  | Full CRUD                       |
+| `addresses`              | Blocked                                      | Full CRUD (own addresses only)               | Full CRUD                  | Full CRUD                       |
+| `reviews`                | Blocked (Uses View)                          | `SELECT` own; `INSERT` (pending only)        | Full CRUD (moderation)     | Full CRUD                       |
+| `public_reviews` (view)  | `SELECT` (approved only)                     | `SELECT` (approved only)                     | Full Access                | Full Access                     |
+| `service_requests`       | Blocked                                      | `SELECT` own; `INSERT` (customer fields)     | Full CRUD (quotes, status) | Full CRUD                       |
+| `sell_requests`          | Blocked                                      | `SELECT` own; `INSERT` / `UPDATE` quotes     | Full CRUD (evaluate, pay)  | Full CRUD                       |
+| `pc_builds`              | `SELECT` (shared builds)                     | Full CRUD (own builds)                       | Full CRUD                  | Full CRUD                       |
+| `visitor_analytics`      | `INSERT` only (sanitized events)             | `INSERT` only (sanitized events)             | `SELECT`, Delete/Purge     | Full CRUD                       |
+| `store_settings`         | `SELECT` (public configs)                    | `SELECT` (public configs)                    | Full CRUD                  | Full CRUD                       |
 
 ---
 
@@ -128,33 +141,38 @@ By default, all new user registrations in Supabase Auth are created as `customer
 
 All RPCs feature strict parameter signatures and role access constraints:
 
-| Stored Procedure | Allowed Caller | Purpose & Guarantees |
-| :--- | :--- | :--- |
-| [`create_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1435) | `authenticated` | Atomically validates prices, stocks, and coupons. Deducts inventory and sets 30-min TTL. |
-| [`record_order_payment`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1604) | `service_role` **ONLY** | Validates gateway signature, amount, currency. Idempotently marks Paid and commits coupons. |
-| [`record_payment_failure`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1829) | `service_role` **ONLY** | Marks order Failed and releases reserved inventory. |
-| [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876) | `authenticated`, `admin` | Customers can cancel Pending unpaid orders only. Restores reserved stock idempotently. |
-| [`cleanup_expired_orders`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1928) | `service_role` **ONLY** | Scheduled worker; unlocks stock for unpaid checkouts past 30 minutes using `SKIP LOCKED`. |
-| [`bootstrap_first_admin`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1970) | `service_role` **ONLY** | One-time trusted admin role assignment. |
+| Stored Procedure                                                                          | Allowed Caller           | Purpose & Guarantees                                                                        |
+| :---------------------------------------------------------------------------------------- | :----------------------- | :------------------------------------------------------------------------------------------ |
+| [`create_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1435)           | `authenticated`          | Atomically validates prices, stocks, and coupons. Deducts inventory and sets 30-min TTL.    |
+| [`record_order_payment`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1604)   | `service_role` **ONLY**  | Validates gateway signature, amount, currency. Idempotently marks Paid and commits coupons. |
+| [`record_payment_failure`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1829) | `service_role` **ONLY**  | Marks order Failed and releases reserved inventory.                                         |
+| [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876)           | `authenticated`, `admin` | Customers can cancel Pending unpaid orders only. Restores reserved stock idempotently.      |
+| [`cleanup_expired_orders`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1928) | `service_role` **ONLY**  | Scheduled worker; unlocks stock for unpaid checkouts past 30 minutes using `SKIP LOCKED`.   |
+| [`bootstrap_first_admin`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1970)  | `service_role` **ONLY**  | One-time trusted admin role assignment.                                                     |
 
 ---
 
 ## 6. Bi-Directional Field Protection & State Machines
 
 ### Service Requests (`service_requests`)
+
 Customers must not be able to assign engineers, set repair costs, or transition repair statuses.
+
 - **Trigger**: `protect_service_request()` runs `BEFORE INSERT OR UPDATE`.
 - On `INSERT`: Customers are forced to `status = 'Submitted'`, `cost_estimate = NULL`, `final_cost = NULL`, `assigned_to = NULL`.
 - On `UPDATE`: If caller is not admin, changing `status`, `cost_estimate`, `final_cost`, or `assigned_to` raises an exception. Customers can only update notes, address, or contact details.
 
 ### Sell / Trade-In Requests (`sell_requests`)
+
 Customers submit used devices for evaluation and quote acceptance.
+
 - **Trigger**: `protect_sell_request()` runs `BEFORE INSERT OR UPDATE`.
 - On `INSERT`: Customers cannot self-assign `offered_price` or mark status as anything other than `Pending Review`.
 - On `UPDATE`: Admin sets `offered_price` and moves status to `Pending Offer`.
 - Customer quote response: Customers can ONLY update `status` if transitioning from `Pending Offer` to `Offer Accepted` or `Offer Rejected`. If an offer has already been accepted/rejected, the state cannot be reverted by the customer.
 
 ### Customer Reviews (`reviews`)
+
 - **Trigger**: `protect_review()` runs `BEFORE INSERT OR UPDATE`.
 - On `INSERT`: Customers cannot insert a review with `status = 'approved'`. All reviews start as `status = 'pending'`.
 - On `UPDATE`: Only administrators can change review moderation status or edit review content.
@@ -190,17 +208,18 @@ IT HUB implements a single server-side pricing algorithm executed inside [`creat
 
 Storage policies in [`supabase/storage-policies.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/storage-policies.sql) implement folder-level isolation:
 
-| Bucket | Access Policy | Allowed MIME Types |
-| :--- | :--- | :--- |
-| `product-images` | Public read; Admin upload/delete | `image/jpeg`, `image/png`, `image/webp`, `image/avif` (SVG blocked) |
-| `sell-request-photos` | Read: Request Owner + Admin; Upload: Customer | `image/jpeg`, `image/png`, `image/webp` |
-| `customer-invoices` | Read: Order Owner + Admin; Upload: Backend only | `application/pdf` |
+| Bucket                | Access Policy                                   | Allowed MIME Types                                                  |
+| :-------------------- | :---------------------------------------------- | :------------------------------------------------------------------ |
+| `product-images`      | Public read; Admin upload/delete                | `image/jpeg`, `image/png`, `image/webp`, `image/avif` (SVG blocked) |
+| `sell-request-photos` | Read: Request Owner + Admin; Upload: Customer   | `image/jpeg`, `image/png`, `image/webp`                             |
+| `customer-invoices`   | Read: Order Owner + Admin; Upload: Backend only | `application/pdf`                                                   |
 
 ---
 
 ## 9. Rollback & Disaster Recovery
 
 If a schema installation fails mid-way on a non-production test instance:
+
 1. Review the error message in the SQL editor (often due to out-of-order execution or duplicate type definitions).
 2. Clean teardown order:
    ```sql
@@ -216,4 +235,3 @@ If a schema installation fails mid-way on a non-production test instance:
    DROP TYPE IF EXISTS sell_status, service_status, payment_status, order_status, user_role CASCADE;
    ```
 3. Re-run [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) from the top.
-

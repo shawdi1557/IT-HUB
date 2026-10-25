@@ -2,7 +2,7 @@
 // Help & Support, Manufacturer Directory, and Service Centre Locator Service
 // IT HUB — Kerala, India
 
-import { supabase, supabaseConfig } from "./supabase"
+import { supabase, supabaseConfig } from "./supabase";
 import {
   distanceKm,
   initialBrandSupport,
@@ -12,21 +12,21 @@ import {
   type BrandSupport,
   type ServiceCentre,
   type SupportCategory,
-} from "../data/catalog"
+} from "../data/catalog";
 
 export interface StoreSettingsContact {
-  storeName?: string
-  address?: string
-  phone?: string
-  whatsapp?: string
-  email?: string
-  delivery?: string
+  storeName?: string;
+  address?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  delivery?: string;
 }
 
 export interface StoreSettingsStatus {
-  complete: boolean
-  missingFields: string[]
-  warningMessage: string | null
+  complete: boolean;
+  missingFields: string[];
+  warningMessage: string | null;
 }
 
 /**
@@ -36,22 +36,22 @@ export interface StoreSettingsStatus {
  *  - Must NOT start with 0.
  */
 export function validateIndianPincode(pincode: string): boolean {
-  if (!pincode || typeof pincode !== "string") return false
-  const trimmed = pincode.trim()
-  return /^[1-9]\d{5}$/.test(trimmed)
+  if (!pincode || typeof pincode !== "string") return false;
+  const trimmed = pincode.trim();
+  return /^[1-9]\d{5}$/.test(trimmed);
 }
 
 /**
  * Validates that a URL is non-empty and uses secure HTTPS protocol.
  */
 export function validateHttpsUrl(url: string | null | undefined): boolean {
-  if (!url || typeof url !== "string") return false
-  const trimmed = url.trim()
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
   try {
-    const parsed = new URL(trimmed)
-    return parsed.protocol === "https:"
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:";
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -66,7 +66,7 @@ export function calculatePincodeDistance(
   centreLat?: number | null,
   centreLng?: number | null,
 ): number | null {
-  if (!validateIndianPincode(userPincode)) return null
+  if (!validateIndianPincode(userPincode)) return null;
   if (
     centreLat === null ||
     centreLat === undefined ||
@@ -75,20 +75,20 @@ export function calculatePincodeDistance(
     centreLng === undefined ||
     isNaN(Number(centreLng))
   ) {
-    return null
+    return null;
   }
 
-  const centroid = pincodeDirectory[userPincode.trim()]
-  if (!centroid) return null
+  const centroid = pincodeDirectory[userPincode.trim()];
+  if (!centroid) return null;
 
   const km = distanceKm(
     centroid.latitude,
     centroid.longitude,
     Number(centreLat),
     Number(centreLng),
-  )
+  );
 
-  return Math.round(km * 10) / 10
+  return Math.round(km * 10) / 10;
 }
 
 /**
@@ -98,28 +98,28 @@ export function calculatePincodeDistance(
 export function checkStoreSettingsCompleteness(
   settings: StoreSettingsContact,
 ): StoreSettingsStatus {
-  const missingFields: string[] = []
+  const missingFields: string[] = [];
 
   const isInvalid = (val?: string) =>
     !val ||
     val.trim() === "" ||
     val.includes("placeholder") ||
     val.includes("0000000000") ||
-    val.includes("example.com")
+    val.includes("example.com");
 
-  if (isInvalid(settings.address)) missingFields.push("Store Address")
-  if (isInvalid(settings.phone)) missingFields.push("Phone Number")
-  if (isInvalid(settings.whatsapp)) missingFields.push("WhatsApp Number")
-  if (isInvalid(settings.email)) missingFields.push("Email Address")
+  if (isInvalid(settings.address)) missingFields.push("Store Address");
+  if (isInvalid(settings.phone)) missingFields.push("Phone Number");
+  if (isInvalid(settings.whatsapp)) missingFields.push("WhatsApp Number");
+  if (isInvalid(settings.email)) missingFields.push("Email Address");
 
-  const complete = missingFields.length === 0
+  const complete = missingFields.length === 0;
   const warningMessage = complete
     ? null
     : `Attention Store Administrator: Verified IT HUB contact details are incomplete (${missingFields.join(
         ", ",
-      )}). Please update Store Settings to maintain full customer support service.`
+      )}). Please update Store Settings to maintain full customer support service.`;
 
-  return { complete, missingFields, warningMessage }
+  return { complete, missingFields, warningMessage };
 }
 
 /**
@@ -127,7 +127,7 @@ export function checkStoreSettingsCompleteness(
  */
 export async function fetchSupportCategories(): Promise<SupportCategory[]> {
   if (!supabase || !supabaseConfig.isConfigured) {
-    return initialSupportCategories.filter((c) => c.active)
+    return initialSupportCategories.filter((c) => c.active);
   }
 
   try {
@@ -135,10 +135,10 @@ export async function fetchSupportCategories(): Promise<SupportCategory[]> {
       .from("support_categories")
       .select("id, name, icon, catalog_categories, active")
       .eq("active", true)
-      .order("id", { ascending: true })
+      .order("id", { ascending: true });
 
     if (error || !data || data.length === 0) {
-      return initialSupportCategories.filter((c) => c.active)
+      return initialSupportCategories.filter((c) => c.active);
     }
 
     return data.map((row: any) => ({
@@ -147,16 +147,16 @@ export async function fetchSupportCategories(): Promise<SupportCategory[]> {
       icon: row.icon,
       catalogCategories: row.catalog_categories || [],
       active: Boolean(row.active),
-    }))
+    }));
   } catch {
-    return initialSupportCategories.filter((c) => c.active)
+    return initialSupportCategories.filter((c) => c.active);
   }
 }
 
 export interface FetchBrandSupportOptions {
-  category?: string
-  brand?: string
-  isAdmin?: boolean
+  category?: string;
+  brand?: string;
+  isAdmin?: boolean;
 }
 
 /**
@@ -167,7 +167,7 @@ export interface FetchBrandSupportOptions {
 export async function fetchBrandSupport(
   options: FetchBrandSupportOptions = {},
 ): Promise<BrandSupport[]> {
-  const { category, brand, isAdmin = false } = options
+  const { category, brand, isAdmin = false } = options;
 
   if (supabase && supabaseConfig.isConfigured) {
     try {
@@ -197,24 +197,21 @@ export async function fetchBrandSupport(
           updated_at
         `,
         )
-        .eq("active", true)
+        .eq("active", true);
 
       if (!isAdmin) {
-        query = query
-          .eq("is_published", true)
-          .not("last_verified_at", "is", null)
+        query = query.eq("is_published", true).not("last_verified_at", "is", null);
       }
 
       if (category) {
-        query = query.eq("category", category)
+        query = query.eq("category", category);
       }
 
-      const { data, error } = await query
+      const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
         let results: BrandSupport[] = data.map((row: any) => {
-          const brandName =
-            row.brands?.name || row.brand || row.brand_name || "Unknown Brand"
+          const brandName = row.brands?.name || row.brand || row.brand_name || "Unknown Brand";
           return {
             id: row.id,
             brand: brandName,
@@ -231,23 +228,20 @@ export async function fetchBrandSupport(
             lastVerifiedAt: row.last_verified_at || "",
             region: row.region || "India",
             verificationStatus:
-              row.verification_status ||
-              (row.last_verified_at ? "verified" : "unverified"),
+              row.verification_status || (row.last_verified_at ? "verified" : "unverified"),
             isPublished: Boolean(row.is_published),
             popular: Boolean(row.popular),
             active: Boolean(row.active),
             createdAt: row.created_at || new Date().toISOString(),
             updatedAt: row.updated_at || new Date().toISOString(),
-          }
-        })
+          };
+        });
 
         if (brand) {
-          results = results.filter(
-            (r) => r.brand.toLowerCase() === brand.toLowerCase(),
-          )
+          results = results.filter((r) => r.brand.toLowerCase() === brand.toLowerCase());
         }
 
-        return results
+        return results;
       }
     } catch {
       // Graceful fallback to verified in-memory dataset
@@ -255,30 +249,28 @@ export async function fetchBrandSupport(
   }
 
   // Fallback to verified local dataset
-  let results = [...initialBrandSupport].filter((r) => r.active)
+  let results = [...initialBrandSupport].filter((r) => r.active);
 
   if (!isAdmin) {
-    results = results.filter((r) => r.isPublished && r.lastVerifiedAt)
+    results = results.filter((r) => r.isPublished && r.lastVerifiedAt);
   }
 
   if (category) {
-    results = results.filter((r) => r.category === category)
+    results = results.filter((r) => r.category === category);
   }
 
   if (brand) {
-    results = results.filter(
-      (r) => r.brand.toLowerCase() === brand.toLowerCase(),
-    )
+    results = results.filter((r) => r.brand.toLowerCase() === brand.toLowerCase());
   }
 
-  return results
+  return results;
 }
 
 export interface FetchServiceCentresOptions {
-  category?: string
-  brandName?: string
-  pincode?: string
-  isAdmin?: boolean
+  category?: string;
+  brandName?: string;
+  pincode?: string;
+  isAdmin?: boolean;
 }
 
 /**
@@ -289,29 +281,26 @@ export interface FetchServiceCentresOptions {
 export async function fetchServiceCentres(
   options: FetchServiceCentresOptions = {},
 ): Promise<ServiceCentre[]> {
-  const { category, brandName, pincode, isAdmin = false } = options
-  let centres: ServiceCentre[] = []
+  const { category, brandName, pincode, isAdmin = false } = options;
+  let centres: ServiceCentre[] = [];
 
   if (supabase && supabaseConfig.isConfigured) {
     try {
-      let query = supabase
-        .from("service_centres")
-        .select("*")
-        .eq("active", true)
+      let query = supabase.from("service_centres").select("*").eq("active", true);
 
       if (!isAdmin) {
-        query = query.not("verified_at", "is", null)
+        query = query.not("verified_at", "is", null);
       }
 
       if (category) {
-        query = query.eq("category", category)
+        query = query.eq("category", category);
       }
 
       if (brandName) {
-        query = query.ilike("brand_name", brandName)
+        query = query.ilike("brand_name", brandName);
       }
 
-      const { data, error } = await query
+      const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
         centres = data.map((row: any) => ({
@@ -334,7 +323,7 @@ export async function fetchServiceCentres(
           longitude: row.longitude ? Number(row.longitude) : undefined,
           active: Boolean(row.active),
           verifiedAt: row.verified_at,
-        }))
+        }));
       }
     } catch {
       // Graceful fallback to verified seed list
@@ -342,44 +331,38 @@ export async function fetchServiceCentres(
   }
 
   if (centres.length === 0) {
-    centres = [...initialServiceCentres].filter((c) => c.active)
+    centres = [...initialServiceCentres].filter((c) => c.active);
     if (!isAdmin) {
-      centres = centres.filter((c) => c.verifiedAt)
+      centres = centres.filter((c) => c.verifiedAt);
     }
     if (category) {
-      centres = centres.filter((c) => c.category === category)
+      centres = centres.filter((c) => c.category === category);
     }
     if (brandName) {
-      centres = centres.filter(
-        (c) => c.brandName.toLowerCase() === brandName.toLowerCase(),
-      )
+      centres = centres.filter((c) => c.brandName.toLowerCase() === brandName.toLowerCase());
     }
   }
 
   // If user entered a valid PIN code, attach calculated distance
   if (pincode && validateIndianPincode(pincode)) {
     centres = centres.map((centre) => {
-      const distance = calculatePincodeDistance(
-        pincode,
-        centre.latitude,
-        centre.longitude,
-      )
+      const distance = calculatePincodeDistance(pincode, centre.latitude, centre.longitude);
       return {
         ...centre,
         distanceKm: distance !== null ? distance : undefined,
-      }
-    })
+      };
+    });
 
     // Sort: locations with calculated distance come first, in ascending order
     centres.sort((a, b) => {
       if (a.distanceKm !== undefined && b.distanceKm !== undefined) {
-        return a.distanceKm - b.distanceKm
+        return a.distanceKm - b.distanceKm;
       }
-      if (a.distanceKm !== undefined) return -1
-      if (b.distanceKm !== undefined) return 1
-      return a.name.localeCompare(b.name)
-    })
+      if (a.distanceKm !== undefined) return -1;
+      if (b.distanceKm !== undefined) return 1;
+      return a.name.localeCompare(b.name);
+    });
   }
 
-  return centres
+  return centres;
 }

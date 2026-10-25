@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ChangeEvent } from "react"
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 import {
   Smartphone,
   Laptop,
@@ -17,18 +17,18 @@ import {
   ArrowLeft,
   Sparkles,
   BadgeIndianRupee,
-} from "lucide-react"
-import { useStore } from "../app/store"
+} from "lucide-react";
+import { useStore } from "../app/store";
 import {
   sellCategories,
   productConditions,
   type SellCategory,
   type ProductCondition,
   type SellRequest,
-} from "../data/catalog"
-import { submitSellRequest } from "../lib/sellRequests"
-import { Button, Badge, fieldClass } from "./ui"
-import { LoginGate } from "./AuthModal"
+} from "../data/catalog";
+import { submitSellRequest } from "../lib/sellRequests";
+import { Button, Badge, fieldClass } from "./ui";
+import { LoginGate } from "./AuthModal";
 
 const categoryIcons: Record<SellCategory, typeof Smartphone> = {
   Phone: Smartphone,
@@ -39,15 +39,18 @@ const categoryIcons: Record<SellCategory, typeof Smartphone> = {
   Tablet: Tablet,
   Accessories: Headphones,
   "Other Electronics": Sparkles,
-}
+};
 
 // Comprehensive brand and model catalog per category
-export const sellCatalog: Record<SellCategory, {
-  brands: {
-    name: string
-    models: string[]
-  }[]
-}> = {
+export const sellCatalog: Record<
+  SellCategory,
+  {
+    brands: {
+      name: string;
+      models: string[];
+    }[];
+  }
+> = {
   Phone: {
     brands: [
       {
@@ -480,11 +483,7 @@ export const sellCatalog: Record<SellCategory, {
       },
       {
         name: "OnePlus",
-        models: [
-          "OnePlus Pad (Dimensity 9000)",
-          "OnePlus Pad Go",
-          "Other OnePlus Tablet",
-        ],
+        models: ["OnePlus Pad (Dimensity 9000)", "OnePlus Pad Go", "Other OnePlus Tablet"],
       },
       {
         name: "Other Brand",
@@ -614,14 +613,10 @@ export const sellCatalog: Record<SellCategory, {
       },
     ],
   },
-}
+};
 
-export default function SellYourItem({
-  onBackToFresh,
-}: {
-  onBackToFresh?: () => void
-}) {
-  const store = useStore()
+export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => void }) {
+  const store = useStore();
 
   // ── RULE: Only logged-in users can use the sell product feature ──
   if (!store.loggedIn) {
@@ -630,194 +625,178 @@ export default function SellYourItem({
         title="Sign in to sell your device"
         text="Please log in with your mobile number to submit devices for evaluation, upload bills, and receive valuation offers from IT HUB."
       />
-    )
+    );
   }
 
-  const [step, setStep] = useState(0) // 0: Category, 1: Details & Warranty, 2: Images & Documents, 3: Review
-  const [submittedRequest, setSubmittedRequest] = useState<SellRequest | null>(
-    null,
-  )
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState("")
+  const [step, setStep] = useState(0); // 0: Category, 1: Details & Warranty, 2: Images & Documents, 3: Review
+  const [submittedRequest, setSubmittedRequest] = useState<SellRequest | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   // Form State
-  const [category, setCategory] = useState<SellCategory>("Phone")
-  const categoryData = sellCatalog[category]
+  const [category, setCategory] = useState<SellCategory>("Phone");
+  const categoryData = sellCatalog[category];
 
   // Dropdown states for Brand and Model
   const [selectedBrand, setSelectedBrand] = useState<string>(
     categoryData.brands[0]?.name || "Apple",
-  )
-  const [customBrand, setCustomBrand] = useState("")
+  );
+  const [customBrand, setCustomBrand] = useState("");
 
   const currentBrandData =
-    categoryData.brands.find((b) => b.name === selectedBrand) ||
-    categoryData.brands[0]
+    categoryData.brands.find((b) => b.name === selectedBrand) || categoryData.brands[0];
   const [selectedModel, setSelectedModel] = useState<string>(
     currentBrandData?.models[0] || "Other Model",
-  )
-  const [customModel, setCustomModel] = useState("")
+  );
+  const [customModel, setCustomModel] = useState("");
 
   // Automatically update brand and model dropdowns when Category changes
   useEffect(() => {
-    const defaultBrand = sellCatalog[category].brands[0]?.name || "Other Brand"
-    setSelectedBrand(defaultBrand)
-    const brandObj = sellCatalog[category].brands.find(
-      (b) => b.name === defaultBrand,
-    )
-    setSelectedModel(brandObj?.models[0] || "Other Model")
-    setCustomBrand("")
-    setCustomModel("")
-  }, [category])
+    const defaultBrand = sellCatalog[category].brands[0]?.name || "Other Brand";
+    setSelectedBrand(defaultBrand);
+    const brandObj = sellCatalog[category].brands.find((b) => b.name === defaultBrand);
+    setSelectedModel(brandObj?.models[0] || "Other Model");
+    setCustomBrand("");
+    setCustomModel("");
+  }, [category]);
 
   // Automatically update model dropdown when Brand changes
   const handleBrandChange = (newBrand: string) => {
-    setSelectedBrand(newBrand)
-    const brandObj = sellCatalog[category].brands.find(
-      (b) => b.name === newBrand,
-    )
-    const defaultModel = brandObj?.models[0] || "Other Model"
-    setSelectedModel(defaultModel)
-    setCustomModel("")
-  }
+    setSelectedBrand(newBrand);
+    const brandObj = sellCatalog[category].brands.find((b) => b.name === newBrand);
+    const defaultModel = brandObj?.models[0] || "Other Model";
+    setSelectedModel(defaultModel);
+    setCustomModel("");
+  };
 
-  const [condition, setCondition] = useState<ProductCondition>("Good")
-  const [description, setDescription] = useState("")
-  const [hasWarranty, setHasWarranty] = useState<boolean | null>(null)
-  const [warrantyProvider, setWarrantyProvider] = useState("")
-  const [warrantyRemaining, setWarrantyRemaining] = useState("6 months")
-  const [warrantyDetails, setWarrantyDetails] = useState("")
-  const [expectedPrice, setExpectedPrice] = useState("")
+  const [condition, setCondition] = useState<ProductCondition>("Good");
+  const [description, setDescription] = useState("");
+  const [hasWarranty, setHasWarranty] = useState<boolean | null>(null);
+  const [warrantyProvider, setWarrantyProvider] = useState("");
+  const [warrantyRemaining, setWarrantyRemaining] = useState("6 months");
+  const [warrantyDetails, setWarrantyDetails] = useState("");
+  const [expectedPrice, setExpectedPrice] = useState("");
 
   // Contact info (prefilled from profile)
-  const [customerName, setCustomerName] = useState(store.profile.name || "")
-  const [customerEmail, setCustomerEmail] = useState(store.profile.email || "")
-  const [customerPhone, setCustomerPhone] = useState(store.profile.phone || "")
+  const [customerName, setCustomerName] = useState(store.profile.name || "");
+  const [customerEmail, setCustomerEmail] = useState(store.profile.email || "");
+  const [customerPhone, setCustomerPhone] = useState(store.profile.phone || "");
 
   // File uploads
-  const [images, setImages] = useState<{
-    name: string
-    url: string
-    size: number
-  }[]>([])
+  const [images, setImages] = useState<
+    {
+      name: string;
+      url: string;
+      size: number;
+    }[]
+  >([]);
   const [invoice, setInvoice] = useState<{
-    name: string
-    url: string
-    size: number
-  } | null>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const invoiceInputRef = useRef<HTMLInputElement>(null)
+    name: string;
+    url: string;
+    size: number;
+  } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
 
   // Derived effective brand and model strings
-  const effectiveBrand =
-    selectedBrand === "Other Brand" ? customBrand.trim() : selectedBrand
+  const effectiveBrand = selectedBrand === "Other Brand" ? customBrand.trim() : selectedBrand;
   const effectiveModel = selectedModel.startsWith("Other")
     ? customModel.trim() || selectedModel
-    : selectedModel
+    : selectedModel;
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || !files.length) return
-    setError("")
+    const files = event.target.files;
+    if (!files || !files.length) return;
+    setError("");
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
     type ProcessedImageFile = {
-      name: string
-      url: string
-      size: number
-    }
-    const newImages: ProcessedImageFile[] = []
+      name: string;
+      url: string;
+      size: number;
+    };
+    const newImages: ProcessedImageFile[] = [];
 
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+      const file = files[i];
       if (!allowedTypes.includes(file.type)) {
         setError(
           `"${file.name}" is not a supported format. Please upload JPG, PNG, or WEBP images.`,
-        )
-        continue
+        );
+        continue;
       }
       if (file.size > 10 * 1024 * 1024) {
-        setError(`"${file.name}" exceeds the 10MB size limit.`)
-        continue
+        setError(`"${file.name}" exceeds the 10MB size limit.`);
+        continue;
       }
       newImages.push({
         name: file.name,
         url: URL.createObjectURL(file),
         size: file.size,
-      })
+      });
     }
 
-    setImages((prev) => [...prev, ...newImages])
-    if (imageInputRef.current) imageInputRef.current.value = ""
-  }
+    setImages((prev) => [...prev, ...newImages]);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
 
   const handleRemoveImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index))
-  }
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleInvoiceUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || !files.length) return
-    setError("")
-    const file = files[0]
+    const files = event.target.files;
+    if (!files || !files.length) return;
+    setError("");
+    const file = files[0];
 
-    const allowedTypes = [
-      "application/pdf",
-      "image/jpeg",
-      "image/png",
-      "image/jpg",
-      "image/webp",
-    ]
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
-      setError("Please upload an invoice in PDF, JPG, or PNG format.")
-      return
+      setError("Please upload an invoice in PDF, JPG, or PNG format.");
+      return;
     }
     if (file.size > 15 * 1024 * 1024) {
-      setError("Invoice file must be under 15MB.")
-      return
+      setError("Invoice file must be under 15MB.");
+      return;
     }
 
     setInvoice({
       name: file.name,
       url: URL.createObjectURL(file),
       size: file.size,
-    })
-    if (invoiceInputRef.current) invoiceInputRef.current.value = ""
-  }
+    });
+    if (invoiceInputRef.current) invoiceInputRef.current.value = "";
+  };
 
   const handleRemoveInvoice = () => {
-    setInvoice(null)
-  }
+    setInvoice(null);
+  };
 
   const handleSubmit = async () => {
-    setError("")
+    setError("");
     if (!customerName || !customerPhone) {
-      setError(
-        "Please provide your name and phone number so IT HUB can contact you.",
-      )
-      return
+      setError("Please provide your name and phone number so IT HUB can contact you.");
+      return;
     }
     if (!effectiveBrand) {
-      setError("Please specify the brand of your device.")
-      return
+      setError("Please specify the brand of your device.");
+      return;
     }
     if (!effectiveModel) {
-      setError("Please specify the model of your device.")
-      return
+      setError("Please specify the model of your device.");
+      return;
     }
     if (hasWarranty && !invoice) {
-      setError(
-        "Since warranty remains, please upload the original bill/invoice for verification.",
-      )
-      return
+      setError("Since warranty remains, please upload the original bill/invoice for verification.");
+      return;
     }
     if (!images.length) {
-      setError("Please upload at least one photo of the device.")
-      return
+      setError("Please upload at least one photo of the device.");
+      return;
     }
 
-    setSubmitting(true)
-    setError("")
+    setSubmitting(true);
+    setError("");
 
     try {
       const res = await submitSellRequest({
@@ -837,10 +816,9 @@ export default function SellYourItem({
         expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
         images: images.map((img) => ({ name: img.name, dataUrl: img.url })),
         invoice: invoice ? { name: invoice.name, dataUrl: invoice.url } : null,
-      })
+      });
 
-      const finalId =
-        res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`
+      const finalId = res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
       const newRequest: SellRequest = {
         id: finalId,
         userId: customerPhone,
@@ -848,8 +826,7 @@ export default function SellYourItem({
         customerEmail: customerEmail || "unspecified@example.com",
         customerPhone,
         category,
-        productName:
-          `${effectiveBrand} ${effectiveModel}`.trim() || `${category} device`,
+        productName: `${effectiveBrand} ${effectiveModel}`.trim() || `${category} device`,
         brand: effectiveBrand,
         model: effectiveModel,
         condition,
@@ -859,37 +836,28 @@ export default function SellYourItem({
         warrantyRemaining: hasWarranty ? warrantyRemaining : "",
         warrantyDetails: hasWarranty ? warrantyDetails : "",
         expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
-        imagePaths: res.storageImages?.length
-          ? res.storageImages
-          : images.map((img) => img.url),
+        imagePaths: res.storageImages?.length ? res.storageImages : images.map((img) => img.url),
         invoicePath: res.storageInvoice || (invoice ? invoice.url : ""),
         status: "Pending",
         adminNotes: "",
         submittedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      }
+      };
 
       store.set((prev) => ({
         sellRequests: [newRequest, ...prev.sellRequests],
-        notifications: [
-          `Sell request ${finalId} submitted`,
-          ...prev.notifications,
-        ],
-      }))
+        notifications: [`Sell request ${finalId} submitted`, ...prev.notifications],
+      }));
 
-      store.log(
-        `Sell Request Submitted: ${finalId} (${category} - ${newRequest.productName})`,
-      )
-      store.notify(`Sell request ${finalId} submitted for review!`)
-      setSubmittedRequest(newRequest)
+      store.log(`Sell Request Submitted: ${finalId} (${category} - ${newRequest.productName})`);
+      store.notify(`Sell request ${finalId} submitted for review!`);
+      setSubmittedRequest(newRequest);
     } catch (err: any) {
-      setError(
-        err?.message || "Failed to submit sell request. Please try again.",
-      )
+      setError(err?.message || "Failed to submit sell request. Please try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   // Confirmation screen
   if (submittedRequest) {
@@ -905,17 +873,15 @@ export default function SellYourItem({
           Your product has been submitted successfully.
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
-          Our IT HUB evaluation team will review your item details and contact
-          you shortly with an offer.
+          Our IT HUB evaluation team will review your item details and contact you shortly with an
+          offer.
         </p>
 
         <div className="my-8 rounded-xl bg-muted/60 p-6 text-left">
           <div className="grid gap-3 text-xs sm:grid-cols-2">
             <div>
               <span className="text-muted-foreground">Request ID:</span>
-              <p className="font-mono text-sm font-bold text-primary">
-                {submittedRequest.id}
-              </p>
+              <p className="font-mono text-sm font-bold text-primary">{submittedRequest.id}</p>
             </div>
             <div>
               <span className="text-muted-foreground">Status:</span>
@@ -947,14 +913,14 @@ export default function SellYourItem({
         <div className="flex flex-wrap justify-center gap-3">
           <Button
             onClick={() => {
-              setSubmittedRequest(null)
-              setStep(0)
-              setImages([])
-              setInvoice(null)
-              setCustomBrand("")
-              setCustomModel("")
-              setDescription("")
-              setHasWarranty(null)
+              setSubmittedRequest(null);
+              setStep(0);
+              setImages([]);
+              setInvoice(null);
+              setCustomBrand("");
+              setCustomModel("");
+              setDescription("");
+              setHasWarranty(null);
             }}
           >
             Submit another item
@@ -966,7 +932,7 @@ export default function SellYourItem({
           )}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -979,16 +945,14 @@ export default function SellYourItem({
               <span className="flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
                 <BadgeIndianRupee size={13} /> SELL YOUR ITEM
               </span>
-              <span className="text-xs text-muted-foreground">
-                · Fast Evaluation & Payout
-              </span>
+              <span className="text-xs text-muted-foreground">· Fast Evaluation & Payout</span>
             </div>
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
               Turn your old electronics into instant cash.
             </h2>
             <p className="mt-1 text-xs text-muted-foreground md:text-sm">
-              Submit your phone, laptop, PC or gadget. IT HUB inspects and
-              purchases directly from you.
+              Submit your phone, laptop, PC or gadget. IT HUB inspects and purchases directly from
+              you.
             </p>
           </div>
           {onBackToFresh && (
@@ -1043,8 +1007,8 @@ export default function SellYourItem({
           </h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {sellCategories.map((cat) => {
-              const Icon = categoryIcons[cat]
-              const isSelected = category === cat
+              const Icon = categoryIcons[cat];
+              const isSelected = category === cat;
               return (
                 <button
                   type="button"
@@ -1056,13 +1020,10 @@ export default function SellYourItem({
                       : "border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-foreground"
                   }`}
                 >
-                  <Icon
-                    size={32}
-                    className={`mb-2.5 ${isSelected ? "text-primary" : ""}`}
-                  />
+                  <Icon size={32} className={`mb-2.5 ${isSelected ? "text-primary" : ""}`} />
                   <span className="text-xs font-semibold">{cat}</span>
                 </button>
-              )
+              );
             })}
           </div>
 
@@ -1089,9 +1050,7 @@ export default function SellYourItem({
           {/* Dynamic Brand and Model Dropdowns */}
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-foreground">
-                Brand *
-              </label>
+              <label className="mb-1.5 block text-xs font-semibold text-foreground">Brand *</label>
               <select
                 value={selectedBrand}
                 onChange={(e) => handleBrandChange(e.target.value)}
@@ -1168,14 +1127,12 @@ export default function SellYourItem({
               ))}
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {condition === "New" &&
-                "Unopened or unused in original packaging."}
+              {condition === "New" && "Unopened or unused in original packaging."}
               {condition === "Like New" &&
                 "Flawless screen and body, no noticeable scratches or dents."}
               {condition === "Good" &&
                 "Light cosmetic wear, fully functional with all features working."}
-              {condition === "Fair" &&
-                "Visible scuffs or scratches, but working properly."}
+              {condition === "Fair" && "Visible scuffs or scratches, but working properly."}
               {condition === "For Parts" &&
                 "Damaged screen, battery or hardware issue; for scrap/parts."}
             </p>
@@ -1280,9 +1237,7 @@ export default function SellYourItem({
           <div className="rounded-xl border border-border bg-card p-4">
             <label className="mb-1.5 block text-xs font-semibold text-foreground">
               Your Expected Asking Price (₹){" "}
-              <span className="font-normal text-muted-foreground">
-                (Optional)
-              </span>
+              <span className="font-normal text-muted-foreground">(Optional)</span>
             </label>
             <div className="relative max-w-sm">
               <span className="absolute left-3 top-2 text-xs font-bold text-muted-foreground">
@@ -1299,8 +1254,8 @@ export default function SellYourItem({
               />
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              What do you hope to get for this device? IT HUB will evaluate
-              condition and give you a fair market quote.
+              What do you hope to get for this device? IT HUB will evaluate condition and give you a
+              fair market quote.
             </p>
           </div>
 
@@ -1312,21 +1267,19 @@ export default function SellYourItem({
               type="button"
               onClick={() => {
                 if (!effectiveBrand) {
-                  setError("Please select or specify the brand.")
-                  return
+                  setError("Please select or specify the brand.");
+                  return;
                 }
                 if (!effectiveModel) {
-                  setError("Please select or specify the model.")
-                  return
+                  setError("Please select or specify the model.");
+                  return;
                 }
                 if (hasWarranty === null) {
-                  setError(
-                    "Please select whether the device has active warranty.",
-                  )
-                  return
+                  setError("Please select whether the device has active warranty.");
+                  return;
                 }
-                setError("")
-                setStep(2)
+                setError("");
+                setStep(2);
               }}
             >
               Continue to Uploads <ArrowRight size={16} />
@@ -1339,9 +1292,7 @@ export default function SellYourItem({
       {step === 2 && (
         <div className="space-y-6">
           <div>
-            <h3 className="text-base font-bold text-foreground">
-              Upload Photos & Invoice
-            </h3>
+            <h3 className="text-base font-bold text-foreground">Upload Photos & Invoice</h3>
             <p className="mt-1 text-xs text-muted-foreground">
               Clear photos help us give you a faster and higher quote.
             </p>
@@ -1383,11 +1334,7 @@ export default function SellYourItem({
                     key={i}
                     className="group relative flex h-28 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30"
                   >
-                    <img
-                      src={img.url}
-                      alt={img.name}
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={img.url} alt={img.name} className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(i)}
@@ -1410,9 +1357,7 @@ export default function SellYourItem({
                 <p className="mt-2 text-xs font-semibold text-foreground">
                   Click to select images of your device
                 </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Upload 1 to 6 photos
-                </p>
+                <p className="text-[11px] text-muted-foreground">Upload 1 to 6 photos</p>
               </div>
             )}
           </div>
@@ -1424,12 +1369,10 @@ export default function SellYourItem({
                 <div>
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-950">
                     <FileText size={14} className="text-emerald-700" />
-                    Original Bill / Invoice * (Required for Warranty
-                    Verification)
+                    Original Bill / Invoice * (Required for Warranty Verification)
                   </p>
                   <p className="text-[11px] text-emerald-800">
-                    PDF, JPG, or PNG. Private file — only IT HUB administrators
-                    can view this.
+                    PDF, JPG, or PNG. Private file — only IT HUB administrators can view this.
                   </p>
                 </div>
                 {!invoice && (
@@ -1479,9 +1422,7 @@ export default function SellYourItem({
                   <p className="mt-2 text-xs font-semibold text-emerald-950">
                     Upload purchase receipt or GST tax invoice
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    PDF or high-res photo
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">PDF or high-res photo</p>
                 </div>
               )}
             </div>
@@ -1495,17 +1436,15 @@ export default function SellYourItem({
               type="button"
               onClick={() => {
                 if (!images.length) {
-                  setError("Please upload at least one image of your item.")
-                  return
+                  setError("Please upload at least one image of your item.");
+                  return;
                 }
                 if (hasWarranty && !invoice) {
-                  setError(
-                    "Since warranty remains, please upload the original bill/invoice.",
-                  )
-                  return
+                  setError("Since warranty remains, please upload the original bill/invoice.");
+                  return;
                 }
-                setError("")
-                setStep(3)
+                setError("");
+                setStep(3);
               }}
             >
               Continue to Review <ArrowRight size={16} />
@@ -1518,25 +1457,18 @@ export default function SellYourItem({
       {step === 3 && (
         <div className="space-y-6">
           <div>
-            <h3 className="text-base font-bold text-foreground">
-              Review & Submit Request
-            </h3>
+            <h3 className="text-base font-bold text-foreground">Review & Submit Request</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Verify your details and tell us how to reach you with the
-              valuation offer.
+              Verify your details and tell us how to reach you with the valuation offer.
             </p>
           </div>
 
           {/* Contact Details */}
           <div className="rounded-xl border border-border bg-muted/30 p-5">
-            <p className="mb-3 text-xs font-semibold text-foreground">
-              Your Contact Information *
-            </p>
+            <p className="mb-3 text-xs font-semibold text-foreground">Your Contact Information *</p>
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1 block text-[11px] text-muted-foreground">
-                  Full Name *
-                </label>
+                <label className="mb-1 block text-[11px] text-muted-foreground">Full Name *</label>
                 <input
                   type="text"
                   required
@@ -1597,9 +1529,7 @@ export default function SellYourItem({
               <div>
                 <span className="text-muted-foreground">Warranty</span>
                 <p className="font-semibold text-foreground">
-                  {hasWarranty
-                    ? `Active (${warrantyRemaining})`
-                    : "No Warranty"}
+                  {hasWarranty ? `Active (${warrantyRemaining})` : "No Warranty"}
                 </p>
               </div>
               {expectedPrice && (
@@ -1629,14 +1559,12 @@ export default function SellYourItem({
               <ArrowLeft size={16} /> Back
             </Button>
             <Button type="button" disabled={submitting} onClick={handleSubmit}>
-              {submitting
-                ? "Submitting for Review…"
-                : "Submit Device for Valuation"}
+              {submitting ? "Submitting for Review…" : "Submit Device for Valuation"}
               <ArrowRight size={16} />
             </Button>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

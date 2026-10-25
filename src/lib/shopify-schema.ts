@@ -2,114 +2,114 @@
 // Authoritative Shopify Storefront GraphQL Types & Data Mappers
 // IT HUB — Kerala, India
 
-import type { Product, ComponentOption, ProductCondition } from "../data/catalog.ts"
+import type { Product, ComponentOption, ProductCondition } from "../data/catalog.ts";
 
 /**
  * Shopify GraphQL Global ID prefix utilities
  */
 export function parseShopifyGid(gid: string): string {
-  if (!gid) return ""
-  const parts = gid.split("/")
-  return parts[parts.length - 1] || gid
+  if (!gid) return "";
+  const parts = gid.split("/");
+  return parts[parts.length - 1] || gid;
 }
 
 export function toVariantGid(id: string | number): string {
-  if (!id) return ""
-  const str = String(id).trim()
+  if (!id) return "";
+  const str = String(id).trim();
   if (str.startsWith("gid://shopify/ProductVariant/")) {
-    return str
+    return str;
   }
   // Sanitize if a Product GID was mistakenly passed
-  const cleanId = parseShopifyGid(str)
-  return `gid://shopify/ProductVariant/${cleanId}`
+  const cleanId = parseShopifyGid(str);
+  return `gid://shopify/ProductVariant/${cleanId}`;
 }
 
 export function toProductGid(id: string | number): string {
-  if (!id) return ""
-  const str = String(id).trim()
+  if (!id) return "";
+  const str = String(id).trim();
   if (str.startsWith("gid://shopify/Product/")) {
-    return str
+    return str;
   }
-  const cleanId = parseShopifyGid(str)
-  return `gid://shopify/Product/${cleanId}`
+  const cleanId = parseShopifyGid(str);
+  return `gid://shopify/Product/${cleanId}`;
 }
 
 /**
  * Core Shopify Storefront GraphQL Interfaces
  */
 export interface ShopifyMoneyV2 {
-  amount: string
-  currencyCode: string
+  amount: string;
+  currencyCode: string;
 }
 
 export interface ShopifyImage {
-  url: string
-  altText?: string | null
-  width?: number
-  height?: number
+  url: string;
+  altText?: string | null;
+  width?: number;
+  height?: number;
 }
 
 export interface ShopifyMetafield {
-  namespace: string
-  key: string
-  value: string
-  type: string
+  namespace: string;
+  key: string;
+  value: string;
+  type: string;
 }
 
 export interface ShopifyProductOption {
-  id?: string
-  name: string
-  values: string[]
+  id?: string;
+  name: string;
+  values: string[];
 }
 
 export interface ShopifyTaxonomyCategory {
-  id?: string
-  name: string
-  ancestors?: Array<{ id?: string; name: string }>
+  id?: string;
+  name: string;
+  ancestors?: Array<{ id?: string; name: string }>;
 }
 
 export interface ShopifyCollectionNode {
-  id: string
-  title: string
-  handle: string
+  id: string;
+  title: string;
+  handle: string;
 }
 
 export interface ShopifyProductVariantNode {
-  id: string
-  title: string
-  sku?: string | null
-  availableForSale: boolean
-  quantityAvailable?: number | null
-  price: ShopifyMoneyV2
-  compareAtPrice?: ShopifyMoneyV2 | null
-  selectedOptions?: Array<{ name: string; value: string }>
-  image?: ShopifyImage | null
-  metafields?: Array<ShopifyMetafield | null>
+  id: string;
+  title: string;
+  sku?: string | null;
+  availableForSale: boolean;
+  quantityAvailable?: number | null;
+  price: ShopifyMoneyV2;
+  compareAtPrice?: ShopifyMoneyV2 | null;
+  selectedOptions?: Array<{ name: string; value: string }>;
+  image?: ShopifyImage | null;
+  metafields?: Array<ShopifyMetafield | null>;
 }
 
 export interface ShopifyProductNode {
-  id: string
-  title: string
-  handle: string
-  description: string
-  descriptionHtml?: string
-  vendor: string
-  productType: string
-  tags: string[]
-  availableForSale: boolean
-  category?: ShopifyTaxonomyCategory | null
+  id: string;
+  title: string;
+  handle: string;
+  description: string;
+  descriptionHtml?: string;
+  vendor: string;
+  productType: string;
+  tags: string[];
+  availableForSale: boolean;
+  category?: ShopifyTaxonomyCategory | null;
   collections?: {
-    edges: Array<{ node: ShopifyCollectionNode }>
-  }
-  options?: ShopifyProductOption[]
-  featuredImage?: ShopifyImage | null
+    edges: Array<{ node: ShopifyCollectionNode }>;
+  };
+  options?: ShopifyProductOption[];
+  featuredImage?: ShopifyImage | null;
   images: {
-    edges: Array<{ node: ShopifyImage }>
-  }
+    edges: Array<{ node: ShopifyImage }>;
+  };
   variants: {
-    edges: Array<{ node: ShopifyProductVariantNode }>
-  }
-  metafields?: Array<ShopifyMetafield | null>
+    edges: Array<{ node: ShopifyProductVariantNode }>;
+  };
+  metafields?: Array<ShopifyMetafield | null>;
 }
 
 /**
@@ -120,11 +120,9 @@ export function getMetafield(
   namespace: string,
   key: string,
 ): string | undefined {
-  if (!metafields || !Array.isArray(metafields)) return undefined
-  const match = metafields.find(
-    (m) => m && m.namespace === namespace && m.key === key,
-  )
-  return match?.value
+  if (!metafields || !Array.isArray(metafields)) return undefined;
+  const match = metafields.find((m) => m && m.namespace === namespace && m.key === key);
+  return match?.value;
 }
 
 /**
@@ -134,20 +132,20 @@ export function parseProductSpecs(
   tags: string[],
   metafields?: Array<ShopifyMetafield | null | undefined>,
 ): Record<string, string> {
-  const specs: Record<string, string> = {}
+  const specs: Record<string, string> = {};
 
   // Parse key:value or key=value tags
   for (const tag of tags) {
     if (tag.includes(":")) {
-      const idx = tag.indexOf(":")
-      const key = tag.slice(0, idx).trim()
-      const val = tag.slice(idx + 1).trim()
-      if (key && val) specs[key] = val
+      const idx = tag.indexOf(":");
+      const key = tag.slice(0, idx).trim();
+      const val = tag.slice(idx + 1).trim();
+      if (key && val) specs[key] = val;
     } else if (tag.includes("=")) {
-      const idx = tag.indexOf("=")
-      const key = tag.slice(0, idx).trim()
-      const val = tag.slice(idx + 1).trim()
-      if (key && val) specs[key] = val
+      const idx = tag.indexOf("=");
+      const key = tag.slice(0, idx).trim();
+      const val = tag.slice(idx + 1).trim();
+      if (key && val) specs[key] = val;
     }
   }
 
@@ -155,12 +153,12 @@ export function parseProductSpecs(
   if (metafields) {
     for (const m of metafields) {
       if (m?.key && m?.value) {
-        specs[m.key] = m.value
+        specs[m.key] = m.value;
       }
     }
   }
 
-  return specs
+  return specs;
 }
 
 /**
@@ -170,31 +168,42 @@ export function resolveProductCondition(
   tags: string[],
   metafields?: Array<ShopifyMetafield | null | undefined>,
 ): ProductCondition {
-  const normalize = (s: string) => s.toLowerCase().replace(/[-_]/g, " ")
+  const normalize = (s: string) => s.toLowerCase().replace(/[-_]/g, " ");
 
-  const conditionMeta = getMetafield(metafields, "custom", "condition")
+  const conditionMeta = getMetafield(metafields, "custom", "condition");
   if (conditionMeta) {
-    const norm = normalize(conditionMeta)
-    if (norm.includes("like new")) return "Like New"
-    if (norm.includes("fair")) return "Fair"
-    if (norm.includes("parts")) return "For Parts"
-    if (norm.includes("refurbished") || norm.includes("good") || norm.includes("pre owned") || norm.includes("used")) {
-      return "Good"
+    const norm = normalize(conditionMeta);
+    if (norm.includes("like new")) return "Like New";
+    if (norm.includes("fair")) return "Fair";
+    if (norm.includes("parts")) return "For Parts";
+    if (
+      norm.includes("refurbished") ||
+      norm.includes("good") ||
+      norm.includes("pre owned") ||
+      norm.includes("used")
+    ) {
+      return "Good";
     }
-    if (norm.includes("new")) return "New"
+    if (norm.includes("new")) return "New";
   }
 
   for (const t of tags) {
-    const norm = normalize(t)
-    if (norm.includes("like new")) return "Like New"
-    if (norm.includes("fair")) return "Fair"
-    if (norm.includes("parts")) return "For Parts"
-    if (norm.includes("refurbished") || norm.includes("good") || norm.includes("pre owned") || norm.includes("second hand") || norm.includes("used")) {
-      return "Good"
+    const norm = normalize(t);
+    if (norm.includes("like new")) return "Like New";
+    if (norm.includes("fair")) return "Fair";
+    if (norm.includes("parts")) return "For Parts";
+    if (
+      norm.includes("refurbished") ||
+      norm.includes("good") ||
+      norm.includes("pre owned") ||
+      norm.includes("second hand") ||
+      norm.includes("used")
+    ) {
+      return "Good";
     }
   }
 
-  return "New"
+  return "New";
 }
 
 /**
@@ -205,31 +214,31 @@ export function resolveProductCondition(
  * - Never claims a fallback is an official taxonomy category.
  */
 export function resolveShopifyCategory(node: ShopifyProductNode): {
-  category: string
-  categorySource: "taxonomy" | "productType" | "collection" | "fallback"
+  category: string;
+  categorySource: "taxonomy" | "productType" | "collection" | "fallback";
   taxonomyCategory?: {
-    id?: string
-    name: string
-    fullName?: string
-    ancestors?: string[]
-  }
-  productType?: string
-  collections?: string[]
+    id?: string;
+    name: string;
+    fullName?: string;
+    ancestors?: string[];
+  };
+  productType?: string;
+  collections?: string[];
 } {
   const collectionList = (node.collections?.edges || [])
     .map((e) => e.node?.title?.trim())
-    .filter(Boolean) as string[]
+    .filter(Boolean) as string[];
 
-  const trimmedProductType = (node.productType || "").trim()
-  const taxCat = node.category
+  const trimmedProductType = (node.productType || "").trim();
+  const taxCat = node.category;
 
   if (taxCat && taxCat.name && taxCat.name.trim()) {
-    const catName = taxCat.name.trim()
+    const catName = taxCat.name.trim();
     const ancestorNames = (taxCat.ancestors || [])
       .map((a) => a.name?.trim())
-      .filter(Boolean) as string[]
-    const immediateParent = ancestorNames.length > 0 ? ancestorNames[0] : undefined
-    const fullName = immediateParent ? `${catName} in ${immediateParent}` : catName
+      .filter(Boolean) as string[];
+    const immediateParent = ancestorNames.length > 0 ? ancestorNames[0] : undefined;
+    const fullName = immediateParent ? `${catName} in ${immediateParent}` : catName;
 
     return {
       category: catName,
@@ -242,7 +251,7 @@ export function resolveShopifyCategory(node: ShopifyProductNode): {
       },
       productType: trimmedProductType || undefined,
       collections: collectionList.length > 0 ? collectionList : undefined,
-    }
+    };
   }
 
   if (trimmedProductType) {
@@ -252,7 +261,7 @@ export function resolveShopifyCategory(node: ShopifyProductNode): {
       taxonomyCategory: undefined,
       productType: trimmedProductType,
       collections: collectionList.length > 0 ? collectionList : undefined,
-    }
+    };
   }
 
   if (collectionList.length > 0) {
@@ -262,7 +271,7 @@ export function resolveShopifyCategory(node: ShopifyProductNode): {
       taxonomyCategory: undefined,
       productType: undefined,
       collections: collectionList,
-    }
+    };
   }
 
   return {
@@ -271,7 +280,7 @@ export function resolveShopifyCategory(node: ShopifyProductNode): {
     taxonomyCategory: undefined,
     productType: undefined,
     collections: undefined,
-  }
+  };
 }
 
 /**
@@ -282,78 +291,70 @@ export function mapShopifyProductToCatalog(
   node: ShopifyProductNode,
   variantIndex: number = 0,
 ): Product {
-  const variantNode = node.variants.edges[variantIndex]?.node || node.variants.edges[0]?.node
+  const variantNode = node.variants.edges[variantIndex]?.node || node.variants.edges[0]?.node;
 
-  const sellingPrice = variantNode
-    ? parseFloat(variantNode.price.amount)
-    : 0
+  const sellingPrice = variantNode ? parseFloat(variantNode.price.amount) : 0;
 
   const compareAtPrice = variantNode?.compareAtPrice
     ? parseFloat(variantNode.compareAtPrice.amount)
-    : sellingPrice
+    : sellingPrice;
 
-  const original = compareAtPrice > sellingPrice ? compareAtPrice : sellingPrice
+  const original = compareAtPrice > sellingPrice ? compareAtPrice : sellingPrice;
 
-  const condition = resolveProductCondition(node.tags, node.metafields)
-  const isSecondHand = condition !== "New"
+  const condition = resolveProductCondition(node.tags, node.metafields);
+  const isSecondHand = condition !== "New";
 
   // Warranty resolution
   const warrantyMeta =
     getMetafield(node.metafields, "custom", "warranty_summary") ||
-    (condition === "New" ? "1-Year Official Manufacturer Warranty" : "90-Day IT HUB Testing Warranty")
+    (condition === "New"
+      ? "1-Year Official Manufacturer Warranty"
+      : "90-Day IT HUB Testing Warranty");
 
   // Collect all unique product imagery from Shopify (variants, featured, and gallery edges)
-  const rawImageUrls: string[] = []
+  const rawImageUrls: string[] = [];
   if (variantNode?.image?.url && !rawImageUrls.includes(variantNode.image.url)) {
-    rawImageUrls.push(variantNode.image.url)
+    rawImageUrls.push(variantNode.image.url);
   }
   if (node.featuredImage?.url && !rawImageUrls.includes(node.featuredImage.url)) {
-    rawImageUrls.push(node.featuredImage.url)
+    rawImageUrls.push(node.featuredImage.url);
   }
   if (node.images?.edges && Array.isArray(node.images.edges)) {
     for (const edge of node.images.edges) {
-      const u = edge?.node?.url
+      const u = edge?.node?.url;
       if (u && !rawImageUrls.includes(u)) {
-        rawImageUrls.push(u)
+        rawImageUrls.push(u);
       }
     }
   }
 
-  const primaryImage =
-    rawImageUrls[0] ||
-    "/assets/placeholder-product.png"
+  const primaryImage = rawImageUrls[0] || "/assets/placeholder-product.png";
 
-  const productImages = rawImageUrls.length > 0 ? rawImageUrls : [primaryImage]
+  const productImages = rawImageUrls.length > 0 ? rawImageUrls : [primaryImage];
 
-  const specs = parseProductSpecs(node.tags, node.metafields)
+  const specs = parseProductSpecs(node.tags, node.metafields);
 
   const isAvailable = variantNode
     ? Boolean(variantNode.availableForSale)
-    : Boolean(node.availableForSale ?? true)
+    : Boolean(node.availableForSale ?? true);
 
   // Map product options (filter out single dummy option "Title: Default Title")
   const productOptions = (node.options || [])
     .filter(
       (opt) =>
-        !(
-          opt.name === "Title" &&
-          opt.values.length === 1 &&
-          opt.values[0] === "Default Title"
-        ),
+        !(opt.name === "Title" && opt.values.length === 1 && opt.values[0] === "Default Title"),
     )
     .map((opt) => ({
       id: opt.id,
       name: opt.name,
       values: opt.values || [],
-    }))
+    }));
 
   // Map all variants for multi-variant selection
   const mappedVariants = (node.variants?.edges || []).map((e) => {
-    const v = e.node
-    const vPrice = parseFloat(v.price.amount)
-    const vCompareAt = v.compareAtPrice
-      ? parseFloat(v.compareAtPrice.amount)
-      : vPrice
+    const v = e.node;
+    const vPrice = parseFloat(v.price.amount);
+    const vCompareAt = v.compareAtPrice ? parseFloat(v.compareAtPrice.amount) : vPrice;
     return {
       id: v.id,
       title: v.title,
@@ -363,10 +364,10 @@ export function mapShopifyProductToCatalog(
       availableForSale: Boolean(v.availableForSale),
       selectedOptions: v.selectedOptions || [],
       image: v.image?.url || undefined,
-    }
-  })
+    };
+  });
 
-  const categoryInfo = resolveShopifyCategory(node)
+  const categoryInfo = resolveShopifyCategory(node);
 
   return {
     id: parseShopifyGid(node.id),
@@ -398,7 +399,7 @@ export function mapShopifyProductToCatalog(
     availableForSale: isAvailable,
     options: productOptions.length > 0 ? productOptions : undefined,
     variants: mappedVariants.length > 0 ? mappedVariants : undefined,
-  }
+  };
 }
 
 /**
@@ -409,19 +410,19 @@ export function mapShopifyVariantToPcComponent(
   node: ShopifyProductNode,
   variantIndex: number = 0,
 ): ComponentOption | null {
-  const variant = node.variants.edges[variantIndex]?.node || node.variants.edges[0]?.node
-  if (!variant) return null
+  const variant = node.variants.edges[variantIndex]?.node || node.variants.edges[0]?.node;
+  if (!variant) return null;
 
   // Read pc_builder metafields
-  const socket = getMetafield(node.metafields, "pc_builder", "socket")
-  const ramGen = getMetafield(node.metafields, "pc_builder", "ram_generation")
-  const wattsStr = getMetafield(node.metafields, "pc_builder", "watts")
-  const capacityWattsStr = getMetafield(node.metafields, "pc_builder", "capacity_watts")
-  const gpuLengthStr = getMetafield(node.metafields, "pc_builder", "gpu_length_mm")
-  const clearanceStr = getMetafield(node.metafields, "pc_builder", "cabinet_clearance_mm")
-  const storageIface = getMetafield(node.metafields, "pc_builder", "storage_interface")
-  const biosStr = getMetafield(node.metafields, "pc_builder", "bios_update_required")
-  const wifiStr = getMetafield(node.metafields, "pc_builder", "wifi")
+  const socket = getMetafield(node.metafields, "pc_builder", "socket");
+  const ramGen = getMetafield(node.metafields, "pc_builder", "ram_generation");
+  const wattsStr = getMetafield(node.metafields, "pc_builder", "watts");
+  const capacityWattsStr = getMetafield(node.metafields, "pc_builder", "capacity_watts");
+  const gpuLengthStr = getMetafield(node.metafields, "pc_builder", "gpu_length_mm");
+  const clearanceStr = getMetafield(node.metafields, "pc_builder", "cabinet_clearance_mm");
+  const storageIface = getMetafield(node.metafields, "pc_builder", "storage_interface");
+  const biosStr = getMetafield(node.metafields, "pc_builder", "bios_update_required");
+  const wifiStr = getMetafield(node.metafields, "pc_builder", "wifi");
 
   return {
     id: parseShopifyGid(variant.id),
@@ -437,5 +438,5 @@ export function mapShopifyVariantToPcComponent(
     bios: biosStr === "true",
     wifi: wifiStr === "true",
     stock: variant.availableForSale ? (variant.quantityAvailable ?? 5) : 0,
-  }
+  };
 }

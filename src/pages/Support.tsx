@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { useSearchParams } from "react-router"
+import { useSearchParams } from "react-router";
 
 import {
   AlertTriangle,
@@ -34,15 +34,15 @@ import {
   Tv,
   Wrench,
   type LucideIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import WhatsAppIcon from "../components/WhatsAppIcon"
+import WhatsAppIcon from "../components/WhatsAppIcon";
 
-import { useStore } from "../app/store"
+import { useStore } from "../app/store";
 
-import { track } from "../lib/analytics"
+import { track } from "../lib/analytics";
 
-import WarrantyCheck from "../components/WarrantyCheck"
+import WarrantyCheck from "../components/WarrantyCheck";
 
 import {
   warrantyMonths,
@@ -51,9 +51,9 @@ import {
   type Product,
   type ServiceCentre,
   type SupportCategory,
-} from "../data/catalog"
+} from "../data/catalog";
 
-import { checkStoreSettingsCompleteness } from "../lib/support"
+import { checkStoreSettingsCompleteness } from "../lib/support";
 
 import {
   ActionLink,
@@ -63,17 +63,17 @@ import {
   buttonClass,
   fieldClass,
   secondaryClass,
-} from "../components/ui"
+} from "../components/ui";
 
 const DISCLAIMER =
-  "Warranty terms and duration are determined exclusively by the respective manufacturer and vary by product model and purchase date. IT HUB provides official contact and locator assistance; warranty claims are validated directly by the brand against your purchase invoice."
+  "Warranty terms and duration are determined exclusively by the respective manufacturer and vary by product model and purchase date. IT HUB provides official contact and locator assistance; warranty claims are validated directly by the brand against your purchase invoice.";
 
-const MISSING = "Not yet published — visit the official portal"
+const MISSING = "Not yet published — visit the official portal";
 
-const STORE_MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
+const STORE_MAP_URL = "https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8";
 
 const STORE_MAP_EMBED =
-  "https://www.google.com/maps?q=IT+HUB+Kothamangalam+Kerala&z=16&output=embed"
+  "https://www.google.com/maps?q=IT+HUB+Kothamangalam+Kerala&z=16&output=embed";
 
 const icons: Record<string, LucideIcon> = {
   laptop: Laptop,
@@ -95,7 +95,7 @@ const icons: Record<string, LucideIcon> = {
   gamepad: Gamepad2,
 
   cpu: Cpu,
-}
+};
 
 const views = [
   { id: "warranty", name: "Manufacturer Directory", Icon: ShieldCheck },
@@ -105,7 +105,7 @@ const views = [
   { id: "onsite", name: "On-Site Service", Icon: Navigation },
 
   { id: "contact", name: "Contact IT HUB", Icon: Headphones },
-] as const
+] as const;
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, {
@@ -114,89 +114,83 @@ const fmt = (iso: string) =>
     month: "short",
 
     year: "numeric",
-  })
+  });
 
 export default function Support() {
-  const store = useStore()
+  const store = useStore();
 
-  const [params, setParams] = useSearchParams()
+  const [params, setParams] = useSearchParams();
 
-  const rawView = params.get("view") || "warranty"
+  const rawView = params.get("view") || "warranty";
 
-  const view = rawView === "locator" ? "warranty" : rawView
+  const view = rawView === "locator" ? "warranty" : rawView;
 
-  const orderId = params.get("order") || ""
+  const orderId = params.get("order") || "";
 
-  const productId = params.get("product") || ""
+  const productId = params.get("product") || "";
 
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState("");
 
-  const categories = store.supportCategories.filter((item) => item.active)
+  const categories = store.supportCategories.filter((item) => item.active);
 
-  const records = store.brandSupport.filter((item) => item.active)
+  const records = store.brandSupport.filter((item) => item.active);
 
   const settingsStatus = useMemo(
     () => checkStoreSettingsCompleteness(store.settings),
 
     [store.settings],
-  )
+  );
 
-  const order = store.orders.find((item) => item.id === orderId)
+  const order = store.orders.find((item) => item.id === orderId);
 
-  const orderItem = order?.items.find((item) => item.id === productId)
+  const orderItem = order?.items.find((item) => item.id === productId);
 
-  const product: Product | undefined = store.products.find(
-    (item) => item.id === productId,
-  )
+  const product: Product | undefined = store.products.find((item) => item.id === productId);
 
   // Customer order history for order-aware assistance
 
   const customerOrders = useMemo(() => {
-    if (!store.loggedIn) return []
+    if (!store.loggedIn) return [];
 
-    return store.orders.filter((o) => o.status >= 0)
-  }, [store.loggedIn, store.orders])
+    return store.orders.filter((o) => o.status >= 0);
+  }, [store.loggedIn, store.orders]);
 
   // Category param may be a support id or a store catalog category name.
 
-  const rawCategory = params.get("category") || ""
+  const rawCategory = params.get("category") || "";
 
   const fromProduct = product
-    ? categories.find((item) =>
-        item.catalogCategories.includes(product.category),
-      )
-    : undefined
+    ? categories.find((item) => item.catalogCategories.includes(product.category))
+    : undefined;
 
   const category =
     categories.find((item) => item.id === rawCategory) ||
     categories.find((item) => item.catalogCategories.includes(rawCategory)) ||
-    (rawCategory ? undefined : fromProduct)
+    (rawCategory ? undefined : fromProduct);
 
-  const brandName =
-    params.get("brand") || (product && category ? product.brand : "")
+  const brandName = params.get("brand") || (product && category ? product.brand : "");
 
   const record = category
     ? records.find(
         (item) =>
-          item.category === category.id &&
-          item.brand.toLowerCase() === brandName.toLowerCase(),
+          item.category === category.id && item.brand.toLowerCase() === brandName.toLowerCase(),
       )
-    : undefined
+    : undefined;
 
   const update = (next: Record<string, string | null>) => {
-    const copy = new URLSearchParams(params)
+    const copy = new URLSearchParams(params);
 
     Object.entries(next).forEach(([key, value]) =>
       value ? copy.set(key, value) : copy.delete(key),
-    )
+    );
 
-    setParams(copy)
-  }
+    setParams(copy);
+  };
 
   useEffect(() => {
-    if (!record) return
+    if (!record) return;
 
-    track("Warranty Assistance Viewed", { brand: record.brand })
+    track("Warranty Assistance Viewed", { brand: record.brand });
 
     store.set((previous) => ({
       recentSupport: [
@@ -204,16 +198,14 @@ export default function Support() {
 
         ...previous.recentSupport.filter((id) => id !== record.id),
       ].slice(0, 6),
-    }))
+    }));
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record?.id])
+  }, [record?.id]);
 
-  const whatsapp = store.settings.whatsapp
-    ? `https://wa.me/${store.settings.whatsapp}`
-    : ""
+  const whatsapp = store.settings.whatsapp ? `https://wa.me/${store.settings.whatsapp}` : "";
 
-  const email = store.settings.email || "ithubkmgm@gmail.com"
+  const email = store.settings.email || "ithubkmgm@gmail.com";
 
   return (
     <Page>
@@ -221,17 +213,13 @@ export default function Support() {
       {!settingsStatus.complete && (
         <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900 shadow-sm">
           <div className="flex items-start gap-3">
-            <AlertTriangle
-              className="mt-0.5 shrink-0 text-amber-600"
-              size={20}
-            />
+            <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={20} />
             <div>
               <p className="font-bold">Store Notice</p>
               <p className="mt-1 text-sm leading-6">
-                Direct phone and messaging contact channels are currently being
-                re-verified by our store administration. You can still access
-                all verified official manufacturer warranties, or visit us in
-                person.
+                Direct phone and messaging contact channels are currently being re-verified by our
+                store administration. You can still access all verified official manufacturer
+                warranties, or visit us in person.
               </p>
             </div>
           </div>
@@ -275,74 +263,59 @@ export default function Support() {
               name={orderItem.name}
               brand={product?.brand || ""}
               categoryName={category?.name || product?.category || ""}
-              warranty={
-                product?.specs?.Warranty ||
-                product?.warranty ||
-                "1 Year Manufacturer"
-              }
+              warranty={product?.specs?.Warranty || product?.warranty || "1 Year Manufacturer"}
             />
           )}
 
           {/* Quick Order-Aware Picker for Authenticated Customers */}
-          {!order &&
-            store.loggedIn &&
-            customerOrders.length > 0 &&
-            !category && (
-              <section className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <ClipboardList size={18} />
-                  <span>Your Recent Purchases</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Get instant warranty and service assistance for items you
-                  bought from IT HUB.
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {customerOrders.slice(0, 3).flatMap((o) =>
-                    o.items.map((it) => {
-                      const p = store.products.find((prod) => prod.id === it.id)
+          {!order && store.loggedIn && customerOrders.length > 0 && !category && (
+            <section className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
+              <div className="flex items-center gap-2 font-bold text-primary">
+                <ClipboardList size={18} />
+                <span>Your Recent Purchases</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Get instant warranty and service assistance for items you bought from IT HUB.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {customerOrders.slice(0, 3).flatMap((o) =>
+                  o.items.map((it) => {
+                    const p = store.products.find((prod) => prod.id === it.id);
 
-                      const targetCategory = p
-                        ? categories.find((cat) =>
-                            cat.catalogCategories.includes(p.category),
-                          )?.id
-                        : undefined
+                    const targetCategory = p
+                      ? categories.find((cat) => cat.catalogCategories.includes(p.category))?.id
+                      : undefined;
 
-                      return (
-                        <button
-                          key={`${o.id}-${it.id}`}
-                          onClick={() =>
-                            update({
-                              order: o.id,
+                    return (
+                      <button
+                        key={`${o.id}-${it.id}`}
+                        onClick={() =>
+                          update({
+                            order: o.id,
 
-                              product: it.id,
+                            product: it.id,
 
-                              category: targetCategory || null,
+                            category: targetCategory || null,
 
-                              brand: p?.brand || null,
-                            })
-                          }
-                          className="flex items-center justify-between rounded-xl border border-border bg-white p-4 text-left transition hover:border-primary hover:shadow-sm"
-                        >
-                          <div className="overflow-hidden">
-                            <p className="truncate font-semibold text-sm">
-                              {it.name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              Order #{o.id.slice(0, 8)} · {fmt(o.date)}
-                            </p>
-                          </div>
-                          <ChevronRight
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                        </button>
-                      )
-                    }),
-                  )}
-                </div>
-              </section>
-            )}
+                            brand: p?.brand || null,
+                          })
+                        }
+                        className="flex items-center justify-between rounded-xl border border-border bg-white p-4 text-left transition hover:border-primary hover:shadow-sm"
+                      >
+                        <div className="overflow-hidden">
+                          <p className="truncate font-semibold text-sm">{it.name}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Order #{o.id.slice(0, 8)} · {fmt(o.date)}
+                          </p>
+                        </div>
+                        <ChevronRight size={16} className="text-muted-foreground" />
+                      </button>
+                    );
+                  }),
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Step 1: Select Category */}
           {!category && (
@@ -350,11 +323,9 @@ export default function Support() {
               <StepTitle step="1" title="Choose your device category" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {categories.map((item) => {
-                  const Icon = icons[item.icon] || LifeBuoy
+                  const Icon = icons[item.icon] || LifeBuoy;
 
-                  const count = records.filter(
-                    (r) => r.category === item.id,
-                  ).length
+                  const count = records.filter((r) => r.category === item.id).length;
 
                   return (
                     <button
@@ -366,15 +337,13 @@ export default function Support() {
                         <Icon size={26} />
                       </span>
                       <span>
-                        <span className="block text-lg font-bold">
-                          {item.name}
-                        </span>
+                        <span className="block text-lg font-bold">{item.name}</span>
                         <span className="text-xs text-muted-foreground">
                           {count} verified brands
                         </span>
                       </span>
                     </button>
-                  )
+                  );
                 })}
               </div>
               <RecentlyViewed
@@ -400,9 +369,8 @@ export default function Support() {
               />
               {brandName && (
                 <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                  We don't have verified support contacts recorded for “
-                  {brandName}” yet. Pick a manufacturer below or contact IT HUB
-                  for assistance.
+                  We don't have verified support contacts recorded for “{brandName}” yet. Pick a
+                  manufacturer below or contact IT HUB for assistance.
                 </p>
               )}
               <div className="mb-6 flex flex-wrap gap-3">
@@ -437,16 +405,13 @@ export default function Support() {
               <BrandGrid
                 title="Popular Brands"
                 list={records.filter(
-                  (r) =>
-                    r.category === category.id && r.popular && match(r, query),
+                  (r) => r.category === category.id && r.popular && match(r, query),
                 )}
                 onPick={(r) => update({ brand: r.brand })}
               />
               <BrandGrid
                 title="All Manufacturers"
-                list={records.filter(
-                  (r) => r.category === category.id && match(r, query),
-                )}
+                list={records.filter((r) => r.category === category.id && match(r, query))}
                 onPick={(r) => update({ brand: r.brand })}
               />
               <RecentlyViewed
@@ -492,14 +457,11 @@ export default function Support() {
             </div>
             <h2 className="mt-4 text-2xl font-bold">Service Assistance</h2>
             <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-              Out of warranty, physical damage or need an upgrade? IT HUB
-              technicians repair laptops, desktops, mobiles and printers — in
-              store or on-site.
+              Out of warranty, physical damage or need an upgrade? IT HUB technicians repair
+              laptops, desktops, mobiles and printers — in store or on-site.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <ActionLink to="/services/book">
-                Book a service request
-              </ActionLink>
+              <ActionLink to="/services/book">Book a service request</ActionLink>
               <ActionLink secondary to="/track-service">
                 Track a service
               </ActionLink>
@@ -514,25 +476,21 @@ export default function Support() {
           <div className="rounded-2xl border border-primary/20 bg-secondary/60 p-8">
             <h2 className="text-2xl font-bold">IT HUB On-Site Service</h2>
             <p className="mb-6 mt-2 text-sm text-muted-foreground">
-              Enter your PIN code to check whether IT HUB on-site doorstep
-              service covers your area.
+              Enter your PIN code to check whether IT HUB on-site doorstep service covers your area.
             </p>
             <WarrantyCheck source="support" />
           </div>
           <div className="rounded-2xl border border-border bg-white p-8 text-sm leading-6 text-muted-foreground">
-            <h3 className="mb-2 font-bold text-foreground">
-              How is this different?
-            </h3>
+            <h3 className="mb-2 font-bold text-foreground">How is this different?</h3>
             <p>
-              <strong>IT HUB On-Site Service:</strong> Provided directly by IT
-              HUB for repairs, diagnostics, upgrades, and doorstep assistance.
-              Our certified technician visits your premises in covered Kerala
-              areas.
+              <strong>IT HUB On-Site Service:</strong> Provided directly by IT HUB for repairs,
+              diagnostics, upgrades, and doorstep assistance. Our certified technician visits your
+              premises in covered Kerala areas.
             </p>
             <p className="mt-3">
-              <strong>Manufacturer Warranty:</strong> Handled directly by the
-              respective brand (Apple, HP, Dell, Samsung, etc.) through their
-              national authorized service centers. Use the{" "}
+              <strong>Manufacturer Warranty:</strong> Handled directly by the respective brand
+              (Apple, HP, Dell, Samsung, etc.) through their national authorized service centers.
+              Use the{" "}
               <button
                 onClick={() => update({ view: "warranty" })}
                 className="font-semibold text-primary hover:underline"
@@ -591,9 +549,7 @@ export default function Support() {
                     <MapPin size={16} />
                   </span>
                   <div>
-                    <span className="block text-xs font-bold text-foreground">
-                      IT HUB
-                    </span>
+                    <span className="block text-xs font-bold text-foreground">IT HUB</span>
                     <span className="block text-[10px] text-muted-foreground">
                       Kothamangalam, Kerala
                     </span>
@@ -610,16 +566,16 @@ export default function Support() {
         </div>
       )}
     </Page>
-  )
+  );
 }
 
 const match = (record: BrandSupport, query: string) =>
-  record.brand.toLowerCase().includes(query.trim().toLowerCase())
+  record.brand.toLowerCase().includes(query.trim().toLowerCase());
 
 interface StepTitleProps {
-  step: string
+  step: string;
 
-  title: string
+  title: string;
 }
 
 function StepTitle({ step, title }: StepTitleProps) {
@@ -630,7 +586,7 @@ function StepTitle({ step, title }: StepTitleProps) {
       </span>
       {title}
     </h2>
-  )
+  );
 }
 
 function BrandGrid({
@@ -642,15 +598,15 @@ function BrandGrid({
 
   extra,
 }: {
-  title: string
+  title: string;
 
-  list: BrandSupport[]
+  list: BrandSupport[];
 
-  onPick: (record: BrandSupport) => void
+  onPick: (record: BrandSupport) => void;
 
-  extra?: ReactNode
+  extra?: ReactNode;
 }) {
-  if (!list.length && !extra) return null
+  if (!list.length && !extra) return null;
 
   return (
     <div className="mb-8">
@@ -673,7 +629,7 @@ function BrandGrid({
         {extra}
       </div>
     </div>
-  )
+  );
 }
 
 function RecentlyViewed({
@@ -683,19 +639,19 @@ function RecentlyViewed({
 
   onPick,
 }: {
-  ids: string[]
+  ids: string[];
 
-  records: BrandSupport[]
+  records: BrandSupport[];
 
-  onPick: (record: BrandSupport) => void
+  onPick: (record: BrandSupport) => void;
 }) {
   const list = ids
 
     .map((id) => records.find((r) => r.id === id))
 
-    .filter(Boolean) as BrandSupport[]
+    .filter(Boolean) as BrandSupport[];
 
-  if (!list.length) return null
+  if (!list.length) return null;
 
   return (
     <div className="mt-8">
@@ -714,7 +670,7 @@ function RecentlyViewed({
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function Field({
@@ -726,13 +682,13 @@ function Field({
 
   kind,
 }: {
-  Icon: LucideIcon
+  Icon: LucideIcon;
 
-  label: string
+  label: string;
 
-  value?: string
+  value?: string;
 
-  kind: "tel" | "url" | "mail"
+  kind: "tel" | "url" | "mail";
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-4 last:border-0">
@@ -740,16 +696,8 @@ function Field({
         <Icon size={17} className="mt-0.5 text-primary" />
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
-          <p
-            className={`text-sm ${
-              value ? "font-semibold" : "italic text-muted-foreground"
-            }`}
-          >
-            {value
-              ? kind === "url"
-                ? value.replace(/^https?:\/\//, "")
-                : value
-              : MISSING}
+          <p className={`text-sm ${value ? "font-semibold" : "italic text-muted-foreground"}`}>
+            {value ? (kind === "url" ? value.replace(/^https?:\/\//, "") : value) : MISSING}
           </p>
         </div>
       </div>
@@ -780,16 +728,10 @@ function Field({
         </a>
       )}
     </div>
-  )
+  );
 }
 
-function BrandCard({
-  record,
-  categoryName,
-}: {
-  record: BrandSupport
-  categoryName: string
-}) {
+function BrandCard({ record, categoryName }: { record: BrandSupport; categoryName: string }) {
   return (
     <article className="rounded-2xl border border-border bg-white p-7 shadow-sm">
       <div className="text-center">
@@ -797,16 +739,12 @@ function BrandCard({
           Official Manufacturer Contacts
         </p>
         <h2 className="mt-1 text-2xl font-extrabold">
-          {record.brand}{" "}
-          <span className="font-medium text-muted-foreground">
-            {categoryName}
-          </span>
+          {record.brand} <span className="font-medium text-muted-foreground">{categoryName}</span>
         </h2>
         <div className="mt-2.5 flex justify-center">
           {record.lastVerifiedAt ? (
             <Badge tone="green">
-              <BadgeCheck size={13} className="mr-1 inline" /> Verified{" "}
-              {fmt(record.lastVerifiedAt)}
+              <BadgeCheck size={13} className="mr-1 inline" /> Verified {fmt(record.lastVerifiedAt)}
             </Badge>
           ) : (
             <Badge tone="amber">Pending Verification</Badge>
@@ -815,9 +753,9 @@ function BrandCard({
       </div>
 
       <p className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-center text-xs text-blue-900 leading-relaxed">
-        <strong>Manufacturer Support Notice:</strong> Services, spare parts, and
-        warranty inspections are administered directly by {record.brand}. Have
-        your product serial number and purchase invoice ready.
+        <strong>Manufacturer Support Notice:</strong> Services, spare parts, and warranty
+        inspections are administered directly by {record.brand}. Have your product serial number and
+        purchase invoice ready.
       </p>
 
       <div className="mt-4">
@@ -846,12 +784,7 @@ function BrandCard({
           value={record.warrantyUrl}
           kind="url"
         />
-        <Field
-          Icon={Mail}
-          label="Official Email Support"
-          value={record.email}
-          kind="mail"
-        />
+        <Field Icon={Mail} label="Official Email Support" value={record.email} kind="mail" />
       </div>
 
       {record.notes && (
@@ -861,15 +794,10 @@ function BrandCard({
       )}
 
       {/* Action Buttons */}
-      {(record.warrantyPhone ||
-        record.customerCarePhone ||
-        record.warrantyUrl) && (
+      {(record.warrantyPhone || record.customerCarePhone || record.warrantyUrl) && (
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           {record.warrantyPhone && (
-            <a
-              href={`tel:${record.warrantyPhone.replace(/\s/g, "")}`}
-              className={buttonClass}
-            >
+            <a href={`tel:${record.warrantyPhone.replace(/\s/g, "")}`} className={buttonClass}>
               <Phone size={15} /> Call Warranty Support
             </a>
           )}
@@ -883,9 +811,7 @@ function BrandCard({
           )}
           {record.warrantyUrl && (
             <button
-              onClick={() =>
-                window.open(record.warrantyUrl, "_blank", "noopener,noreferrer")
-              }
+              onClick={() => window.open(record.warrantyUrl, "_blank", "noopener,noreferrer")}
               className={secondaryClass}
             >
               <FileText size={15} /> Check Warranty Online
@@ -894,35 +820,35 @@ function BrandCard({
         </div>
       )}
     </article>
-  )
+  );
 }
 
 interface ItHubCardProps {
-  whatsapp: string
+  whatsapp: string;
 
-  phone: string
+  phone: string;
 
-  email?: string
+  email?: string;
 
-  complete: boolean
+  complete: boolean;
 }
 
 function StoreWorkingHoursCard() {
-  const cardRef = useRef<HTMLDivElement | null>(null)
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = cardRef.current
+    const el = cardRef.current;
 
-    if (!el) return
+    if (!el) return;
 
-    const rect = el.getBoundingClientRect()
+    const rect = el.getBoundingClientRect();
 
-    el.style.setProperty("--x", `${e.clientX - rect.left}px`)
+    el.style.setProperty("--x", `${e.clientX - rect.left}px`);
 
-    el.style.setProperty("--y", `${e.clientY - rect.top}px`)
+    el.style.setProperty("--y", `${e.clientY - rect.top}px`);
 
-    el.style.setProperty("--spot", "rgba(26, 79, 214, 0.16)")
-  }
+    el.style.setProperty("--spot", "rgba(26, 79, 214, 0.16)");
+  };
 
   return (
     <div
@@ -952,9 +878,7 @@ function StoreWorkingHoursCard() {
         <div className="flex items-center justify-between rounded-xl border border-border/50 bg-white/80 px-3.5 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
           <div className="flex items-center gap-2">
             <Calendar size={13} className="text-muted-foreground" />
-            <span className="font-semibold text-foreground">
-              Monday to Saturday
-            </span>
+            <span className="font-semibold text-foreground">Monday to Saturday</span>
           </div>
           <span className="rounded-md bg-primary/10 px-2.5 py-1 font-bold text-primary">
             10:00 AM – 8:30 PM
@@ -972,7 +896,7 @@ function StoreWorkingHoursCard() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ItHubCard({ whatsapp, phone, email, complete }: ItHubCardProps) {
@@ -981,12 +905,10 @@ function ItHubCard({ whatsapp, phone, email, complete }: ItHubCardProps) {
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">
         IT HUB Support
       </p>
-      <h2 className="mt-1 text-2xl font-extrabold text-[#0c2f8a]">
-        We're here to help
-      </h2>
+      <h2 className="mt-1 text-2xl font-extrabold text-[#0c2f8a]">We're here to help</h2>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        Hardware repairs, software diagnostics, parts upgrades and IT HUB
-        on-site service — handled directly by our certified local team.
+        Hardware repairs, software diagnostics, parts upgrades and IT HUB on-site service — handled
+        directly by our certified local team.
       </p>
       <div className="mt-6 grid gap-3">
         {complete && phone && (
@@ -1015,7 +937,7 @@ function ItHubCard({ whatsapp, phone, email, complete }: ItHubCardProps) {
         )}
       </div>
     </aside>
-  )
+  );
 }
 
 function OrderContext({
@@ -1033,32 +955,31 @@ function OrderContext({
 
   warranty,
 }: {
-  orderId: string
+  orderId: string;
 
-  date: string
+  date: string;
 
-  cancelled: boolean
+  cancelled: boolean;
 
-  name: string
+  name: string;
 
-  brand: string
+  brand: string;
 
-  categoryName: string
+  categoryName: string;
 
-  warranty: string
+  warranty: string;
 }) {
-  const months = warrantyMonths(warranty)
+  const months = warrantyMonths(warranty);
 
-  const until = months ? warrantyUntil(date, months) : ""
+  const until = months ? warrantyUntil(date, months) : "";
 
-  const active = until ? new Date(until) > new Date() : false
+  const active = until ? new Date(until) > new Date() : false;
 
   return (
     <section className="rounded-2xl border border-border bg-white p-7 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-bold">
-          <ClipboardList size={18} className="text-primary" /> Purchased Item
-          Details
+          <ClipboardList size={18} className="text-primary" /> Purchased Item Details
         </h2>
         {cancelled && <Badge tone="red">Order cancelled</Badge>}
       </div>
@@ -1094,13 +1015,13 @@ function OrderContext({
         </p>
       </div>
     </section>
-  )
+  );
 }
 
 interface InfoProps {
-  label: string
+  label: string;
 
-  value: string
+  value: string;
 }
 
 function Info({ label, value }: InfoProps) {
@@ -1109,15 +1030,15 @@ function Info({ label, value }: InfoProps) {
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 font-semibold">{value}</dd>
     </div>
-  )
+  );
 }
 
 interface BrandKeralaServiceCentresProps {
-  record: BrandSupport
+  record: BrandSupport;
 
-  category: SupportCategory
+  category: SupportCategory;
 
-  centres: ServiceCentre[]
+  centres: ServiceCentre[];
 }
 
 function BrandKeralaServiceCentres({
@@ -1127,9 +1048,9 @@ function BrandKeralaServiceCentres({
 
   centres,
 }: BrandKeralaServiceCentresProps) {
-  const [cityFilter, setCityFilter] = useState("all")
+  const [cityFilter, setCityFilter] = useState("all");
 
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Filter centers matching category & brand
 
@@ -1139,29 +1060,28 @@ function BrandKeralaServiceCentres({
         c.active &&
         c.category.toLowerCase() === category.id.toLowerCase() &&
         c.brandName.toLowerCase() === record.brand.toLowerCase(),
-    )
+    );
 
-    if (list.length > 0) return list
+    if (list.length > 0) return list;
 
     return centres.filter(
-      (c) =>
-        c.active && c.brandName.toLowerCase() === record.brand.toLowerCase(),
-    )
-  }, [centres, category.id, record.brand])
+      (c) => c.active && c.brandName.toLowerCase() === record.brand.toLowerCase(),
+    );
+  }, [centres, category.id, record.brand]);
 
   // Extract unique cities and counts
 
   const cityCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
+    const counts: Record<string, number> = {};
 
     brandCentres.forEach((c) => {
       if (c.city) {
-        counts[c.city] = (counts[c.city] || 0) + 1
+        counts[c.city] = (counts[c.city] || 0) + 1;
       }
-    })
+    });
 
-    return counts
-  }, [brandCentres])
+    return counts;
+  }, [brandCentres]);
 
   const sortedCities = useMemo(() => {
     return Object.keys(cityCounts).sort((a, b) => {
@@ -1179,35 +1099,33 @@ function BrandKeralaServiceCentres({
         "Thiruvananthapuram",
 
         "Kozhikode",
-      ]
+      ];
 
-      const idxA = priority.indexOf(a)
+      const idxA = priority.indexOf(a);
 
-      const idxB = priority.indexOf(b)
+      const idxB = priority.indexOf(b);
 
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
 
-      if (idxA !== -1) return -1
+      if (idxA !== -1) return -1;
 
-      if (idxB !== -1) return 1
+      if (idxB !== -1) return 1;
 
-      return a.localeCompare(b)
-    })
-  }, [cityCounts])
+      return a.localeCompare(b);
+    });
+  }, [cityCounts]);
 
   // Filter by city and search query
 
   const displayedCentres = useMemo(() => {
-    let list = brandCentres
+    let list = brandCentres;
 
     if (cityFilter !== "all") {
-      list = list.filter(
-        (c) => c.city.toLowerCase() === cityFilter.toLowerCase(),
-      )
+      list = list.filter((c) => c.city.toLowerCase() === cityFilter.toLowerCase());
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim()
+      const q = searchQuery.toLowerCase().trim();
 
       list = list.filter(
         (c) =>
@@ -1215,11 +1133,11 @@ function BrandKeralaServiceCentres({
           c.city.toLowerCase().includes(q) ||
           c.address.toLowerCase().includes(q) ||
           c.pincode.includes(q),
-      )
+      );
     }
 
-    return [...list].sort((a, b) => a.city.localeCompare(b.city))
-  }, [brandCentres, cityFilter, searchQuery])
+    return [...list].sort((a, b) => a.city.localeCompare(b.city));
+  }, [brandCentres, cityFilter, searchQuery]);
 
   if (brandCentres.length === 0) {
     return (
@@ -1227,8 +1145,8 @@ function BrandKeralaServiceCentres({
         <MapPin size={32} className="mx-auto text-muted-foreground/60 mb-2" />
         <h3 className="text-lg font-bold">Authorized Service Centres</h3>
         <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-          Authorized service points for {record.brand} {category.name} in Kerala
-          are listed directly on the official brand locator.
+          Authorized service points for {record.brand} {category.name} in Kerala are listed directly
+          on the official brand locator.
         </p>
         {record.serviceLocatorUrl && (
           <a
@@ -1241,7 +1159,7 @@ function BrandKeralaServiceCentres({
           </a>
         )}
       </div>
-    )
+    );
   }
 
   return (
@@ -1261,8 +1179,8 @@ function BrandKeralaServiceCentres({
             {record.brand} Authorized Service Centres in Whole Kerala
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Showing verified manufacturer service locations, warranty inspection
-            centers, and spare parts facilities across Kerala districts.
+            Showing verified manufacturer service locations, warranty inspection centers, and spare
+            parts facilities across Kerala districts.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1277,9 +1195,7 @@ function BrandKeralaServiceCentres({
       <div className="mt-6 space-y-4">
         {/* City Filter Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-bold text-muted-foreground">
-            Filter District:
-          </span>
+          <span className="mr-1 text-xs font-bold text-muted-foreground">Filter District:</span>
           <button
             onClick={() => setCityFilter("all")}
             className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
@@ -1325,16 +1241,16 @@ function BrandKeralaServiceCentres({
       {/* Results Count & Status */}
       <div className="mt-4 flex flex-wrap items-center justify-between text-xs text-muted-foreground">
         <span>
-          Showing <strong>{displayedCentres.length}</strong> of{" "}
-          {brandCentres.length} {record.brand} service centres in Kerala
+          Showing <strong>{displayedCentres.length}</strong> of {brandCentres.length} {record.brand}{" "}
+          service centres in Kerala
           {cityFilter !== "all" ? ` in ${cityFilter}` : ""}
         </span>
         {(cityFilter !== "all" || searchQuery) && (
           <button
             onClick={() => {
-              setCityFilter("all")
+              setCityFilter("all");
 
-              setSearchQuery("")
+              setSearchQuery("");
             }}
             className="font-semibold text-primary hover:underline"
           >
@@ -1362,10 +1278,7 @@ function BrandKeralaServiceCentres({
                     </h3>
                   </div>
                   <Badge tone="green">
-                    <BadgeCheck
-                      size={12}
-                      className="mr-1 inline text-emerald-600"
-                    />
+                    <BadgeCheck size={12} className="mr-1 inline text-emerald-600" />
                     Authorized
                   </Badge>
                 </div>
@@ -1379,19 +1292,18 @@ function BrandKeralaServiceCentres({
                 </div>
 
                 {/* Services Tags */}
-                {centre.servicesOffered &&
-                  centre.servicesOffered.length > 0 && (
-                    <div className="mt-3.5 flex flex-wrap gap-1.5">
-                      {centre.servicesOffered.map((service, idx) => (
-                        <span
-                          key={idx}
-                          className="rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-foreground/80"
-                        >
-                          {service}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                {centre.servicesOffered && centre.servicesOffered.length > 0 && (
+                  <div className="mt-3.5 flex flex-wrap gap-1.5">
+                    {centre.servicesOffered.map((service, idx) => (
+                      <span
+                        key={idx}
+                        className="rounded-md bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-foreground/80"
+                      >
+                        {service}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Bottom Actions */}
@@ -1430,17 +1342,15 @@ function BrandKeralaServiceCentres({
         </div>
       ) : (
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-white p-8 text-center">
-          <p className="font-semibold text-sm">
-            No service centres found matching your search.
-          </p>
+          <p className="font-semibold text-sm">No service centres found matching your search.</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Try selecting "All Kerala" or clearing your search keywords.
           </p>
           <button
             onClick={() => {
-              setCityFilter("all")
+              setCityFilter("all");
 
-              setSearchQuery("")
+              setSearchQuery("");
             }}
             className={`${buttonClass} mt-4 text-xs`}
           >
@@ -1452,12 +1362,10 @@ function BrandKeralaServiceCentres({
       {/* Official Brand Portal Notice */}
       <div className="mt-7 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-primary">
         <div>
-          <span className="font-bold">
-            Need Doorstep Technician Assistance?
-          </span>
+          <span className="font-bold">Need Doorstep Technician Assistance?</span>
           <p className="mt-0.5 text-muted-foreground text-[11px]">
-            {record.brand} also provides authorized on-site engineer visits for
-            eligible products across Kerala.
+            {record.brand} also provides authorized on-site engineer visits for eligible products
+            across Kerala.
           </p>
         </div>
         {record.serviceLocatorUrl && (
@@ -1472,7 +1380,7 @@ function BrandKeralaServiceCentres({
         )}
       </div>
     </section>
-  )
+  );
 }
 
 function Checklist({ onContact }: { onContact: () => void }) {
@@ -1484,13 +1392,11 @@ function Checklist({ onContact }: { onContact: () => void }) {
     { Icon: ClipboardList, text: "Describe symptoms clearly" },
 
     { Icon: Headphones, text: "Contact IT HUB for guidance" },
-  ]
+  ];
 
   return (
     <section className="rounded-2xl border border-border bg-white p-7 shadow-sm">
-      <h2 className="text-lg font-bold">
-        What to prepare before requesting warranty service
-      </h2>
+      <h2 className="text-lg font-bold">What to prepare before requesting warranty service</h2>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {items.map(({ Icon, text }) => (
           <li
@@ -1506,5 +1412,5 @@ function Checklist({ onContact }: { onContact: () => void }) {
         Need Assistance? Contact IT HUB
       </button>
     </section>
-  )
+  );
 }

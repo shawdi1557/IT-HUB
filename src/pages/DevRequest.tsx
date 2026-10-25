@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   AppWindow,
   ArrowLeft,
@@ -16,17 +16,10 @@ import {
   Sparkles,
   Store,
   UtensilsCrossed,
-} from "lucide-react"
-import WhatsAppIcon from "../components/WhatsAppIcon"
-import { useStore } from "../app/store"
-import {
-  Button,
-  Field,
-  Page,
-  PageHeading,
-  fieldClass,
-  secondaryClass,
-} from "../components/ui"
+} from "lucide-react";
+import WhatsAppIcon from "../components/WhatsAppIcon";
+import { useStore } from "../app/store";
+import { Button, Field, Page, PageHeading, fieldClass, secondaryClass } from "../components/ui";
 
 const projectTypes = [
   {
@@ -39,11 +32,11 @@ const projectTypes = [
     Icon: AppWindow,
     text: "Custom software, web apps, billing, inventory or internal tools.",
   },
-]
+];
 
 interface PurposeItem {
-  label: string
-  Icon: typeof Code2
+  label: string;
+  Icon: typeof Code2;
 }
 
 const purposes: Record<string, PurposeItem[]> = {
@@ -63,18 +56,14 @@ const purposes: Record<string, PurposeItem[]> = {
     { label: "School / Institution System", Icon: GraduationCap },
     { label: "Something else", Icon: Sparkles },
   ],
-}
+};
 
 const budgetTiers = [
   {
     range: "₹25,000 – ₹75,000",
     name: "Essential",
     level: 1,
-    points: [
-      "Clean, responsive design",
-      "Core features & pages",
-      "SSL & standard security",
-    ],
+    points: ["Clean, responsive design", "Core features & pages", "SSL & standard security"],
   },
   {
     range: "₹75,000 – ₹2,00,000",
@@ -96,26 +85,23 @@ const budgetTiers = [
       "Enterprise-grade security & support",
     ],
   },
-]
-const budgets = [
-  ...budgetTiers.map((t) => t.range),
-  "Not sure yet (from ₹25,000)",
-]
-const timelines = ["Flexible", "Within 2 weeks", "Within 1 month", "1–3 months"]
-const steps = ["Purpose", "Requirements", "Contact IT HUB"]
+];
+const budgets = [...budgetTiers.map((t) => t.range), "Not sure yet (from ₹25,000)"];
+const timelines = ["Flexible", "Within 2 weeks", "Within 1 month", "1–3 months"];
+const steps = ["Purpose", "Requirements", "Contact IT HUB"];
 
 export default function DevRequest() {
-  const store = useStore()
-  const settings = store.settings
-  const [step, setStep] = useState(0)
-  const [type, setType] = useState("Website")
-  const [purpose, setPurpose] = useState("")
+  const store = useStore();
+  const settings = store.settings;
+  const [step, setStep] = useState(0);
+  const [type, setType] = useState("Website");
+  const [purpose, setPurpose] = useState("");
   const [details, setDetails] = useState({
     requirements: "",
     features: "",
     budget: budgets[0],
     timeline: timelines[0],
-  })
+  });
 
   const summary = [
     "Hello IT HUB, I'd like to discuss a development project.",
@@ -127,10 +113,9 @@ export default function DevRequest() {
     `Timeline: ${details.timeline}`,
   ]
     .filter(Boolean)
-    .join("\n")
-  const whatsapp = `https://wa.me/${settings.whatsapp}?text=${encodeURIComponent(summary)}`
-  const canNext =
-    step === 0 ? !!purpose : details.requirements.trim().length >= 10
+    .join("\n");
+  const whatsapp = `https://wa.me/${settings.whatsapp}?text=${encodeURIComponent(summary)}`;
+  const canNext = step === 0 ? !!purpose : details.requirements.trim().length >= 10;
 
   return (
     <Page>
@@ -171,17 +156,15 @@ export default function DevRequest() {
           >
             {step === 0 && (
               <div>
-                <h2 className="text-2xl font-bold tracking-[-.02em]">
-                  What are you looking for?
-                </h2>
+                <h2 className="text-2xl font-bold tracking-[-.02em]">What are you looking for?</h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {projectTypes.map(({ id, Icon, text }) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => {
-                        setType(id)
-                        setPurpose("")
+                        setType(id);
+                        setPurpose("");
                       }}
                       className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
                         type === id
@@ -191,9 +174,7 @@ export default function DevRequest() {
                     >
                       <span
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                          type === id
-                            ? "bg-primary text-white"
-                            : "bg-secondary text-primary"
+                          type === id ? "bg-primary text-white" : "bg-secondary text-primary"
                         }`}
                       >
                         <Icon size={22} strokeWidth={1.6} />
@@ -225,9 +206,7 @@ export default function DevRequest() {
                       <Icon
                         size={18}
                         strokeWidth={1.7}
-                        className={
-                          purpose === label ? "text-white" : "text-primary"
-                        }
+                        className={purpose === label ? "text-white" : "text-primary"}
                       />
                       {label}
                     </button>
@@ -251,9 +230,7 @@ export default function DevRequest() {
                     rows={5}
                     className={fieldClass}
                     value={details.requirements}
-                    onChange={(e) =>
-                      setDetails({ ...details, requirements: e.target.value })
-                    }
+                    onChange={(e) => setDetails({ ...details, requirements: e.target.value })}
                     placeholder="E.g. An online store for our mobile accessories with product listing, cart, UPI payment and order tracking."
                   />
                 </Field>
@@ -261,30 +238,24 @@ export default function DevRequest() {
                   <input
                     className={fieldClass}
                     value={details.features}
-                    onChange={(e) =>
-                      setDetails({ ...details, features: e.target.value })
-                    }
+                    onChange={(e) => setDetails({ ...details, features: e.target.value })}
                     placeholder="Admin panel, Malayalam language, WhatsApp integration…"
                   />
                 </Field>
                 <div>
-                  <span className="mb-1 block text-xs font-semibold">
-                    Approximate budget
-                  </span>
+                  <span className="mb-1 block text-xs font-semibold">Approximate budget</span>
                   <p className="mb-3 text-xs text-muted-foreground">
-                    The higher the budget, the higher the quality, the more
-                    features and the stronger the security.
+                    The higher the budget, the higher the quality, the more features and the
+                    stronger the security.
                   </p>
                   <div className="grid gap-3 md:grid-cols-3">
                     {budgetTiers.map((tier) => {
-                      const active = details.budget === tier.range
+                      const active = details.budget === tier.range;
                       return (
                         <button
                           key={tier.range}
                           type="button"
-                          onClick={() =>
-                            setDetails({ ...details, budget: tier.range })
-                          }
+                          onClick={() => setDetails({ ...details, budget: tier.range })}
                           className={`rounded-2xl border p-5 text-left transition ${
                             active
                               ? "border-primary bg-secondary/70 ring-4 ring-primary/10"
@@ -310,23 +281,17 @@ export default function DevRequest() {
                           <ul className="mt-3 grid gap-1.5 text-[11px] text-muted-foreground">
                             {tier.points.map((pt) => (
                               <li key={pt} className="flex items-start gap-1.5">
-                                <Check
-                                  size={13}
-                                  className="mt-0.5 shrink-0 text-primary"
-                                />{" "}
-                                {pt}
+                                <Check size={13} className="mt-0.5 shrink-0 text-primary" /> {pt}
                               </li>
                             ))}
                           </ul>
                         </button>
-                      )
+                      );
                     })}
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      setDetails({ ...details, budget: budgets[3] })
-                    }
+                    onClick={() => setDetails({ ...details, budget: budgets[3] })}
                     className={`mt-3 text-xs font-medium ${
                       details.budget === budgets[3]
                         ? "text-primary underline"
@@ -341,9 +306,7 @@ export default function DevRequest() {
                     <select
                       className={fieldClass}
                       value={details.timeline}
-                      onChange={(e) =>
-                        setDetails({ ...details, timeline: e.target.value })
-                      }
+                      onChange={(e) => setDetails({ ...details, timeline: e.target.value })}
                     >
                       {timelines.map((t) => (
                         <option key={t}>{t}</option>
@@ -357,13 +320,10 @@ export default function DevRequest() {
             {step === 2 && (
               <div className="grid gap-8 md:grid-cols-[1.1fr_1fr]">
                 <div>
-                  <h2 className="text-2xl font-bold tracking-[-.02em]">
-                    Contact IT HUB
-                  </h2>
+                  <h2 className="text-2xl font-bold tracking-[-.02em]">Contact IT HUB</h2>
                   <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                    Send your project summary to our team. We usually reply
-                    within one working day with questions, a plan and a
-                    quotation.
+                    Send your project summary to our team. We usually reply within one working day
+                    with questions, a plan and a quotation.
                   </p>
                   <div className="mt-6 grid gap-3">
                     <a
@@ -375,10 +335,7 @@ export default function DevRequest() {
                       <WhatsAppIcon size={17} /> Send on WhatsApp
                     </a>
                     {settings.phone && (
-                      <a
-                        href={`tel:${settings.phone}`}
-                        className={secondaryClass}
-                      >
+                      <a href={`tel:${settings.phone}`} className={secondaryClass}>
                         <Phone size={16} /> Call {settings.phone}
                       </a>
                     )}
@@ -440,5 +397,5 @@ export default function DevRequest() {
         </div>
       </div>
     </Page>
-  )
+  );
 }

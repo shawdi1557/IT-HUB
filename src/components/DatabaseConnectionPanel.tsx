@@ -2,7 +2,7 @@
 // IT HUB Admin — Database Connection Health Check Component
 // Follows IT HUB design system, light theme, accessible, and zero secret leakage
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 import {
   Database,
   CheckCircle2,
@@ -13,67 +13,62 @@ import {
   Activity,
   ShieldCheck,
   Server,
-} from "lucide-react"
-import {
-  checkDatabaseConnection,
-  type DatabaseHealthResult,
-} from "../lib/health"
-import { SUPABASE_URL, validateSupabaseConfig } from "../lib/supabase"
-import { Badge, Button } from "./ui"
+} from "lucide-react";
+import { checkDatabaseConnection, type DatabaseHealthResult } from "../lib/health";
+import { SUPABASE_URL, validateSupabaseConfig } from "../lib/supabase";
+import { Badge, Button } from "./ui";
 
 export default function DatabaseConnectionPanel() {
-  const [result, setResult] = useState<DatabaseHealthResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const config = validateSupabaseConfig()
+  const [result, setResult] = useState<DatabaseHealthResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const config = validateSupabaseConfig();
 
   const runHealthCheck = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await checkDatabaseConnection()
-      setResult(res)
+      const res = await checkDatabaseConnection();
+      setResult(res);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Perform a single initial check when the panel opens
   useEffect(() => {
-    runHealthCheck()
-  }, [])
+    runHealthCheck();
+  }, []);
 
   const getTone = (): "green" | "red" | "amber" | "gray" => {
-    if (loading) return "gray"
-    if (!result) return "gray"
-    if (result.status === "connected") return "green"
-    if (result.status === "configuration_error") return "amber"
-    return "red"
-  }
+    if (loading) return "gray";
+    if (!result) return "gray";
+    if (result.status === "connected") return "green";
+    if (result.status === "configuration_error") return "amber";
+    return "red";
+  };
 
   const getStatusIcon = () => {
     if (loading) {
-      return (
-        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-      )
+      return <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />;
     }
     if (!result) {
-      return <Database className="h-5 w-5 text-muted-foreground" />
+      return <Database className="h-5 w-5 text-muted-foreground" />;
     }
     if (result.status === "connected") {
-      return <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+      return <CheckCircle2 className="h-5 w-5 text-emerald-600" />;
     }
     if (result.status === "configuration_error") {
-      return <AlertTriangle className="h-5 w-5 text-amber-600" />
+      return <AlertTriangle className="h-5 w-5 text-amber-600" />;
     }
-    return <XCircle className="h-5 w-5 text-red-600" />
-  }
+    return <XCircle className="h-5 w-5 text-red-600" />;
+  };
 
   const getStatusLabel = () => {
-    if (loading) return "Checking connection..."
-    if (!result) return "Not checked"
-    if (result.status === "connected") return "Connected"
-    if (result.status === "configuration_error") return "Configuration Error"
-    return "Disconnected"
-  }
+    if (loading) return "Checking connection...";
+    if (!result) return "Not checked";
+    if (result.status === "connected") return "Connected";
+    if (result.status === "configuration_error") return "Configuration Error";
+    return "Disconnected";
+  };
 
   return (
     <div className="space-y-6">
@@ -86,9 +81,7 @@ export default function DatabaseConnectionPanel() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-foreground">
-                  Supabase Database
-                </h3>
+                <h3 className="text-base font-bold text-foreground">Supabase Database</h3>
                 <Badge tone={getTone()}>{getStatusLabel()}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -204,22 +197,15 @@ export default function DatabaseConnectionPanel() {
           ) through the Supabase client using your public publishable/anon key.
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-4">
+          <li>Never accesses private customer profiles, orders, or payment transactions.</li>
+          <li>Never exposes database passwords, service-role keys, or webhook secrets.</li>
           <li>
-            Never accesses private customer profiles, orders, or payment
-            transactions.
-          </li>
-          <li>
-            Never exposes database passwords, service-role keys, or webhook
-            secrets.
-          </li>
-          <li>
-            A successful check confirms that the configured Supabase endpoint is
-            responding to queries under Row Level Security. It does not
-            independently verify private policies, Edge Functions, or payment
-            gateways.
+            A successful check confirms that the configured Supabase endpoint is responding to
+            queries under Row Level Security. It does not independently verify private policies,
+            Edge Functions, or payment gateways.
           </li>
         </ul>
       </div>
     </div>
-  )
+  );
 }

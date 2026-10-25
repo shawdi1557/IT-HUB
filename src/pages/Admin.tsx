@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { Link, useNavigate, useParams, useSearchParams } from "react-router"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
   LayoutDashboard,
@@ -37,9 +37,9 @@ import {
   XCircle,
   LogOut,
   Award,
-} from "lucide-react"
+} from "lucide-react";
 
-import type { User } from "@supabase/supabase-js"
+import type { User } from "@supabase/supabase-js";
 
 import {
   checkAdminSession,
@@ -47,13 +47,13 @@ import {
   signOutUser,
   type CustomerProfile,
   type AdminAccessState,
-} from "../lib/auth"
+} from "../lib/auth";
 
-import { AdminLogin, AdminAccessDenied, AdminAuthLoading } from "./AdminLogin"
+import { AdminLogin, AdminAccessDenied, AdminAuthLoading } from "./AdminLogin";
 
-import WhatsAppIcon from "../components/WhatsAppIcon"
+import WhatsAppIcon from "../components/WhatsAppIcon";
 
-import * as XLSX from "xlsx"
+import * as XLSX from "xlsx";
 
 import {
   ResponsiveContainer,
@@ -65,9 +65,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-} from "recharts"
+} from "recharts";
 
-import { useStore } from "../app/store"
+import { useStore } from "../app/store";
 
 import {
   adminGroups,
@@ -92,7 +92,7 @@ import {
   formatDate,
   checkWarranty,
   productConditions,
-} from "../data/catalog"
+} from "../data/catalog";
 
 import {
   chartData,
@@ -102,35 +102,35 @@ import {
   validateImportRows,
   type AdminRecord,
   type ImportRow,
-} from "../data/admin"
+} from "../data/admin";
 
 import {
   checkStoreSettingsCompleteness,
   validateIndianPincode,
   validateHttpsUrl,
-} from "../lib/support"
+} from "../lib/support";
 
-import { adminUpdateServiceRequest } from "../lib/services"
+import { adminUpdateServiceRequest } from "../lib/services";
 
-import AdminServiceRequestEditor from "../components/AdminServiceRequestEditor"
+import AdminServiceRequestEditor from "../components/AdminServiceRequestEditor";
 
-import { compatibility } from "./Builder"
+import { compatibility } from "./Builder";
 
-import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
+import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics";
 
-import CouponsAdmin from "./AdminCoupons"
+import CouponsAdmin from "./AdminCoupons";
 
-import SellRequestsAdmin from "./AdminSellRequests"
+import SellRequestsAdmin from "./AdminSellRequests";
 
-import AdminCertificates from "./AdminCertificates"
+import AdminCertificates from "./AdminCertificates";
 
-import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel"
+import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel";
 
-import AdminImageDiscovery from "./AdminImageDiscovery"
+import AdminImageDiscovery from "./AdminImageDiscovery";
 
-import { track } from "../lib/analytics"
+import { track } from "../lib/analytics";
 
-import type { BuildTemplate, BuildPurpose } from "../data/buildTemplates"
+import type { BuildTemplate, BuildPurpose } from "../data/buildTemplates";
 
 import {
   ActionLink,
@@ -142,17 +142,17 @@ import {
   Modal,
   PageHeading,
   fieldClass,
-} from "../components/ui"
+} from "../components/ui";
 
-type Row = Record<string, unknown> & { id: string }
+type Row = Record<string, unknown> & { id: string };
 
 type Column = {
-  key: string
+  key: string;
 
-  label: string
+  label: string;
 
-  render?: (row: Row) => ReactNode
-}
+  render?: (row: Row) => ReactNode;
+};
 
 function DataTable({
   rows,
@@ -163,23 +163,23 @@ function DataTable({
 
   actions,
 }: {
-  rows: Row[]
+  rows: Row[];
 
-  columns: Column[]
+  columns: Column[];
 
-  onView?: (row: Row) => void
+  onView?: (row: Row) => void;
 
-  actions?: (row: Row) => ReactNode
+  actions?: (row: Row) => ReactNode;
 }) {
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState("");
 
-  const [page, setPage] = useState(0)
+  const [page, setPage] = useState(0);
 
-  const [sort, setSort] = useState("")
+  const [sort, setSort] = useState("");
 
-  const [descending, setDescending] = useState(false)
+  const [descending, setDescending] = useState(false);
 
-  useEffect(() => setPage(0), [query, rows.length])
+  useEffect(() => setPage(0), [query, rows.length]);
 
   const filtered = rows
 
@@ -199,24 +199,20 @@ function DataTable({
       sort
         ? (typeof first[sort] === "number"
             ? Number(first[sort]) - Number(second[sort])
-            : String(first[sort] || "").localeCompare(
-                String(second[sort] || ""),
-              )) * (descending ? -1 : 1)
+            : String(first[sort] || "").localeCompare(String(second[sort] || ""))) *
+          (descending ? -1 : 1)
         : 0,
-    )
+    );
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 7))
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 7));
 
-  const safePage = Math.min(page, pageCount - 1)
+  const safePage = Math.min(page, pageCount - 1);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="flex items-center justify-between gap-4 border-b border-border p-4">
         <div className="relative w-full max-w-sm">
-          <Search
-            size={15}
-            className="absolute left-3 top-3 text-muted-foreground"
-          />
+          <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
           <input
             aria-label="Search table"
             placeholder="Search records…"
@@ -238,9 +234,9 @@ function DataTable({
                   <button
                     className="flex items-center gap-2"
                     onClick={() => {
-                      setSort(column.key)
+                      setSort(column.key);
 
-                      setDescending(sort === column.key ? !descending : false)
+                      setDescending(sort === column.key ? !descending : false);
                     }}
                   >
                     {column.label}
@@ -253,10 +249,7 @@ function DataTable({
           </thead>
           <tbody>
             {filtered.slice(safePage * 7, safePage * 7 + 7).map((row) => (
-              <tr
-                key={row.id}
-                className="border-t border-border hover:bg-muted/50"
-              >
+              <tr key={row.id} className="border-t border-border hover:bg-muted/50">
                 {columns.map((column, index) => (
                   <td key={column.key} className="max-w-64 truncate px-5 py-4">
                     {index === 0 && onView ? (
@@ -264,9 +257,7 @@ function DataTable({
                         onClick={() => onView(row)}
                         className="font-semibold text-primary hover:underline"
                       >
-                        {column.render
-                          ? column.render(row)
-                          : String(row[column.key] ?? "—")}
+                        {column.render ? column.render(row) : String(row[column.key] ?? "—")}
                       </button>
                     ) : column.render ? (
                       column.render(row)
@@ -332,14 +323,13 @@ function DataTable({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 const statusBadge = (status: string) => (
   <Badge
     tone={
-      /complete|delivered|active|stock/i.test(status) &&
-      !/low|out|inactive/i.test(status)
+      /complete|delivered|active|stock/i.test(status) && !/low|out|inactive/i.test(status)
         ? "green"
         : /pending|low|awaiting/i.test(status)
           ? "amber"
@@ -348,16 +338,16 @@ const statusBadge = (status: string) => (
   >
     {status}
   </Badge>
-)
+);
 
 function Chart({
   type = "revenue",
 
   title,
 }: {
-  type?: "revenue" | "orders" | "services"
+  type?: "revenue" | "orders" | "services";
 
-  title: string
+  title: string;
 }) {
   return (
     <div className="min-w-0 rounded-lg border border-border bg-white p-6">
@@ -368,10 +358,7 @@ function Chart({
       <div className="h-56 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           {type === "revenue" ? (
-            <AreaChart
-              data={chartData}
-              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-            >
+            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#1557d6" stopOpacity={0.2} />
@@ -385,14 +372,8 @@ function Chart({
                 axisLine={false}
                 tick={{ fontSize: 10, fill: "#64748b" }}
               />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 10, fill: "#64748b" }}
-              />
-              <Tooltip
-                formatter={(value) => [`₹${value}k (demo)`, "Revenue"]}
-              />
+              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#64748b" }} />
+              <Tooltip formatter={(value) => [`₹${value}k (demo)`, "Revenue"]} />
               <Area
                 type="monotone"
                 dataKey="revenue"
@@ -402,10 +383,7 @@ function Chart({
               />
             </AreaChart>
           ) : (
-            <BarChart
-              data={chartData}
-              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-            >
+            <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#edf0f4" />
               <XAxis
                 dataKey="month"
@@ -413,11 +391,7 @@ function Chart({
                 axisLine={false}
                 tick={{ fontSize: 10, fill: "#64748b" }}
               />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 10, fill: "#64748b" }}
-              />
+              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#64748b" }} />
               <Tooltip />
               <Bar
                 dataKey={type}
@@ -430,7 +404,7 @@ function Chart({
         </ResponsiveContainer>
       </div>
     </div>
-  )
+  );
 }
 
 const navIcons: Record<string, typeof LayoutDashboard> = {
@@ -459,113 +433,113 @@ const navIcons: Record<string, typeof LayoutDashboard> = {
   settings: Settings,
 
   "website-content": Globe,
-}
+};
 
 export default function Admin() {
-  const [authStatus, setAuthStatus] = useState<AdminAccessState>("loading")
+  const [authStatus, setAuthStatus] = useState<AdminAccessState>("loading");
 
-  const [adminUser, setAdminUser] = useState<User | null>(null)
+  const [adminUser, setAdminUser] = useState<User | null>(null);
 
-  const [adminProfile, setAdminProfile] = useState<CustomerProfile | null>(null)
+  const [adminProfile, setAdminProfile] = useState<CustomerProfile | null>(null);
 
   useEffect(() => {
-    let mounted = true
+    let mounted = true;
 
     // Initial session verification
 
     checkAdminSession().then((res) => {
-      if (!mounted) return
+      if (!mounted) return;
 
-      setAuthStatus(res.state)
+      setAuthStatus(res.state);
 
-      setAdminUser(res.user)
+      setAdminUser(res.user);
 
-      setAdminProfile(res.profile)
-    })
+      setAdminProfile(res.profile);
+    });
 
     // Listen for auth state transitions (sign in, sign out, token refresh)
 
     const unsubscribe = subscribeToAuthChanges((user) => {
       if (!user) {
         if (mounted) {
-          setAuthStatus("unauthenticated")
+          setAuthStatus("unauthenticated");
 
-          setAdminUser(null)
+          setAdminUser(null);
 
-          setAdminProfile(null)
+          setAdminProfile(null);
         }
       } else {
         checkAdminSession().then((res) => {
-          if (!mounted) return
+          if (!mounted) return;
 
-          setAuthStatus(res.state)
+          setAuthStatus(res.state);
 
-          setAdminUser(res.user)
+          setAdminUser(res.user);
 
-          setAdminProfile(res.profile)
-        })
+          setAdminProfile(res.profile);
+        });
       }
-    })
+    });
 
     return () => {
-      mounted = false
+      mounted = false;
 
-      unsubscribe()
-    }
-  }, [])
+      unsubscribe();
+    };
+  }, []);
 
   const handleSignOut = async () => {
-    await signOutUser()
+    await signOutUser();
 
-    setAuthStatus("unauthenticated")
+    setAuthStatus("unauthenticated");
 
-    setAdminUser(null)
+    setAdminUser(null);
 
-    setAdminProfile(null)
-  }
+    setAdminProfile(null);
+  };
 
-  const { section = "dashboard" } = useParams()
+  const { section = "dashboard" } = useParams();
 
-  const store = useStore()
+  const store = useStore();
 
-  const [params] = useSearchParams()
+  const [params] = useSearchParams();
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const view =
     params.get("view") ||
     adminGroups.find((group) => group.section === section)?.items?.[0]?.view ||
-    ""
+    "";
 
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState(false);
 
-  const [openGroups, setOpenGroups] = useState<string[]>([])
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
 
-  const [product, setProduct] = useState<Product | null>(null)
+  const [product, setProduct] = useState<Product | null>(null);
 
-  const [productOpen, setProductOpen] = useState(false)
+  const [productOpen, setProductOpen] = useState(false);
 
-  const [offer, setOffer] = useState<Offer | null>(null)
+  const [offer, setOffer] = useState<Offer | null>(null);
 
-  const [offerOpen, setOfferOpen] = useState(false)
+  const [offerOpen, setOfferOpen] = useState(false);
 
-  const [orderId, setOrderId] = useState("")
+  const [orderId, setOrderId] = useState("");
 
-  const [requestId, setRequestId] = useState("")
+  const [requestId, setRequestId] = useState("");
 
-  const [customerEmail, setCustomerEmail] = useState("")
+  const [customerEmail, setCustomerEmail] = useState("");
 
-  const [stockId, setStockId] = useState("")
+  const [stockId, setStockId] = useState("");
 
-  const [stockAmount, setStockAmount] = useState(1)
+  const [stockAmount, setStockAmount] = useState(1);
 
-  const [categoryOpen, setCategoryOpen] = useState(false)
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
-  const [category, setCategory] = useState("")
+  const [category, setCategory] = useState("");
 
-  const [componentOpen, setComponentOpen] = useState(false)
+  const [componentOpen, setComponentOpen] = useState(false);
 
-  const [componentType, setComponentType] = useState("CPU")
+  const [componentType, setComponentType] = useState("CPU");
 
   const [component, setComponent] = useState<ComponentOption>({
     id: "",
@@ -573,66 +547,69 @@ export default function Admin() {
     name: "",
 
     price: 0,
-  })
+  });
 
   const [remove, setRemove] = useState<{
-    type: string
+    type: string;
 
-    id: string
+    id: string;
 
-    name: string
-  } | null>(null)
+    name: string;
+  } | null>(null);
 
-  const [sample, setSample] = useState(false)
-
-  useEffect(() => {
-    if (sessionStorage.getItem("ithub-admin-login")) return
-
-    sessionStorage.setItem("ithub-admin-login", "1")
-
-    track("Admin Login")
-  }, [])
-
-  const [error, setError] = useState("")
+  const [sample, setSample] = useState(false);
 
   useEffect(() => {
-    setMenu(false)
+    if (sessionStorage.getItem("ithub-admin-login")) return;
 
-    setError("")
+    sessionStorage.setItem("ithub-admin-login", "1");
+
+    track("Admin Login");
+  }, []);
+
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setMenu(false);
+
+    setError("");
 
     if (section === "products" && view === "add") {
-      setProduct(null)
+      setProduct(null);
 
-      setProductOpen(true)
+      setProductOpen(true);
     }
 
     if (section === "offers" && view === "create") {
-      setOffer(null)
+      setOffer(null);
 
-      setOfferOpen(true)
+      setOfferOpen(true);
     }
-  }, [section, view])
+  }, [section, view]);
 
-  const selectedOrder = store.orders.find((item) => item.id === orderId)
+  const selectedOrder = store.orders.find((item) => item.id === orderId);
 
-  const selectedRequest = store.requests.find((item) => item.id === requestId)
+  const selectedRequest = store.requests.find((item) => item.id === requestId);
 
   const customers = useMemo(() => {
-    const entries = new Map<string, {
-      id: string
+    const entries = new Map<
+      string,
+      {
+        id: string;
 
-      name: string
+        name: string;
 
-      email: string
+        email: string;
 
-      orders: number
+        orders: number;
 
-      services: number
+        services: number;
 
-      total: number
+        total: number;
 
-      status: string
-    }>()
+        status: string;
+      }
+    >();
 
     for (const order of store.orders) {
       const row = entries.get(order.email) || {
@@ -649,13 +626,13 @@ export default function Admin() {
         total: 0,
 
         status: "Active",
-      }
+      };
 
-      row.orders++
+      row.orders++;
 
-      row.total += order.total
+      row.total += order.total;
 
-      entries.set(order.email, row)
+      entries.set(order.email, row);
     }
 
     for (const request of store.requests) {
@@ -673,15 +650,15 @@ export default function Admin() {
         total: 0,
 
         status: "Active",
-      }
+      };
 
-      row.services++
+      row.services++;
 
-      entries.set(request.email, row)
+      entries.set(request.email, row);
     }
 
-    return [...entries.values()]
-  }, [store.orders, store.requests])
+    return [...entries.values()];
+  }, [store.orders, store.requests]);
 
   const orderRows = store.orders.map((item) => ({
     ...item,
@@ -691,7 +668,7 @@ export default function Admin() {
     statusLabel: item.status < 0 ? "Cancelled" : orderStatuses[item.status],
 
     dateLabel: new Date(item.date).toLocaleDateString(),
-  }))
+  }));
 
   const serviceRows = store.requests.map((item) => ({
     ...item,
@@ -699,13 +676,16 @@ export default function Admin() {
     amount: item.quote,
 
     statusLabel: serviceStatuses[item.status],
-  }))
+  }));
 
-  const serviceFilters: Record<string, (item: {
-    device: string
+  const serviceFilters: Record<
+    string,
+    (item: {
+      device: string;
 
-    method: string
-  }) => boolean> = {
+      method: string;
+    }) => boolean
+  > = {
     requests: () => true,
 
     laptop: (item) => /laptop|notebook|macbook/i.test(item.device),
@@ -717,13 +697,13 @@ export default function Admin() {
     printer: (item) => /printer/i.test(item.device),
 
     onsite: (item) => /on-?site/i.test(item.method),
-  }
+  };
 
   const lowStock = store.products.filter(
     (item) => item.stock > 0 && item.stock <= (item.lowStockThreshold ?? 3),
-  )
+  );
 
-  const outOfStock = store.products.filter((item) => item.stock <= 0)
+  const outOfStock = store.products.filter((item) => item.stock <= 0);
 
   const columnsOrders: Column[] = [
     { key: "id", label: "Order ID" },
@@ -747,7 +727,7 @@ export default function Admin() {
     },
 
     { key: "dateLabel", label: "Date" },
-  ]
+  ];
 
   const columnsServices: Column[] = [
     { key: "id", label: "Request ID" },
@@ -775,18 +755,18 @@ export default function Admin() {
 
       render: (row) => money(Number(row.amount)),
     },
-  ]
+  ];
 
-  const currentGroup = adminGroups.find((group) => group.section === section)
+  const currentGroup = adminGroups.find((group) => group.section === section);
 
-  const currentItem = currentGroup?.items?.find((item) => item.view === view)
+  const currentItem = currentGroup?.items?.find((item) => item.view === view);
 
   const heading =
     section === "dashboard"
       ? "Your hub, at a glance."
       : currentItem
         ? currentItem.label
-        : currentGroup?.name || "Not found"
+        : currentGroup?.name || "Not found";
 
   const orderBuckets: Record<string, (status: number) => boolean> = {
     all: () => true,
@@ -800,13 +780,13 @@ export default function Admin() {
     delivered: (status) => status === 6,
 
     cancelled: (status) => status < 0,
-  }
+  };
 
   const inventoryProducts =
-    view === "low" ? lowStock : view === "out" ? outOfStock : store.products
+    view === "low" ? lowStock : view === "out" ? outOfStock : store.products;
 
   const deleteItem = () => {
-    if (!remove) return
+    if (!remove) return;
 
     if (remove.type === "product")
       store.set((previous) => ({
@@ -815,38 +795,34 @@ export default function Admin() {
         wishlist: previous.wishlist.filter((id) => id !== remove.id),
 
         cart: previous.cart.filter((item) => item.productId !== remove.id),
-      }))
+      }));
 
     if (remove.type === "offer")
       store.set({
         offers: store.offers.filter((item) => item.id !== remove.id),
-      })
+      });
 
     if (remove.type === "category")
       store.set({
-        catalogCategories: store.catalogCategories.filter(
-          (item) => item !== remove.id,
-        ),
-      })
+        catalogCategories: store.catalogCategories.filter((item) => item !== remove.id),
+      });
 
     if (remove.type === "brand")
-      store.set({ brands: store.brands.filter((item) => item !== remove.id) })
+      store.set({ brands: store.brands.filter((item) => item !== remove.id) });
 
     if (remove.type === "location")
       store.set({
         locations: store.locations.filter((item) => item.id !== remove.id),
-      })
+      });
 
     if (remove.type === "technician")
       store.set((previous) => ({
         technicians: previous.technicians.filter((item) => item !== remove.id),
 
         requests: previous.requests.map((item) =>
-          item.technician === remove.id
-            ? { ...item, technician: "Unassigned" }
-            : item,
+          item.technician === remove.id ? { ...item, technician: "Unassigned" } : item,
         ),
-      }))
+      }));
 
     if (remove.type === "component")
       store.set({
@@ -857,31 +833,31 @@ export default function Admin() {
             (item) => item.id !== remove.id,
           ),
         },
-      })
+      });
 
     if (remove.type === "build")
       store.set({
         builds: store.builds.filter((item) => item.id !== remove.id),
-      })
+      });
 
-    store.log(`${remove.type} removed: ${remove.name}`)
+    store.log(`${remove.type} removed: ${remove.name}`);
 
-    store.notify("Record removed")
+    store.notify("Record removed");
 
-    setRemove(null)
-  }
+    setRemove(null);
+  };
 
   const loadSample = () => {
-    const id = `ITH-DEMO-${crypto.randomUUID().slice(0, 5).toUpperCase()}`
+    const id = `ITH-DEMO-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
 
-    const gpu = store.products[0]
+    const gpu = store.products[0];
 
     if (!gpu) {
-      store.notify("Add a product first to load a sample order")
+      store.notify("Add a product first to load a sample order");
 
-      setSample(false)
+      setSample(false);
 
-      return
+      return;
     }
 
     const demoOrder: Order = {
@@ -918,7 +894,7 @@ export default function Admin() {
       payment: "UPI (demo)",
 
       delivery: "Kerala delivery",
-    }
+    };
 
     const demoRequest: ServiceRequest = {
       id: `SRV-DEMO-${crypto.randomUUID().slice(0, 5).toUpperCase()}`,
@@ -950,7 +926,7 @@ export default function Admin() {
       technician: "Demo technician A",
 
       notes: "Sample request for the prototype walkthrough",
-    }
+    };
 
     store.set((previous) => ({
       orders: [demoOrder, ...previous.orders],
@@ -962,14 +938,14 @@ export default function Admin() {
 
         ...previous.notifications,
       ],
-    }))
+    }));
 
-    store.log("Sample activity loaded by administrator")
+    store.log("Sample activity loaded by administrator");
 
-    setSample(false)
+    setSample(false);
 
-    store.notify("Sample activity loaded. Explore it in the customer account.")
-  }
+    store.notify("Sample activity loaded. Explore it in the customer account.");
+  };
 
   const exportRows = () => {
     const rows =
@@ -977,14 +953,13 @@ export default function Admin() {
         ? serviceRows
         : section === "products" || section === "inventory"
           ? store.products
-          : orderRows
+          : orderRows;
 
     const keys = rows.length
       ? Object.keys(rows[0]).filter(
-          (key) =>
-            typeof (rows[0] as Record<string, unknown>)[key] !== "object",
+          (key) => typeof (rows[0] as Record<string, unknown>)[key] !== "object",
         )
-      : []
+      : [];
 
     const csv = [
       keys.join(","),
@@ -999,58 +974,56 @@ export default function Admin() {
 
           .join(","),
       ),
-    ].join("\n")
+    ].join("\n");
 
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }))
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
 
-    const anchor = document.createElement("a")
+    const anchor = document.createElement("a");
 
-    anchor.href = url
+    anchor.href = url;
 
-    anchor.download = `ithub-${section}.csv`
+    anchor.download = `ithub-${section}.csv`;
 
-    anchor.click()
+    anchor.click();
 
-    URL.revokeObjectURL(url)
+    URL.revokeObjectURL(url);
 
-    store.notify("Report exported")
-  }
+    store.notify("Report exported");
+  };
 
   // Route Security Guard: Enforce authentication and administrator authorization
 
   if (authStatus === "loading") {
-    return <AdminAuthLoading />
+    return <AdminAuthLoading />;
   }
 
   if (authStatus === "unauthenticated") {
     return (
       <AdminLogin
         onLoginSuccess={(user, profile) => {
-          setAdminUser(user)
+          setAdminUser(user);
 
-          setAdminProfile(profile)
+          setAdminProfile(profile);
 
-          setAuthStatus("authorized")
+          setAuthStatus("authorized");
         }}
       />
-    )
+    );
   }
 
   if (authStatus === "denied") {
     return (
       <AdminAccessDenied
-        customerEmail={
-          adminUser?.email || adminProfile?.email || "Customer Account"
-        }
+        customerEmail={adminUser?.email || adminProfile?.email || "Customer Account"}
         onSignOut={() => {
-          setAuthStatus("unauthenticated")
+          setAuthStatus("unauthenticated");
 
-          setAdminUser(null)
+          setAdminUser(null);
 
-          setAdminProfile(null)
+          setAdminProfile(null);
         }}
       />
-    )
+    );
   }
 
   return (
@@ -1075,11 +1048,11 @@ export default function Admin() {
         </div>
         <div className="px-4 py-5">
           {adminGroups.map((group) => {
-            const isCurrent = group.section === section
+            const isCurrent = group.section === section;
 
-            const Icon = navIcons[group.section] || LayoutDashboard
+            const Icon = navIcons[group.section] || LayoutDashboard;
 
-            const expanded = isCurrent || openGroups.includes(group.section)
+            const expanded = isCurrent || openGroups.includes(group.section);
 
             return (
               <div key={group.section} className="mb-1">
@@ -1094,9 +1067,7 @@ export default function Admin() {
                     }
                     aria-expanded={expanded}
                     className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-xs font-semibold ${
-                      isCurrent
-                        ? "text-primary"
-                        : "text-foreground hover:bg-muted"
+                      isCurrent ? "text-primary" : "text-foreground hover:bg-muted"
                     }`}
                   >
                     <Icon size={16} />
@@ -1113,15 +1084,9 @@ export default function Admin() {
                   </button>
                 ) : (
                   <Link
-                    to={
-                      group.section === "dashboard"
-                        ? "/admin"
-                        : `/admin/${group.section}`
-                    }
+                    to={group.section === "dashboard" ? "/admin" : `/admin/${group.section}`}
                     className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-xs font-semibold ${
-                      isCurrent
-                        ? "bg-secondary text-primary"
-                        : "text-foreground hover:bg-muted"
+                      isCurrent ? "bg-secondary text-primary" : "text-foreground hover:bg-muted"
                     }`}
                   >
                     <Icon size={16} />
@@ -1146,7 +1111,7 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-            )
+            );
           })}
           <div className="mt-7 border-t border-border pt-4">
             <div className="mb-3 px-3">
@@ -1164,10 +1129,7 @@ export default function Admin() {
               <LogOut size={14} />
               Sign Out
             </button>
-            <Link
-              to="/"
-              className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs text-primary"
-            >
+            <Link to="/" className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs text-primary">
               Back to storefront <ArrowUpRight size={14} />
             </Link>
           </div>
@@ -1196,10 +1158,7 @@ export default function Admin() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="hidden items-center gap-1.5 text-xs text-primary sm:flex"
-            >
+            <Link to="/" className="hidden items-center gap-1.5 text-xs text-primary sm:flex">
               View store <ArrowUpRight size={13} />
             </Link>
             <div className="hidden h-4 w-px bg-border sm:block" />
@@ -1221,8 +1180,8 @@ export default function Admin() {
         <div className="mx-auto max-w-[1500px] p-5 md:p-8">
           <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-100 bg-secondary/50 px-4 py-3 text-[10px] text-primary">
             <span>
-              Admin prototype · data is stored locally in this browser · data
-              model is Supabase-ready (admin and customer roles only)
+              Admin prototype · data is stored locally in this browser · data model is
+              Supabase-ready (admin and customer roles only)
             </span>
             <button
               className="font-bold underline underline-offset-2"
@@ -1242,9 +1201,7 @@ export default function Admin() {
                   : "Changes are saved locally and reflected across the storefront."
             }
           >
-            {["products", "inventory", "orders", "services"].includes(
-              section,
-            ) &&
+            {["products", "inventory", "orders", "services"].includes(section) &&
               !(section === "products" && view !== "all") && (
                 <Button variant="secondary" onClick={exportRows}>
                   <Download size={14} />
@@ -1254,9 +1211,9 @@ export default function Admin() {
             {section === "products" && (view === "all" || view === "add") && (
               <Button
                 onClick={() => {
-                  setProduct(null)
+                  setProduct(null);
 
-                  setProductOpen(true)
+                  setProductOpen(true);
                 }}
               >
                 <Plus size={15} />
@@ -1266,9 +1223,9 @@ export default function Admin() {
             {section === "offers" && (
               <Button
                 onClick={() => {
-                  setOffer(null)
+                  setOffer(null);
 
-                  setOfferOpen(true)
+                  setOfferOpen(true);
                 }}
               >
                 <Plus size={15} />
@@ -1278,9 +1235,9 @@ export default function Admin() {
             {section === "products" && view === "categories" && (
               <Button
                 onClick={() => {
-                  setCategory("")
+                  setCategory("");
 
-                  setCategoryOpen(true)
+                  setCategoryOpen(true);
                 }}
               >
                 <Plus size={15} />
@@ -1290,11 +1247,11 @@ export default function Admin() {
             {section === "pc-builder" && view === "estimates" && (
               <Button
                 onClick={() => {
-                  setComponent({ id: "", name: "", price: 0 })
+                  setComponent({ id: "", name: "", price: 0 });
 
-                  setComponentType("CPU")
+                  setComponentType("CPU");
 
-                  setComponentOpen(true)
+                  setComponentOpen(true);
                 }}
               >
                 <Plus size={15} />
@@ -1315,8 +1272,7 @@ export default function Admin() {
 
                         .filter(
                           (item) =>
-                            item.date.slice(0, 10) ===
-                            new Date().toISOString().slice(0, 10),
+                            item.date.slice(0, 10) === new Date().toISOString().slice(0, 10),
                         )
 
                         .reduce((sum, item) => sum + item.total, 0),
@@ -1334,9 +1290,7 @@ export default function Admin() {
                       store.orders
 
                         .filter(
-                          (item) =>
-                            item.date.slice(0, 7) ===
-                            new Date().toISOString().slice(0, 7),
+                          (item) => item.date.slice(0, 7) === new Date().toISOString().slice(0, 7),
                         )
 
                         .reduce((sum, item) => sum + item.total, 0),
@@ -1360,8 +1314,7 @@ export default function Admin() {
                   {
                     label: "Pending services",
 
-                    value: store.requests.filter((item) => item.status < 9)
-                      .length,
+                    value: store.requests.filter((item) => item.status < 9).length,
 
                     Icon: Wrench,
 
@@ -1371,9 +1324,8 @@ export default function Admin() {
                   {
                     label: "Active shipments",
 
-                    value: store.orders.filter(
-                      (item) => item.status >= 4 && item.status < 6,
-                    ).length,
+                    value: store.orders.filter((item) => item.status >= 4 && item.status < 6)
+                      .length,
 
                     Icon: Truck,
 
@@ -1416,14 +1368,10 @@ export default function Admin() {
                     className="rounded-lg border border-border bg-white p-5 transition hover:border-primary/40"
                   >
                     <div className="mb-5 flex justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {label}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{label}</span>
                       <Icon size={16} className="text-primary" />
                     </div>
-                    <strong className="font-display text-2xl font-bold">
-                      {value}
-                    </strong>
+                    <strong className="font-display text-2xl font-bold">{value}</strong>
                     <p className="mt-2 text-[9px] text-muted-foreground">
                       Current prototype activity
                     </p>
@@ -1561,11 +1509,9 @@ export default function Admin() {
                 },
               ]}
               onView={(row) => {
-                setProduct(
-                  store.products.find((item) => item.id === row.id) || null,
-                )
+                setProduct(store.products.find((item) => item.id === row.id) || null);
 
-                setProductOpen(true)
+                setProductOpen(true);
               }}
               actions={(row) => (
                 <div className="flex gap-2">
@@ -1573,12 +1519,9 @@ export default function Admin() {
                     aria-label="Edit product"
                     className="p-1.5 text-primary"
                     onClick={() => {
-                      setProduct(
-                        store.products.find((item) => item.id === row.id) ||
-                          null,
-                      )
+                      setProduct(store.products.find((item) => item.id === row.id) || null);
 
-                      setProductOpen(true)
+                      setProductOpen(true);
                     }}
                   >
                     <Pencil size={14} />
@@ -1620,7 +1563,7 @@ export default function Admin() {
                         .reduce((count, row) => count + row.quantity, 0),
 
                     0,
-                  )
+                  );
 
                 return {
                   ...item,
@@ -1641,7 +1584,7 @@ export default function Admin() {
                       : item.stock <= (item.lowStockThreshold ?? 3)
                         ? "Low stock"
                         : "In stock",
-                }
+                };
               })}
               columns={[
                 { key: "name", label: "Product" },
@@ -1668,9 +1611,9 @@ export default function Admin() {
                 view !== "adjust" && view !== "low" && view !== "out" ? null : (
                   <button
                     onClick={() => {
-                      setStockId(row.id)
+                      setStockId(row.id);
 
-                      setStockAmount(1)
+                      setStockAmount(1);
                     }}
                     className="flex items-center gap-1 text-xs font-semibold text-primary"
                   >
@@ -1742,9 +1685,7 @@ export default function Admin() {
                   headline: offerHeadline(item),
 
                   targets: [
-                    item.products.length
-                      ? `${item.products.length} product(s)`
-                      : "",
+                    item.products.length ? `${item.products.length} product(s)` : "",
 
                     item.categories.join(", "),
 
@@ -1801,22 +1742,18 @@ export default function Admin() {
                 },
               ]}
               onView={(row) => {
-                setOffer(
-                  store.offers.find((item) => item.id === row.id) || null,
-                )
+                setOffer(store.offers.find((item) => item.id === row.id) || null);
 
-                setOfferOpen(true)
+                setOfferOpen(true);
               }}
               actions={(row) => (
                 <div className="flex gap-3">
                   <button
                     className="text-primary"
                     onClick={() => {
-                      setOffer(
-                        store.offers.find((item) => item.id === row.id) || null,
-                      )
+                      setOffer(store.offers.find((item) => item.id === row.id) || null);
 
-                      setOfferOpen(true)
+                      setOfferOpen(true);
                     }}
                   >
                     Edit
@@ -1826,15 +1763,13 @@ export default function Admin() {
                     onClick={() => {
                       store.set({
                         offers: store.offers.map((item) =>
-                          item.id === row.id
-                            ? { ...item, active: !item.active }
-                            : item,
+                          item.id === row.id ? { ...item, active: !item.active } : item,
                         ),
-                      })
+                      });
 
-                      store.log(`Offer toggled: ${row.name}`)
+                      store.log(`Offer toggled: ${row.name}`);
 
-                      store.notify("Offer updated")
+                      store.notify("Offer updated");
                     }}
                   >
                     {row.active ? "Deactivate" : "Activate"}
@@ -1864,8 +1799,7 @@ export default function Admin() {
 
                 name,
 
-                count: store.products.filter((item) => item.category === name)
-                  .length,
+                count: store.products.filter((item) => item.category === name).length,
 
                 status: "Active",
               }))}
@@ -1917,25 +1851,24 @@ export default function Admin() {
           {section === "pc-builder" && view === "estimates" && (
             <>
               <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-                Component prices below drive the estimated build price customers
-                see in the PC Builder. Final quotes are shared on WhatsApp.
+                Component prices below drive the estimated build price customers see in the PC
+                Builder. Final quotes are shared on WhatsApp.
               </p>
               <DataTable
-                rows={Object.entries(store.componentCatalog).flatMap(
-                  ([type, items]) =>
-                    items.map((item) => ({
-                      ...item,
+                rows={Object.entries(store.componentCatalog).flatMap(([type, items]) =>
+                  items.map((item) => ({
+                    ...item,
 
-                      id: `${type}::${item.id}`,
+                    id: `${type}::${item.id}`,
 
-                      componentId: item.id,
+                    componentId: item.id,
 
-                      type,
+                    type,
 
-                      socket: item.socket || "—",
+                    socket: item.socket || "—",
 
-                      ram: item.ram || "—",
-                    })),
+                    ram: item.ram || "—",
+                  })),
                 )}
                 columns={[
                   { key: "name", label: "Component" },
@@ -1955,34 +1888,30 @@ export default function Admin() {
                   { key: "ram", label: "RAM generation" },
                 ]}
                 onView={(row) => {
-                  const type = String(row.type)
+                  const type = String(row.type);
 
-                  setComponentType(type)
+                  setComponentType(type);
 
                   setComponent(
-                    store.componentCatalog[type].find(
-                      (item) => item.id === row.componentId,
-                    )!,
-                  )
+                    store.componentCatalog[type].find((item) => item.id === row.componentId)!,
+                  );
 
-                  setComponentOpen(true)
+                  setComponentOpen(true);
                 }}
                 actions={(row) => (
                   <div className="flex gap-3">
                     <button
                       className="text-primary"
                       onClick={() => {
-                        const type = String(row.type)
+                        const type = String(row.type);
 
-                        setComponentType(type)
+                        setComponentType(type);
 
                         setComponent(
-                          store.componentCatalog[type].find(
-                            (item) => item.id === row.componentId,
-                          )!,
-                        )
+                          store.componentCatalog[type].find((item) => item.id === row.componentId)!,
+                        );
 
-                        setComponentOpen(true)
+                        setComponentOpen(true);
                       }}
                     >
                       Edit
@@ -1990,7 +1919,7 @@ export default function Admin() {
                     <button
                       className="text-red-600"
                       onClick={() => {
-                        setComponentType(String(row.type))
+                        setComponentType(String(row.type));
 
                         setRemove({
                           type: "component",
@@ -1998,7 +1927,7 @@ export default function Admin() {
                           id: String(row.componentId),
 
                           name: String(row.name),
-                        })
+                        });
                       }}
                     >
                       Delete
@@ -2015,9 +1944,7 @@ export default function Admin() {
 
                 components: Object.keys(item.parts).length,
 
-                compatibility: compatibility(item.parts).valid
-                  ? "Compatible"
-                  : "Incompatible",
+                compatibility: compatibility(item.parts).valid ? "Compatible" : "Incompatible",
               }))}
               columns={[
                 { key: "name", label: "Build name" },
@@ -2042,10 +1969,7 @@ export default function Admin() {
               ]}
               actions={(row) => (
                 <div className="flex gap-3">
-                  <Link
-                    to={`/pc-builder?build=${row.id}`}
-                    className="text-primary"
-                  >
+                  <Link to={`/pc-builder?build=${row.id}`} className="text-primary">
                     Open build
                   </Link>
                   <button
@@ -2106,10 +2030,7 @@ export default function Admin() {
 
                       ["Service requests", store.requests.length],
                     ].map(([label, value]) => (
-                      <div
-                        key={label}
-                        className="rounded-lg border border-border bg-white p-5"
-                      >
+                      <div key={label} className="rounded-lg border border-border bg-white p-5">
                         <p className="text-xs text-muted-foreground">{label}</p>
                         <p className="mt-4 text-2xl font-bold">{value}</p>
                         <p className="mt-2 text-[10px] text-muted-foreground">
@@ -2118,9 +2039,7 @@ export default function Admin() {
                       </div>
                     ))}
                   </div>
-                  <h2 className="mb-4 text-lg font-bold">
-                    Product performance
-                  </h2>
+                  <h2 className="mb-4 text-lg font-bold">Product performance</h2>
                   {
                     <DataTable
                       rows={store.products.map((item) => ({
@@ -2149,9 +2068,7 @@ export default function Admin() {
                       ]}
                     />
                   }
-                  <h2 className="mb-4 mt-8 text-lg font-bold">
-                    Service requests
-                  </h2>
+                  <h2 className="mb-4 mt-8 text-lg font-bold">Service requests</h2>
                   {
                     <DataTable
                       rows={serviceRows}
@@ -2173,38 +2090,22 @@ export default function Admin() {
           )}
           {section === "settings" && <SettingsPanel key={view} view={view} />}
           {section === "products" && view === "brands" && (
-            <BrandsManager
-              onRemove={(name) => setRemove({ type: "brand", id: name, name })}
-            />
+            <BrandsManager onRemove={(name) => setRemove({ type: "brand", id: name, name })} />
           )}
           {section === "products" && view === "import" && <BulkImport />}
-          {section === "products" && view === "image-discovery" && (
-            <AdminImageDiscovery />
-          )}
-          {section === "services" && view === "requests" && (
-            <TechnicianManager />
-          )}
+          {section === "products" && view === "image-discovery" && <AdminImageDiscovery />}
+          {section === "services" && view === "requests" && <TechnicianManager />}
           {section === "services" && view === "warranty" && <WarrantyAdmin />}
           {section === "services" && view === "areas" && (
-            <ServiceAreas
-              onRemove={(id, name) => setRemove({ type: "location", id, name })}
-            />
+            <ServiceAreas onRemove={(id, name) => setRemove({ type: "location", id, name })} />
           )}
           {section === "pc-builder" && view === "requests" && <PcRequests />}
-          {section === "pc-builder" && view === "templates" && (
-            <BuildTemplatesAdmin />
-          )}
+          {section === "pc-builder" && view === "templates" && <BuildTemplatesAdmin />}
           {section === "support" && <SupportAdmin key={view} view={view} />}
           {section === "coupons" && <CouponsAdmin key={view} view={view} />}
-          {section === "sell-requests" && (
-            <SellRequestsAdmin key={view} view={view} />
-          )}
-          {section === "certificates" && (
-            <AdminCertificates key={view} view={view} />
-          )}
-          {resourceDefinitions[section] && (
-            <ResourceManager key={section} section={section} />
-          )}
+          {section === "sell-requests" && <SellRequestsAdmin key={view} view={view} />}
+          {section === "certificates" && <AdminCertificates key={view} view={view} />}
+          {resourceDefinitions[section] && <ResourceManager key={section} section={section} />}
           {!adminGroups.some((group) => group.section === section) &&
             !resourceDefinitions[section] && (
               <Empty
@@ -2215,40 +2116,40 @@ export default function Admin() {
               />
             )}
           <p className="mt-10 text-[10px] text-muted-foreground">
-            IT HUB Admin · All data and financial values are prototype
-            demonstrations, not real business statistics.
+            IT HUB Admin · All data and financial values are prototype demonstrations, not real
+            business statistics.
           </p>
         </div>
       </div>
       <ProductEditor
         open={productOpen}
         onOpenChange={(open) => {
-          setProductOpen(open)
+          setProductOpen(open);
 
-          if (!open && view === "add") navigate("/admin/products?view=all")
+          if (!open && view === "add") navigate("/admin/products?view=all");
         }}
         product={product}
       />
       <OfferEditor
         open={offerOpen}
         onOpenChange={(open) => {
-          setOfferOpen(open)
+          setOfferOpen(open);
 
-          if (!open && view === "create") navigate("/admin/offers?view=active")
+          if (!open && view === "create") navigate("/admin/offers?view=active");
         }}
         offer={offer}
       />
       <Modal
         open={Boolean(stockId)}
         onOpenChange={(open) => {
-          if (!open) setStockId("")
+          if (!open) setStockId("");
         }}
         title="Stock adjustment"
       >
         <form
           className="space-y-5"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
             store.set({
               products: store.products.map((item) =>
@@ -2256,23 +2157,21 @@ export default function Admin() {
                   ? { ...item, stock: Math.max(0, item.stock + stockAmount) }
                   : item,
               ),
-            })
+            });
 
-            store.log(`Stock adjusted by ${stockAmount} for ${stockId}`)
+            store.log(`Stock adjusted by ${stockAmount} for ${stockId}`);
 
-            setStockId("")
+            setStockId("");
 
-            store.notify("Stock updated in the storefront")
+            store.notify("Stock updated in the storefront");
           }}
         >
           <p className="text-sm font-semibold">
             {store.products.find((item) => item.id === stockId)?.name}
           </p>
           <p className="text-xs text-muted-foreground">
-            Current stock:{" "}
-            {store.products.find((item) => item.id === stockId)?.stock ?? 0}.
-            Use a negative number to remove units (damaged, returned to
-            supplier).
+            Current stock: {store.products.find((item) => item.id === stockId)?.stock ?? 0}. Use a
+            negative number to remove units (damaged, returned to supplier).
           </p>
           <Field label="Adjust by (units)">
             <input
@@ -2291,31 +2190,27 @@ export default function Admin() {
           </Button>
         </form>
       </Modal>
-      <Modal
-        open={categoryOpen}
-        onOpenChange={setCategoryOpen}
-        title="Add product category"
-      >
+      <Modal open={categoryOpen} onOpenChange={setCategoryOpen} title="Add product category">
         <form
           className="space-y-5"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
             if (store.catalogCategories.includes(category.trim())) {
-              store.notify("This category already exists")
+              store.notify("This category already exists");
 
-              return
+              return;
             }
 
             store.set({
               catalogCategories: [...store.catalogCategories, category.trim()],
-            })
+            });
 
-            store.log(`Category created: ${category}`)
+            store.log(`Category created: ${category}`);
 
-            setCategoryOpen(false)
+            setCategoryOpen(false);
 
-            store.notify("Category added to storefront filters")
+            store.notify("Category added to storefront filters");
           }}
         >
           <Field label="Category name">
@@ -2333,7 +2228,7 @@ export default function Admin() {
       <Modal
         open={Boolean(selectedOrder)}
         onOpenChange={(open) => {
-          if (!open) setOrderId("")
+          if (!open) setOrderId("");
         }}
         title={selectedOrder?.id || "Order details"}
       >
@@ -2347,20 +2242,16 @@ export default function Admin() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total</p>
-                <p className="mt-1 text-xl font-bold">
-                  {money(selectedOrder.total)}
-                </p>
+                <p className="mt-1 text-xl font-bold">{money(selectedOrder.total)}</p>
               </div>
             </div>
-            <p className="rounded-md bg-muted p-4 text-sm">
-              {selectedOrder.address}
-            </p>
+            <p className="rounded-md bg-muted p-4 text-sm">{selectedOrder.address}</p>
             <Field label="Order status">
               <select
                 className={fieldClass}
                 value={selectedOrder.status}
                 onChange={(event) => {
-                  const status = Number(event.target.value)
+                  const status = Number(event.target.value);
 
                   store.set((previous) => ({
                     orders: previous.orders.map((item) =>
@@ -2372,13 +2263,11 @@ export default function Admin() {
 
                       ...previous.notifications,
                     ],
-                  }))
+                  }));
 
-                  store.log(
-                    `Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`,
-                  )
+                  store.log(`Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`);
 
-                  store.notify("Order status updated for the customer")
+                  store.notify("Order status updated for the customer");
                 }}
               >
                 {orderStatuses.map((status, index) => (
@@ -2407,26 +2296,19 @@ export default function Admin() {
       <Modal
         open={Boolean(selectedRequest)}
         onOpenChange={(open) => {
-          if (!open) setRequestId("")
+          if (!open) setRequestId("");
         }}
         size="max-w-4xl"
-        title={
-          selectedRequest
-            ? `Service Ticket: ${selectedRequest.id}`
-            : "Service details"
-        }
+        title={selectedRequest ? `Service Ticket: ${selectedRequest.id}` : "Service details"}
       >
         {selectedRequest && (
-          <AdminServiceRequestEditor
-            request={selectedRequest}
-            onClose={() => setRequestId("")}
-          />
+          <AdminServiceRequestEditor request={selectedRequest} onClose={() => setRequestId("")} />
         )}
       </Modal>
       <Modal
         open={Boolean(customerEmail)}
         onOpenChange={(open) => {
-          if (!open) setCustomerEmail("")
+          if (!open) setCustomerEmail("");
         }}
         title="Customer profile"
       >
@@ -2477,20 +2359,18 @@ export default function Admin() {
       <Modal
         open={componentOpen}
         onOpenChange={setComponentOpen}
-        title={
-          component.id ? "Edit builder component" : "Add builder component"
-        }
+        title={component.id ? "Edit builder component" : "Add builder component"}
       >
         <form
           className="space-y-5"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
             const next = {
               ...component,
 
               id: component.id || crypto.randomUUID(),
-            }
+            };
 
             store.set({
               componentCatalog: {
@@ -2502,13 +2382,13 @@ export default function Admin() {
                     )
                   : [...store.componentCatalog[componentType], next],
               },
-            })
+            });
 
-            store.log(`Builder component saved: ${component.name}`)
+            store.log(`Builder component saved: ${component.name}`);
 
-            setComponentOpen(false)
+            setComponentOpen(false);
 
-            store.notify("PC builder component updated")
+            store.notify("PC builder component updated");
           }}
         >
           <Field label="Component type">
@@ -2527,9 +2407,7 @@ export default function Admin() {
             <input
               required
               value={component.name}
-              onChange={(event) =>
-                setComponent({ ...component, name: event.target.value })
-              }
+              onChange={(event) => setComponent({ ...component, name: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -2554,9 +2432,7 @@ export default function Admin() {
               <select
                 required
                 value={component.socket || ""}
-                onChange={(event) =>
-                  setComponent({ ...component, socket: event.target.value })
-                }
+                onChange={(event) => setComponent({ ...component, socket: event.target.value })}
                 className={fieldClass}
               >
                 <option value="">Choose socket</option>
@@ -2570,9 +2446,7 @@ export default function Admin() {
               <select
                 required
                 value={component.ram || ""}
-                onChange={(event) =>
-                  setComponent({ ...component, ram: event.target.value })
-                }
+                onChange={(event) => setComponent({ ...component, ram: event.target.value })}
                 className={fieldClass}
               >
                 <option value="">Choose generation</option>
@@ -2658,9 +2532,7 @@ export default function Admin() {
               <select
                 required
                 value={component.interface || ""}
-                onChange={(event) =>
-                  setComponent({ ...component, interface: event.target.value })
-                }
+                onChange={(event) => setComponent({ ...component, interface: event.target.value })}
                 className={fieldClass}
               >
                 <option value="">Choose interface</option>
@@ -2675,14 +2547,13 @@ export default function Admin() {
       <Modal
         open={Boolean(remove)}
         onOpenChange={(open) => {
-          if (!open) setRemove(null)
+          if (!open) setRemove(null);
         }}
         title="Remove this record?"
         description="This changes browser-local demo data only."
       >
         <p className="mb-6 text-sm">
-          Remove <strong>{remove?.name}</strong>? Existing transaction history
-          will be kept.
+          Remove <strong>{remove?.name}</strong>? Existing transaction history will be kept.
         </p>
         <div className="flex gap-3">
           <Button onClick={deleteItem}>Confirm removal</Button>
@@ -2698,9 +2569,8 @@ export default function Admin() {
         description="Add one clearly labelled demo order and one example repair request."
       >
         <p className="mb-6 text-sm leading-7 text-muted-foreground">
-          These are illustrative records, not real customers or business
-          transactions. They also appear in the customer account so you can
-          explore tracking, quotations and management.
+          These are illustrative records, not real customers or business transactions. They also
+          appear in the customer account so you can explore tracking, quotations and management.
         </p>
         <Button onClick={loadSample}>Load sample order & service</Button>
       </Modal>
@@ -2714,7 +2584,7 @@ export default function Admin() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function ProductEditor({
@@ -2724,13 +2594,13 @@ function ProductEditor({
 
   product,
 }: {
-  open: boolean
+  open: boolean;
 
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean) => void;
 
-  product: Product | null
+  product: Product | null;
 }) {
-  const store = useStore()
+  const store = useStore();
 
   const [draft, setDraft] = useState<Product>(
     product || {
@@ -2754,11 +2624,11 @@ function ProductEditor({
 
       specs: { Warranty: "Contact IT HUB" },
     },
-  )
+  );
 
-  const [specText, setSpecText] = useState("")
+  const [specText, setSpecText] = useState("");
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setDraft(
@@ -2783,14 +2653,12 @@ function ProductEditor({
 
         specs: { Warranty: "Contact IT HUB" },
       },
-    )
+    );
 
-    setSpecText(
-      JSON.stringify(product?.specs || { Warranty: "Contact IT HUB" }, null, 2),
-    )
+    setSpecText(JSON.stringify(product?.specs || { Warranty: "Contact IT HUB" }, null, 2));
 
-    setError("")
-  }, [product, open])
+    setError("");
+  }, [product, open]);
 
   return (
     <Modal
@@ -2802,18 +2670,15 @@ function ProductEditor({
       <form
         className="space-y-5"
         onSubmit={(event) => {
-          event.preventDefault()
+          event.preventDefault();
 
           try {
-            const specs = JSON.parse(specText)
+            const specs = JSON.parse(specText);
 
-            if (
-              !/^https?:\/\//.test(draft.image) &&
-              !draft.image.startsWith("/")
-            ) {
-              setError("Use an https:// image URL or a local /images/ path.")
+            if (!/^https?:\/\//.test(draft.image) && !draft.image.startsWith("/")) {
+              setError("Use an https:// image URL or a local /images/ path.");
 
-              return
+              return;
             }
 
             if (
@@ -2822,43 +2687,35 @@ function ProductEditor({
               typeof specs !== "object" ||
               Object.values(specs).some((value) => typeof value !== "string")
             )
-              throw new Error()
+              throw new Error();
 
             const next = {
               ...draft,
 
               specs,
 
-              id:
-                product?.id ||
-                slug(draft.name) + "-" + crypto.randomUUID().slice(0, 4),
-            }
+              id: product?.id || slug(draft.name) + "-" + crypto.randomUUID().slice(0, 4),
+            };
 
             if (next.original < next.price) {
-              setError("Original price cannot be below the current price.")
+              setError("Original price cannot be below the current price.");
 
-              return
+              return;
             }
 
             store.set((previous) => ({
               products: product
-                ? previous.products.map((item) =>
-                    item.id === product.id ? next : item,
-                  )
+                ? previous.products.map((item) => (item.id === product.id ? next : item))
                 : [next, ...previous.products],
-            }))
+            }));
 
-            store.log(
-              `Product ${product ? "updated" : "created"}: ${next.name}`,
-            )
+            store.log(`Product ${product ? "updated" : "created"}: ${next.name}`);
 
-            onOpenChange(false)
+            onOpenChange(false);
 
-            store.notify("Product saved to storefront")
+            store.notify("Product saved to storefront");
           } catch {
-            setError(
-              'Specifications must be a JSON object with text values, e.g. {"RAM":"16GB"}.',
-            )
+            setError('Specifications must be a JSON object with text values, e.g. {"RAM":"16GB"}.');
           }
         }}
       >
@@ -2868,9 +2725,7 @@ function ProductEditor({
               required
               minLength={3}
               value={draft.name}
-              onChange={(event) =>
-                setDraft({ ...draft, name: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -2879,9 +2734,7 @@ function ProductEditor({
               required
               list="admin-brands"
               value={draft.brand}
-              onChange={(event) =>
-                setDraft({ ...draft, brand: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, brand: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -2893,9 +2746,7 @@ function ProductEditor({
           <Field label="Category">
             <select
               value={draft.category}
-              onChange={(event) =>
-                setDraft({ ...draft, category: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, category: event.target.value })}
               className={fieldClass}
             >
               {store.catalogCategories.map((name) => (
@@ -2910,9 +2761,7 @@ function ProductEditor({
               min={0}
               step={1}
               value={draft.stock}
-              onChange={(event) =>
-                setDraft({ ...draft, stock: Number(event.target.value) })
-              }
+              onChange={(event) => setDraft({ ...draft, stock: Number(event.target.value) })}
               className={fieldClass}
             />
           </Field>
@@ -2922,9 +2771,7 @@ function ProductEditor({
               type="number"
               min={1}
               value={draft.price}
-              onChange={(event) =>
-                setDraft({ ...draft, price: Number(event.target.value) })
-              }
+              onChange={(event) => setDraft({ ...draft, price: Number(event.target.value) })}
               className={fieldClass}
             />
           </Field>
@@ -2934,9 +2781,7 @@ function ProductEditor({
               type="number"
               min={1}
               value={draft.original}
-              onChange={(event) =>
-                setDraft({ ...draft, original: Number(event.target.value) })
-              }
+              onChange={(event) => setDraft({ ...draft, original: Number(event.target.value) })}
               className={fieldClass}
             />
           </Field>
@@ -2945,9 +2790,7 @@ function ProductEditor({
           <Field label="SKU">
             <input
               value={draft.sku || ""}
-              onChange={(event) =>
-                setDraft({ ...draft, sku: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, sku: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -2996,26 +2839,20 @@ function ProductEditor({
                   secondHand: event.target.value === "secondHand",
 
                   condition:
-                    event.target.value === "secondHand"
-                      ? draft.condition || "Good"
-                      : undefined,
+                    event.target.value === "secondHand" ? draft.condition || "Good" : undefined,
                 })
               }
               className={fieldClass}
             >
               <option value="fresh">Fresh (Brand New Product)</option>
-              <option value="secondHand">
-                Second-Hand / Verified Pre-Owned
-              </option>
+              <option value="secondHand">Second-Hand / Verified Pre-Owned</option>
             </select>
           </Field>
           {draft.secondHand && (
             <Field label="Pre-Owned Condition">
               <select
                 value={draft.condition || "Good"}
-                onChange={(event) =>
-                  setDraft({ ...draft, condition: event.target.value as any })
-                }
+                onChange={(event) => setDraft({ ...draft, condition: event.target.value as any })}
                 className={fieldClass}
               >
                 {productConditions.map((c) => (
@@ -3032,9 +2869,7 @@ function ProductEditor({
             required
             type="text"
             value={draft.image}
-            onChange={(event) =>
-              setDraft({ ...draft, image: event.target.value })
-            }
+            onChange={(event) => setDraft({ ...draft, image: event.target.value })}
             className={fieldClass}
             placeholder="https://…"
           />
@@ -3042,9 +2877,7 @@ function ProductEditor({
         <Field label="Product label (optional)">
           <input
             value={draft.tag || ""}
-            onChange={(event) =>
-              setDraft({ ...draft, tag: event.target.value })
-            }
+            onChange={(event) => setDraft({ ...draft, tag: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -3064,15 +2897,15 @@ function ProductEditor({
         <Button type="submit">Save product</Button>
       </form>
     </Modal>
-  )
+  );
 }
 
 const emptyOffer = (): Offer => {
-  const now = new Date()
+  const now = new Date();
 
-  const start = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  const start = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
 
-  const end = new Date(start.getTime() + 7 * 86400000)
+  const end = new Date(start.getTime() + 7 * 86400000);
 
   return {
     id: "",
@@ -3100,45 +2933,45 @@ const emptyOffer = (): Offer => {
     banner: "",
 
     active: true,
-  }
-}
+  };
+};
 
 /** Read an image file and downscale it to a JPEG data URL for localStorage. */
 
 const readImage = (file: File, max = 1200) =>
   new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
+    const reader = new FileReader();
 
-    reader.onerror = reject
+    reader.onerror = reject;
 
     reader.onload = () => {
-      const img = new Image()
+      const img = new Image();
 
-      img.onerror = reject
+      img.onerror = reject;
 
       img.onload = () => {
-        const scale = Math.min(1, max / Math.max(img.width, img.height))
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
 
-        const canvas = document.createElement("canvas")
+        const canvas = document.createElement("canvas");
 
-        canvas.width = Math.round(img.width * scale)
+        canvas.width = Math.round(img.width * scale);
 
-        canvas.height = Math.round(img.height * scale)
+        canvas.height = Math.round(img.height * scale);
 
         canvas
 
           .getContext("2d")!
 
-          .drawImage(img, 0, 0, canvas.width, canvas.height)
+          .drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        resolve(canvas.toDataURL("image/jpeg", 0.82))
-      }
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
 
-      img.src = String(reader.result)
-    }
+      img.src = String(reader.result);
+    };
 
-    reader.readAsDataURL(file)
-  })
+    reader.readAsDataURL(file);
+  });
 
 function Chips({
   options,
@@ -3147,27 +2980,23 @@ function Chips({
 
   onChange,
 }: {
-  options: string[]
+  options: string[];
 
-  selected: string[]
+  selected: string[];
 
-  onChange: (next: string[]) => void
+  onChange: (next: string[]) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
-        const on = selected.includes(option)
+        const on = selected.includes(option);
 
         return (
           <button
             type="button"
             key={option}
             onClick={() =>
-              onChange(
-                on
-                  ? selected.filter((item) => item !== option)
-                  : [...selected, option],
-              )
+              onChange(on ? selected.filter((item) => item !== option) : [...selected, option])
             }
             className={`rounded-full border px-3 py-1.5 text-xs ${
               on
@@ -3177,10 +3006,10 @@ function Chips({
           >
             {option}
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 function OfferEditor({
@@ -3190,33 +3019,33 @@ function OfferEditor({
 
   offer,
 }: {
-  open: boolean
+  open: boolean;
 
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (open: boolean) => void;
 
-  offer: Offer | null
+  offer: Offer | null;
 }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [draft, setDraft] = useState<Offer>(emptyOffer)
+  const [draft, setDraft] = useState<Offer>(emptyOffer);
 
-  const [mode, setMode] = useState<"percent" | "fixed">("percent")
+  const [mode, setMode] = useState<"percent" | "fixed">("percent");
 
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState("");
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const next = offer || emptyOffer()
+    const next = offer || emptyOffer();
 
-    setDraft(next)
+    setDraft(next);
 
-    setMode(next.discount > 0 || !next.amount ? "percent" : "fixed")
+    setMode(next.discount > 0 || !next.amount ? "percent" : "fixed");
 
-    setSearch("")
+    setSearch("");
 
-    setError("")
-  }, [offer, open])
+    setError("");
+  }, [offer, open]);
 
   const matches = store.products.filter((item) =>
     `${item.name} ${item.brand} ${item.category}`
@@ -3224,7 +3053,7 @@ function OfferEditor({
       .toLowerCase()
 
       .includes(search.toLowerCase()),
-  )
+  );
 
   return (
     <Modal
@@ -3236,7 +3065,7 @@ function OfferEditor({
       <form
         className="space-y-5"
         onSubmit={(event) => {
-          event.preventDefault()
+          event.preventDefault();
 
           const next: Offer = {
             ...draft,
@@ -3248,51 +3077,41 @@ function OfferEditor({
             amount: mode === "fixed" ? draft.amount : 0,
 
             id: offer?.id || crypto.randomUUID(),
-          }
+          };
 
-          if (!next.name) return setError("Offer name is required.")
+          if (!next.name) return setError("Offer name is required.");
 
-          if (
-            mode === "percent" &&
-            (!(next.discount >= 1) || next.discount > 90)
-          )
-            return setError("Percentage discount must be between 1 and 90.")
+          if (mode === "percent" && (!(next.discount >= 1) || next.discount > 90))
+            return setError("Percentage discount must be between 1 and 90.");
 
           if (mode === "fixed" && !(next.amount > 0))
-            return setError("Fixed discount amount must be greater than ₹0.")
+            return setError("Fixed discount amount must be greater than ₹0.");
 
-          if (!next.startsAt || !next.endsAt)
-            return setError("Choose a start and end date/time.")
+          if (!next.startsAt || !next.endsAt) return setError("Choose a start and end date/time.");
 
           if (new Date(next.endsAt) <= new Date(next.startsAt))
-            return setError("End date/time must be after the start.")
+            return setError("End date/time must be after the start.");
 
-          if (
-            !next.products.length &&
-            !next.categories.length &&
-            !next.brands.length
-          )
-            return setError("Select at least one product, category or brand.")
+          if (!next.products.length && !next.categories.length && !next.brands.length)
+            return setError("Select at least one product, category or brand.");
 
           store.set({
             offers: offer
               ? store.offers.map((item) => (item.id === offer.id ? next : item))
               : [next, ...store.offers],
-          })
+          });
 
-          store.log(`Offer saved: ${next.name}`)
+          store.log(`Offer saved: ${next.name}`);
 
-          onOpenChange(false)
+          onOpenChange(false);
 
-          store.notify(`Offer saved · ${offerStatus(next)}`)
+          store.notify(`Offer saved · ${offerStatus(next)}`);
         }}
       >
         <Field label="Offer name">
           <input
             value={draft.name}
-            onChange={(event) =>
-              setDraft({ ...draft, name: event.target.value })
-            }
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             className={fieldClass}
             placeholder="e.g. Onam Gaming Sale"
           />
@@ -3301,9 +3120,7 @@ function OfferEditor({
           <textarea
             rows={2}
             value={draft.description}
-            onChange={(event) =>
-              setDraft({ ...draft, description: event.target.value })
-            }
+            onChange={(event) => setDraft({ ...draft, description: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -3345,9 +3162,7 @@ function OfferEditor({
                 ))}
               </div>
               <input
-                aria-label={
-                  mode === "percent" ? "Discount percentage" : "Discount amount"
-                }
+                aria-label={mode === "percent" ? "Discount percentage" : "Discount amount"}
                 type="number"
                 min={mode === "percent" ? 1 : 1}
                 max={mode === "percent" ? 90 : undefined}
@@ -3365,9 +3180,7 @@ function OfferEditor({
           </div>
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold">
-            Selected products ({draft.products.length})
-          </p>
+          <p className="mb-2 text-xs font-semibold">Selected products ({draft.products.length})</p>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -3395,15 +3208,11 @@ function OfferEditor({
                   }
                 />
                 <span className="flex-1">{item.name}</span>
-                <span className="text-muted-foreground">
-                  {money(item.price)}
-                </span>
+                <span className="text-muted-foreground">{money(item.price)}</span>
               </label>
             ))}
             {!matches.length && (
-              <p className="p-3 text-xs text-muted-foreground">
-                No products match.
-              </p>
+              <p className="p-3 text-xs text-muted-foreground">No products match.</p>
             )}
           </div>
         </div>
@@ -3428,9 +3237,7 @@ function OfferEditor({
             <input
               type="datetime-local"
               value={draft.startsAt}
-              onChange={(event) =>
-                setDraft({ ...draft, startsAt: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -3438,9 +3245,7 @@ function OfferEditor({
             <input
               type="datetime-local"
               value={draft.endsAt}
-              onChange={(event) =>
-                setDraft({ ...draft, endsAt: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, endsAt: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -3449,14 +3254,8 @@ function OfferEditor({
           <p className="mb-2 text-xs font-semibold">Banner image</p>
           <div className="flex flex-wrap items-center gap-3">
             <input
-              value={
-                draft.banner.startsWith("data:")
-                  ? "Uploaded image"
-                  : draft.banner
-              }
-              onChange={(event) =>
-                setDraft({ ...draft, banner: event.target.value })
-              }
+              value={draft.banner.startsWith("data:") ? "Uploaded image" : draft.banner}
+              onChange={(event) => setDraft({ ...draft, banner: event.target.value })}
               placeholder="https://… or /images/…"
               className={`${fieldClass} flex-1`}
             />
@@ -3467,15 +3266,15 @@ function OfferEditor({
                 accept="image/*"
                 className="sr-only"
                 onChange={async (event) => {
-                  const file = event.target.files?.[0]
+                  const file = event.target.files?.[0];
 
-                  event.target.value = ""
+                  event.target.value = "";
 
-                  if (!file || !file.type.startsWith("image/")) return
+                  if (!file || !file.type.startsWith("image/")) return;
 
-                  const banner = await readImage(file)
+                  const banner = await readImage(file);
 
-                  setDraft((current) => ({ ...current, banner }))
+                  setDraft((current) => ({ ...current, banner }));
                 }}
               />
             </label>
@@ -3492,9 +3291,7 @@ function OfferEditor({
           <input
             type="checkbox"
             checked={draft.active}
-            onChange={(event) =>
-              setDraft({ ...draft, active: event.target.checked })
-            }
+            onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
             className="accent-primary"
           />
           Active (status is then set automatically by the date window)
@@ -3520,7 +3317,7 @@ function OfferEditor({
         <Button type="submit">Save offer</Button>
       </form>
     </Modal>
-  )
+  );
 }
 
 function Panel({
@@ -3530,29 +3327,25 @@ function Panel({
 
   description,
 }: {
-  title: string
+  title: string;
 
-  description?: string
+  description?: string;
 
-  children: ReactNode
+  children: ReactNode;
 }) {
   return (
     <div className="mb-6 rounded-lg border border-border bg-white p-6">
       <h3 className="text-sm font-bold">{title}</h3>
-      {description && (
-        <p className="mt-1 text-xs leading-6 text-muted-foreground">
-          {description}
-        </p>
-      )}
+      {description && <p className="mt-1 text-xs leading-6 text-muted-foreground">{description}</p>}
       <div className="mt-4">{children}</div>
     </div>
-  )
+  );
 }
 
 function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [name, setName] = useState("")
+  const [name, setName] = useState("");
 
   return (
     <>
@@ -3560,33 +3353,27 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
         <form
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
-            const value = name.trim()
+            const value = name.trim();
 
-            if (!value) return
+            if (!value) return;
 
-            if (
-              store.brands.some(
-                (item) => item.toLowerCase() === value.toLowerCase(),
-              )
-            ) {
-              store.notify("This brand already exists")
+            if (store.brands.some((item) => item.toLowerCase() === value.toLowerCase())) {
+              store.notify("This brand already exists");
 
-              return
+              return;
             }
 
             store.set({
-              brands: [...store.brands, value].sort((a, b) =>
-                a.localeCompare(b),
-              ),
-            })
+              brands: [...store.brands, value].sort((a, b) => a.localeCompare(b)),
+            });
 
-            store.log(`Brand added: ${value}`)
+            store.log(`Brand added: ${value}`);
 
-            store.notify("Brand added")
+            store.notify("Brand added");
 
-            setName("")
+            setName("");
           }}
         >
           <input
@@ -3616,11 +3403,7 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
         actions={(row) => (
           <button
             disabled={Number(row.count) > 0}
-            title={
-              Number(row.count) > 0
-                ? "Brand is used by products"
-                : "Delete brand"
-            }
+            title={Number(row.count) > 0 ? "Brand is used by products" : "Delete brand"}
             className="text-red-600 disabled:opacity-30"
             onClick={() => onRemove(row.id)}
           >
@@ -3629,7 +3412,7 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
         )}
       />
     </>
-  )
+  );
 }
 
 const importSteps = [
@@ -3648,52 +3431,50 @@ const importSteps = [
   "Import",
 
   "Summary",
-]
+];
 
 type ImportSummary = {
-  imported: number
+  imported: number;
 
-  updated: number
+  updated: number;
 
-  created: number
+  created: number;
 
-  skipped: number
+  skipped: number;
 
-  failed: number
-}
+  failed: number;
+};
 
 function BulkImport() {
-  const store = useStore()
+  const store = useStore();
 
-  const [tab, setTab] = useState<"csv" | "excel" | "template" | "history">(
-    "csv",
-  )
+  const [tab, setTab] = useState<"csv" | "excel" | "template" | "history">("csv");
 
-  const [file, setFile] = useState("")
+  const [file, setFile] = useState("");
 
-  const [rows, setRows] = useState<ImportRow[] | null>(null)
+  const [rows, setRows] = useState<ImportRow[] | null>(null);
 
-  const [parseError, setParseError] = useState("")
+  const [parseError, setParseError] = useState("");
 
-  const [showIssues, setShowIssues] = useState(false)
+  const [showIssues, setShowIssues] = useState(false);
 
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState(false);
 
-  const [summary, setSummary] = useState<ImportSummary | null>(null)
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
 
   const reset = () => {
-    setFile("")
+    setFile("");
 
-    setRows(null)
+    setRows(null);
 
-    setParseError("")
+    setParseError("");
 
-    setShowIssues(false)
+    setShowIssues(false);
 
-    setConfirming(false)
+    setConfirming(false);
 
-    setSummary(null)
-  }
+    setSummary(null);
+  };
 
   const step = summary
     ? 7
@@ -3705,154 +3486,141 @@ function BulkImport() {
           : 3
         : file
           ? 1
-          : 0
+          : 0;
 
   const parse = async (input: File) => {
-    reset()
+    reset();
 
-    setFile(input.name)
+    setFile(input.name);
 
-    const extension = input.name.split(".").pop()?.toLowerCase()
+    const extension = input.name.split(".").pop()?.toLowerCase();
 
     if (!["csv", "xlsx"].includes(extension || "")) {
-      setParseError("Unsupported file type. Upload a .csv or .xlsx file.")
+      setParseError("Unsupported file type. Upload a .csv or .xlsx file.");
 
-      return
+      return;
     }
 
     try {
       const workbook =
         extension === "csv"
           ? XLSX.read(await input.text(), { type: "string" })
-          : XLSX.read(await input.arrayBuffer(), { type: "array" })
+          : XLSX.read(await input.arrayBuffer(), { type: "array" });
 
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
       const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         defval: "",
 
         raw: false,
-      })
+      });
 
       if (!raw.length) {
-        setParseError(
-          "No data rows found. Check that the first row contains the column headers.",
-        )
+        setParseError("No data rows found. Check that the first row contains the column headers.");
 
-        return
+        return;
       }
 
-      const headers = Object.keys(raw[0])
+      const headers = Object.keys(raw[0]);
 
       const missing = ["SKU", "Product Name", "Price", "Stock"].filter(
         (key) => !headers.includes(key),
-      )
+      );
 
       if (missing.length) {
         setParseError(
           `Missing required columns: ${missing.join(", ")}. Download the template for the expected format.`,
-        )
+        );
 
-        return
+        return;
       }
 
-      setRows(validateImportRows(raw, store.catalogCategories, store.brands))
+      setRows(validateImportRows(raw, store.catalogCategories, store.brands));
     } catch {
-      setParseError(
-        "The file could not be parsed. Make sure it is a valid CSV or Excel workbook.",
-      )
+      setParseError("The file could not be parsed. Make sure it is a valid CSV or Excel workbook.");
     }
-  }
+  };
 
   const download = (type: "csv" | "xlsx") => {
     const sheet = XLSX.utils.json_to_sheet(importTemplateRows, {
       header: [...importColumns],
-    })
+    });
 
-    const workbook = XLSX.utils.book_new()
+    const workbook = XLSX.utils.book_new();
 
-    XLSX.utils.book_append_sheet(workbook, sheet, "Products")
+    XLSX.utils.book_append_sheet(workbook, sheet, "Products");
 
     XLSX.writeFile(workbook, `ithub-product-import-template.${type}`, {
       bookType: type,
-    })
-  }
+    });
+  };
 
-  const valid = rows?.filter((row) => row.valid) || []
+  const valid = rows?.filter((row) => row.valid) || [];
 
-  const errorRows = rows?.filter((row) => !row.valid) || []
+  const errorRows = rows?.filter((row) => !row.valid) || [];
 
   const warningCount =
     rows?.reduce(
-      (sum, row) =>
-        sum + row.issues.filter((issue) => issue.level === "warning").length,
+      (sum, row) => sum + row.issues.filter((issue) => issue.level === "warning").length,
 
       0,
-    ) || 0
+    ) || 0;
 
   const runImport = () => {
-    if (!rows) return
+    if (!rows) return;
 
-    let created = 0
+    let created = 0;
 
-    let updated = 0
+    let updated = 0;
 
-    let failed = 0
+    let failed = 0;
 
-    const products = [...store.products]
+    const products = [...store.products];
 
-    const brands = [...store.brands]
+    const brands = [...store.brands];
 
     for (const row of valid) {
       try {
-        const d = row.data
+        const d = row.data;
 
-        const num = (key: string) =>
-          d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined
+        const num = (key: string) => (d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined);
 
-        const price = num("Price")!
+        const price = num("Price")!;
 
-        const sale = num("Sale Price")
+        const sale = num("Sale Price");
 
-        const mrp = num("MRP")
+        const mrp = num("MRP");
 
         const isSecondHand =
           d["Second Hand"]?.toLowerCase() === "yes" ||
           d["Second Hand"]?.toLowerCase() === "true" ||
           (Boolean(d.Condition) && d.Condition?.toLowerCase() !== "new") ||
-          d.SKU.toUpperCase().startsWith("SH-")
+          d.SKU.toUpperCase().startsWith("SH-");
 
-        const condition =
-          d.Condition as Product["condition"] || (isSecondHand ? "Good" : "New")
+        const condition = (d.Condition as Product["condition"]) || (isSecondHand ? "Good" : "New");
 
         const category =
-          store.catalogCategories.find(
-            (name) => name.toLowerCase() === d.Category.toLowerCase(),
-          ) ||
+          store.catalogCategories.find((name) => name.toLowerCase() === d.Category.toLowerCase()) ||
           d.Category ||
-          "Uncategorized"
+          "Uncategorized";
 
-        let brand = brands.find(
-          (name) => name.toLowerCase() === d.Brand.toLowerCase(),
-        )
+        let brand = brands.find((name) => name.toLowerCase() === d.Brand.toLowerCase());
 
         if (!brand) {
-          brand = d.Brand || "Generic / OEM"
+          brand = d.Brand || "Generic / OEM";
 
-          brands.push(brand)
+          brands.push(brand);
         }
 
         const status = (
-          d.Status
-            ? d.Status[0].toUpperCase() + d.Status.slice(1).toLowerCase()
-            : "Draft"
-        ) as Product["status"]
+          d.Status ? d.Status[0].toUpperCase() + d.Status.slice(1).toLowerCase() : "Draft"
+        ) as Product["status"];
 
-        const specs: Record<string, string> = {}
+        const specs: Record<string, string> = {};
 
-        if (d["Model Number"]) specs["Model / MPN"] = d["Model Number"]
+        if (d["Model Number"]) specs["Model / MPN"] = d["Model Number"];
 
-        if (d.Warranty) specs.Warranty = d.Warranty
+        if (d.Warranty) specs.Warranty = d.Warranty;
 
         const fields: Partial<Product> = {
           sku: d.SKU,
@@ -3886,11 +3654,9 @@ function BulkImport() {
           condition,
 
           status,
-        }
+        };
 
-        const index = products.findIndex(
-          (item) => item.sku?.toLowerCase() === d.SKU.toLowerCase(),
-        )
+        const index = products.findIndex((item) => item.sku?.toLowerCase() === d.SKU.toLowerCase());
 
         if (index >= 0) {
           products[index] = {
@@ -3899,9 +3665,9 @@ function BulkImport() {
             ...fields,
 
             specs: { ...products[index].specs, ...specs },
-          }
+          };
 
-          updated++
+          updated++;
         } else {
           products.unshift({
             id: `${slug(d["Product Name"]).replace(/[^a-z0-9-]/g, "")}-${crypto.randomUUID().slice(0, 4)}`,
@@ -3912,13 +3678,13 @@ function BulkImport() {
 
             specs,
 
-            ...fields as Omit<Product, "id" | "image" | "rating" | "specs">,
-          })
+            ...(fields as Omit<Product, "id" | "image" | "rating" | "specs">),
+          });
 
-          created++
+          created++;
         }
       } catch {
-        failed++
+        failed++;
       }
     }
 
@@ -3932,7 +3698,7 @@ function BulkImport() {
       skipped: errorRows.length,
 
       failed,
-    }
+    };
 
     store.set((previous) => ({
       products,
@@ -3960,16 +3726,16 @@ function BulkImport() {
 
         ...previous.importHistory,
       ],
-    }))
+    }));
 
-    store.log(`Bulk import ${file}: ${created} created, ${updated} updated`)
+    store.log(`Bulk import ${file}: ${created} created, ${updated} updated`);
 
-    store.notify(`${result.imported} products imported`)
+    store.notify(`${result.imported} products imported`);
 
-    setConfirming(false)
+    setConfirming(false);
 
-    setSummary(result)
-  }
+    setSummary(result);
+  };
 
   const tabs = [
     ["csv", "CSV"],
@@ -3979,7 +3745,7 @@ function BulkImport() {
     ["template", "Template"],
 
     ["history", "Import History"],
-  ] as const
+  ] as const;
 
   return (
     <div>
@@ -4054,9 +3820,7 @@ function BulkImport() {
           </ol>
           {!rows && !summary && (
             <Panel
-              title={
-                tab === "csv" ? "Upload CSV file" : "Upload Excel file (.xlsx)"
-              }
+              title={tab === "csv" ? "Upload CSV file" : "Upload Excel file (.xlsx)"}
               description="The file is parsed and validated in your browser. Nothing is imported until you confirm."
             >
               <label className="flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border p-10 text-center hover:border-primary/50">
@@ -4076,11 +3840,11 @@ function BulkImport() {
                   }
                   className="sr-only"
                   onChange={(event) => {
-                    const input = event.target.files?.[0]
+                    const input = event.target.files?.[0];
 
-                    event.target.value = ""
+                    event.target.value = "";
 
-                    if (input) parse(input)
+                    if (input) parse(input);
                   }}
                 />
               </label>
@@ -4097,12 +3861,8 @@ function BulkImport() {
                 <strong>{file}</strong>
                 <span>{rows.length} rows found</span>
                 <span className="text-emerald-700">✓ {valid.length} valid</span>
-                <span className="text-amber-700">
-                  ⚠ {warningCount} warnings
-                </span>
-                <span className="text-red-600">
-                  ✕ {errorRows.length} errors
-                </span>
+                <span className="text-amber-700">⚠ {warningCount} warnings</span>
+                <span className="text-red-600">✕ {errorRows.length} errors</span>
               </div>
               {rows.some((row) => row.issues.length) && (
                 <div className="mb-5 rounded-lg border border-border bg-white">
@@ -4110,13 +3870,8 @@ function BulkImport() {
                     onClick={() => setShowIssues(!showIssues)}
                     className="flex w-full items-center justify-between p-4 text-xs font-semibold text-primary"
                   >
-                    {showIssues
-                      ? "Hide errors & warnings"
-                      : "View errors & warnings"}
-                    <ChevronDown
-                      size={14}
-                      className={showIssues ? "rotate-180" : ""}
-                    />
+                    {showIssues ? "Hide errors & warnings" : "View errors & warnings"}
+                    <ChevronDown size={14} className={showIssues ? "rotate-180" : ""} />
                   </button>
                   {showIssues && (
                     <ul className="max-h-64 overflow-y-auto border-t border-border text-xs">
@@ -4125,9 +3880,7 @@ function BulkImport() {
                           <li
                             key={`${row.row}-${index}`}
                             className={`flex items-center gap-2 border-b border-border px-4 py-2 ${
-                              issue.level === "error"
-                                ? "text-red-600"
-                                : "text-amber-700"
+                              issue.level === "error" ? "text-red-600" : "text-amber-700"
                             }`}
                           >
                             {issue.level === "error" ? (
@@ -4219,16 +3972,12 @@ function BulkImport() {
               {confirming ? (
                 <div className="rounded-lg border border-primary/30 bg-secondary/50 p-5">
                   <p className="mb-4 text-sm">
-                    Import <strong>{valid.length}</strong> valid rows?{" "}
-                    {errorRows.length} row(s) with errors will be skipped.
-                    Products with a matching SKU will be updated.
+                    Import <strong>{valid.length}</strong> valid rows? {errorRows.length} row(s)
+                    with errors will be skipped. Products with a matching SKU will be updated.
                   </p>
                   <div className="flex gap-3">
                     <Button onClick={runImport}>Confirm import</Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setConfirming(false)}
-                    >
+                    <Button variant="secondary" onClick={() => setConfirming(false)}>
                       Back
                     </Button>
                   </div>
@@ -4238,10 +3987,7 @@ function BulkImport() {
                   <Button variant="secondary" onClick={reset}>
                     Cancel
                   </Button>
-                  <Button
-                    disabled={!valid.length}
-                    onClick={() => setConfirming(true)}
-                  >
+                  <Button disabled={!valid.length} onClick={() => setConfirming(true)}>
                     Import valid rows ({valid.length})
                   </Button>
                 </div>
@@ -4251,17 +3997,19 @@ function BulkImport() {
           {summary && (
             <Panel title="Import summary" description={file}>
               <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-                {([
-                  ["Imported", summary.imported],
+                {(
+                  [
+                    ["Imported", summary.imported],
 
-                  ["Updated", summary.updated],
+                    ["Updated", summary.updated],
 
-                  ["Created", summary.created],
+                    ["Created", summary.created],
 
-                  ["Skipped", summary.skipped],
+                    ["Skipped", summary.skipped],
 
-                  ["Failed", summary.failed],
-                ] as const).map(([label, value]) => (
+                    ["Failed", summary.failed],
+                  ] as const
+                ).map(([label, value]) => (
                   <div key={label} className="rounded-md bg-muted p-4">
                     <p className="text-xs text-muted-foreground">{label}</p>
                     <p className="mt-2 text-2xl font-bold">{value}</p>
@@ -4281,13 +4029,13 @@ function BulkImport() {
         </>
       )}
     </div>
-  )
+  );
 }
 
 function TechnicianManager() {
-  const store = useStore()
+  const store = useStore();
 
-  const [name, setName] = useState("")
+  const [name, setName] = useState("");
 
   return (
     <div className="mt-6">
@@ -4311,18 +4059,16 @@ function TechnicianManager() {
                   className="text-red-600"
                   onClick={() => {
                     store.set((previous) => ({
-                      technicians: previous.technicians.filter(
-                        (value) => value !== item,
-                      ),
+                      technicians: previous.technicians.filter((value) => value !== item),
 
                       requests: previous.requests.map((request) =>
                         request.technician === item
                           ? { ...request, technician: "Unassigned" }
                           : request,
                       ),
-                    }))
+                    }));
 
-                    store.log(`Service staff removed: ${item}`)
+                    store.log(`Service staff removed: ${item}`);
                   }}
                 >
                   <X size={12} />
@@ -4333,17 +4079,17 @@ function TechnicianManager() {
         <form
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
-            const value = name.trim()
+            const value = name.trim();
 
-            if (!value || store.technicians.includes(value)) return
+            if (!value || store.technicians.includes(value)) return;
 
-            store.set({ technicians: [...store.technicians, value] })
+            store.set({ technicians: [...store.technicians, value] });
 
-            store.log(`Service staff added: ${value}`)
+            store.log(`Service staff added: ${value}`);
 
-            setName("")
+            setName("");
           }}
         >
           <input
@@ -4358,17 +4104,17 @@ function TechnicianManager() {
         </form>
       </Panel>
     </div>
-  )
+  );
 }
 
 function WarrantyAdmin() {
-  const store = useStore()
+  const store = useStore();
 
-  const [pin, setPin] = useState("")
+  const [pin, setPin] = useState("");
 
-  const [checked, setChecked] = useState("")
+  const [checked, setChecked] = useState("");
 
-  const result = checked ? checkWarranty(checked, store.locations) : null
+  const result = checked ? checkWarranty(checked, store.locations) : null;
 
   return (
     <>
@@ -4379,9 +4125,9 @@ function WarrantyAdmin() {
         <form
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
-            setChecked(pin)
+            setChecked(pin);
           }}
         >
           <input
@@ -4399,18 +4145,14 @@ function WarrantyAdmin() {
         {result && (
           <div className="mt-4 rounded-md bg-muted p-4 text-sm">
             {result.status === "invalid" && (
-              <p className="text-red-600">
-                Enter a valid 6-digit Indian PIN code.
-              </p>
+              <p className="text-red-600">Enter a valid 6-digit Indian PIN code.</p>
             )}
             {result.status === "unknown" && (
               <p className="text-amber-700">
-                PIN {result.pincode} is not in the area directory — confirm
-                manually.
+                PIN {result.pincode} is not in the area directory — confirm manually.
               </p>
             )}
-            {(result.status === "eligible" ||
-              result.status === "ineligible") && (
+            {(result.status === "eligible" || result.status === "ineligible") && (
               <>
                 <Badge tone={result.status === "eligible" ? "green" : "red"}>
                   {result.status === "eligible"
@@ -4418,8 +4160,7 @@ function WarrantyAdmin() {
                     : "Outside service radius"}
                 </Badge>
                 <p className="mt-3">
-                  Area: <strong>{result.area}</strong> · nearest:{" "}
-                  {result.location.name}
+                  Area: <strong>{result.area}</strong> · nearest: {result.location.name}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {result.distanceKm !== null
@@ -4437,8 +4178,7 @@ function WarrantyAdmin() {
         rows={store.warrantyChecks.map((item) => ({
           ...item,
 
-          distance:
-            item.distanceKm === null ? "—" : `approx. ${item.distanceKm} km`,
+          distance: item.distanceKm === null ? "—" : `approx. ${item.distanceKm} km`,
         }))}
         columns={[
           { key: "pincode", label: "PIN code" },
@@ -4473,7 +4213,7 @@ function WarrantyAdmin() {
         ]}
       />
     </>
-  )
+  );
 }
 
 const emptyLocation = (): ItHubLocation => ({
@@ -4492,7 +4232,7 @@ const emptyLocation = (): ItHubLocation => ({
   serviceRadiusKm: 15,
 
   active: true,
-})
+});
 
 function LocationForm({
   value,
@@ -4501,39 +4241,35 @@ function LocationForm({
 
   submitLabel = "Save location",
 }: {
-  value: ItHubLocation
+  value: ItHubLocation;
 
-  onSave: (location: ItHubLocation) => void
+  onSave: (location: ItHubLocation) => void;
 
-  submitLabel?: string
+  submitLabel?: string;
 }) {
-  const [draft, setDraft] = useState(value)
+  const [draft, setDraft] = useState(value);
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
-  useEffect(() => setDraft(value), [value])
+  useEffect(() => setDraft(value), [value]);
 
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
-        event.preventDefault()
+        event.preventDefault();
 
-        if (draft.name.trim().length < 2) return setError("Name is required.")
+        if (draft.name.trim().length < 2) return setError("Name is required.");
 
-        if (!/^[1-9]\d{5}$/.test(draft.pincode))
-          return setError("Enter a valid 6-digit PIN code.")
+        if (!/^[1-9]\d{5}$/.test(draft.pincode)) return setError("Enter a valid 6-digit PIN code.");
 
-        if (
-          !(Math.abs(draft.latitude) <= 90) ||
-          !(Math.abs(draft.longitude) <= 180)
-        )
-          return setError("Latitude must be −90…90 and longitude −180…180.")
+        if (!(Math.abs(draft.latitude) <= 90) || !(Math.abs(draft.longitude) <= 180))
+          return setError("Latitude must be −90…90 and longitude −180…180.");
 
         if (!(draft.serviceRadiusKm > 0))
-          return setError("Service radius must be greater than 0 km.")
+          return setError("Service radius must be greater than 0 km.");
 
-        setError("")
+        setError("");
 
         onSave({
           ...draft,
@@ -4541,16 +4277,14 @@ function LocationForm({
           name: draft.name.trim(),
 
           id: draft.id || crypto.randomUUID(),
-        })
+        });
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Location name">
           <input
             value={draft.name}
-            onChange={(event) =>
-              setDraft({ ...draft, name: event.target.value })
-            }
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -4572,9 +4306,7 @@ function LocationForm({
       <Field label="Address">
         <input
           value={draft.address}
-          onChange={(event) =>
-            setDraft({ ...draft, address: event.target.value })
-          }
+          onChange={(event) => setDraft({ ...draft, address: event.target.value })}
           className={fieldClass}
         />
       </Field>
@@ -4584,9 +4316,7 @@ function LocationForm({
             type="number"
             step="any"
             value={draft.latitude}
-            onChange={(event) =>
-              setDraft({ ...draft, latitude: Number(event.target.value) })
-            }
+            onChange={(event) => setDraft({ ...draft, latitude: Number(event.target.value) })}
             className={fieldClass}
           />
         </Field>
@@ -4595,9 +4325,7 @@ function LocationForm({
             type="number"
             step="any"
             value={draft.longitude}
-            onChange={(event) =>
-              setDraft({ ...draft, longitude: Number(event.target.value) })
-            }
+            onChange={(event) => setDraft({ ...draft, longitude: Number(event.target.value) })}
             className={fieldClass}
           />
         </Field>
@@ -4623,9 +4351,7 @@ function LocationForm({
           type="checkbox"
           className="accent-primary"
           checked={draft.active}
-          onChange={(event) =>
-            setDraft({ ...draft, active: event.target.checked })
-          }
+          onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
         />
         Active (used for on-site service checks)
       </label>
@@ -4636,17 +4362,13 @@ function LocationForm({
       )}
       <Button type="submit">{submitLabel}</Button>
     </form>
-  )
+  );
 }
 
-function ServiceAreas({
-  onRemove,
-}: {
-  onRemove: (id: string, name: string) => void
-}) {
-  const store = useStore()
+function ServiceAreas({ onRemove }: { onRemove: (id: string, name: string) => void }) {
+  const store = useStore();
 
-  const [editing, setEditing] = useState<ItHubLocation | null>(null)
+  const [editing, setEditing] = useState<ItHubLocation | null>(null);
 
   return (
     <>
@@ -4688,18 +4410,11 @@ function ServiceAreas({
           <div className="flex gap-3">
             <button
               className="text-primary"
-              onClick={() =>
-                setEditing(
-                  store.locations.find((item) => item.id === row.id) || null,
-                )
-              }
+              onClick={() => setEditing(store.locations.find((item) => item.id === row.id) || null)}
             >
               Edit
             </button>
-            <button
-              className="text-red-600"
-              onClick={() => onRemove(row.id, String(row.name))}
-            >
+            <button className="text-red-600" onClick={() => onRemove(row.id, String(row.name))}>
               Delete
             </button>
           </div>
@@ -4715,34 +4430,30 @@ function ServiceAreas({
             value={editing}
             onSave={(location) => {
               store.set((previous) => ({
-                locations: previous.locations.some(
-                  (item) => item.id === location.id,
-                )
-                  ? previous.locations.map((item) =>
-                      item.id === location.id ? location : item,
-                    )
+                locations: previous.locations.some((item) => item.id === location.id)
+                  ? previous.locations.map((item) => (item.id === location.id ? location : item))
                   : [...previous.locations, location],
-              }))
+              }));
 
-              store.log(`Service location saved: ${location.name}`)
+              store.log(`Service location saved: ${location.name}`);
 
-              store.notify("Service location saved")
+              store.notify("Service location saved");
 
-              setEditing(null)
+              setEditing(null);
             }}
           />
         )}
       </Modal>
     </>
-  )
+  );
 }
 
 function PcRequests() {
-  const store = useStore()
+  const store = useStore();
 
-  const [openId, setOpenId] = useState("")
+  const [openId, setOpenId] = useState("");
 
-  const selected = store.pcEnquiries.find((item) => item.id === openId)
+  const selected = store.pcEnquiries.find((item) => item.id === openId);
 
   const statuses: PcEnquiry["status"][] = [
     "New",
@@ -4752,13 +4463,12 @@ function PcRequests() {
     "Quoted",
 
     "Closed",
-  ]
+  ];
 
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-        Build enquiries customers sent to the IT HUB WhatsApp number from the PC
-        Builder.
+        Build enquiries customers sent to the IT HUB WhatsApp number from the PC Builder.
       </p>
       <DataTable
         rows={store.pcEnquiries.map((item) => ({
@@ -4798,17 +4508,17 @@ function PcRequests() {
             className="rounded border border-border p-2 text-xs"
             value={String(row.status)}
             onChange={(event) => {
-              const status = event.target.value as PcEnquiry["status"]
+              const status = event.target.value as PcEnquiry["status"];
 
               store.set({
                 pcEnquiries: store.pcEnquiries.map((item) =>
                   item.id === row.id ? { ...item, status } : item,
                 ),
-              })
+              });
 
-              store.log(`PC request ${row.id}: ${status}`)
+              store.log(`PC request ${row.id}: ${status}`);
 
-              store.notify("Request status updated")
+              store.notify("Request status updated");
             }}
           >
             {statuses.map((status) => (
@@ -4826,10 +4536,7 @@ function PcRequests() {
           <div className="space-y-3">
             <p className="text-sm">{selected.summary}</p>
             {selected.parts.map((part) => (
-              <p
-                key={`${part.type}-${part.name}`}
-                className="flex justify-between gap-3 text-xs"
-              >
+              <p key={`${part.type}-${part.name}`} className="flex justify-between gap-3 text-xs">
                 <span>
                   <strong>{part.type}</strong> · {part.name}
                 </span>
@@ -4843,29 +4550,29 @@ function PcRequests() {
         )}
       </Modal>
     </>
-  )
+  );
 }
 
 function SettingsPanel({ view }: { view: string }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [settings, setSettings] = useState(store.settings)
+  const [settings, setSettings] = useState(store.settings);
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   const save = (message: string) => {
-    store.set({ settings })
+    store.set({ settings });
 
-    store.log(message)
+    store.log(message);
 
-    store.notify("Settings saved")
-  }
+    store.notify("Settings saved");
+  };
 
-  const primary = store.locations[0]
+  const primary = store.locations[0];
 
-  if (view === "database") return <DatabaseConnectionPanel />
+  if (view === "database") return <DatabaseConnectionPanel />;
 
-  if (view === "privacy") return <PrivacyPanel />
+  if (view === "privacy") return <PrivacyPanel />;
 
   if (view === "location")
     return (
@@ -4880,15 +4587,15 @@ function SettingsPanel({ view }: { view: string }) {
               locations: previous.locations.length
                 ? [location, ...previous.locations.slice(1)]
                 : [location],
-            }))
+            }));
 
-            store.log("Primary IT HUB location updated")
+            store.log("Primary IT HUB location updated");
 
-            store.notify("Location saved")
+            store.notify("Location saved");
           }}
         />
       </Panel>
-    )
+    );
 
   if (view === "radius")
     return (
@@ -4898,13 +4605,8 @@ function SettingsPanel({ view }: { view: string }) {
       >
         <div className="space-y-4">
           {store.locations.map((location) => (
-            <div
-              key={location.id}
-              className="flex flex-wrap items-center gap-4"
-            >
-              <span className="min-w-48 text-sm font-semibold">
-                {location.name}
-              </span>
+            <div key={location.id} className="flex flex-wrap items-center gap-4">
+              <span className="min-w-48 text-sm font-semibold">{location.name}</span>
               <input
                 type="range"
                 min={1}
@@ -4930,16 +4632,12 @@ function SettingsPanel({ view }: { view: string }) {
             </div>
           ))}
           {!store.locations.length && (
-            <p className="text-xs text-muted-foreground">
-              Add a service area first.
-            </p>
+            <p className="text-xs text-muted-foreground">Add a service area first.</p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Changes save automatically.
-          </p>
+          <p className="text-xs text-muted-foreground">Changes save automatically.</p>
         </div>
       </Panel>
-    )
+    );
 
   if (view === "whatsapp")
     return (
@@ -4950,19 +4648,17 @@ function SettingsPanel({ view }: { view: string }) {
         <form
           className="max-w-md space-y-4"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
             if (!/^\d{10,15}$/.test(settings.whatsapp)) {
-              setError(
-                "Enter 10–15 digits including the country code, e.g. 919876543210.",
-              )
+              setError("Enter 10–15 digits including the country code, e.g. 919876543210.");
 
-              return
+              return;
             }
 
-            setError("")
+            setError("");
 
-            save("WhatsApp number updated")
+            save("WhatsApp number updated");
           }}
         >
           <Field label="WhatsApp number">
@@ -4998,33 +4694,31 @@ function SettingsPanel({ view }: { view: string }) {
           <Button type="submit">Save number</Button>
         </form>
       </Panel>
-    )
+    );
 
   return (
     <Panel title="Store information">
       <form
         className="max-w-2xl space-y-5"
         onSubmit={(event) => {
-          event.preventDefault()
+          event.preventDefault();
 
           if (settings.email && !/^\S+@\S+\.\S+$/.test(settings.email)) {
-            setError("Enter a valid email address.")
+            setError("Enter a valid email address.");
 
-            return
+            return;
           }
 
-          setError("")
+          setError("");
 
-          save("Store information updated")
+          save("Store information updated");
         }}
       >
         <Field label="Store name">
           <input
             required
             value={settings.storeName}
-            onChange={(event) =>
-              setSettings({ ...settings, storeName: event.target.value })
-            }
+            onChange={(event) => setSettings({ ...settings, storeName: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -5032,9 +4726,7 @@ function SettingsPanel({ view }: { view: string }) {
           <textarea
             rows={2}
             value={settings.address}
-            onChange={(event) =>
-              setSettings({ ...settings, address: event.target.value })
-            }
+            onChange={(event) => setSettings({ ...settings, address: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -5042,9 +4734,7 @@ function SettingsPanel({ view }: { view: string }) {
           <Field label="Phone">
             <input
               value={settings.phone}
-              onChange={(event) =>
-                setSettings({ ...settings, phone: event.target.value })
-              }
+              onChange={(event) => setSettings({ ...settings, phone: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -5052,9 +4742,7 @@ function SettingsPanel({ view }: { view: string }) {
             <input
               type="email"
               value={settings.email}
-              onChange={(event) =>
-                setSettings({ ...settings, email: event.target.value })
-              }
+              onChange={(event) => setSettings({ ...settings, email: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -5063,9 +4751,7 @@ function SettingsPanel({ view }: { view: string }) {
           <input
             required
             value={settings.delivery}
-            onChange={(event) =>
-              setSettings({ ...settings, delivery: event.target.value })
-            }
+            onChange={(event) => setSettings({ ...settings, delivery: event.target.value })}
             className={fieldClass}
           />
         </Field>
@@ -5092,21 +4778,21 @@ function SettingsPanel({ view }: { view: string }) {
         <Button type="submit">Save store information</Button>
       </form>
     </Panel>
-  )
+  );
 }
 
 function ResourceManager({ section }: { section: string }) {
-  const store = useStore()
+  const store = useStore();
 
-  const config = resourceDefinitions[section]
+  const config = resourceDefinitions[section];
 
-  const rows = store.resources[section] || []
+  const rows = store.resources[section] || [];
 
-  const [editing, setEditing] = useState<AdminRecord | null>(null)
+  const [editing, setEditing] = useState<AdminRecord | null>(null);
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<AdminRecord>({
     id: "",
@@ -5118,20 +4804,18 @@ function ResourceManager({ section }: { section: string }) {
     value: "",
 
     status: config.statuses[0],
-  })
+  });
 
-  const immutable = section === "compatibility"
+  const immutable = section === "compatibility";
 
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-xl text-xs leading-6 text-muted-foreground">
-          {config.description}
-        </p>
+        <p className="max-w-xl text-xs leading-6 text-muted-foreground">{config.description}</p>
         {!immutable && (
           <Button
             onClick={() => {
-              setEditing(null)
+              setEditing(null);
 
               setDraft({
                 id: "",
@@ -5143,9 +4827,9 @@ function ResourceManager({ section }: { section: string }) {
                 value: "",
 
                 status: config.statuses[0],
-              })
+              });
 
-              setOpen(true)
+              setOpen(true);
             }}
           >
             <Plus size={14} />
@@ -5178,19 +4862,16 @@ function ResourceManager({ section }: { section: string }) {
                   <button
                     className="text-primary"
                     onClick={() => {
-                      setEditing(row as AdminRecord)
+                      setEditing(row as AdminRecord);
 
-                      setDraft(row as AdminRecord)
+                      setDraft(row as AdminRecord);
 
-                      setOpen(true)
+                      setOpen(true);
                     }}
                   >
                     Edit
                   </button>
-                  <button
-                    className="text-red-600"
-                    onClick={() => setDeleting(row.id)}
-                  >
+                  <button className="text-red-600" onClick={() => setDeleting(row.id)}>
                     Delete
                   </button>
                 </div>
@@ -5210,9 +4891,9 @@ function ResourceManager({ section }: { section: string }) {
         <form
           className="space-y-5"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
-            const next = { ...draft, id: editing?.id || crypto.randomUUID() }
+            const next = { ...draft, id: editing?.id || crypto.randomUUID() };
 
             store.set({
               resources: {
@@ -5222,17 +4903,13 @@ function ResourceManager({ section }: { section: string }) {
                   ? rows.map((item) => (item.id === editing.id ? next : item))
                   : [...rows, next],
               },
-            })
+            });
 
-            store.log(
-              `${config.title}: ${
-                editing ? "updated" : "created"
-              } ${next.name}`,
-            )
+            store.log(`${config.title}: ${editing ? "updated" : "created"} ${next.name}`);
 
-            setOpen(false)
+            setOpen(false);
 
-            store.notify("Record saved")
+            store.notify("Record saved");
           }}
         >
           {(["name", "detail", "value"] as const).map((key, index) => (
@@ -5240,9 +4917,7 @@ function ResourceManager({ section }: { section: string }) {
               <input
                 required
                 value={draft[key]}
-                onChange={(event) =>
-                  setDraft({ ...draft, [key]: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
                 className={fieldClass}
               />
             </Field>
@@ -5250,9 +4925,7 @@ function ResourceManager({ section }: { section: string }) {
           <Field label="Status">
             <select
               value={draft.status}
-              onChange={(event) =>
-                setDraft({ ...draft, status: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, status: event.target.value })}
               className={fieldClass}
             >
               {config.statuses.map((status) => (
@@ -5266,7 +4939,7 @@ function ResourceManager({ section }: { section: string }) {
       <Modal
         open={Boolean(deleting)}
         onOpenChange={(open) => {
-          if (!open) setDeleting(null)
+          if (!open) setDeleting(null);
         }}
         title="Delete demo record?"
       >
@@ -5281,58 +4954,58 @@ function ResourceManager({ section }: { section: string }) {
 
                 [section]: rows.filter((item) => item.id !== deleting),
               },
-            })
+            });
 
-            store.log(`${config.title}: record deleted`)
+            store.log(`${config.title}: record deleted`);
 
-            setDeleting(null)
+            setDeleting(null);
 
-            store.notify("Record deleted")
+            store.notify("Record deleted");
           }}
         >
           Confirm deletion
         </Button>
       </Modal>
     </>
-  )
+  );
 }
 
 function ShowcaseManager() {
-  const store = useStore()
+  const store = useStore();
 
-  const [caption, setCaption] = useState("")
+  const [caption, setCaption] = useState("");
 
-  const [remove, setRemove] = useState<string | null>(null)
+  const [remove, setRemove] = useState<string | null>(null);
 
   const upload = (files: FileList | null) => {
-    if (!files?.length) return
+    if (!files?.length) return;
 
     Array.from(files).forEach((file) => {
-      if (!file.type.startsWith("image/")) return
+      if (!file.type.startsWith("image/")) return;
 
-      const reader = new FileReader()
+      const reader = new FileReader();
 
       reader.onload = () => {
         // Downscale so the prototype's localStorage can hold several uploads.
 
-        const img = new Image()
+        const img = new Image();
 
         img.onload = () => {
-          const scale = Math.min(1, 900 / Math.max(img.width, img.height))
+          const scale = Math.min(1, 900 / Math.max(img.width, img.height));
 
-          const canvas = document.createElement("canvas")
+          const canvas = document.createElement("canvas");
 
-          canvas.width = Math.round(img.width * scale)
+          canvas.width = Math.round(img.width * scale);
 
-          canvas.height = Math.round(img.height * scale)
+          canvas.height = Math.round(img.height * scale);
 
           canvas
 
             .getContext("2d")!
 
-            .drawImage(img, 0, 0, canvas.width, canvas.height)
+            .drawImage(img, 0, 0, canvas.width, canvas.height);
 
-          const src = canvas.toDataURL("image/jpeg", 0.82)
+          const src = canvas.toDataURL("image/jpeg", 0.82);
 
           store.set((s) => ({
             showcase: [
@@ -5346,35 +5019,32 @@ function ShowcaseManager() {
 
               ...s.showcase,
             ],
-          }))
+          }));
 
-          store.log(`Added showcase image ${file.name}`)
-        }
+          store.log(`Added showcase image ${file.name}`);
+        };
 
-        img.src = String(reader.result)
-      }
+        img.src = String(reader.result);
+      };
 
-      reader.readAsDataURL(file)
-    })
+      reader.readAsDataURL(file);
+    });
 
-    setCaption("")
+    setCaption("");
 
     store.notify(
-      files.length > 1
-        ? `${files.length} images added to showcase`
-        : "Image added to showcase",
-    )
-  }
+      files.length > 1 ? `${files.length} images added to showcase` : "Image added to showcase",
+    );
+  };
 
-  const target = store.showcase.find((item) => item.id === remove)
+  const target = store.showcase.find((item) => item.id === remove);
 
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-border bg-white p-5">
         <h3 className="text-sm font-bold">Add showcase images</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Images appear in the "Happy customers" section on the storefront home
-          page. Newest first.
+          Images appear in the "Happy customers" section on the storefront home page. Newest first.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
           <input
@@ -5391,9 +5061,9 @@ function ShowcaseManager() {
               multiple
               className="sr-only"
               onChange={(e) => {
-                upload(e.target.files)
+                upload(e.target.files);
 
-                e.target.value = ""
+                e.target.value = "";
               }}
             />
           </label>
@@ -5411,11 +5081,7 @@ function ShowcaseManager() {
               key={item.id}
               className="group relative overflow-hidden rounded-xl border border-border bg-muted"
             >
-              <img
-                src={item.src}
-                alt={item.caption}
-                className="aspect-[4/5] w-full object-cover"
-              />
+              <img src={item.src} alt={item.caption} className="aspect-[4/5] w-full object-cover" />
               <figcaption className="truncate px-3 py-2 text-[11px] text-muted-foreground">
                 {item.caption}
               </figcaption>
@@ -5438,11 +5104,7 @@ function ShowcaseManager() {
         description="It will be removed from the storefront showcase."
       >
         {target && (
-          <img
-            src={target.src}
-            alt=""
-            className="mb-5 max-h-60 w-full rounded-xl object-cover"
-          />
+          <img src={target.src} alt="" className="mb-5 max-h-60 w-full rounded-xl object-cover" />
         )}
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setRemove(null)}>
@@ -5453,13 +5115,13 @@ function ShowcaseManager() {
             onClick={() => {
               store.set((s) => ({
                 showcase: s.showcase.filter((item) => item.id !== remove),
-              }))
+              }));
 
-              store.log("Deleted a showcase image")
+              store.log("Deleted a showcase image");
 
-              store.notify("Image removed from showcase")
+              store.notify("Image removed from showcase");
 
-              setRemove(null)
+              setRemove(null);
             }}
           >
             <Trash2 size={15} /> Delete
@@ -5467,21 +5129,18 @@ function ShowcaseManager() {
         </div>
       </Modal>
     </div>
-  )
+  );
 }
 
 const supportWarning =
-  "Only enter numbers and URLs taken from the manufacturer's official website. Do not guess support details."
+  "Only enter numbers and URLs taken from the manufacturer's official website. Do not guess support details.";
 
 const emptySupport = (category = ""): BrandSupport => ({
   id: "",
 
   brand: "",
 
-  category:
-    category === "all" || category === "centres" || category === "history"
-      ? ""
-      : category,
+  category: category === "all" || category === "centres" || category === "history" ? "" : category,
 
   warrantyPhone: "",
 
@@ -5516,7 +5175,7 @@ const emptySupport = (category = ""): BrandSupport => ({
   createdAt: "",
 
   updatedAt: "",
-})
+});
 
 const emptyServiceCentre = (category = ""): ServiceCentre => ({
   id: "",
@@ -5526,9 +5185,7 @@ const emptyServiceCentre = (category = ""): ServiceCentre => ({
   brandName: "",
 
   category:
-    category === "all" || category === "centres" || category === "history"
-      ? "laptop"
-      : category,
+    category === "all" || category === "centres" || category === "history" ? "laptop" : category,
 
   address: "",
 
@@ -5557,7 +5214,7 @@ const emptyServiceCentre = (category = ""): ServiceCentre => ({
   active: true,
 
   verifiedAt: new Date().toISOString(),
-})
+});
 
 const contactKeys = [
   "warrantyPhone",
@@ -5571,52 +5228,47 @@ const contactKeys = [
   "serviceLocatorUrl",
 
   "email",
-] as const
+] as const;
 
 const badUrl = (value?: string) => {
-  if (!value || !value.trim()) return false
+  if (!value || !value.trim()) return false;
 
-  return !/^https:\/\/\S+$/i.test(value.trim())
-}
+  return !/^https:\/\/\S+$/i.test(value.trim());
+};
 
 function SupportAdmin({ view }: { view: string }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [status, setStatus] = useState("all")
+  const [status, setStatus] = useState("all");
 
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState("");
 
-  const [editing, setEditing] = useState<BrandSupport | null>(null)
+  const [editing, setEditing] = useState<BrandSupport | null>(null);
 
-  const [verifying, setVerifying] = useState<BrandSupport | null>(null)
+  const [verifying, setVerifying] = useState<BrandSupport | null>(null);
 
-  const [removing, setRemoving] = useState<BrandSupport | null>(null)
+  const [removing, setRemoving] = useState<BrandSupport | null>(null);
 
-  const [editingCentre, setEditingCentre] = useState<ServiceCentre | null>(null)
+  const [editingCentre, setEditingCentre] = useState<ServiceCentre | null>(null);
 
-  const [removingCentre, setRemovingCentre] = useState<ServiceCentre | null>(
-    null,
-  )
+  const [removingCentre, setRemovingCentre] = useState<ServiceCentre | null>(null);
 
   const settingsStatus = useMemo(
     () => checkStoreSettingsCompleteness(store.settings),
 
     [store.settings],
-  )
+  );
 
   const categoryName = (id: string) =>
-    store.supportCategories.find((item) => item.id === id)?.name || id
+    store.supportCategories.find((item) => item.id === id)?.name || id;
 
-  const history = view === "history"
+  const history = view === "history";
 
-  const isCentres = view === "centres"
+  const isCentres = view === "centres";
 
   const rows = store.brandSupport
 
-    .filter(
-      (item) =>
-        view === "all" || history || isCentres || item.category === view,
-    )
+    .filter((item) => view === "all" || history || isCentres || item.category === view)
 
     .filter((item) =>
       status === "all"
@@ -5650,7 +5302,7 @@ function SupportAdmin({ view }: { view: string }) {
         .toLowerCase()
 
         .includes(query.toLowerCase()),
-    )
+    );
 
   const centreRows = store.serviceCentres.filter((item) =>
     [
@@ -5672,16 +5324,14 @@ function SupportAdmin({ view }: { view: string }) {
       .toLowerCase()
 
       .includes(query.toLowerCase()),
-  )
+  );
 
   const update = (id: string, patch: Partial<BrandSupport>) =>
     store.set((state) => ({
       brandSupport: state.brandSupport.map((item) =>
-        item.id === id
-          ? { ...item, ...patch, updatedAt: new Date().toISOString() }
-          : item,
+        item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item,
       ),
-    }))
+    }));
 
   return (
     <>
@@ -5691,12 +5341,8 @@ function SupportAdmin({ view }: { view: string }) {
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
             <div>
-              <p className="font-bold">
-                Attention: Store Settings Contact Details Incomplete
-              </p>
-              <p className="mt-1 text-xs leading-5">
-                {settingsStatus.warningMessage}
-              </p>
+              <p className="font-bold">Attention: Store Settings Contact Details Incomplete</p>
+              <p className="mt-1 text-xs leading-5">{settingsStatus.warningMessage}</p>
             </div>
           </div>
         </div>
@@ -5757,10 +5403,7 @@ function SupportAdmin({ view }: { view: string }) {
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="relative w-full max-w-xs">
-              <Search
-                size={15}
-                className="absolute left-3 top-3 text-muted-foreground"
-              />
+              <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -5768,10 +5411,7 @@ function SupportAdmin({ view }: { view: string }) {
                 className={`${fieldClass} pl-9`}
               />
             </div>
-            <Button
-              className="ml-auto"
-              onClick={() => setEditingCentre(emptyServiceCentre())}
-            >
+            <Button className="ml-auto" onClick={() => setEditingCentre(emptyServiceCentre())}>
               <Plus size={14} /> Add authorized service centre
             </Button>
           </div>
@@ -5802,10 +5442,7 @@ function SupportAdmin({ view }: { view: string }) {
               </thead>
               <tbody>
                 {centreRows.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t border-border align-top"
-                  >
+                  <tr key={item.id} className="border-t border-border align-top">
                     <td className="px-4 py-3 font-semibold max-w-[200px]">
                       <div>{item.name}</div>
                       <div className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
@@ -5828,9 +5465,7 @@ function SupportAdmin({ view }: { view: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <div>{item.phone || "—"}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {item.email || ""}
-                      </div>
+                      <div className="text-[10px] text-muted-foreground">{item.email || ""}</div>
                     </td>
                     <td className="px-4 py-3">
                       {item.isAuthorized ? (
@@ -5841,26 +5476,16 @@ function SupportAdmin({ view }: { view: string }) {
                     </td>
                     <td className="px-4 py-3">
                       {item.verifiedAt ? (
-                        <span className="text-emerald-700 font-semibold">
-                          Verified
-                        </span>
+                        <span className="text-emerald-700 font-semibold">Verified</span>
                       ) : (
-                        <span className="text-amber-700 font-semibold">
-                          Pending
-                        </span>
+                        <span className="text-amber-700 font-semibold">Pending</span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        className="mr-3"
-                        onClick={() => setEditingCentre(item)}
-                      >
+                      <button className="mr-3" onClick={() => setEditingCentre(item)}>
                         <Pencil size={13} />
                       </button>
-                      <button
-                        className="text-red-600"
-                        onClick={() => setRemovingCentre(item)}
-                      >
+                      <button className="text-red-600" onClick={() => setRemovingCentre(item)}>
                         <Trash2 size={13} />
                       </button>
                     </td>
@@ -5882,10 +5507,7 @@ function SupportAdmin({ view }: { view: string }) {
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="relative w-full max-w-xs">
-              <Search
-                size={15}
-                className="absolute left-3 top-3 text-muted-foreground"
-              />
+              <Search size={15} className="absolute left-3 top-3 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -5907,9 +5529,7 @@ function SupportAdmin({ view }: { view: string }) {
             </select>
             <Button
               className="ml-auto"
-              onClick={() =>
-                setEditing(emptySupport(view === "all" ? "" : view))
-              }
+              onClick={() => setEditing(emptySupport(view === "all" ? "" : view))}
             >
               <Plus size={14} /> Add brand support
             </Button>
@@ -5943,10 +5563,7 @@ function SupportAdmin({ view }: { view: string }) {
               </thead>
               <tbody>
                 {rows.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t border-border align-top"
-                  >
+                  <tr key={item.id} className="border-t border-border align-top">
                     <td className="px-4 py-3 font-semibold">
                       {item.brand}
                       {item.popular && (
@@ -5958,10 +5575,7 @@ function SupportAdmin({ view }: { view: string }) {
                     <td className="px-4 py-3">{categoryName(item.category)}</td>
                     <td className="px-4 py-3">
                       <div>
-                        Warranty:{" "}
-                        <span className="font-semibold">
-                          {item.warrantyPhone || "—"}
-                        </span>
+                        Warranty: <span className="font-semibold">{item.warrantyPhone || "—"}</span>
                       </div>
                       <div>Care: {item.customerCarePhone || "—"}</div>
                     </td>
@@ -5993,10 +5607,8 @@ function SupportAdmin({ view }: { view: string }) {
                         <>
                           <Badge tone="green">Verified</Badge>
                           <div className="mt-1 text-[10px] text-muted-foreground">
-                            {new Date(item.lastVerifiedAt).toLocaleDateString(
-                              "en-IN",
-                            )}{" "}
-                            · {item.verifiedBy}
+                            {new Date(item.lastVerifiedAt).toLocaleDateString("en-IN")} ·{" "}
+                            {item.verifiedBy}
                           </div>
                         </>
                       ) : (
@@ -6022,17 +5634,15 @@ function SupportAdmin({ view }: { view: string }) {
                             : "bg-muted text-muted-foreground"
                         }`}
                         onClick={() => {
-                          update(item.id, { active: !item.active })
+                          update(item.id, { active: !item.active });
 
                           store.log(
                             `Brand support ${
                               item.active ? "disabled" : "enabled"
                             }: ${item.brand} (${item.category})`,
-                          )
+                          );
 
-                          store.notify(
-                            item.active ? "Record disabled" : "Record enabled",
-                          )
+                          store.notify(item.active ? "Record disabled" : "Record enabled");
                         }}
                       >
                         {item.active ? "Enabled" : "Disabled"}
@@ -6048,10 +5658,7 @@ function SupportAdmin({ view }: { view: string }) {
                       <button className="mr-3" onClick={() => setEditing(item)}>
                         <Pencil size={13} />
                       </button>
-                      <button
-                        className="text-red-600"
-                        onClick={() => setRemoving(item)}
-                      >
+                      <button className="text-red-600" onClick={() => setRemoving(item)}>
                         <Trash2 size={13} />
                       </button>
                     </td>
@@ -6072,21 +5679,14 @@ function SupportAdmin({ view }: { view: string }) {
       {/* Modals */}
       <SupportEditor record={editing} onClose={() => setEditing(null)} />
       <VerifyModal record={verifying} onClose={() => setVerifying(null)} />
-      <ServiceCentreEditor
-        record={editingCentre}
-        onClose={() => setEditingCentre(null)}
-      />
+      <ServiceCentreEditor record={editingCentre} onClose={() => setEditingCentre(null)} />
 
       {/* Remove Brand Support Modal */}
       <Modal
         open={Boolean(removing)}
         onOpenChange={(open) => !open && setRemoving(null)}
         title="Delete support record?"
-        description={
-          removing
-            ? `${removing.brand} · ${categoryName(removing.category)}`
-            : ""
-        }
+        description={removing ? `${removing.brand} · ${categoryName(removing.category)}` : ""}
         size="max-w-md"
       >
         <div className="flex justify-end gap-3">
@@ -6095,21 +5695,17 @@ function SupportAdmin({ view }: { view: string }) {
           </Button>
           <Button
             onClick={() => {
-              if (!removing) return
+              if (!removing) return;
 
               store.set((state) => ({
-                brandSupport: state.brandSupport.filter(
-                  (item) => item.id !== removing.id,
-                ),
-              }))
+                brandSupport: state.brandSupport.filter((item) => item.id !== removing.id),
+              }));
 
-              store.log(
-                `Brand support deleted: ${removing.brand} (${removing.category})`,
-              )
+              store.log(`Brand support deleted: ${removing.brand} (${removing.category})`);
 
-              store.notify("Support record deleted")
+              store.notify("Support record deleted");
 
-              setRemoving(null)
+              setRemoving(null);
             }}
           >
             Delete
@@ -6122,11 +5718,7 @@ function SupportAdmin({ view }: { view: string }) {
         open={Boolean(removingCentre)}
         onOpenChange={(open) => !open && setRemovingCentre(null)}
         title="Delete authorized service centre?"
-        description={
-          removingCentre
-            ? `${removingCentre.name} (${removingCentre.city})`
-            : ""
-        }
+        description={removingCentre ? `${removingCentre.name} (${removingCentre.city})` : ""}
         size="max-w-md"
       >
         <div className="flex justify-end gap-3">
@@ -6135,19 +5727,19 @@ function SupportAdmin({ view }: { view: string }) {
           </Button>
           <Button
             onClick={() => {
-              if (!removingCentre) return
+              if (!removingCentre) return;
 
               store.set((state) => ({
                 serviceCentres: state.serviceCentres.filter(
                   (item) => item.id !== removingCentre.id,
                 ),
-              }))
+              }));
 
-              store.log(`Service centre deleted: ${removingCentre.name}`)
+              store.log(`Service centre deleted: ${removingCentre.name}`);
 
-              store.notify("Service centre deleted")
+              store.notify("Service centre deleted");
 
-              setRemovingCentre(null)
+              setRemovingCentre(null);
             }}
           >
             Delete
@@ -6155,7 +5747,7 @@ function SupportAdmin({ view }: { view: string }) {
         </div>
       </Modal>
     </>
-  )
+  );
 }
 
 const appendVerification = (
@@ -6182,34 +5774,34 @@ const appendVerification = (
   changes,
 
   date: new Date().toISOString(),
-})
+});
 
 function SupportEditor({
   record,
 
   onClose,
 }: {
-  record: BrandSupport | null
+  record: BrandSupport | null;
 
-  onClose: () => void
+  onClose: () => void;
 }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [form, setForm] = useState<BrandSupport>(emptySupport())
+  const [form, setForm] = useState<BrandSupport>(emptySupport());
 
-  const [reverify, setReverify] = useState(false)
+  const [reverify, setReverify] = useState(false);
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (record) {
-      setForm(record)
+      setForm(record);
 
-      setReverify(false)
+      setReverify(false);
 
-      setError("")
+      setError("");
     }
-  }, [record])
+  }, [record]);
 
   const field = (key: keyof BrandSupport, label: string, placeholder = "") => (
     <Field label={label}>
@@ -6220,13 +5812,12 @@ function SupportEditor({
         className={fieldClass}
       />
     </Field>
-  )
+  );
 
   const save = () => {
-    const brand = form.brand.trim()
+    const brand = form.brand.trim();
 
-    if (!brand || !form.category)
-      return setError("Brand and category are required.")
+    if (!brand || !form.category) return setError("Brand and category are required.");
 
     for (const key of [
       "supportUrl",
@@ -6237,7 +5828,7 @@ function SupportEditor({
 
       "sourceUrl",
     ] as const)
-      if (badUrl(form[key])) return setError(`${key} must start with https://`)
+      if (badUrl(form[key])) return setError(`${key} must start with https://`);
 
     if (
       store.brandSupport.some(
@@ -6247,28 +5838,26 @@ function SupportEditor({
           item.brand.toLowerCase() === brand.toLowerCase(),
       )
     )
-      return setError("This brand already has a record for this category.")
+      return setError("This brand already has a record for this category.");
 
     if (form.isPublished && !form.sourceUrl.trim()) {
-      return setError("Publishing requires an official source URL (https://).")
+      return setError("Publishing requires an official source URL (https://).");
     }
 
     if (form.isPublished && !form.lastVerifiedAt && !reverify) {
       return setError(
         "Cannot publish unverified records. Please confirm verification against the official source.",
-      )
+      );
     }
 
     if (reverify && (!form.sourceUrl.trim() || !form.verifiedBy.trim()))
-      return setError("Re-verifying requires a source URL and verifier name.")
+      return setError("Re-verifying requires a source URL and verifier name.");
 
-    const now = new Date().toISOString()
+    const now = new Date().toISOString();
 
     const changed = record?.id
-      ? contactKeys.filter(
-          (key) => (record[key] || "").trim() !== (form[key] || "").trim(),
-        )
-      : []
+      ? contactKeys.filter((key) => (record[key] || "").trim() !== (form[key] || "").trim())
+      : [];
 
     let next: BrandSupport = {
       ...form,
@@ -6278,7 +5867,7 @@ function SupportEditor({
       updatedAt: now,
 
       region: "India",
-    }
+    };
 
     if (!record?.id) {
       next = {
@@ -6287,7 +5876,7 @@ function SupportEditor({
         id: `${form.category}-${brand.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
 
         createdAt: now,
-      }
+      };
     }
 
     if (reverify) {
@@ -6297,7 +5886,7 @@ function SupportEditor({
         lastVerifiedAt: now,
 
         verificationStatus: "verified",
-      }
+      };
     } else if (!record?.id || changed.length) {
       next = {
         ...next,
@@ -6309,7 +5898,7 @@ function SupportEditor({
         verificationStatus: "pending_verification",
 
         isPublished: false, // unpublish until verified
-      }
+      };
     }
 
     store.set((state) => ({
@@ -6328,28 +5917,22 @@ function SupportEditor({
 
               next.sourceUrl.trim(),
 
-              changed.length
-                ? `Updated: ${changed.join(", ")}`
-                : "Re-verified on save",
+              changed.length ? `Updated: ${changed.join(", ")}` : "Re-verified on save",
             ),
           ]
         : state.supportVerifications,
-    }))
+    }));
 
-    store.log(
-      `Brand support ${
-        record?.id ? "updated" : "added"
-      }: ${brand} (${form.category})`,
-    )
+    store.log(`Brand support ${record?.id ? "updated" : "added"}: ${brand} (${form.category})`);
 
     store.notify(
       changed.length && !reverify
         ? "Saved — contact details changed, marked Unverified and Draft"
         : "Support record saved",
-    )
+    );
 
-    onClose()
-  }
+    onClose();
+  };
 
   return (
     <Modal
@@ -6363,9 +5946,7 @@ function SupportEditor({
         <Field label="Category">
           <select
             value={form.category}
-            onChange={(event) =>
-              setForm({ ...form, category: event.target.value })
-            }
+            onChange={(event) => setForm({ ...form, category: event.target.value })}
             className={fieldClass}
           >
             <option value="">Select category</option>
@@ -6391,21 +5972,16 @@ function SupportEditor({
             <input
               type="checkbox"
               checked={form.isPublished ?? false}
-              onChange={(event) =>
-                setForm({ ...form, isPublished: event.target.checked })
-              }
+              onChange={(event) => setForm({ ...form, isPublished: event.target.checked })}
             />{" "}
-            <strong>Published on Storefront</strong> (Requires verified source
-            URL)
+            <strong>Published on Storefront</strong> (Requires verified source URL)
           </label>
           <div className="flex gap-4 mt-1">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={form.popular}
-                onChange={(event) =>
-                  setForm({ ...form, popular: event.target.checked })
-                }
+                onChange={(event) => setForm({ ...form, popular: event.target.checked })}
               />{" "}
               Popular brand
             </label>
@@ -6413,9 +5989,7 @@ function SupportEditor({
               <input
                 type="checkbox"
                 checked={form.active}
-                onChange={(event) =>
-                  setForm({ ...form, active: event.target.checked })
-                }
+                onChange={(event) => setForm({ ...form, active: event.target.checked })}
               />{" "}
               Active
             </label>
@@ -6426,9 +6000,7 @@ function SupportEditor({
           <Field label="Notes">
             <textarea
               value={form.notes}
-              onChange={(event) =>
-                setForm({ ...form, notes: event.target.value })
-              }
+              onChange={(event) => setForm({ ...form, notes: event.target.value })}
               className={`${fieldClass} min-h-20`}
             />
           </Field>
@@ -6440,14 +6012,12 @@ function SupportEditor({
             checked={reverify}
             onChange={(event) => setReverify(event.target.checked)}
           />
-          I have confirmed these details against the official manufacturer
-          source and authorize publication
+          I have confirmed these details against the official manufacturer source and authorize
+          publication
         </label>
       </div>
 
-      {error && (
-        <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>
-      )}
+      {error && <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>}
 
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
@@ -6456,7 +6026,7 @@ function SupportEditor({
         <Button onClick={save}>Save Support Record</Button>
       </div>
     </Modal>
-  )
+  );
 }
 
 function ServiceCentreEditor({
@@ -6464,51 +6034,47 @@ function ServiceCentreEditor({
 
   onClose,
 }: {
-  record: ServiceCentre | null
+  record: ServiceCentre | null;
 
-  onClose: () => void
+  onClose: () => void;
 }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [form, setForm] = useState<ServiceCentre>(emptyServiceCentre())
+  const [form, setForm] = useState<ServiceCentre>(emptyServiceCentre());
 
-  const [servicesInput, setServicesInput] = useState("")
+  const [servicesInput, setServicesInput] = useState("");
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (record) {
-      setForm(record)
+      setForm(record);
 
-      setServicesInput((record.servicesOffered || []).join(", "))
+      setServicesInput((record.servicesOffered || []).join(", "));
 
-      setError("")
+      setError("");
     }
-  }, [record])
+  }, [record]);
 
   const save = () => {
-    const name = form.name.trim()
+    const name = form.name.trim();
 
-    const brandName = form.brandName.trim()
+    const brandName = form.brandName.trim();
 
-    const pincode = form.pincode.trim()
+    const pincode = form.pincode.trim();
 
-    const sourceUrl = form.sourceUrl.trim()
+    const sourceUrl = form.sourceUrl.trim();
 
     if (!name || !brandName || !form.category) {
-      return setError("Centre name, brand name, and category are required.")
+      return setError("Centre name, brand name, and category are required.");
     }
 
     if (!validateIndianPincode(pincode)) {
-      return setError(
-        "PIN code must be a valid 6-digit Indian PIN code (e.g. 686691).",
-      )
+      return setError("PIN code must be a valid 6-digit Indian PIN code (e.g. 686691).");
     }
 
     if (!validateHttpsUrl(sourceUrl)) {
-      return setError(
-        "Official source URL is mandatory and must start with https://.",
-      )
+      return setError("Official source URL is mandatory and must start with https://.");
     }
 
     const services = servicesInput
@@ -6517,7 +6083,7 @@ function ServiceCentreEditor({
 
       .map((s) => s.trim())
 
-      .filter(Boolean)
+      .filter(Boolean);
 
     const next: ServiceCentre = {
       ...form,
@@ -6537,32 +6103,26 @@ function ServiceCentreEditor({
         `sc-${brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
 
       verifiedAt: form.verifiedAt || new Date().toISOString(),
-    }
+    };
 
     store.set((state) => ({
       serviceCentres: record?.id
-        ? state.serviceCentres.map((item) =>
-            item.id === next.id ? next : item,
-          )
+        ? state.serviceCentres.map((item) => (item.id === next.id ? next : item))
         : [...state.serviceCentres, next],
-    }))
+    }));
 
-    store.log(`Service centre ${record?.id ? "updated" : "added"}: ${name}`)
+    store.log(`Service centre ${record?.id ? "updated" : "added"}: ${name}`);
 
-    store.notify("Service centre saved")
+    store.notify("Service centre saved");
 
-    onClose()
-  }
+    onClose();
+  };
 
   return (
     <Modal
       open={Boolean(record)}
       onOpenChange={(open) => !open && onClose()}
-      title={
-        record?.id
-          ? "Edit Authorized Service Centre"
-          : "Add Authorized Service Centre"
-      }
+      title={record?.id ? "Edit Authorized Service Centre" : "Add Authorized Service Centre"}
       description="Record verified manufacturer-authorized service delivery locations in Kerala. Never fabricate details."
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -6701,9 +6261,7 @@ function ServiceCentreEditor({
           <Field label="Authorization Evidence Note">
             <input
               value={form.authorizationEvidence || ""}
-              onChange={(e) =>
-                setForm({ ...form, authorizationEvidence: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, authorizationEvidence: e.target.value })}
               placeholder="e.g. Official HP India Service Delivery Partner Network"
               className={fieldClass}
             />
@@ -6714,9 +6272,7 @@ function ServiceCentreEditor({
             <input
               type="checkbox"
               checked={form.isAuthorized}
-              onChange={(e) =>
-                setForm({ ...form, isAuthorized: e.target.checked })
-              }
+              onChange={(e) => setForm({ ...form, isAuthorized: e.target.checked })}
             />
             Official Manufacturer-Authorized Centre
           </label>
@@ -6731,9 +6287,7 @@ function ServiceCentreEditor({
         </div>
       </div>
 
-      {error && (
-        <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>
-      )}
+      {error && <p className="mt-4 text-sm text-red-600 font-semibold">{error}</p>}
 
       <div className="mt-6 flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
@@ -6742,7 +6296,7 @@ function ServiceCentreEditor({
         <Button onClick={save}>Save Service Centre</Button>
       </div>
     </Modal>
-  )
+  );
 }
 
 function VerifyModal({
@@ -6750,27 +6304,27 @@ function VerifyModal({
 
   onClose,
 }: {
-  record: BrandSupport | null
+  record: BrandSupport | null;
 
-  onClose: () => void
+  onClose: () => void;
 }) {
-  const store = useStore()
+  const store = useStore();
 
-  const [sourceUrl, setSourceUrl] = useState("")
+  const [sourceUrl, setSourceUrl] = useState("");
 
-  const [verifiedBy, setVerifiedBy] = useState("")
+  const [verifiedBy, setVerifiedBy] = useState("");
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (record) {
-      setSourceUrl(record.sourceUrl)
+      setSourceUrl(record.sourceUrl);
 
-      setVerifiedBy(record.verifiedBy || "Store Administrator")
+      setVerifiedBy(record.verifiedBy || "Store Administrator");
 
-      setError("")
+      setError("");
     }
-  }, [record])
+  }, [record]);
 
   return (
     <Modal
@@ -6787,16 +6341,16 @@ function VerifyModal({
       <form
         className="grid gap-4"
         onSubmit={(event) => {
-          event.preventDefault()
+          event.preventDefault();
 
-          if (!record) return
+          if (!record) return;
 
           if (!sourceUrl.trim() || badUrl(sourceUrl))
-            return setError("Enter the official source URL (https://).")
+            return setError("Enter the official source URL (https://).");
 
-          if (!verifiedBy.trim()) return setError("Enter the verifier name.")
+          if (!verifiedBy.trim()) return setError("Enter the verifier name.");
 
-          const now = new Date().toISOString()
+          const now = new Date().toISOString();
 
           const next: BrandSupport = {
             ...record,
@@ -6812,12 +6366,10 @@ function VerifyModal({
             isPublished: true,
 
             updatedAt: now,
-          }
+          };
 
           store.set((state) => ({
-            brandSupport: state.brandSupport.map((item) =>
-              item.id === record.id ? next : item,
-            ),
+            brandSupport: state.brandSupport.map((item) => (item.id === record.id ? next : item)),
 
             supportVerifications: [
               ...state.supportVerifications,
@@ -6832,15 +6384,13 @@ function VerifyModal({
                 "Marked verified & published",
               ),
             ],
-          }))
+          }));
 
-          store.log(
-            `Brand support verified: ${record.brand} (${record.category})`,
-          )
+          store.log(`Brand support verified: ${record.brand} (${record.category})`);
 
-          store.notify("Marked as verified and published on storefront")
+          store.notify("Marked as verified and published on storefront");
 
-          onClose()
+          onClose();
         }}
       >
         <Field label="Official source URL (https://)">
@@ -6869,17 +6419,17 @@ function VerifyModal({
         </div>
       </form>
     </Modal>
-  )
+  );
 }
 
 function SupportCategories() {
-  const store = useStore()
+  const store = useStore();
 
-  const [name, setName] = useState("")
+  const [name, setName] = useState("");
 
-  const [icon, setIcon] = useState("monitor")
+  const [icon, setIcon] = useState("monitor");
 
-  const [mapped, setMapped] = useState("")
+  const [mapped, setMapped] = useState("");
 
   return (
     <div className="mt-8">
@@ -6890,18 +6440,18 @@ function SupportCategories() {
         <form
           className="mb-4 flex flex-wrap gap-3"
           onSubmit={(event) => {
-            event.preventDefault()
+            event.preventDefault();
 
-            const value = name.trim()
+            const value = name.trim();
 
-            if (!value) return
+            if (!value) return;
 
-            const id = value.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+            const id = value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
             if (store.supportCategories.some((item) => item.id === id)) {
-              store.notify("This category already exists")
+              store.notify("This category already exists");
 
-              return
+              return;
             }
 
             const catalogCategories = mapped
@@ -6910,7 +6460,7 @@ function SupportCategories() {
 
               .map((item) => item.trim())
 
-              .filter(Boolean)
+              .filter(Boolean);
 
             store.set((state) => ({
               supportCategories: [
@@ -6918,15 +6468,15 @@ function SupportCategories() {
 
                 { id, name: value, icon, catalogCategories, active: true },
               ],
-            }))
+            }));
 
-            store.log(`Support category added: ${value}`)
+            store.log(`Support category added: ${value}`);
 
-            store.notify("Category added")
+            store.notify("Category added");
 
-            setName("")
+            setName("");
 
-            setMapped("")
+            setMapped("");
           }}
         >
           <input
@@ -6989,19 +6539,15 @@ function SupportCategories() {
             >
               <Badge tone={item.active ? "green" : "gray"}>
                 {item.name} ·{" "}
-                {
-                  store.brandSupport.filter(
-                    (record) => record.category === item.id,
-                  ).length
-                }{" "}
-                · {item.active ? "active" : "inactive"}
+                {store.brandSupport.filter((record) => record.category === item.id).length} ·{" "}
+                {item.active ? "active" : "inactive"}
               </Badge>
             </button>
           ))}
         </div>
       </Panel>
     </div>
-  )
+  );
 }
 
 const buildPurposes: BuildPurpose[] = [
@@ -7014,7 +6560,7 @@ const buildPurposes: BuildPurpose[] = [
   "professional",
 
   "general",
-]
+];
 
 const tradeoffOptions = [
   "Value-focused",
@@ -7024,7 +6570,7 @@ const tradeoffOptions = [
   "Higher-performance",
 
   "Upgrade-friendly",
-]
+];
 
 const templatePartTypes = [
   "CPU",
@@ -7042,7 +6588,7 @@ const templatePartTypes = [
   "Cabinet",
 
   "Cooler",
-]
+];
 
 const emptyTemplate = (): BuildTemplate => ({
   id: "",
@@ -7066,66 +6612,61 @@ const emptyTemplate = (): BuildTemplate => ({
   highlights: [],
 
   active: true,
-})
+});
 
 function BuildTemplatesAdmin() {
-  const store = useStore()
+  const store = useStore();
 
-  const [purpose, setPurpose] = useState<"all" | BuildPurpose>("all")
+  const [purpose, setPurpose] = useState<"all" | BuildPurpose>("all");
 
-  const [draft, setDraft] = useState<BuildTemplate | null>(null)
+  const [draft, setDraft] = useState<BuildTemplate | null>(null);
 
-  const [highlights, setHighlights] = useState("")
+  const [highlights, setHighlights] = useState("");
 
-  const [removeId, setRemoveId] = useState("")
+  const [removeId, setRemoveId] = useState("");
 
-  const [error, setError] = useState("")
+  const [error, setError] = useState("");
 
-  const [charge, setCharge] = useState(String(store.assemblyCharge))
+  const [charge, setCharge] = useState(String(store.assemblyCharge));
 
   useEffect(
     () => setCharge(String(store.assemblyCharge)),
 
     [store.assemblyCharge],
-  )
+  );
 
   const estimate = (parts: Record<string, string>) =>
     Object.entries(parts).reduce((total, [type, id]) => {
-      const option = (store.componentCatalog[type] || []).find(
-        (item) => item.id === id,
-      )
+      const option = (store.componentCatalog[type] || []).find((item) => item.id === id);
 
-      return total + (option?.price || 0)
-    }, 0)
+      return total + (option?.price || 0);
+    }, 0);
 
   const templates = store.buildTemplates.filter(
     (item) => purpose === "all" || item.purpose === purpose,
-  )
+  );
 
-  const toRemove = store.buildTemplates.find((item) => item.id === removeId)
+  const toRemove = store.buildTemplates.find((item) => item.id === removeId);
 
   const openEditor = (template: BuildTemplate) => {
-    setDraft({ ...template, parts: { ...template.parts } })
+    setDraft({ ...template, parts: { ...template.parts } });
 
-    setHighlights(template.highlights.join("\n"))
+    setHighlights(template.highlights.join("\n"));
 
-    setError("")
-  }
+    setError("");
+  };
 
   const save = () => {
-    if (!draft) return
+    if (!draft) return;
 
-    if (!draft.name.trim()) return setError("Template name is required.")
+    if (!draft.name.trim()) return setError("Template name is required.");
 
     if (draft.budgetMin <= 0 || draft.budgetMax < draft.budgetMin)
-      return setError(
-        "Budget maximum must be at least the minimum, and both above zero.",
-      )
+      return setError("Budget maximum must be at least the minimum, and both above zero.");
 
-    const missing = templatePartTypes.filter((type) => !draft.parts[type])
+    const missing = templatePartTypes.filter((type) => !draft.parts[type]);
 
-    if (missing.length)
-      return setError(`Select parts for: ${missing.join(", ")}`)
+    if (missing.length) return setError(`Select parts for: ${missing.join(", ")}`);
 
     const record: BuildTemplate = {
       ...draft,
@@ -7139,32 +6680,30 @@ function BuildTemplatesAdmin() {
         .map((line) => line.trim())
 
         .filter(Boolean),
-    }
+    };
 
-    const isNew = !record.id
+    const isNew = !record.id;
 
-    if (isNew) record.id = `tpl-${slug(record.name)}-${Date.now().toString(36)}`
+    if (isNew) record.id = `tpl-${slug(record.name)}-${Date.now().toString(36)}`;
 
     store.set((previous) => ({
       buildTemplates: isNew
         ? [...previous.buildTemplates, record]
-        : previous.buildTemplates.map((item) =>
-            item.id === record.id ? record : item,
-          ),
-    }))
+        : previous.buildTemplates.map((item) => (item.id === record.id ? record : item)),
+    }));
 
-    store.log(`Build template ${isNew ? "created" : "updated"}: ${record.name}`)
+    store.log(`Build template ${isNew ? "created" : "updated"}: ${record.name}`);
 
-    store.notify(isNew ? "Build template added" : "Build template updated")
+    store.notify(isNew ? "Build template added" : "Build template updated");
 
-    setDraft(null)
-  }
+    setDraft(null);
+  };
 
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
-        Templates power Smart PC Builder recommendations. Estimated price is
-        computed from current component prices.
+        Templates power Smart PC Builder recommendations. Estimated price is computed from current
+        component prices.
       </p>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4 rounded-lg border border-border bg-white p-4">
         <div className="flex flex-wrap gap-2">
@@ -7195,21 +6734,19 @@ function BuildTemplatesAdmin() {
           <Button
             variant="secondary"
             onClick={() => {
-              const value = Number(charge)
+              const value = Number(charge);
 
               if (!Number.isFinite(value) || value < 0) {
-                store.notify("Assembly charge must be zero or more")
+                store.notify("Assembly charge must be zero or more");
 
-                return
+                return;
               }
 
-              store.set({ assemblyCharge: Math.round(value) })
+              store.set({ assemblyCharge: Math.round(value) });
 
-              store.log(
-                `Assembly charge set to ${value ? money(value) : "free"}`,
-              )
+              store.log(`Assembly charge set to ${value ? money(value) : "free"}`);
 
-              store.notify("Assembly charge updated")
+              store.notify("Assembly charge updated");
             }}
           >
             Save charge
@@ -7235,9 +6772,7 @@ function BuildTemplatesAdmin() {
 
             label: "Purpose",
 
-            render: (row) => (
-              <span className="capitalize">{String(row.purpose)}</span>
-            ),
+            render: (row) => <span className="capitalize">{String(row.purpose)}</span>,
           },
 
           {
@@ -7245,8 +6780,7 @@ function BuildTemplatesAdmin() {
 
             label: "Budget",
 
-            render: (row) =>
-              `${money(Number(row.budgetMin))} – ${money(Number(row.budgetMax))}`,
+            render: (row) => `${money(Number(row.budgetMin))} – ${money(Number(row.budgetMax))}`,
           },
 
           { key: "resolution", label: "Resolution" },
@@ -7271,15 +6805,13 @@ function BuildTemplatesAdmin() {
                 onClick={() => {
                   store.set((previous) => ({
                     buildTemplates: previous.buildTemplates.map((item) =>
-                      item.id === row.id
-                        ? { ...item, active: !item.active }
-                        : item,
+                      item.id === row.id ? { ...item, active: !item.active } : item,
                     ),
-                  }))
+                  }));
 
-                  store.log(`Build template toggled: ${String(row.name)}`)
+                  store.log(`Build template toggled: ${String(row.name)}`);
 
-                  store.notify("Template status updated")
+                  store.notify("Template status updated");
                 }}
               >
                 <Badge tone={row.active ? "green" : "gray"}>
@@ -7290,25 +6822,22 @@ function BuildTemplatesAdmin() {
           },
         ]}
         onView={(row) => {
-          const found = store.buildTemplates.find((item) => item.id === row.id)
+          const found = store.buildTemplates.find((item) => item.id === row.id);
 
-          if (found) openEditor(found)
+          if (found) openEditor(found);
         }}
         actions={(row) => {
-          const found = store.buildTemplates.find((item) => item.id === row.id)
+          const found = store.buildTemplates.find((item) => item.id === row.id);
 
           return (
             <div className="flex gap-3">
-              <button
-                className="text-primary"
-                onClick={() => found && openEditor(found)}
-              >
+              <button className="text-primary" onClick={() => found && openEditor(found)}>
                 Edit
               </button>
               <button
                 className="text-primary"
                 onClick={() => {
-                  if (!found) return
+                  if (!found) return;
 
                   const copy: BuildTemplate = {
                     ...found,
@@ -7322,27 +6851,24 @@ function BuildTemplatesAdmin() {
                     name: `${found.name} (copy)`,
 
                     active: false,
-                  }
+                  };
 
                   store.set((previous) => ({
                     buildTemplates: [...previous.buildTemplates, copy],
-                  }))
+                  }));
 
-                  store.log(`Build template duplicated: ${found.name}`)
+                  store.log(`Build template duplicated: ${found.name}`);
 
-                  store.notify("Template duplicated as inactive copy")
+                  store.notify("Template duplicated as inactive copy");
                 }}
               >
                 Duplicate
               </button>
-              <button
-                className="text-red-600"
-                onClick={() => setRemoveId(String(row.id))}
-              >
+              <button className="text-red-600" onClick={() => setRemoveId(String(row.id))}>
                 Delete
               </button>
             </div>
-          )
+          );
         }}
       />
       <Modal
@@ -7357,9 +6883,7 @@ function BuildTemplatesAdmin() {
               <Field label="Name">
                 <input
                   value={draft.name}
-                  onChange={(event) =>
-                    setDraft({ ...draft, name: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   className={fieldClass}
                 />
               </Field>
@@ -7415,36 +6939,28 @@ function BuildTemplatesAdmin() {
               <Field label="Resolution">
                 <input
                   value={draft.resolution}
-                  onChange={(event) =>
-                    setDraft({ ...draft, resolution: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, resolution: event.target.value })}
                   className={fieldClass}
                 />
               </Field>
               <Field label="Trade-off">
                 <select
                   value={draft.tradeoff}
-                  onChange={(event) =>
-                    setDraft({ ...draft, tradeoff: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, tradeoff: event.target.value })}
                   className={fieldClass}
                 >
-                  {[...new Set([...tradeoffOptions, draft.tradeoff])].map(
-                    (item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ),
-                  )}
+                  {[...new Set([...tradeoffOptions, draft.tradeoff])].map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
                 </select>
               </Field>
             </div>
             <Field label="Usage">
               <input
                 value={draft.usage}
-                onChange={(event) =>
-                  setDraft({ ...draft, usage: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, usage: event.target.value })}
                 className={fieldClass}
               />
             </Field>
@@ -7484,9 +7000,7 @@ function BuildTemplatesAdmin() {
               <input
                 type="checkbox"
                 checked={draft.active}
-                onChange={(event) =>
-                  setDraft({ ...draft, active: event.target.checked })
-                }
+                onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
               />
               Active (shown to customers)
             </label>
@@ -7507,11 +7021,7 @@ function BuildTemplatesAdmin() {
         open={Boolean(toRemove)}
         onOpenChange={(open) => !open && setRemoveId("")}
         title="Delete build template?"
-        description={
-          toRemove
-            ? `"${toRemove.name}" will no longer be recommended.`
-            : undefined
-        }
+        description={toRemove ? `"${toRemove.name}" will no longer be recommended.` : undefined}
       >
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setRemoveId("")}>
@@ -7519,19 +7029,17 @@ function BuildTemplatesAdmin() {
           </Button>
           <Button
             onClick={() => {
-              if (!toRemove) return
+              if (!toRemove) return;
 
               store.set((previous) => ({
-                buildTemplates: previous.buildTemplates.filter(
-                  (item) => item.id !== toRemove.id,
-                ),
-              }))
+                buildTemplates: previous.buildTemplates.filter((item) => item.id !== toRemove.id),
+              }));
 
-              store.log(`Build template deleted: ${toRemove.name}`)
+              store.log(`Build template deleted: ${toRemove.name}`);
 
-              store.notify("Build template deleted")
+              store.notify("Build template deleted");
 
-              setRemoveId("")
+              setRemoveId("");
             }}
           >
             Delete
@@ -7539,5 +7047,5 @@ function BuildTemplatesAdmin() {
         </div>
       </Modal>
     </>
-  )
+  );
 }

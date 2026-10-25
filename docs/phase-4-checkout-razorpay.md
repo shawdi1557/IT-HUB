@@ -40,6 +40,7 @@ flowchart LR
 ## 3. Detailed Implementation Steps
 
 ### Step 4.1: Environment & Secrets Setup
+
 - **Client**: Set `VITE_RAZORPAY_KEY_ID` in [`.env`](file:///d:/mario/IT%20HUB/ITHUB_WEB/.env).
 - **Backend**: Set secrets in Supabase CLI / Dashboard:
   ```bash
@@ -50,7 +51,9 @@ flowchart LR
 ---
 
 ### Step 4.2: Edge Function Deployment (`verify-checkout-callback`)
+
 The Edge Function verifies:
+
 1. Customer JWT session validity via `auth.uid()`.
 2. HMAC-SHA256 signature:
    $$\text{generated\_signature} = \text{HMAC\_SHA256}(\text{order\_id} + "|" + \text{payment\_id},\; \text{secret})$$
@@ -59,6 +62,7 @@ The Edge Function verifies:
 ---
 
 ### Step 4.3: Storefront Checkout Flow
+
 1. Customer clicks "Place Order" in [`src/pages/Commerce.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/pages/Commerce.tsx).
 2. App invokes `createSupabaseOrder()` in [`src/lib/payments.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/payments.ts).
 3. PostgREST runs `create_order` RPC:
@@ -74,10 +78,9 @@ The Edge Function verifies:
 
 ## 4. Test Scenarios (Test Mode)
 
-| Method | Test Credentials | Expected Outcome |
-| :--- | :--- | :--- |
-| **UPI** | `success@razorpay` | Instant approval, order confirmed |
-| **UPI** | `failure@razorpay` | Declined, customer prompted to retry |
-| **Card** | `4111 1111 1111 1111`, OTP `123456` | Card charged successfully |
-| **NetBanking** | Select any test bank (SBI/HDFC) | Simulated bank approval flow |
-
+| Method         | Test Credentials                    | Expected Outcome                     |
+| :------------- | :---------------------------------- | :----------------------------------- |
+| **UPI**        | `success@razorpay`                  | Instant approval, order confirmed    |
+| **UPI**        | `failure@razorpay`                  | Declined, customer prompted to retry |
+| **Card**       | `4111 1111 1111 1111`, OTP `123456` | Card charged successfully            |
+| **NetBanking** | Select any test bank (SBI/HDFC)     | Simulated bank approval flow         |

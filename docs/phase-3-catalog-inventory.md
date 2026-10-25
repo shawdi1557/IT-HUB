@@ -70,8 +70,9 @@ flowchart TD
 ## 3. Critical Security & Implementation Adjustments
 
 ### 3.1. Database Security & Permissions Validation
-* **View Security**: `products_public`, `live_offers`, and `public_coupons` are defined with `WITH (security_invoker = on, security_barrier = true)`.
-* **Caller Permission Verification**:
+
+- **View Security**: `products_public`, `live_offers`, and `public_coupons` are defined with `WITH (security_invoker = on, security_barrier = true)`.
+- **Caller Permission Verification**:
   Because `security_invoker = on` executes under the calling role's permissions, verify that both `anon` and `authenticated` roles can select required columns from underlying tables:
   ```sql
   -- Products (cost_price strictly excluded)
@@ -94,49 +95,54 @@ flowchart TD
   ```
 
 ### 3.2. Realtime Publication Configuration
-* Realtime requires the `inventory` table to be added to the Supabase replication publication:
+
+- Realtime requires the `inventory` table to be added to the Supabase replication publication:
   ```sql
   alter publication supabase_realtime add table public.inventory;
   ```
-* Ensure `REPLICA IDENTITY` is set to `DEFAULT` or `FULL` on `inventory` so update payloads include the `product_id` primary key.
+- Ensure `REPLICA IDENTITY` is set to `DEFAULT` or `FULL` on `inventory` so update payloads include the `product_id` primary key.
 
 ### 3.3. Stock Accuracy & Overselling Prevention
-* **Display vs Authoritative Action**:
+
+- **Display vs Authoritative Action**:
   - The frontend stock badge is an **advisory display** to improve UX.
   - Two customers may open the product page simultaneously with 1 unit remaining.
   - When either clicks "Place Order", the authoritative reservation occurs inside `create_order(...)` using `SELECT ... FOR UPDATE` row-level locks. If stock is exhausted, the procedure throws an exception and halts payment initiation.
 
 ### 3.4. Cache Strategy & Invalidation
-* **Stale-While-Revalidate**:
+
+- **Stale-While-Revalidate**:
   - Store renders immediately using local storage cache for instant navigation.
   - Asynchronously revalidates against `products_public` in the background.
-* **Non-Authoritative Cache**:
+- **Non-Authoritative Cache**:
   - Prices or stock values in `localStorage` are **never trusted** by the checkout flow.
   - Checkout always submits `{ product_id, quantity }` to `create_order`, which re-calculates pricing and discounts from authoritative PostgreSQL tables.
 
 ### 3.5. React Lifecycle & Realtime Cleanup
-* When the store mounts, create the Realtime channel.
-* **Cleanup Pattern**: Always unsubscribe and remove the channel when unmounting or re-establishing connections to prevent memory leaks or duplicate WebSocket listeners:
+
+- When the store mounts, create the Realtime channel.
+- **Cleanup Pattern**: Always unsubscribe and remove the channel when unmounting or re-establishing connections to prevent memory leaks or duplicate WebSocket listeners:
   ```typescript
   useEffect(() => {
     const channel = supabase
-      .channel('public:inventory')
+      .channel("public:inventory")
       .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'inventory' },
-        (payload) => handleStockUpdate(payload.new)
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "inventory" },
+        (payload) => handleStockUpdate(payload.new),
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])
+      supabase.removeChannel(channel);
+    };
+  }, []);
   ```
 
 ### 3.6. Coupon Validation Rule Enforcement
-* `public_coupons` view displays available coupon codes and minimum order values publicly.
-* All coupon redemption restrictions (expiry dates, minimum order values, and the one-use-per-customer rule in `coupon_usages`) are validated server-side by `validate_coupon()` and `create_order()`.
+
+- `public_coupons` view displays available coupon codes and minimum order values publicly.
+- All coupon redemption restrictions (expiry dates, minimum order values, and the one-use-per-customer rule in `coupon_usages`) are validated server-side by `validate_coupon()` and `create_order()`.
 
 ---
 
@@ -153,17 +159,20 @@ flowchart LR
 ```
 
 ### Step 1: Pre-Implementation Checkpoint (COMPLETED)
+
 - Verified clean git working tree on `feature/phase-3-catalog-inventory`.
 - Confirmed zero tracked `.env` or sensitive secret files.
 - Added GitHub Actions CI check (`.github/workflows/ci.yml`).
 - Added `lint`, `typecheck`, and `test` scripts to `package.json`.
 
 ### Step 2: Database View Enrichment & Realtime Publication
+
 - Enrich `products_public` in `supabase/schema.sql` to join `brand` and `category` text directly, and extract the primary image path.
 - Add `public.inventory` to `supabase_realtime` publication.
 - Seed fresh products into `supabase/seed.sql`.
 
 ### Step 3: Type-Safe Catalog Service ([`src/lib/catalog.ts`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/lib/catalog.ts))
+
 - Implement:
   - `fetchCatalog(options)`: Filtered catalog query.
   - `fetchProductById(idOrSku)`: Full product specification and image gallery.
@@ -171,28 +180,32 @@ flowchart LR
   - `fetchActiveCoupons()`: Valid coupon codes from `public_coupons`.
 
 ### Step 4: Global Store Integration ([`src/app/store.tsx`](file:///d:/mario/IT%20HUB/ITHUB_WEB/src/app/store.tsx))
+
 - Implement stale-while-revalidate catalog loading with graceful offline fallback.
 - Never block initial render on network latency.
 
 ### Step 5: Realtime Inventory Subscription
+
 - Wire WebSocket listener on `inventory` table with proper `useEffect` cleanup.
 - Update `ProductCard.tsx` availability badges ("In Stock", "Only X left", "Out of Stock").
 
 ### Step 6: Storefront UI Verification
+
 - Validate search, filters (category, brand, price, second-hand), mega-menu category counts, and cart add/remove actions.
 
 ### Step 7: Pull Request & CI Verification
+
 - Push branch, run GitHub Actions CI check, and merge into `main` after verification.
 
 ---
 
 ## 5. Acceptance Criteria & Test Plan
 
-| Test Case | Method | Expected Result |
-| :--- | :--- | :--- |
-| **View Permissions** | Query `products_public` as `anon` | Returns product rows with brand/category names; `cost_price` cannot be queried |
-| **Realtime Publication** | Update inventory in SQL Editor | WebSocket message received in client, stock badge updates live |
-| **Offline Resilience** | Disconnect network in DevTools | Storefront loads instantly from local cache without crash |
-| **Overselling Guard** | Two sessions buy last item | First succeeds; second receives atomic out-of-stock error |
-| **Channel Cleanup** | Unmount/navigate away from store | Channel is unsubscribed without leaking connections |
-| **CI Validation** | Run GitHub Actions workflow | Lint, typecheck, tests, and build all pass with code 0 |
+| Test Case                | Method                            | Expected Result                                                                |
+| :----------------------- | :-------------------------------- | :----------------------------------------------------------------------------- |
+| **View Permissions**     | Query `products_public` as `anon` | Returns product rows with brand/category names; `cost_price` cannot be queried |
+| **Realtime Publication** | Update inventory in SQL Editor    | WebSocket message received in client, stock badge updates live                 |
+| **Offline Resilience**   | Disconnect network in DevTools    | Storefront loads instantly from local cache without crash                      |
+| **Overselling Guard**    | Two sessions buy last item        | First succeeds; second receives atomic out-of-stock error                      |
+| **Channel Cleanup**      | Unmount/navigate away from store  | Channel is unsubscribed without leaking connections                            |
+| **CI Validation**        | Run GitHub Actions workflow       | Lint, typecheck, tests, and build all pass with code 0                         |

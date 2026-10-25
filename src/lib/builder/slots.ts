@@ -1,7 +1,7 @@
 // src/lib/builder/slots.ts
 // Slot specifications and hierarchy for IT HUB PC Builder
 
-import type { ComponentSlotId, SlotDefinition } from "./types"
+import type { ComponentSlotId, SlotDefinition } from "./types";
 
 export const COMPONENT_SLOTS: SlotDefinition[] = [
   {
@@ -79,7 +79,8 @@ export const COMPONENT_SLOTS: SlotDefinition[] = [
     label: "CPU Cooler",
     category: "Cooling",
     requirement: "conditional",
-    description: "Thermal cooling solution. Required if your processor does not include a stock cooler.",
+    description:
+      "Thermal cooling solution. Required if your processor does not include a stock cooler.",
     iconName: "Fan",
     allowedTypes: ["CPU Cooler", "Liquid Cooler"],
     maxQuantity: 1,
@@ -94,7 +95,7 @@ export const COMPONENT_SLOTS: SlotDefinition[] = [
     allowedTypes: ["Monitor", "Display"],
     maxQuantity: 1,
   },
-]
+];
 
 export const ESSENTIAL_SLOTS: ComponentSlotId[] = [
   "CPU",
@@ -103,9 +104,8 @@ export const ESSENTIAL_SLOTS: ComponentSlotId[] = [
   "Storage",
   "PSU",
   "Cabinet",
-]
+];
 
 export function getSlotDefinition(slotId: ComponentSlotId): SlotDefinition | undefined {
-  return COMPONENT_SLOTS.find((s) => s.id === slotId)
+  return COMPONENT_SLOTS.find((s) => s.id === slotId);
 }
-

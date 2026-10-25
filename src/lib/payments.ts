@@ -2,52 +2,51 @@
 // Production-Grade Razorpay Gateway & Supabase Edge Function Integration
 // IT HUB — Kerala, India
 
-import { supabase, supabaseConfig, SUPABASE_URL } from "./supabase"
+import { supabase, supabaseConfig, SUPABASE_URL } from "./supabase";
 
 export const RAZORPAY_KEY_ID = (
-  (typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_RAZORPAY_KEY_ID) ||
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_RAZORPAY_KEY_ID) ||
   ""
-).trim()
+).trim();
 
 export interface RazorpayPaymentSuccessPayload {
-  razorpay_order_id: string
-  razorpay_payment_id: string
-  razorpay_signature: string
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
 }
 
 export interface VerifyPaymentResult {
-  ok: boolean
-  order_id?: string
-  order_number?: string
-  status?: number | string
-  payment_status?: string
-  idempotent?: boolean
-  coupon_conflict?: boolean
-  error?: string
+  ok: boolean;
+  order_id?: string;
+  order_number?: string;
+  status?: number | string;
+  payment_status?: string;
+  idempotent?: boolean;
+  coupon_conflict?: boolean;
+  error?: string;
 }
 
 export interface OrderItemParam {
-  product_id: string
-  quantity: number
+  product_id: string;
+  quantity: number;
 }
 
 export interface CreateOrderParams {
-  items: OrderItemParam[]
-  addressId?: string | null
-  deliveryMethod?: string
-  paymentMethod?: string
-  couponCode?: string | null
-  notes?: string | null
+  items: OrderItemParam[];
+  addressId?: string | null;
+  deliveryMethod?: string;
+  paymentMethod?: string;
+  couponCode?: string | null;
+  notes?: string | null;
 }
 
 export interface CreateOrderResult {
-  ok: boolean
-  orderId?: string
-  orderNumber?: string
-  total?: number
-  expiresAt?: string
-  error?: string
+  ok: boolean;
+  orderId?: string;
+  orderNumber?: string;
+  total?: number;
+  expiresAt?: string;
+  error?: string;
 }
 
 /**
@@ -56,49 +55,45 @@ export interface CreateOrderResult {
 export function loadRazorpayScript(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === "undefined") {
-      resolve(false)
-      return
+      resolve(false);
+      return;
     }
 
     if ((window as any).Razorpay) {
-      resolve(true)
-      return
+      resolve(true);
+      return;
     }
 
     // Check if script tag is already being loaded
-    const existing = document.querySelector(
-      'script[src*="checkout.razorpay.com"]',
-    )
+    const existing = document.querySelector('script[src*="checkout.razorpay.com"]');
     if (existing) {
-      existing.addEventListener("load", () => resolve(true))
-      existing.addEventListener("error", () => resolve(false))
-      return
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", () => resolve(false));
+      return;
     }
 
-    const script = document.createElement("script")
-    script.src = "https://checkout.razorpay.com/v1/checkout.js"
-    script.async = true
-    script.onload = () => resolve(true)
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
     script.onerror = () => {
-      console.error("[Razorpay SDK] Failed to load checkout script.")
-      resolve(false)
-    }
-    document.body.appendChild(script)
-  })
+      console.error("[Razorpay SDK] Failed to load checkout script.");
+      resolve(false);
+    };
+    document.body.appendChild(script);
+  });
 }
 
 /**
  * Creates an authoritative order row in Supabase PostgreSQL via create_order() RPC.
  * Automatically locks inventory rows for 30 minutes.
  */
-export async function createSupabaseOrder(
-  params: CreateOrderParams,
-): Promise<CreateOrderResult> {
+export async function createSupabaseOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
   if (!supabase || !supabaseConfig.isConfigured) {
     return {
       ok: false,
       error: "Supabase database client is not configured.",
-    }
+    };
   }
 
   try {
@@ -109,14 +104,14 @@ export async function createSupabaseOrder(
       p_payment_method: params.paymentMethod || "Razorpay",
       p_coupon_code: params.couponCode || null,
       p_notes: params.notes || null,
-    })
+    });
 
     if (error) {
-      console.error("[create_order RPC] Error creating order:", error.message)
+      console.error("[create_order RPC] Error creating order:", error.message);
       return {
         ok: false,
         error: error.message || "Failed to create order on server.",
-      }
+      };
     }
 
     return {
@@ -125,13 +120,13 @@ export async function createSupabaseOrder(
       orderNumber: data.order_number,
       total: Number(data.total),
       expiresAt: data.expires_at,
-    }
+    };
   } catch (err: any) {
-    console.error("[create_order RPC] Uncaught exception:", err)
+    console.error("[create_order RPC] Uncaught exception:", err);
     return {
       ok: false,
       error: err?.message || "Internal order creation error.",
-    }
+    };
   }
 }
 
@@ -152,23 +147,22 @@ export async function verifyCheckoutCallback(
   if (!supabase || !supabaseConfig.isConfigured || !SUPABASE_URL) {
     return {
       ok: false,
-      error:
-        "Payment verification service is not reachable (Supabase not configured).",
-    }
+      error: "Payment verification service is not reachable (Supabase not configured).",
+    };
   }
 
   try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData?.session?.access_token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
 
     if (!token) {
       return {
         ok: false,
         error: "Active customer session required to verify payment.",
-      }
+      };
     }
 
-    const endpoint = `${SUPABASE_URL}/functions/v1/verify-checkout-callback`
+    const endpoint = `${SUPABASE_URL}/functions/v1/verify-checkout-callback`;
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -176,18 +170,16 @@ export async function verifyCheckoutCallback(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
-    })
+    });
 
-    const body = await res.json().catch(() => ({}))
+    const body = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      console.warn("[verify-checkout-callback] Verification rejected:", body)
+      console.warn("[verify-checkout-callback] Verification rejected:", body);
       return {
         ok: false,
-        error:
-          body?.error ||
-          `Payment verification failed with status ${res.status}`,
-      }
+        error: body?.error || `Payment verification failed with status ${res.status}`,
+      };
     }
 
     return {
@@ -198,49 +190,45 @@ export async function verifyCheckoutCallback(
       payment_status: body.payment_status,
       idempotent: body.idempotent,
       coupon_conflict: body.coupon_conflict,
-    }
+    };
   } catch (err: any) {
-    console.error("[verify-checkout-callback] Fetch exception:", err)
+    console.error("[verify-checkout-callback] Fetch exception:", err);
     return {
       ok: false,
       error:
         "Network error contacting payment verification endpoint. Your order reference is saved.",
-    }
+    };
   }
 }
 
 export interface LaunchRazorpayOptions {
-  orderId: string
-  razorpayOrderId?: string
-  amountINR: number
-  customerName: string
-  customerEmail: string
-  customerPhone: string
-  onSuccess: (payload: RazorpayPaymentSuccessPayload) => void
-  onDismiss?: () => void
-  onError?: (err: string) => void
+  orderId: string;
+  razorpayOrderId?: string;
+  amountINR: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  onSuccess: (payload: RazorpayPaymentSuccessPayload) => void;
+  onDismiss?: () => void;
+  onError?: (err: string) => void;
 }
 
 /**
  * Initializes and displays the official Razorpay Checkout modal.
  */
-export async function launchRazorpayModal(
-  options: LaunchRazorpayOptions,
-): Promise<boolean> {
-  const loaded = await loadRazorpayScript()
+export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promise<boolean> {
+  const loaded = await loadRazorpayScript();
   if (!loaded) {
-    options.onError?.(
-      "Could not load payment gateway. Please check your internet connection.",
-    )
-    return false
+    options.onError?.("Could not load payment gateway. Please check your internet connection.");
+    return false;
   }
 
   if (!RAZORPAY_KEY_ID) {
-    options.onError?.("Razorpay Key ID is not configured in environment.")
-    return false
+    options.onError?.("Razorpay Key ID is not configured in environment.");
+    return false;
   }
 
-  const amountPaise = Math.round(options.amountINR * 100)
+  const amountPaise = Math.round(options.amountINR * 100);
 
   const razorpayOptions: Record<string, any> = {
     key: RAZORPAY_KEY_ID,
@@ -263,42 +251,37 @@ export async function launchRazorpayModal(
     },
     modal: {
       ondismiss: () => {
-        options.onDismiss?.()
+        options.onDismiss?.();
       },
     },
     handler: (response: any) => {
       if (response.razorpay_payment_id && response.razorpay_signature) {
         options.onSuccess({
-          razorpay_order_id:
-            response.razorpay_order_id || options.razorpayOrderId || "",
+          razorpay_order_id: response.razorpay_order_id || options.razorpayOrderId || "",
           razorpay_payment_id: response.razorpay_payment_id,
           razorpay_signature: response.razorpay_signature,
-        })
+        });
       } else {
-        options.onError?.(
-          "Incomplete payment credentials received from gateway.",
-        )
+        options.onError?.("Incomplete payment credentials received from gateway.");
       }
     },
-  }
+  };
 
   if (options.razorpayOrderId) {
-    razorpayOptions.order_id = options.razorpayOrderId
+    razorpayOptions.order_id = options.razorpayOrderId;
   }
 
   try {
-    const rzp = new (window as any).Razorpay(razorpayOptions)
+    const rzp = new (window as any).Razorpay(razorpayOptions);
     rzp.on("payment.failed", (failedRes: any) => {
-      console.warn("[Razorpay] Payment failed:", failedRes?.error)
-      options.onError?.(
-        failedRes?.error?.description || "Payment was declined by the bank.",
-      )
-    })
-    rzp.open()
-    return true
+      console.warn("[Razorpay] Payment failed:", failedRes?.error);
+      options.onError?.(failedRes?.error?.description || "Payment was declined by the bank.");
+    });
+    rzp.open();
+    return true;
   } catch (err: any) {
-    console.error("[Razorpay] Error initializing modal:", err)
-    options.onError?.("Failed to launch payment checkout window.")
-    return false
+    console.error("[Razorpay] Error initializing modal:", err);
+    options.onError?.("Failed to launch payment checkout window.");
+    return false;
   }
 }

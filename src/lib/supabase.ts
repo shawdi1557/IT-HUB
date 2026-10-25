@@ -2,7 +2,7 @@
 // Supabase Client Initialization & Configuration Validation
 // IT HUB — Kerala, India
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Normalized Supabase project URL from Vite environment.
@@ -12,7 +12,7 @@ export const SUPABASE_URL = (
   (typeof (globalThis as any).Deno !== "undefined" &&
     (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_URL")) ||
   "https://aeulrulvpxyqmxmypzey.supabase.co"
-).trim()
+).trim();
 
 /**
  * Normalized publishable/anon key from Vite environment.
@@ -26,13 +26,13 @@ export const SUPABASE_ANON_KEY = (
     ((globalThis as any).Deno.env?.get?.("VITE_SUPABASE_ANON_KEY") ||
       (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_PUBLISHABLE_KEY"))) ||
   "sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS"
-).trim()
+).trim();
 
 export interface SupabaseConfigStatus {
-  isConfigured: boolean
-  url: string
-  hasAnonKey: boolean
-  error: string | null
+  isConfigured: boolean;
+  url: string;
+  hasAnonKey: boolean;
+  error: string | null;
 }
 
 /**
@@ -47,7 +47,7 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       hasAnonKey: false,
       error:
         "Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing from environment configuration.",
-    }
+    };
   }
 
   if (!SUPABASE_URL) {
@@ -55,9 +55,8 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: "",
       hasAnonKey: Boolean(SUPABASE_ANON_KEY),
-      error:
-        "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
-    }
+      error: "VITE_SUPABASE_URL is missing. Please set it in your local .env file.",
+    };
   }
 
   if (!SUPABASE_ANON_KEY) {
@@ -65,9 +64,8 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: SUPABASE_URL,
       hasAnonKey: false,
-      error:
-        "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
-    }
+      error: "VITE_SUPABASE_ANON_KEY is missing. Please set it in your local .env file.",
+    };
   }
 
   if (
@@ -78,20 +76,19 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       isConfigured: false,
       url: SUPABASE_URL,
       hasAnonKey: true,
-      error:
-        "Supabase environment variables contain unconfigured placeholder values.",
-    }
+      error: "Supabase environment variables contain unconfigured placeholder values.",
+    };
   }
 
   try {
-    const parsed = new URL(SUPABASE_URL)
+    const parsed = new URL(SUPABASE_URL);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       return {
         isConfigured: false,
         url: SUPABASE_URL,
         hasAnonKey: true,
         error: "VITE_SUPABASE_URL must be a valid HTTP or HTTPS URL.",
-      }
+      };
     }
   } catch {
     return {
@@ -99,7 +96,7 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
       url: SUPABASE_URL,
       hasAnonKey: true,
       error: "VITE_SUPABASE_URL is not a valid URL format.",
-    }
+    };
   }
 
   return {
@@ -107,12 +104,12 @@ export function validateSupabaseConfig(): SupabaseConfigStatus {
     url: SUPABASE_URL,
     hasAnonKey: true,
     error: null,
-  }
+  };
 }
 
-export const supabaseConfig = validateSupabaseConfig()
+export const supabaseConfig = validateSupabaseConfig();
 
-let clientInstance: SupabaseClient | null = null
+let clientInstance: SupabaseClient | null = null;
 
 /**
  * Returns the singleton Supabase client instance.
@@ -122,7 +119,7 @@ export function getSupabaseClient(): SupabaseClient {
   if (!supabaseConfig.isConfigured) {
     throw new Error(
       `Supabase configuration error: ${supabaseConfig.error ?? "Invalid environment configuration"}`,
-    )
+    );
   }
 
   if (!clientInstance) {
@@ -131,10 +128,10 @@ export function getSupabaseClient(): SupabaseClient {
         persistSession: true,
         autoRefreshToken: true,
       },
-    })
+    });
   }
 
-  return clientInstance
+  return clientInstance;
 }
 
 /**
@@ -143,6 +140,6 @@ export function getSupabaseClient(): SupabaseClient {
  */
 export const supabase: SupabaseClient | null = supabaseConfig.isConfigured
   ? getSupabaseClient()
-  : null
+  : null;
 
-export default supabase
+export default supabase;

@@ -6,14 +6,14 @@
  * Constant-time comparison between two strings or byte arrays to prevent timing attacks.
  */
 export function constantTimeCompare(a: string, b: string): boolean {
-  if (typeof a !== "string" || typeof b !== "string") return false
-  if (a.length !== b.length) return false
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (a.length !== b.length) return false;
 
-  let result = 0
+  let result = 0;
   for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
-  return result === 0
+  return result === 0;
 }
 
 /**
@@ -32,21 +32,20 @@ export async function verifyShopifyWebhook(
     return {
       isValid: false,
       error: "Missing or unconfigured Shopify webhook signing secret.",
-    }
+    };
   }
 
   if (!hmacHeader || typeof hmacHeader !== "string" || hmacHeader.trim() === "") {
     return {
       isValid: false,
       error: "Missing X-Shopify-Hmac-Sha256 signature header.",
-    }
+    };
   }
 
   try {
-    const encoder = new TextEncoder()
-    const keyData = encoder.encode(secret.trim())
-    const bodyBytes =
-      typeof rawBody === "string" ? encoder.encode(rawBody) : rawBody
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret.trim());
+    const bodyBytes = typeof rawBody === "string" ? encoder.encode(rawBody) : rawBody;
 
     const cryptoKey = await crypto.subtle.importKey(
       "raw",
@@ -54,35 +53,31 @@ export async function verifyShopifyWebhook(
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"],
-    )
+    );
 
-    const signatureBuffer = await crypto.subtle.sign(
-      "HMAC",
-      cryptoKey,
-      bodyBytes as BufferSource,
-    )
-    const signatureBytes = new Uint8Array(signatureBuffer)
+    const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, bodyBytes as BufferSource);
+    const signatureBytes = new Uint8Array(signatureBuffer);
 
     // Convert to standard Base64
-    let binary = ""
+    let binary = "";
     for (let i = 0; i < signatureBytes.byteLength; i++) {
-      binary += String.fromCharCode(signatureBytes[i])
+      binary += String.fromCharCode(signatureBytes[i]);
     }
-    const computedHmacBase64 = btoa(binary)
+    const computedHmacBase64 = btoa(binary);
 
-    const matches = constantTimeCompare(computedHmacBase64, hmacHeader.trim())
+    const matches = constantTimeCompare(computedHmacBase64, hmacHeader.trim());
     if (!matches) {
       return {
         isValid: false,
         error: "Shopify webhook signature mismatch (potential tampering or wrong secret).",
-      }
+      };
     }
 
-    return { isValid: true }
+    return { isValid: true };
   } catch (err: any) {
     return {
       isValid: false,
       error: err?.message || "Failed to verify Shopify webhook signature.",
-    }
+    };
   }
 }

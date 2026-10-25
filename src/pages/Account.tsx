@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react"
-import { Link, NavLink, useParams } from "react-router"
+import { useState, useEffect } from "react";
+import { Link, NavLink, useParams } from "react-router";
 import {
   LayoutGrid,
   ShoppingBag,
@@ -18,11 +18,11 @@ import {
   Smartphone,
   BadgeIndianRupee,
   RefreshCw,
-} from "lucide-react"
-import AuthModal from "../components/AuthModal"
-import WarrantyCheck from "../components/WarrantyCheck"
-import { useStore } from "../app/store"
-import { track } from "../lib/analytics"
+} from "lucide-react";
+import AuthModal from "../components/AuthModal";
+import WarrantyCheck from "../components/WarrantyCheck";
+import { useStore } from "../app/store";
+import { track } from "../lib/analytics";
 import {
   images,
   money,
@@ -30,11 +30,11 @@ import {
   serviceStatuses,
   formatDate,
   type Build,
-} from "../data/catalog"
-import { fetchUserSellRequests } from "../lib/sellRequests"
-import { updateCustomerProfile } from "../lib/auth"
-import WhatsAppIcon from "../components/WhatsAppIcon"
-import ProductCard from "../components/ProductCard"
+} from "../data/catalog";
+import { fetchUserSellRequests } from "../lib/sellRequests";
+import { updateCustomerProfile } from "../lib/auth";
+import WhatsAppIcon from "../components/WhatsAppIcon";
+import ProductCard from "../components/ProductCard";
 import {
   ActionLink,
   Badge,
@@ -46,7 +46,7 @@ import {
   Page,
   PageHeading,
   fieldClass,
-} from "../components/ui"
+} from "../components/ui";
 
 const sections = [
   { id: "overview", name: "Overview", Icon: LayoutGrid },
@@ -62,26 +62,25 @@ const sections = [
   { id: "notifications", name: "Notifications", Icon: Bell },
   { id: "support", name: "After-sales Support", Icon: LifeBuoy },
   { id: "settings", name: "Settings", Icon: Settings },
-]
+];
 
-const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> =
-  {
-    Pending: "amber",
-    "Under Review": "blue",
-    Contacted: "blue",
-    Approved: "green",
-    Rejected: "red",
-    Completed: "gray",
-  }
+const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> = {
+  Pending: "amber",
+  "Under Review": "blue",
+  Contacted: "blue",
+  Approved: "green",
+  Rejected: "red",
+  Completed: "gray",
+};
 
 export default function Account() {
-  const { section = "overview" } = useParams()
-  const store = useStore()
-  const [login, setLogin] = useState(false)
-  const [profile, setProfile] = useState(store.profile)
-  const [warranty, setWarranty] = useState<string | null>(null)
-  const [ticket, setTicket] = useState({ subject: "", message: "" })
-  const [auth, setAuth] = useState(false)
+  const { section = "overview" } = useParams();
+  const store = useStore();
+  const [login, setLogin] = useState(false);
+  const [profile, setProfile] = useState(store.profile);
+  const [warranty, setWarranty] = useState<string | null>(null);
+  const [ticket, setTicket] = useState({ subject: "", message: "" });
+  const [auth, setAuth] = useState(false);
 
   useEffect(() => {
     if (store.loggedIn) {
@@ -89,48 +88,43 @@ export default function Account() {
         .then((supabaseRequests) => {
           if (supabaseRequests && supabaseRequests.length > 0) {
             store.set((prev) => {
-              const existingIds = new Set(prev.sellRequests.map((r) => r.id))
-              const newOnes = supabaseRequests.filter(
-                (r) => !existingIds.has(r.id),
-              )
+              const existingIds = new Set(prev.sellRequests.map((r) => r.id));
+              const newOnes = supabaseRequests.filter((r) => !existingIds.has(r.id));
               if (newOnes.length > 0) {
-                return { sellRequests: [...newOnes, ...prev.sellRequests] }
+                return { sellRequests: [...newOnes, ...prev.sellRequests] };
               }
-              return prev
-            })
+              return prev;
+            });
           }
         })
         .catch(() => {
           // Gracefully fallback to local store
-        })
+        });
     }
-  }, [store.loggedIn])
+  }, [store.loggedIn]);
   const products = store.wishlist
     .map((id) => store.products.find((item) => item.id === id))
-    .filter((item) => !!item)
+    .filter((item) => !!item);
   const warranties = store.orders.flatMap((order) =>
     order.items
       .filter((item) => item.productId)
       .map((item) => {
         const term =
-          store.products.find((product) => product.id === item.productId)?.specs
-            .Warranty || "Contact IT HUB"
-        const years = term.match(/^(\d+) years?$/i)
-        const expiryDate = new Date(order.date)
-        if (years)
-          expiryDate.setFullYear(expiryDate.getFullYear() + Number(years[1]))
+          store.products.find((product) => product.id === item.productId)?.specs.Warranty ||
+          "Contact IT HUB";
+        const years = term.match(/^(\d+) years?$/i);
+        const expiryDate = new Date(order.date);
+        if (years) expiryDate.setFullYear(expiryDate.getFullYear() + Number(years[1]));
         return {
           id: `${order.id}-${item.id}`,
           name: item.name,
           date: new Date(order.date).toLocaleDateString(),
           term,
-          expiry: years
-            ? expiryDate.toLocaleDateString()
-            : "Confirm with IT HUB",
+          expiry: years ? expiryDate.toLocaleDateString() : "Confirm with IT HUB",
           order: order.id,
-        }
+        };
       }),
-  )
+  );
   if (!store.loggedIn)
     return (
       <Page>
@@ -138,12 +132,10 @@ export default function Account() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">
             <Smartphone size={26} />
           </div>
-          <h1 className="mt-6 text-3xl font-bold tracking-[-.02em]">
-            Login to your IT HUB
-          </h1>
+          <h1 className="mt-6 text-3xl font-bold tracking-[-.02em]">Login to your IT HUB</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Sign in with your +91 mobile number to manage your profile, orders,
-            offers, warranty and after-sales support.
+            Sign in with your +91 mobile number to manage your profile, orders, offers, warranty and
+            after-sales support.
           </p>
           <Button onClick={() => setAuth(true)} className="mt-7 w-full">
             Login / Sign up with OTP
@@ -151,7 +143,7 @@ export default function Account() {
         </div>
         <AuthModal open={auth} onOpenChange={setAuth} />
       </Page>
-    )
+    );
   return (
     <Page>
       <PageHeading
@@ -161,8 +153,8 @@ export default function Account() {
         <Button
           variant="secondary"
           onClick={() => {
-            setProfile(store.profile)
-            setLogin(true)
+            setProfile(store.profile);
+            setLogin(true);
           }}
         >
           <UserRound size={16} />
@@ -173,13 +165,10 @@ export default function Account() {
         <aside className="min-w-0 self-start rounded-lg border border-border bg-white p-4">
           <div className="mb-4 hidden border-b border-border pb-5 lg:block">
             <Logo />
-            <p className="mt-3 text-sm font-bold">
-              {store.profile.name || "Welcome to IT HUB"}
-            </p>
+            <p className="mt-3 text-sm font-bold">{store.profile.name || "Welcome to IT HUB"}</p>
             <p className="mt-1 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <BadgeCheck size={12} className="text-primary" />{" "}
-                {store.profile.phone}
+                <BadgeCheck size={12} className="text-primary" /> {store.profile.phone}
               </span>
             </p>
           </div>
@@ -215,16 +204,13 @@ export default function Account() {
                 {[
                   {
                     name: "Active orders",
-                    count: store.orders.filter((order) => order.status < 6)
-                      .length,
+                    count: store.orders.filter((order) => order.status < 6).length,
                     to: "orders",
                     Icon: ShoppingBag,
                   },
                   {
                     name: "Active services",
-                    count: store.requests.filter(
-                      (request) => request.status < 9,
-                    ).length,
+                    count: store.requests.filter((request) => request.status < 9).length,
                     to: "services",
                     Icon: Wrench,
                   },
@@ -259,13 +245,10 @@ export default function Account() {
                 ))}
               </div>
               <div className="mt-7 rounded-lg bg-[#0c2f8a] p-7 text-white">
-                <p className="mb-3 text-[10px] tracking-widest text-blue-300">
-                  YOUR NEXT PROJECT
-                </p>
+                <p className="mb-3 text-[10px] tracking-widest text-blue-300">YOUR NEXT PROJECT</p>
                 <h3 className="text-2xl font-bold">Make it your own.</h3>
                 <p className="mt-3 text-xs leading-6 text-blue-100">
-                  Configure a custom PC, check compatibility and save your ideal
-                  setup.
+                  Configure a custom PC, check compatibility and save your ideal setup.
                 </p>
                 <ActionLink to="/pc-builder" className="mt-5">
                   Start a build <ArrowUpRight size={15} />
@@ -274,16 +257,11 @@ export default function Account() {
               <h3 className="mb-4 mt-8 text-lg font-bold">Recent activity</h3>
               {store.notifications.length ? (
                 <div className="space-y-3">
-                  {store.notifications
-                    .slice(0, 5)
-                    .map((notification, index) => (
-                      <p
-                        key={index}
-                        className="rounded-md border border-border p-4 text-xs"
-                      >
-                        {notification}
-                      </p>
-                    ))}
+                  {store.notifications.slice(0, 5).map((notification, index) => (
+                    <p key={index} className="rounded-md border border-border p-4 text-xs">
+                      {notification}
+                    </p>
+                  ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -299,18 +277,16 @@ export default function Account() {
                   {(store.profile.name || "U").charAt(0).toUpperCase()}
                 </span>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold">
-                    {store.profile.name || "Add your name"}
-                  </h2>
+                  <h2 className="text-2xl font-bold">{store.profile.name || "Add your name"}</h2>
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <BadgeCheck size={15} className="text-primary" />{" "}
-                    {store.profile.phone} · verified
+                    <BadgeCheck size={15} className="text-primary" /> {store.profile.phone} ·
+                    verified
                   </p>
                 </div>
                 <Button
                   onClick={() => {
-                    setProfile(store.profile)
-                    setLogin(true)
+                    setProfile(store.profile);
+                    setLogin(true);
                   }}
                 >
                   Edit profile
@@ -327,9 +303,7 @@ export default function Account() {
                     <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {label}
                     </dt>
-                    <dd className="mt-1.5 text-sm font-medium">
-                      {value || "Not added yet"}
-                    </dd>
+                    <dd className="mt-1.5 text-sm font-medium">{value || "Not added yet"}</dd>
                   </div>
                 ))}
               </dl>
@@ -346,9 +320,7 @@ export default function Account() {
                   >
                     <Badge>MEMBER OFFER</Badge>
                     <h3 className="mt-4 text-xl font-bold">{offer.name}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {offer.description}
-                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">{offer.description}</p>
                     <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary/40 bg-secondary px-4 py-3">
                       <code className="text-sm font-bold tracking-widest text-primary">
                         ITHUB
@@ -358,8 +330,8 @@ export default function Account() {
                         onClick={() => {
                           navigator.clipboard?.writeText(
                             `ITHUB${offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}`,
-                          )
-                          store.notify("Offer code copied")
+                          );
+                          store.notify("Offer code copied");
                         }}
                         className="text-xs font-semibold text-primary"
                       >
@@ -382,22 +354,16 @@ export default function Account() {
               {store.orders.length ? (
                 <div className="space-y-4">
                   {store.orders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="rounded-lg border border-border p-6"
-                    >
+                    <div key={order.id} className="rounded-lg border border-border p-6">
                       <div className="flex flex-wrap justify-between gap-3">
                         <div>
                           <p className="text-sm font-bold">{order.id}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {new Date(order.date).toLocaleDateString()} ·{" "}
-                            {order.items.length} items
+                            {new Date(order.date).toLocaleDateString()} · {order.items.length} items
                           </p>
                         </div>
                         <Badge tone={order.status === 6 ? "green" : "blue"}>
-                          {order.status < 0
-                            ? "Cancelled"
-                            : orderStatuses[order.status]}
+                          {order.status < 0 ? "Cancelled" : orderStatuses[order.status]}
                         </Badge>
                       </div>
                       <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
@@ -444,12 +410,9 @@ export default function Account() {
             <>
               <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold">
-                    Sell & Trade-In Requests
-                  </h2>
+                  <h2 className="text-2xl font-bold">Sell & Trade-In Requests</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Track your gadget buyback evaluations, valuation offers, and
-                    trade-in status.
+                    Track your gadget buyback evaluations, valuation offers, and trade-in status.
                   </p>
                 </div>
                 <ActionLink to="/sell" className="shrink-0">
@@ -462,8 +425,8 @@ export default function Account() {
                   {store.sellRequests.map((req) => {
                     const waMessage = encodeURIComponent(
                       `Hello IT HUB, I am inquiring about my device valuation for Sell Request ${req.id} (${req.productName}).`,
-                    )
-                    const waUrl = `https://wa.me/${store.settings.whatsapp || "919876543210"}?text=${waMessage}`
+                    );
+                    const waUrl = `https://wa.me/${store.settings.whatsapp || "919876543210"}?text=${waMessage}`;
 
                     return (
                       <div
@@ -476,9 +439,7 @@ export default function Account() {
                               <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
                                 {req.id}
                               </span>
-                              <Badge
-                                tone={sellStatusTones[req.status] || "gray"}
-                              >
+                              <Badge tone={sellStatusTones[req.status] || "gray"}>
                                 {req.status}
                               </Badge>
                               <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
@@ -512,9 +473,7 @@ export default function Account() {
                         {/* Valuation & Pricing Comparison */}
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 rounded-xl bg-muted/40 p-3.5 text-xs">
                           <div>
-                            <span className="text-muted-foreground">
-                              Your Asking Price:
-                            </span>
+                            <span className="text-muted-foreground">Your Asking Price:</span>
                             <p className="mt-0.5 font-bold text-foreground">
                               {req.expectedPrice
                                 ? money(req.expectedPrice)
@@ -522,15 +481,10 @@ export default function Account() {
                             </p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">
-                              IT HUB Valuation Offer:
-                            </span>
+                            <span className="text-muted-foreground">IT HUB Valuation Offer:</span>
                             {req.offeredPrice ? (
                               <p className="mt-0.5 font-bold text-emerald-700 flex items-center gap-1">
-                                <BadgeCheck
-                                  size={14}
-                                  className="text-emerald-600"
-                                />
+                                <BadgeCheck size={14} className="text-emerald-600" />
                                 {money(req.offeredPrice)}
                                 <span className="text-[10px] font-normal text-emerald-600">
                                   (Ready for payout)
@@ -538,10 +492,7 @@ export default function Account() {
                               </p>
                             ) : (
                               <p className="mt-0.5 font-medium text-amber-700 flex items-center gap-1">
-                                <RefreshCw
-                                  size={12}
-                                  className="animate-spin text-amber-600"
-                                />
+                                <RefreshCw size={12} className="animate-spin text-amber-600" />
                                 Evaluation in progress by IT HUB technician
                               </p>
                             )}
@@ -576,16 +527,12 @@ export default function Account() {
                         {/* Admin Notes / Instructions Callout */}
                         {req.adminNotes && (
                           <div className="mt-3.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
-                            <span className="font-semibold text-primary">
-                              IT HUB Note:
-                            </span>{" "}
-                            <span className="text-foreground">
-                              {req.adminNotes}
-                            </span>
+                            <span className="font-semibold text-primary">IT HUB Note:</span>{" "}
+                            <span className="text-foreground">{req.adminNotes}</span>
                           </div>
                         )}
                       </div>
-                    )
+                    );
                   })}
                 </div>
               ) : (
@@ -604,10 +551,7 @@ export default function Account() {
               {store.requests.length ? (
                 <div className="space-y-4">
                   {store.requests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="rounded-lg border border-border p-6"
-                    >
+                    <div key={request.id} className="rounded-lg border border-border p-6">
                       <div className="flex flex-wrap justify-between gap-3">
                         <div>
                           <h3 className="font-bold">{request.model}</h3>
@@ -618,9 +562,7 @@ export default function Account() {
                         <Badge>{serviceStatuses[request.status]}</Badge>
                       </div>
                       <div className="mt-5 flex justify-between text-xs">
-                        <p className="text-muted-foreground">
-                          {request.method}
-                        </p>
+                        <p className="text-muted-foreground">{request.method}</p>
                         <Link
                           to={`/track-service/${request.id}`}
                           className="font-semibold text-primary"
@@ -644,9 +586,7 @@ export default function Account() {
           {section === "builds" && <PcBuilds />}
           {section === "wishlist" && (
             <>
-              <h2 className="mb-6 text-2xl font-bold">
-                Worth keeping an eye on.
-              </h2>
+              <h2 className="mb-6 text-2xl font-bold">Worth keeping an eye on.</h2>
               {products.length ? (
                 <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
                   {products.map((product) => (
@@ -664,39 +604,28 @@ export default function Account() {
           )}
           {section === "warranty" && (
             <>
-              <h2 className="mb-6 text-2xl font-bold">
-                Peace of mind, organised.
-              </h2>
+              <h2 className="mb-6 text-2xl font-bold">Peace of mind, organised.</h2>
               <WarrantyCheck source="Account warranty" className="mb-6" />
               <p className="mb-6 text-xs leading-6 text-muted-foreground">
-                Warranty coverage is based on demo product data. Manufacturer
-                terms apply; confirm coverage with IT HUB.
+                Warranty coverage is based on demo product data. Manufacturer terms apply; confirm
+                coverage with IT HUB.
               </p>
               {warranties.length ? (
                 <div className="space-y-4">
                   {warranties.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-lg border border-border p-6"
-                    >
+                    <div key={item.id} className="rounded-lg border border-border p-6">
                       <div className="flex flex-wrap justify-between gap-3">
                         <h3 className="font-bold">{item.name}</h3>
                         <Badge tone="green">ACTIVE · DEMO</Badge>
                       </div>
                       <p className="mt-3 text-xs text-muted-foreground">
-                        Purchase: {item.date} · Warranty: {item.term} · Expiry:{" "}
-                        {item.expiry}
+                        Purchase: {item.date} · Warranty: {item.term} · Expiry: {item.expiry}
                       </p>
                       <div className="mt-5 flex gap-3">
-                        <Button
-                          variant="secondary"
-                          onClick={() => setWarranty(item.id)}
-                        >
+                        <Button variant="secondary" onClick={() => setWarranty(item.id)}>
                           View warranty
                         </Button>
-                        <ActionLink to="/services/book">
-                          Request service
-                        </ActionLink>
+                        <ActionLink to="/services/book">Request service</ActionLink>
                       </div>
                     </div>
                   ))}
@@ -710,12 +639,10 @@ export default function Account() {
               )}
               <div className="mt-6 rounded-md bg-muted p-5 text-xs leading-6">
                 <Badge tone="gray">SPECIFICATION SAMPLE</Badge>
-                <p className="mt-3 font-semibold">
-                  ASUS RTX 5070 · 3-year warranty
-                </p>
+                <p className="mt-3 font-semibold">ASUS RTX 5070 · 3-year warranty</p>
                 <p className="text-muted-foreground">
-                  Purchase: 12 Aug 2026 · Expiry: 12 Aug 2029 · Active
-                  (illustrative record, not your purchase)
+                  Purchase: 12 Aug 2026 · Expiry: 12 Aug 2029 · Active (illustrative record, not
+                  your purchase)
                 </p>
               </div>
             </>
@@ -727,16 +654,14 @@ export default function Account() {
                 <div className="rounded-lg border border-border p-6">
                   <Badge>DEFAULT ADDRESS</Badge>
                   <p className="mt-4 font-bold">{store.profile.name}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {store.profile.address}
-                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">{store.profile.address}</p>
                   <p className="mt-2 text-xs">{store.profile.phone}</p>
                   <div className="mt-5 flex gap-4">
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        setProfile(store.profile)
-                        setLogin(true)
+                        setProfile(store.profile);
+                        setLogin(true);
                       }}
                     >
                       Edit address
@@ -746,8 +671,8 @@ export default function Account() {
                       onClick={() => {
                         store.set({
                           profile: { ...store.profile, address: "" },
-                        })
-                        store.notify("Address removed")
+                        });
+                        store.notify("Address removed");
                       }}
                     >
                       Remove
@@ -763,8 +688,8 @@ export default function Account() {
                   <Button
                     className="mt-5"
                     onClick={() => {
-                      setProfile(store.profile)
-                      setLogin(true)
+                      setProfile(store.profile);
+                      setLogin(true);
                     }}
                   >
                     Add address
@@ -780,8 +705,8 @@ export default function Account() {
                 <button
                   className="text-xs text-primary"
                   onClick={() => {
-                    store.set({ notifications: [] })
-                    store.notify("Notifications cleared")
+                    store.set({ notifications: [] });
+                    store.notify("Notifications cleared");
                   }}
                 >
                   Clear all
@@ -809,9 +734,7 @@ export default function Account() {
           )}
           {section === "support" && (
             <>
-              <h2 className="mb-3 text-2xl font-bold">
-                A little help goes a long way.
-              </h2>
+              <h2 className="mb-3 text-2xl font-bold">A little help goes a long way.</h2>
               <p className="mb-6 text-sm text-muted-foreground">
                 Send a demo support request or contact IT HUB directly.
               </p>
@@ -819,13 +742,13 @@ export default function Account() {
                 to="/support"
                 className="mb-6 flex items-center justify-between rounded-xl border border-primary/20 bg-secondary p-5 text-sm font-semibold text-primary"
               >
-                Open the Help &amp; Support centre — brand warranty contacts,
-                service and on-site service
+                Open the Help &amp; Support centre — brand warranty contacts, service and on-site
+                service
                 <span>→</span>
               </Link>
               <form
                 onSubmit={(event) => {
-                  event.preventDefault()
+                  event.preventDefault();
                   store.set((previous) => ({
                     tickets: [
                       {
@@ -835,9 +758,9 @@ export default function Account() {
                       },
                       ...previous.tickets,
                     ],
-                  }))
-                  setTicket({ subject: "", message: "" })
-                  store.notify("Demo support request submitted")
+                  }));
+                  setTicket({ subject: "", message: "" });
+                  store.notify("Demo support request submitted");
                 }}
                 className="space-y-5 rounded-lg border border-border p-6"
               >
@@ -846,9 +769,7 @@ export default function Account() {
                     required
                     minLength={3}
                     value={ticket.subject}
-                    onChange={(event) =>
-                      setTicket({ ...ticket, subject: event.target.value })
-                    }
+                    onChange={(event) => setTicket({ ...ticket, subject: event.target.value })}
                     className={fieldClass}
                   />
                 </Field>
@@ -857,9 +778,7 @@ export default function Account() {
                     required
                     minLength={10}
                     value={ticket.message}
-                    onChange={(event) =>
-                      setTicket({ ...ticket, message: event.target.value })
-                    }
+                    onChange={(event) => setTicket({ ...ticket, message: event.target.value })}
                     className={fieldClass}
                     rows={4}
                   />
@@ -871,15 +790,10 @@ export default function Account() {
               </form>
               <div className="mt-6 space-y-3">
                 {store.tickets.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex justify-between gap-3 rounded-md bg-muted p-4"
-                  >
+                  <div key={item.id} className="flex justify-between gap-3 rounded-md bg-muted p-4">
                     <div>
                       <p className="text-sm font-semibold">{item.subject}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {item.id}
-                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.id}</p>
                     </div>
                     <Badge>{item.status}</Badge>
                   </div>
@@ -896,18 +810,16 @@ export default function Account() {
               <form
                 className="space-y-5 rounded-lg border border-border p-6"
                 onSubmit={(event) => {
-                  event.preventDefault()
-                  store.set({ profile })
-                  store.notify("Profile updated locally")
+                  event.preventDefault();
+                  store.set({ profile });
+                  store.notify("Profile updated locally");
                 }}
               >
                 <Field label="Name">
                   <input
                     required
                     value={profile.name}
-                    onChange={(event) =>
-                      setProfile({ ...profile, name: event.target.value })
-                    }
+                    onChange={(event) => setProfile({ ...profile, name: event.target.value })}
                     className={fieldClass}
                   />
                 </Field>
@@ -916,9 +828,7 @@ export default function Account() {
                     required
                     type="email"
                     value={profile.email}
-                    onChange={(event) =>
-                      setProfile({ ...profile, email: event.target.value })
-                    }
+                    onChange={(event) => setProfile({ ...profile, email: event.target.value })}
                     className={fieldClass}
                   />
                 </Field>
@@ -926,16 +836,13 @@ export default function Account() {
                   <input
                     type="tel"
                     value={profile.phone}
-                    onChange={(event) =>
-                      setProfile({ ...profile, phone: event.target.value })
-                    }
+                    onChange={(event) => setProfile({ ...profile, phone: event.target.value })}
                     className={fieldClass}
                   />
                 </Field>
                 <Button type="submit">Save settings</Button>
                 <p className="text-xs text-muted-foreground">
-                  Demo profile only. There are no passwords or real
-                  authentication.
+                  Demo profile only. There are no passwords or real authentication.
                 </p>
               </form>
             </>
@@ -961,23 +868,23 @@ export default function Account() {
         </div>
         <form
           onSubmit={async (event) => {
-            event.preventDefault()
-            store.set({ profile })
-            setLogin(false)
+            event.preventDefault();
+            store.set({ profile });
+            setLogin(false);
             try {
               const res = await updateCustomerProfile({
                 fullName: profile.name,
                 email: profile.email,
                 address: profile.address,
                 phone: profile.phone,
-              })
+              });
               if (res.ok) {
-                store.notify("Profile saved to database")
+                store.notify("Profile saved to database");
               } else {
-                store.notify("Profile saved locally")
+                store.notify("Profile saved locally");
               }
             } catch {
-              store.notify("Profile saved locally")
+              store.notify("Profile saved locally");
             }
           }}
           className="space-y-5"
@@ -987,9 +894,7 @@ export default function Account() {
               required
               minLength={2}
               value={profile.name}
-              onChange={(event) =>
-                setProfile({ ...profile, name: event.target.value })
-              }
+              onChange={(event) => setProfile({ ...profile, name: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -998,9 +903,7 @@ export default function Account() {
               required
               type="email"
               value={profile.email}
-              onChange={(event) =>
-                setProfile({ ...profile, email: event.target.value })
-              }
+              onChange={(event) => setProfile({ ...profile, email: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -1009,18 +912,14 @@ export default function Account() {
               type="tel"
               readOnly
               value={profile.phone}
-              onChange={(event) =>
-                setProfile({ ...profile, phone: event.target.value })
-              }
+              onChange={(event) => setProfile({ ...profile, phone: event.target.value })}
               className={fieldClass}
             />
           </Field>
           <Field label="Address (optional)">
             <textarea
               value={profile.address}
-              onChange={(event) =>
-                setProfile({ ...profile, address: event.target.value })
-              }
+              onChange={(event) => setProfile({ ...profile, address: event.target.value })}
               className={fieldClass}
             />
           </Field>
@@ -1032,7 +931,7 @@ export default function Account() {
       <Modal
         open={Boolean(warranty)}
         onOpenChange={(open) => {
-          if (!open) setWarranty(null)
+          if (!open) setWarranty(null);
         }}
         title="Your warranty record"
       >
@@ -1047,8 +946,8 @@ export default function Account() {
                 <p className="mt-2 text-sm">Expiry (demo): {item.expiry}</p>
                 <p className="mt-2 text-sm">Order: {item.order}</p>
                 <p className="mt-4 rounded-md bg-muted p-4 text-xs leading-6 text-muted-foreground">
-                  This is a prototype warranty record. Contact IT HUB for expiry
-                  dates, terms, proof of purchase and actual claim eligibility.
+                  This is a prototype warranty record. Contact IT HUB for expiry dates, terms, proof
+                  of purchase and actual claim eligibility.
                 </p>
                 <ActionLink to="/services/book" className="mt-5">
                   Request service
@@ -1058,81 +957,58 @@ export default function Account() {
         </div>
       </Modal>
     </Page>
-  )
+  );
 }
 
-const buildPartOrder = [
-  "CPU",
-  "GPU",
-  "Motherboard",
-  "RAM",
-  "Storage",
-  "PSU",
-  "Cooler",
-  "Cabinet",
-]
+const buildPartOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const buildPartName = (build: Build, type: string) =>
   build.owned?.includes(type)
     ? "Already owned"
-    : build.parts[type]?.name || (type === "GPU" ? "Integrated graphics" : "—")
+    : build.parts[type]?.name || (type === "GPU" ? "Integrated graphics" : "—");
 function PcBuilds() {
-  const store = useStore()
-  const [renaming, setRenaming] = useState("")
-  const [draft, setDraft] = useState("")
-  const [compare, setCompare] = useState<string[]>([])
-  const [viewing, setViewing] = useState<Build | null>(null)
-  const assembly = store.assemblyCharge || 0
+  const store = useStore();
+  const [renaming, setRenaming] = useState("");
+  const [draft, setDraft] = useState("");
+  const [compare, setCompare] = useState<string[]>([]);
+  const [viewing, setViewing] = useState<Build | null>(null);
+  const assembly = store.assemblyCharge || 0;
   const compared = compare
     .map((id) => store.builds.find((build) => build.id === id))
-    .filter((build): build is Build => Boolean(build))
+    .filter((build): build is Build => Boolean(build));
   const toggleCompare = (id: string) =>
     setCompare((previous) =>
       previous.includes(id)
         ? previous.filter((value) => value !== id)
         : [...previous, id].slice(-2),
-    )
+    );
   const rename = (id: string) => {
-    const name = draft.trim()
+    const name = draft.trim();
     if (name)
       store.set((previous) => ({
-        builds: previous.builds.map((build) =>
-          build.id === id ? { ...build, name } : build,
-        ),
-      }))
-    setRenaming("")
-    store.notify("Build renamed")
-  }
+        builds: previous.builds.map((build) => (build.id === id ? { ...build, name } : build)),
+      }));
+    setRenaming("");
+    store.notify("Build renamed");
+  };
   const contact = (build: Build) => {
     const message = [
       "Hello IT HUB,",
       "I would like to enquire about the following PC build:",
       `Build:\n${build.name}`,
-      ...[
-        "CPU",
-        "GPU",
-        "RAM",
-        "Storage",
-        "Motherboard",
-        "PSU",
-        "Cabinet",
-        "Cooler",
-      ].map(
-        (type) =>
-          `${
-            type === "Cooler" ? "CPU Cooler" : type
-          }:\n${buildPartName(build, type)}`,
+      ...["CPU", "GPU", "RAM", "Storage", "Motherboard", "PSU", "Cabinet", "Cooler"].map(
+        (type) => `${type === "Cooler" ? "CPU Cooler" : type}:\n${buildPartName(build, type)}`,
       ),
       `Estimated Price:\n${money(build.price + assembly)}`,
       "Please confirm availability and provide the final quotation.",
-    ].join("\n\n")
-    store.log(`PC enquiry sent via WhatsApp: ${build.name}`)
-    track("Contact/WhatsApp Action", { context: "Saved PC build" })
+    ].join("\n\n");
+    store.log(`PC enquiry sent via WhatsApp: ${build.name}`);
+    track("Contact/WhatsApp Action", { context: "Saved PC build" });
     window.open(
       `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(message)}`,
       "_blank",
       "noopener,noreferrer",
-    )
-  }
+    );
+  };
   if (!store.builds.length)
     return (
       <>
@@ -1144,7 +1020,7 @@ function PcBuilds() {
           label="Find My PC"
         />
       </>
-    )
+    );
   return (
     <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -1162,10 +1038,7 @@ function PcBuilds() {
         <div className="mb-6 rounded-2xl border border-primary/30 bg-secondary/40 p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-bold">Compare builds</h3>
-            <button
-              className="text-xs text-primary"
-              onClick={() => setCompare([])}
-            >
+            <button className="text-xs text-primary" onClick={() => setCompare([])}>
               Clear
             </button>
           </div>
@@ -1173,21 +1046,16 @@ function PcBuilds() {
             {compared.map((build) => (
               <div key={build.id} className="min-w-0 rounded-xl bg-white p-3">
                 <p className="truncate text-sm font-bold">{build.name}</p>
-                <p className="mt-1 font-semibold text-primary">
-                  {money(build.price + assembly)}
-                </p>
+                <p className="mt-1 font-semibold text-primary">{money(build.price + assembly)}</p>
                 {build.designedFor && (
-                  <p className="mt-1 text-muted-foreground">
-                    For {build.designedFor}
-                  </p>
+                  <p className="mt-1 text-muted-foreground">For {build.designedFor}</p>
                 )}
               </div>
             ))}
             {buildPartOrder.map((type) =>
               compared.map((build) => {
                 const differs =
-                  buildPartName(compared[0], type) !==
-                  buildPartName(compared[1], type)
+                  buildPartName(compared[0], type) !== buildPartName(compared[1], type);
                 return (
                   <div
                     key={`${type}-${build.id}`}
@@ -1198,16 +1066,12 @@ function PcBuilds() {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       {type === "Cooler" ? "CPU Cooler" : type}
                     </p>
-                    <p className="mt-0.5 break-words font-medium">
-                      {buildPartName(build, type)}
-                    </p>
+                    <p className="mt-0.5 break-words font-medium">{buildPartName(build, type)}</p>
                     {build.parts[type] && !build.owned?.includes(type) && (
-                      <p className="text-muted-foreground">
-                        {money(build.parts[type].price)}
-                      </p>
+                      <p className="text-muted-foreground">{money(build.parts[type].price)}</p>
                     )}
                   </div>
-                )
+                );
               }),
             )}
           </div>
@@ -1218,18 +1082,15 @@ function PcBuilds() {
       )}
       <div className="space-y-4">
         {store.builds.map((build) => (
-          <div
-            key={build.id}
-            className="rounded-2xl border border-border p-5 md:p-6"
-          >
+          <div key={build.id} className="rounded-2xl border border-border p-5 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {renaming === build.id ? (
                   <form
                     className="flex gap-2"
                     onSubmit={(event) => {
-                      event.preventDefault()
-                      rename(build.id)
+                      event.preventDefault();
+                      rename(build.id);
                     }}
                   >
                     <input
@@ -1252,9 +1113,7 @@ function PcBuilds() {
                   </p>
                 )}
               </div>
-              <strong className="text-primary">
-                {money(build.price + assembly)}
-              </strong>
+              <strong className="text-primary">{money(build.price + assembly)}</strong>
             </div>
             <p className="mt-3 text-xs leading-6 text-muted-foreground">
               {buildPartOrder
@@ -1310,8 +1169,8 @@ function PcBuilds() {
               <button
                 className="text-xs text-primary"
                 onClick={() => {
-                  setRenaming(build.id)
-                  setDraft(build.name)
+                  setRenaming(build.id);
+                  setDraft(build.name);
                 }}
               >
                 Rename
@@ -1321,9 +1180,9 @@ function PcBuilds() {
                 onClick={() => {
                   store.set({
                     builds: store.builds.filter((item) => item.id !== build.id),
-                  })
-                  setCompare(compare.filter((id) => id !== build.id))
-                  store.notify("Build removed")
+                  });
+                  setCompare(compare.filter((id) => id !== build.id));
+                  store.notify("Build removed");
                 }}
               >
                 Delete
@@ -1346,10 +1205,7 @@ function PcBuilds() {
           <>
             <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
               {buildPartOrder
-                .filter(
-                  (type) =>
-                    viewing.parts[type] || viewing.owned?.includes(type),
-                )
+                .filter((type) => viewing.parts[type] || viewing.owned?.includes(type))
                 .map((type) => (
                   <p key={type} className="flex justify-between gap-3">
                     <span>
@@ -1359,32 +1215,26 @@ function PcBuilds() {
                       {buildPartName(viewing, type)}
                     </span>
                     {viewing.parts[type] && !viewing.owned?.includes(type) && (
-                      <strong className="shrink-0">
-                        {money(viewing.parts[type].price)}
-                      </strong>
+                      <strong className="shrink-0">{money(viewing.parts[type].price)}</strong>
                     )}
                   </p>
                 ))}
               <p className="flex justify-between gap-3 border-t border-border pt-2">
-                <span className="text-muted-foreground">
-                  Assembly / Service
-                </span>
+                <span className="text-muted-foreground">Assembly / Service</span>
                 <strong>{assembly ? money(assembly) : "Free"}</strong>
               </p>
             </div>
             <div className="mt-4 flex items-center justify-between">
               <span className="text-sm">Estimated Total</span>
-              <strong className="text-2xl text-primary">
-                {money(viewing.price + assembly)}
-              </strong>
+              <strong className="text-2xl text-primary">{money(viewing.price + assembly)}</strong>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
-              Component prices and availability may change. Final pricing will
-              be confirmed by IT HUB before purchase.
+              Component prices and availability may change. Final pricing will be confirmed by IT
+              HUB before purchase.
             </p>
           </>
         )}
       </Modal>
     </>
-  )
+  );
 }

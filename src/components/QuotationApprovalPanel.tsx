@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -12,29 +12,29 @@ import {
   Layers,
   HelpCircle,
   Sparkles,
-} from "lucide-react"
-import { useStore } from "../app/store"
+} from "lucide-react";
+import { useStore } from "../app/store";
 import {
   money,
   type ServiceRequest,
   type QuotationItem,
   type DiagnosisFinding,
-} from "../data/catalog"
+} from "../data/catalog";
 import {
   submitCustomerQuoteDecision,
   isUserTicketOwner,
   calculateQuotationTotals,
   validateItemSelection,
   type SafePublicTracking,
-} from "../lib/services"
-import { Badge, Button } from "./ui"
-import RepairPaymentModal from "./RepairPaymentModal"
+} from "../lib/services";
+import { Badge, Button } from "./ui";
+import RepairPaymentModal from "./RepairPaymentModal";
 
 interface QuotationApprovalPanelProps {
-  request: ServiceRequest
-  safeData: SafePublicTracking
-  onDecisionComplete?: (updated: ServiceRequest) => void
-  isEmbedded?: boolean
+  request: ServiceRequest;
+  safeData: SafePublicTracking;
+  onDecisionComplete?: (updated: ServiceRequest) => void;
+  isEmbedded?: boolean;
 }
 
 export default function QuotationApprovalPanel({
@@ -43,22 +43,21 @@ export default function QuotationApprovalPanel({
   onDecisionComplete,
   isEmbedded = false,
 }: QuotationApprovalPanelProps) {
-  const store = useStore()
+  const store = useStore();
 
   // Concurrency & confirmation states
-  const [confirmingAction, setConfirmingAction] =
-    useState<"approved" | "rejected" | null>(null)
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [decisionNotes, setDecisionNotes] = useState<string>("")
+  const [confirmingAction, setConfirmingAction] = useState<"approved" | "rejected" | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState<string>("");
 
   // Ownership verification
   const isOwner = isUserTicketOwner(request, store.profile, {
     id: store.profile.id,
     email: store.profile.email,
     phone: store.profile.phone,
-  })
+  });
 
   // Normalize findings and quotation items
   const findings: DiagnosisFinding[] = useMemo(() => {
@@ -66,8 +65,8 @@ export default function QuotationApprovalPanel({
       ? safeData.findings
       : request.findings && request.findings.length > 0
         ? request.findings
-        : []
-  }, [safeData.findings, request.findings])
+        : [];
+  }, [safeData.findings, request.findings]);
 
   const quotationItems: QuotationItem[] = useMemo(() => {
     const raw =
@@ -75,29 +74,27 @@ export default function QuotationApprovalPanel({
         ? safeData.quotationItems
         : request.quotationItems && request.quotationItems.length > 0
           ? request.quotationItems
-          : []
+          : [];
 
-    if (raw.length > 0) return raw
+    if (raw.length > 0) return raw;
 
     // Fallback single line item if legacy ticket lacks itemized breakdown
-    const fallbackCost = request.quote || 1500
-    const diagnosticCredit = Math.min(300, fallbackCost)
+    const fallbackCost = request.quote || 1500;
+    const diagnosticCredit = Math.min(300, fallbackCost);
     return [
       {
         id: "item-workbench-service",
         title: `${request.device} Hardware Diagnostic & Workbench Service`,
-        description:
-          request.problem ||
-          "Diagnostic assessment and standard workshop repairs.",
+        description: request.problem || "Diagnostic assessment and standard workshop repairs.",
         partCost: Math.max(0, fallbackCost - diagnosticCredit),
         labourCost: diagnosticCredit,
         quantity: 1,
         lineTotal: fallbackCost,
         isRequired: true,
         canDefer: false,
-        approvalState: request.quoteState as any || "pending",
+        approvalState: (request.quoteState as any) || "pending",
       },
-    ]
+    ];
   }, [
     safeData.quotationItems,
     request.quotationItems,
@@ -105,112 +102,102 @@ export default function QuotationApprovalPanel({
     request.problem,
     request.quote,
     request.quoteState,
-  ])
+  ]);
 
   // Track customer-selected items (default to all items, or approvedItems if already resolved)
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>(() => {
     if (request.approvedItems && request.approvedItems.length > 0) {
-      return request.approvedItems
+      return request.approvedItems;
     }
-    return quotationItems.map((item) => item.id)
-  })
+    return quotationItems.map((item) => item.id);
+  });
 
   // Handle item toggle with dependency and required rules
   const handleToggleItem = (itemId: string) => {
-    setActionError(null)
-    const targetItem = quotationItems.find((i) => i.id === itemId)
-    if (!targetItem) return
+    setActionError(null);
+    const targetItem = quotationItems.find((i) => i.id === itemId);
+    if (!targetItem) return;
 
-    const isCurrentlySelected = selectedItemIds.includes(itemId)
+    const isCurrentlySelected = selectedItemIds.includes(itemId);
 
     if (isCurrentlySelected) {
       // Trying to uncheck
       if (targetItem.isRequired) {
         setActionError(
           `"${targetItem.title}" is required for basic operation and cannot be deselected if authorizing repairs. If you do not wish to proceed, please select "Decline All Quotations".`,
-        )
-        return
+        );
+        return;
       }
 
       // Check if any OTHER currently selected item depends on this item
       const dependentItems = quotationItems.filter(
         (i) => selectedItemIds.includes(i.id) && i.dependsOn?.includes(itemId),
-      )
+      );
       if (dependentItems.length > 0) {
-        const depNames = dependentItems.map((i) => i.title).join(", ")
+        const depNames = dependentItems.map((i) => i.title).join(", ");
         setActionError(
           `Cannot deselect "${targetItem.title}" because other selected repairs (${depNames}) depend on it. Please deselect them first.`,
-        )
-        return
+        );
+        return;
       }
 
-      setSelectedItemIds((prev) => prev.filter((id) => id !== itemId))
+      setSelectedItemIds((prev) => prev.filter((id) => id !== itemId));
     } else {
       // Trying to check: also auto-select any dependencies it requires
-      const toAdd = [itemId]
+      const toAdd = [itemId];
       if (targetItem.dependsOn && targetItem.dependsOn.length > 0) {
         for (const depId of targetItem.dependsOn) {
           if (!selectedItemIds.includes(depId) && !toAdd.includes(depId)) {
-            toAdd.push(depId)
+            toAdd.push(depId);
           }
         }
       }
-      setSelectedItemIds((prev) => [...prev, ...toAdd])
+      setSelectedItemIds((prev) => [...prev, ...toAdd]);
     }
-  }
+  };
 
   // Live calculation based on current selections
   const effectiveSelections =
-    safeData.quoteState === "approved"
-      ? request.approvedItems || selectedItemIds
-      : selectedItemIds
+    safeData.quoteState === "approved" ? request.approvedItems || selectedItemIds : selectedItemIds;
 
   const calc = useMemo(() => {
-    return calculateQuotationTotals(
-      quotationItems,
-      effectiveSelections,
-      safeData.courierCharge,
-    )
-  }, [quotationItems, effectiveSelections, safeData.courierCharge])
+    return calculateQuotationTotals(quotationItems, effectiveSelections, safeData.courierCharge);
+  }, [quotationItems, effectiveSelections, safeData.courierCharge]);
 
   const allPayable = useMemo(() => {
     return calculateQuotationTotals(
       quotationItems,
       quotationItems.map((i) => i.id),
       safeData.courierCharge,
-    ).totalPayable
-  }, [quotationItems, safeData.courierCharge])
+    ).totalPayable;
+  }, [quotationItems, safeData.courierCharge]);
 
   const requiredCount = useMemo(
     () => quotationItems.filter((i) => i.isRequired).length,
     [quotationItems],
-  )
-  const optionalCount = quotationItems.length - requiredCount
+  );
+  const optionalCount = quotationItems.length - requiredCount;
 
   // Pre-submission validation
   const validation = useMemo(() => {
-    return validateItemSelection(quotationItems, selectedItemIds, "approved")
-  }, [quotationItems, selectedItemIds])
+    return validateItemSelection(quotationItems, selectedItemIds, "approved");
+  }, [quotationItems, selectedItemIds]);
 
   // Decision submit handler
   const handleConfirmDecision = async () => {
-    if (!confirmingAction) return
-    setIsSubmitting(true)
-    setActionError(null)
+    if (!confirmingAction) return;
+    setIsSubmitting(true);
+    setActionError(null);
 
-    const finalItemIds = confirmingAction === "approved" ? selectedItemIds : []
+    const finalItemIds = confirmingAction === "approved" ? selectedItemIds : [];
 
     // Enforce selection validation
     if (confirmingAction === "approved") {
-      const val = validateItemSelection(
-        quotationItems,
-        finalItemIds,
-        "approved",
-      )
+      const val = validateItemSelection(quotationItems, finalItemIds, "approved");
       if (!val.valid) {
-        setActionError(val.error || "Invalid item selection.")
-        setIsSubmitting(false)
-        return
+        setActionError(val.error || "Invalid item selection.");
+        setIsSubmitting(false);
+        return;
       }
     }
 
@@ -223,19 +210,17 @@ export default function QuotationApprovalPanel({
         decisionNotes,
         request.quote,
         request,
-      )
+      );
 
       if (!result.ok) {
         setActionError(
-          result.error ||
-            "Unable to record decision. Please refresh the page and try again.",
-        )
-        setIsSubmitting(false)
-        return
+          result.error || "Unable to record decision. Please refresh the page and try again.",
+        );
+        setIsSubmitting(false);
+        return;
       }
 
-      const nextStatus =
-        result.nextStatus ?? (confirmingAction === "approved" ? 5 : 4)
+      const nextStatus = result.nextStatus ?? (confirmingAction === "approved" ? 5 : 4);
 
       const updatedRequest: ServiceRequest = {
         ...request,
@@ -245,39 +230,32 @@ export default function QuotationApprovalPanel({
         approvedItems: result.approvedItems || finalItemIds,
         declinedItems:
           result.declinedItems ||
-          quotationItems
-            .map((i) => i.id)
-            .filter((id) => !finalItemIds.includes(id)),
+          quotationItems.map((i) => i.id).filter((id) => !finalItemIds.includes(id)),
         decisionNotes,
         decisionAt: new Date().toISOString(),
-      }
+      };
 
       store.set((prev) => ({
-        requests: prev.requests.map((r) =>
-          r.id === request.id ? updatedRequest : r,
-        ),
-      }))
+        requests: prev.requests.map((r) => (r.id === request.id ? updatedRequest : r)),
+      }));
 
       store.notify(
         confirmingAction === "approved"
           ? `Quotation of ${money(calc.totalPayable)} authorized! (${finalItemIds.length} item(s) approved)`
           : "Quotation declined. IT HUB will prepare your device for collection/return.",
-      )
+      );
 
-      setConfirmingAction(null)
-      setIsSubmitting(false)
+      setConfirmingAction(null);
+      setIsSubmitting(false);
 
       if (onDecisionComplete) {
-        onDecisionComplete(updatedRequest)
+        onDecisionComplete(updatedRequest);
       }
     } catch (err: any) {
-      setActionError(
-        err?.message ||
-          "A network error occurred while submitting your decision.",
-      )
-      setIsSubmitting(false)
+      setActionError(err?.message || "A network error occurred while submitting your decision.");
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div
@@ -325,9 +303,7 @@ export default function QuotationApprovalPanel({
           <FileText size={14} className="text-primary" />
           <span>Reported Customer Issue:</span>
         </div>
-        <p className="mt-1 font-medium text-foreground">
-          {request.problem || safeData.problem}
-        </p>
+        <p className="mt-1 font-medium text-foreground">{request.problem || safeData.problem}</p>
       </div>
 
       {/* 2. Newly Discovered & Bench Findings (Separated from customer complaint) */}
@@ -344,9 +320,7 @@ export default function QuotationApprovalPanel({
                 className="rounded-xl border border-border bg-card/60 p-3 text-xs"
               >
                 <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <span className="font-bold text-foreground">
-                    {finding.title}
-                  </span>
+                  <span className="font-bold text-foreground">{finding.title}</span>
                   <div className="flex items-center gap-1">
                     <span
                       className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-bold ${
@@ -395,8 +369,8 @@ export default function QuotationApprovalPanel({
               <span>Itemized Work Scope & Parts ({quotationItems.length})</span>
             </h4>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Review faults and select eligible repairs to authorize. Mandatory
-              repairs are locked for safety.
+              Review faults and select eligible repairs to authorize. Mandatory repairs are locked
+              for safety.
             </p>
           </div>
 
@@ -408,8 +382,8 @@ export default function QuotationApprovalPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    setActionError(null)
-                    setSelectedItemIds(quotationItems.map((i) => i.id))
+                    setActionError(null);
+                    setSelectedItemIds(quotationItems.map((i) => i.id));
                   }}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition ${
                     selectedItemIds.length === quotationItems.length
@@ -422,15 +396,10 @@ export default function QuotationApprovalPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    setActionError(null)
-                    const requiredIds = quotationItems
-                      .filter((i) => i.isRequired)
-                      .map((i) => i.id)
-                    const toSelect =
-                      requiredIds.length > 0
-                        ? requiredIds
-                        : [quotationItems[0].id]
-                    setSelectedItemIds(toSelect)
+                    setActionError(null);
+                    const requiredIds = quotationItems.filter((i) => i.isRequired).map((i) => i.id);
+                    const toSelect = requiredIds.length > 0 ? requiredIds : [quotationItems[0].id];
+                    setSelectedItemIds(toSelect);
                   }}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition ${
                     selectedItemIds.length < quotationItems.length
@@ -446,10 +415,10 @@ export default function QuotationApprovalPanel({
 
         <div className="space-y-2.5">
           {quotationItems.map((item) => {
-            const isChecked = selectedItemIds.includes(item.id)
-            const isApproved = request.approvedItems?.includes(item.id)
-            const isDeclined = request.declinedItems?.includes(item.id)
-            const linkedFinding = findings.find((f) => f.id === item.findingId)
+            const isChecked = selectedItemIds.includes(item.id);
+            const isApproved = request.approvedItems?.includes(item.id);
+            const isDeclined = request.declinedItems?.includes(item.id);
+            const linkedFinding = findings.find((f) => f.id === item.findingId);
 
             return (
               <div
@@ -464,10 +433,7 @@ export default function QuotationApprovalPanel({
                   <div className="flex items-start gap-3 flex-1">
                     {safeData.quoteState === "pending" && isOwner ? (
                       item.isRequired ? (
-                        <div
-                          className="mt-0.5 shrink-0"
-                          title="Mandatory core repair — locked"
-                        >
+                        <div className="mt-0.5 shrink-0" title="Mandatory core repair — locked">
                           <input
                             type="checkbox"
                             checked={true}
@@ -487,10 +453,7 @@ export default function QuotationApprovalPanel({
                     ) : (
                       <span className="mt-0.5 shrink-0">
                         {isApproved ? (
-                          <CheckCircle2
-                            size={16}
-                            className="text-emerald-600"
-                          />
+                          <CheckCircle2 size={16} className="text-emerald-600" />
                         ) : isDeclined ? (
                           <XCircle size={16} className="text-amber-600" />
                         ) : (
@@ -533,9 +496,7 @@ export default function QuotationApprovalPanel({
                         )}
                       </div>
 
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {item.description}
-                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{item.description}</p>
 
                       {/* Linked Diagnosis Finding & Explanation */}
                       {linkedFinding && (
@@ -549,8 +510,7 @@ export default function QuotationApprovalPanel({
                             </span>
                           </div>
                           <p className="text-muted-foreground text-[10px]">
-                            {linkedFinding.customerExplanation ||
-                              linkedFinding.description}
+                            {linkedFinding.customerExplanation || linkedFinding.description}
                           </p>
                         </div>
                       )}
@@ -560,14 +520,13 @@ export default function QuotationApprovalPanel({
                         <p className="mt-1.5 text-[10px] italic">
                           {item.isRequired ? (
                             <span className="text-red-700 font-medium">
-                              * Essential core repair required for safety and
-                              functionality; cannot be deselected unless
-                              declining all repairs.
+                              * Essential core repair required for safety and functionality; cannot
+                              be deselected unless declining all repairs.
                             </span>
                           ) : (
                             <span className="text-emerald-700 font-medium">
-                              * Eligible for individual approval. You may
-                              uncheck to defer or exclude this repair.
+                              * Eligible for individual approval. You may uncheck to defer or
+                              exclude this repair.
                             </span>
                           )}
                         </p>
@@ -580,13 +539,12 @@ export default function QuotationApprovalPanel({
                       {money(item.lineTotal)}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      Part: {money(item.partCost)} · Labour:{" "}
-                      {money(item.labourCost)}
+                      Part: {money(item.partCost)} · Labour: {money(item.labourCost)}
                     </span>
                   </div>
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </div>
@@ -597,27 +555,19 @@ export default function QuotationApprovalPanel({
           <span className="text-muted-foreground">
             Selected Replaced Parts ({calc.selectedCount} item(s)):
           </span>
-          <span className="font-semibold text-foreground">
-            {money(calc.partsTotal)}
-          </span>
+          <span className="font-semibold text-foreground">{money(calc.partsTotal)}</span>
         </div>
 
         <div className="flex justify-between">
           <span className="text-muted-foreground">Labour & Bench Testing:</span>
-          <span className="font-semibold text-foreground">
-            {money(calc.labourTotal)}
-          </span>
+          <span className="font-semibold text-foreground">{money(calc.labourTotal)}</span>
         </div>
 
         <div className="flex justify-between">
-          <span className="text-muted-foreground">
-            Diagnostic Assessment Fee:
-          </span>
+          <span className="text-muted-foreground">Diagnostic Assessment Fee:</span>
           <span className="font-semibold text-foreground">
             {calc.diagnosticFeeWaived ? (
-              <span className="text-emerald-600 font-bold">
-                ₹0 (Waived upon repair approval)
-              </span>
+              <span className="text-emerald-600 font-bold">₹0 (Waived upon repair approval)</span>
             ) : (
               <span>{money(calc.diagnosticFee)}</span>
             )}
@@ -626,12 +576,8 @@ export default function QuotationApprovalPanel({
 
         {calc.courierFee > 0 && (
           <div className="flex justify-between">
-            <span className="text-muted-foreground">
-              Insured Return Courier (Kerala-wide):
-            </span>
-            <span className="font-semibold text-foreground">
-              {money(calc.courierFee)}
-            </span>
+            <span className="text-muted-foreground">Insured Return Courier (Kerala-wide):</span>
+            <span className="font-semibold text-foreground">{money(calc.courierFee)}</span>
           </div>
         )}
 
@@ -641,15 +587,12 @@ export default function QuotationApprovalPanel({
               ? "Total Estimated Payable:"
               : "Final Authorized Total:"}
           </span>
-          <span className="text-base font-extrabold text-primary">
-            {money(calc.totalPayable)}
-          </span>
+          <span className="text-base font-extrabold text-primary">{money(calc.totalPayable)}</span>
         </div>
 
         <p className="text-[10px] text-muted-foreground italic mt-1">
-          *Note: All diagnostic fees are credited against authorized repairs. If
-          you decline all repairs, only the standard ₹300 inspection charge
-          applies upon device pickup.
+          *Note: All diagnostic fees are credited against authorized repairs. If you decline all
+          repairs, only the standard ₹300 inspection charge applies upon device pickup.
         </p>
       </div>
 
@@ -684,8 +627,8 @@ export default function QuotationApprovalPanel({
             <div className="flex items-center gap-2 font-bold">
               <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
               <span>
-                Repair Scope Authorized ({calc.selectedCount} of{" "}
-                {quotationItems.length} item(s) approved)
+                Repair Scope Authorized ({calc.selectedCount} of {quotationItems.length} item(s)
+                approved)
               </span>
             </div>
             <p className="text-[11px] leading-relaxed">
@@ -693,17 +636,14 @@ export default function QuotationApprovalPanel({
               {request.declinedItems && request.declinedItems.length > 0 && (
                 <span>
                   {" "}
-                  ({request.declinedItems.length} repair item(s) safely
-                  deferred/excluded).
+                  ({request.declinedItems.length} repair item(s) safely deferred/excluded).
                 </span>
               )}
             </p>
 
             <div className="pt-2 border-t border-emerald-200/60 grid gap-2 sm:grid-cols-2 text-[11px]">
               <div>
-                <span className="font-bold text-emerald-900 block mb-1">
-                  Approved Repairs:
-                </span>
+                <span className="font-bold text-emerald-900 block mb-1">Approved Repairs:</span>
                 <ul className="list-disc pl-4 space-y-0.5 text-emerald-800">
                   {quotationItems
                     .filter((i) =>
@@ -737,8 +677,7 @@ export default function QuotationApprovalPanel({
                       .filter(
                         (i) =>
                           !(
-                            request.approvedItems &&
-                            request.approvedItems.length > 0
+                            request.approvedItems && request.approvedItems.length > 0
                               ? request.approvedItems
                               : selectedItemIds
                           ).includes(i.id),
@@ -760,8 +699,8 @@ export default function QuotationApprovalPanel({
               <span>Quotation Declined by Customer</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              No repair work will be performed. The device is being reassembled
-              for pickup. The ₹300 inspection charge applies upon collection.
+              No repair work will be performed. The device is being reassembled for pickup. The ₹300
+              inspection charge applies upon collection.
             </p>
           </div>
         ) : (
@@ -774,13 +713,10 @@ export default function QuotationApprovalPanel({
                   Sign in required to authorize or customize repairs
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                  To protect device security, only the authenticated ticket
-                  owner can select and approve repair scope.
+                  To protect device security, only the authenticated ticket owner can select and
+                  approve repair scope.
                 </p>
-                <Button
-                  onClick={() => store.setAuthOpen(true)}
-                  className="mt-3 text-xs"
-                >
+                <Button onClick={() => store.setAuthOpen(true)} className="mt-3 text-xs">
                   Sign In to Authorize
                 </Button>
               </div>
@@ -791,10 +727,8 @@ export default function QuotationApprovalPanel({
                   Account Authorization Restricted
                 </p>
                 <p className="mt-1 leading-relaxed">
-                  You are signed in as{" "}
-                  <strong>{store.profile.email || store.profile.phone}</strong>,
-                  which does not match the registered customer record for this
-                  service ticket.
+                  You are signed in as <strong>{store.profile.email || store.profile.phone}</strong>
+                  , which does not match the registered customer record for this service ticket.
                 </p>
               </div>
             ) : (
@@ -812,8 +746,7 @@ export default function QuotationApprovalPanel({
                       {confirmingAction === "approved" ? (
                         <>
                           <p>
-                            You are authorizing{" "}
-                            <strong>{selectedItemIds.length}</strong> repair
+                            You are authorizing <strong>{selectedItemIds.length}</strong> repair
                             item(s):
                           </p>
                           <ul className="list-disc pl-5 text-[11px] space-y-0.5">
@@ -826,19 +759,14 @@ export default function QuotationApprovalPanel({
                               ))}
                           </ul>
 
-                          {quotationItems.some(
-                            (i) => !selectedItemIds.includes(i.id),
-                          ) && (
+                          {quotationItems.some((i) => !selectedItemIds.includes(i.id)) && (
                             <>
                               <p className="mt-2 text-amber-800 font-semibold">
-                                The following item(s) will be deferred /
-                                skipped:
+                                The following item(s) will be deferred / skipped:
                               </p>
                               <ul className="list-disc pl-5 text-[11px] space-y-0.5">
                                 {quotationItems
-                                  .filter(
-                                    (i) => !selectedItemIds.includes(i.id),
-                                  )
+                                  .filter((i) => !selectedItemIds.includes(i.id))
                                   .map((i) => (
                                     <li key={i.id} className="text-slate-600">
                                       {i.title} ({money(i.lineTotal)}) [Skipped]
@@ -850,10 +778,9 @@ export default function QuotationApprovalPanel({
                         </>
                       ) : (
                         <p>
-                          By declining, all repair work will be cancelled. The
-                          device will be reassembled and prepared for return.
-                          The standard ₹300 inspection charge applies upon
-                          pickup.
+                          By declining, all repair work will be cancelled. The device will be
+                          reassembled and prepared for return. The standard ₹300 inspection charge
+                          applies upon pickup.
                         </p>
                       )}
                     </div>
@@ -896,8 +823,8 @@ export default function QuotationApprovalPanel({
                         variant="secondary"
                         disabled={isSubmitting}
                         onClick={() => {
-                          setConfirmingAction(null)
-                          setActionError(null)
+                          setConfirmingAction(null);
+                          setActionError(null);
                         }}
                       >
                         Back
@@ -908,23 +835,19 @@ export default function QuotationApprovalPanel({
                   /* Action Buttons */
                   <div className="flex flex-wrap items-center gap-3">
                     <Button
-                      disabled={
-                        !validation.valid || selectedItemIds.length === 0
-                      }
+                      disabled={!validation.valid || selectedItemIds.length === 0}
                       onClick={() => {
-                        setActionError(null)
+                        setActionError(null);
                         const val = validateItemSelection(
                           quotationItems,
                           selectedItemIds,
                           "approved",
-                        )
+                        );
                         if (!val.valid) {
-                          setActionError(
-                            val.error || "Please select valid repairs to continue.",
-                          )
-                          return
+                          setActionError(val.error || "Please select valid repairs to continue.");
+                          return;
                         }
-                        setIsPaymentModalOpen(true)
+                        setIsPaymentModalOpen(true);
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-xs"
                     >
@@ -938,10 +861,10 @@ export default function QuotationApprovalPanel({
                       <Button
                         variant="secondary"
                         onClick={() => {
-                          setActionError(null)
-                          const allIds = quotationItems.map((i) => i.id)
-                          setSelectedItemIds(allIds)
-                          setIsPaymentModalOpen(true)
+                          setActionError(null);
+                          const allIds = quotationItems.map((i) => i.id);
+                          setSelectedItemIds(allIds);
+                          setIsPaymentModalOpen(true);
                         }}
                         className="text-xs"
                       >
@@ -952,8 +875,8 @@ export default function QuotationApprovalPanel({
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        setActionError(null)
-                        setConfirmingAction("rejected")
+                        setActionError(null);
+                        setConfirmingAction("rejected");
                       }}
                       className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-xs"
                     >
@@ -979,12 +902,12 @@ export default function QuotationApprovalPanel({
         decisionNotes={decisionNotes}
         onDecisionNotesChange={setDecisionNotes}
         onSuccess={(updated) => {
-          setIsPaymentModalOpen(false)
+          setIsPaymentModalOpen(false);
           if (onDecisionComplete) {
-            onDecisionComplete(updated)
+            onDecisionComplete(updated);
           }
         }}
       />
     </div>
-  )
+  );
 }
