@@ -173,7 +173,7 @@ function ExpertBuilder({
   }
 
   const partList = Object.keys(store.componentCatalog)
-    .filter((type) => parts[type])
+    .filter((type) => type !== "Peripherals" && type !== "OS" && parts[type])
     .map((type) => ({ type, name: parts[type].name, price: parts[type].price }))
 
   const enquire = () => {
@@ -245,7 +245,9 @@ function ExpertBuilder({
       </div>
       <div className="grid gap-8 lg:grid-cols-[1fr_370px]">
         <div className="space-y-3">
-          {Object.keys(store.componentCatalog).map((type, index) => (
+          {Object.keys(store.componentCatalog)
+            .filter((type) => type !== "Peripherals" && type !== "OS")
+            .map((type, index) => (
             <div
               key={type}
               className={`flex flex-wrap items-center gap-4 rounded-lg border p-5 ${

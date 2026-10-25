@@ -13,8 +13,6 @@ export type ComponentSlotId =
   | "Cooler"
   | "CaseFans"
   | "Monitor"
-  | "Peripherals"
-  | "OS"
 
 export type SlotRequirement = "required" | "optional" | "conditional"
 

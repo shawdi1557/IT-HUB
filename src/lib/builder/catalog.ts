@@ -558,8 +558,6 @@ export function buildBuilderCatalog(
     Cooler: [],
     CaseFans: [],
     Monitor: [],
-    Peripherals: [],
-    OS: [],
   }
 
   const matchedKeys = new Set<string>()
@@ -671,6 +669,7 @@ export function syncBuilderCatalogWithShopify(
   // Preserve any custom administrative entries from baselineCatalog if not already represented
   if (baselineCatalog) {
     for (const [slot, baseItems] of Object.entries(baselineCatalog)) {
+      if (slot === "Peripherals" || slot === "OS") continue
       if (!componentCatalog[slot]) {
         componentCatalog[slot] = baseItems
       } else {

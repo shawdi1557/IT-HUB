@@ -226,3 +226,12 @@ Deno.test("AUDIT-8: Multiple Shopify products (CPU + Monitor) correctly retain s
   assertEquals(monitor?.price, 15000)
   assertEquals(monitor?.variantId, "gid://shopify/ProductVariant/9988776655")
 })
+
+Deno.test("AUDIT-9: Peripherals and OS slots are excluded from the PC Builder catalog", () => {
+  const { componentCatalog, canonicalCatalog } = syncBuilderCatalogWithShopify([mockShopifyRyzen5600])
+  assertEquals((componentCatalog as any)["Peripherals"], undefined)
+  assertEquals((componentCatalog as any)["OS"], undefined)
+  assertEquals((canonicalCatalog as any)["Peripherals"], undefined)
+  assertEquals((canonicalCatalog as any)["OS"], undefined)
+})
+
