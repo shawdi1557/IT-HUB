@@ -355,3 +355,4 @@ from public.hardware_products hp where hp.shopify_product_id = 'gid://shopify/Pr
 on conflict (shopify_variant_id) do nothing;
 
 commit;
+

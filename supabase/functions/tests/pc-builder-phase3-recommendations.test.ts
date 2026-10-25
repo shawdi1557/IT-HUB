@@ -267,3 +267,4 @@ Deno.test("PHASE3-5: Specification confidence badges reflect provenance accurate
   assertEquals(rec.confidenceBadge === "certified" || rec.confidenceBadge === "high", true)
   assertEquals(Boolean(rec.confidenceLabel), true)
 })
+

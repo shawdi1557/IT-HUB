@@ -202,6 +202,9 @@ export interface QuotationSubmissionResult {
   id?: string
   estimatedPrice?: number
   error?: string
+  isRateLimited?: boolean
+  technicianReviewRequired?: boolean
+  priceDivergence?: number
 }
 
 export function generateQuotationReference(): string {
@@ -212,16 +215,19 @@ export function generateQuotationReference(): string {
 
 /**
  * Submits an official PC Build Quotation Request to IT HUB.
- * Uses the Supabase RPC `submit_pc_quotation_request` which:
- * - Authoritatively binds authenticated users via auth.uid()
- * - Securely permits guest requests with null user_id
- * - Records reference_id, parts, Shopify variant IDs, estimated price, and hardware compatibility
- * - Never returns success if the database write fails
+ * Uses the authoritative Supabase Edge Function `verify-and-submit-pc-quotation` which:
+ * - Recalculates authoritative prices server-side from Shopify variant IDs
+ * - Distributed rate-limits requests (5 requests / 60 seconds per IP)
+ * - Flags price tampering (> ₹100 divergence) for technician review
+ * - Safely binds authenticated user_id or permits guest requests with null user_id
+ * - Terminal error handling: never falls back to unverified client-side RPCs or bypasses verification
  */
 export async function submitQuotationRequest(
   build: CanonicalBuild,
   customerInfo?: CustomerContactInfo,
+  deps?: { supabaseClient?: any },
 ): Promise<QuotationSubmissionResult> {
+  const activeSupabase = deps?.supabaseClient ?? supabase
   const referenceId = generateQuotationReference()
   const estimatedPrice = calculateBuildTotal(build)
 
@@ -245,10 +251,13 @@ export async function submitQuotationRequest(
   const compatibilityPayload = build.compatibility || checkCompatibility(build.components)
 
   try {
-    if (supabase) {
-      // 1. Attempt authoritative Edge Function verification
+    if (activeSupabase) {
+      // Authoritative Edge Function verification is the SOLE live submission pathway
+      let edgeData: any = null
+      let edgeErr: any = null
+
       try {
-        const { data: edgeData, error: edgeErr } = await supabase.functions.invoke(
+        const response = await activeSupabase.functions.invoke(
           "verify-and-submit-pc-quotation",
           {
             body: {
@@ -264,50 +273,81 @@ export async function submitQuotationRequest(
             },
           },
         )
+        edgeData = response.data
+        edgeErr = response.error
+      } catch (invokeErr: any) {
+        edgeErr = invokeErr
+      }
 
-        if (!edgeErr && edgeData && edgeData.success) {
-          return {
-            success: true,
-            referenceId: edgeData.referenceId || referenceId,
-            id: edgeData.buildId,
-            estimatedPrice: edgeData.authoritativePrice || estimatedPrice,
+      // 1. Detect Distributed Rate Limiting (HTTP 429)
+      let isRateLimited = false
+      let errorMessage = edgeErr?.message
+
+      if (edgeErr) {
+        try {
+          if (edgeErr.context && typeof edgeErr.context.json === "function") {
+            const errBody = await edgeErr.context.json()
+            if (errBody?.error) errorMessage = errBody.error
+            if (errBody?.retryAfter || edgeErr.context.status === 429) {
+              isRateLimited = true
+            }
+          } else if (edgeErr.context?.status === 429 || edgeErr.status === 429) {
+            isRateLimited = true
           }
-        }
-      } catch {
-        // Fall back to direct RPC
-      }
-
-      // 2. Direct RPC fallback
-      const { data, error } = await supabase.rpc("submit_pc_quotation_request", {
-        p_build_name: build.name || "Custom PC Build",
-        p_reference_id: referenceId,
-        p_parts: partsPayload,
-        p_estimated_price: estimatedPrice,
-        p_compatibility: compatibilityPayload,
-        p_customer_name: customerInfo?.name?.trim() || null,
-        p_customer_phone: customerInfo?.phone?.trim() || null,
-        p_customer_email: customerInfo?.email?.trim() || null,
-      })
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message || "Failed to submit quotation request to IT HUB.",
+        } catch {
+          // Context already consumed or not JSON
         }
       }
 
-      if (data && (data as any).success === false) {
+      if (
+        edgeData?.retryAfter ||
+        (typeof edgeData?.error === "string" && edgeData.error.toLowerCase().includes("too many requests")) ||
+        (typeof errorMessage === "string" && errorMessage.toLowerCase().includes("too many requests"))
+      ) {
+        isRateLimited = true
+      }
+
+      if (isRateLimited) {
         return {
           success: false,
-          error: (data as any).error || "Failed to submit quotation request.",
+          error: "Too many quotation requests. Maximum 5 requests per minute allowed. Please wait a moment before trying again.",
+          isRateLimited: true,
+        }
+      }
+
+      // 2. Network or invocation failure — Return terminal error (NO fallback to unverified RPC)
+      if (edgeErr) {
+        return {
+          success: false,
+          error: errorMessage || "Failed to contact quotation verification service. Please try again or message IT HUB on WhatsApp.",
+        }
+      }
+
+      // 3. Edge Function logical rejection
+      if (edgeData && edgeData.success === false) {
+        return {
+          success: false,
+          error: edgeData.error || "Quotation verification failed.",
+          technicianReviewRequired: Boolean(edgeData.technicianReviewRequired),
+          priceDivergence: edgeData.priceDivergence,
+        }
+      }
+
+      // 4. Successful authoritative quotation verification
+      if (edgeData && edgeData.success) {
+        return {
+          success: true,
+          referenceId: edgeData.referenceId || referenceId,
+          id: edgeData.buildId,
+          estimatedPrice: edgeData.authoritativePrice ?? estimatedPrice,
+          technicianReviewRequired: Boolean(edgeData.technicianReviewRequired),
+          priceDivergence: edgeData.priceDivergence ?? 0,
         }
       }
 
       return {
-        success: true,
-        referenceId: (data as any)?.reference_id || referenceId,
-        id: (data as any)?.id,
-        estimatedPrice,
+        success: false,
+        error: "Quotation verification returned an unexpected response. Please try again.",
       }
     } else {
       // In offline/test environment without Supabase configuration
@@ -340,7 +380,7 @@ export async function submitQuotationRequest(
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || "An unexpected error occurred while submitting your quotation.",
+      error: err?.message || "Failed to submit quotation request. Please try again.",
     }
   }
 }

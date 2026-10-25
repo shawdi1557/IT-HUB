@@ -163,3 +163,4 @@ Deno.test("PHASE2-5: Rule J — Provenance audit transparently flags unverified 
   assertEquals(unverifiedItem?.status, "conditional")
   assertEquals(unverifiedItem?.affectedSlots.includes("Motherboard"), true)
 })
+

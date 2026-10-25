@@ -2,7 +2,8 @@
 // IT HUB Find My PC — Phase 5 Server-Side Quotation Verification & Security Test Suite
 // Rigorous verification covering TEST-SEC-1 (Anti-Tampering) and TEST-SEC-4 (Distributed Rate Limiting).
 
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts"
+import { assertEquals, assertNotEquals, assertMatch } from "https://deno.land/std@0.224.0/assert/mod.ts"
+import { submitQuotationRequest } from "../../../src/lib/builder/persistence.ts"
 
 const { handleQuotationVerification } = await import(
   "../verify-and-submit-pc-quotation/index.ts"
@@ -158,3 +159,306 @@ Deno.test("PHASE5-3: Migration SQL declares rate_limits table and check_distribu
   assertEquals(sql.includes("authoritative_price numeric"), true)
   assertEquals(sql.includes("technician_review_required boolean"), true)
 })
+
+Deno.test("TEST-SEC-5: Migration and Schema SQL restrict submit_pc_quotation_request to service_role and postgres, revoking anon and authenticated", async () => {
+  // 1. Verify 20261026000002_quotation_server_verification.sql revokes public/anon access
+  const migrationSql = await Deno.readTextFile("supabase/migrations/20261026000002_quotation_server_verification.sql")
+  assertEquals(
+    migrationSql.includes("revoke execute on function public.submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public, anon, authenticated;"),
+    true,
+  )
+  assertEquals(
+    migrationSql.includes("grant execute on function public.submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to service_role, postgres;"),
+    true,
+  )
+  assertEquals(
+    migrationSql.includes("raise exception 'Unauthorized: PC quotations must be submitted through the verified Edge Function endpoint.';"),
+    true,
+  )
+
+  // 2. Verify schema.sql revokes public/anon access
+  const schemaSql = await Deno.readTextFile("supabase/schema.sql")
+  assertEquals(
+    schemaSql.includes("revoke all on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public, anon, authenticated;"),
+    true,
+  )
+  assertEquals(
+    schemaSql.includes("grant execute on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to service_role, postgres;"),
+    true,
+  )
+  assertEquals(
+    schemaSql.includes("raise exception 'Unauthorized: PC quotations must be submitted through the verified Edge Function endpoint.';"),
+    true,
+  )
+})
+
+Deno.test("TEST-SEC-6: submitQuotationRequest never falls back to legacy RPC on HTTP 429 rate limiting (Terminal Rate Limit)", async () => {
+  let rpcCallCount = 0
+
+  const mockSupabase = {
+    functions: {
+      invoke: async (name: string, _opts: any) => {
+        assertEquals(name, "verify-and-submit-pc-quotation")
+        // Simulate Edge Function HTTP 429 rate limit response
+        return {
+          data: {
+            success: false,
+            error: "Too Many Requests. Maximum 5 quotation requests per minute allowed.",
+            retryAfter: 60,
+          },
+          error: null,
+        }
+      },
+    },
+    rpc: async (funcName: string, _params: any) => {
+      rpcCallCount++
+      throw new Error(`SECURITY VULNERABILITY: Legacy RPC ${funcName} must NEVER be called as a fallback!`)
+    },
+  }
+
+  const sampleBuild: any = {
+    id: "rate-limit-test-build",
+    name: "Rate Limit Test Rig",
+    components: {
+      CPU: { slot: "CPU", productId: "p-cpu", title: "AMD Ryzen 5 5600", price: 9000, variantId: "gid://shopify/ProductVariant/cpu-1" },
+      Motherboard: { slot: "Motherboard", productId: "p-mobo", title: "ASUS B550M", price: 8999, variantId: "gid://shopify/ProductVariant/mobo-1" },
+    },
+  }
+
+  const result = await submitQuotationRequest(sampleBuild, { name: "Rate Limit Tester" }, { supabaseClient: mockSupabase })
+
+  // Must report failure with isRateLimited flag
+  assertEquals(result.success, false)
+  assertEquals(result.isRateLimited, true)
+  assertEquals(result.error?.includes("Too many quotation requests"), true)
+
+  // Must have made ZERO calls to legacy RPC
+  assertEquals(rpcCallCount, 0)
+})
+
+Deno.test("TEST-SEC-7: submitQuotationRequest never falls back to legacy RPC on network or Edge Function errors (Terminal Network Error)", async () => {
+  let rpcCallCount = 0
+
+  const mockSupabase = {
+    functions: {
+      invoke: async (name: string, _opts: any) => {
+        assertEquals(name, "verify-and-submit-pc-quotation")
+        // Simulate network disconnect / timeout
+        return {
+          data: null,
+          error: new Error("Failed to send a request to the Edge Function: connection refused"),
+        }
+      },
+    },
+    rpc: async (funcName: string, _params: any) => {
+      rpcCallCount++
+      throw new Error(`SECURITY VULNERABILITY: Legacy RPC ${funcName} must NEVER be called on network error!`)
+    },
+  }
+
+  const sampleBuild: any = {
+    id: "network-error-test-build",
+    name: "Network Error Rig",
+    components: {
+      CPU: { slot: "CPU", productId: "p-cpu", title: "AMD Ryzen 5 5600", price: 9000, variantId: "gid://shopify/ProductVariant/cpu-1" },
+    },
+  }
+
+  const result = await submitQuotationRequest(sampleBuild, { name: "Network Tester" }, { supabaseClient: mockSupabase })
+
+  // Must report failure without bypassing verification
+  assertEquals(result.success, false)
+  assertEquals(Boolean(result.error), true)
+  assertEquals(result.error?.includes("connection refused") || result.error?.includes("Failed to contact"), true)
+
+  // Must have made ZERO calls to legacy RPC
+  assertEquals(rpcCallCount, 0)
+})
+
+Deno.test("TEST-SEC-8: submitQuotationRequest never falls back to legacy RPC on Edge Function verification rejection", async () => {
+  let rpcCallCount = 0
+
+  const mockSupabase = {
+    functions: {
+      invoke: async (name: string, _opts: any) => {
+        assertEquals(name, "verify-and-submit-pc-quotation")
+        // Simulate Edge Function price mismatch / tampering rejection
+        return {
+          data: {
+            success: false,
+            error: "Component price verification rejected due to inventory change",
+            technicianReviewRequired: true,
+            priceDivergence: 2500,
+          },
+          error: null,
+        }
+      },
+    },
+    rpc: async (funcName: string, _params: any) => {
+      rpcCallCount++
+      throw new Error(`SECURITY VULNERABILITY: Legacy RPC ${funcName} must NEVER be called on verification rejection!`)
+    },
+  }
+
+  const sampleBuild: any = {
+    id: "rejection-test-build",
+    name: "Rejection Test Rig",
+    components: {
+      CPU: { slot: "CPU", productId: "p-cpu", title: "AMD Ryzen 5 5600", price: 9000, variantId: "gid://shopify/ProductVariant/cpu-1" },
+    },
+  }
+
+  const result = await submitQuotationRequest(sampleBuild, { name: "Rejection Tester" }, { supabaseClient: mockSupabase })
+
+  // Must report failure and carry review flags
+  assertEquals(result.success, false)
+  assertEquals(result.error, "Component price verification rejected due to inventory change")
+  assertEquals(result.technicianReviewRequired, true)
+  assertEquals(result.priceDivergence, 2500)
+
+  // Must have made ZERO calls to legacy RPC
+  assertEquals(rpcCallCount, 0)
+})
+
+Deno.test("TEST-SEC-9: Authoritative Edge Function preserves guest quotations safely without client tampering", async () => {
+  let recordedInsert: any = null
+
+  const mockSupabase = {
+    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
+    from: (table: string) => {
+      return {
+        select: (_cols?: string) => ({
+          in: async () => ({ data: [], error: null }),
+        }),
+        insert: (record: any) => {
+          recordedInsert = record
+          return {
+            select: () => ({
+              single: async () => ({ data: { id: "quote-guest-verified-uuid" }, error: null }),
+            }),
+          }
+        },
+      }
+    },
+  }
+
+  const guestPayload = {
+    buildName: "Guest Safe Rig",
+    estimatedPrice: 9000,
+    parts: {
+      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+    },
+    customerInfo: { name: "Guest User", phone: "9876543210" },
+  }
+
+  const mockShopify = async (_q: string, vars: any) => ({
+    data: {
+      nodes: vars.ids.map((id: string) => ({
+        id,
+        price: { amount: "9000.00", currencyCode: "INR" },
+        availableForSale: true,
+      })),
+    },
+  })
+
+  // No authorization header -> Guest
+  const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-forwarded-for": "172.16.0.42" },
+    body: JSON.stringify(guestPayload),
+  })
+
+  const res = await handleQuotationVerification(req, {
+    supabaseClient: mockSupabase as any,
+    shopifyFetch: mockShopify,
+  })
+
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.success, true)
+  assertEquals(body.isGuest, true)
+  assertMatch(body.referenceId, /^ITH-PC-\d{8}-[A-Z0-9]+$/)
+  assertEquals(body.authoritativePrice, 9000)
+
+  // Verify database record has user_id = null and enquiry_status = 'New'
+  assertEquals(recordedInsert.user_id, null)
+  assertEquals(recordedInsert.enquiry_status, "New")
+  assertEquals(recordedInsert.customer_name, "Guest User")
+  assertEquals(recordedInsert.authoritative_price, 9000)
+})
+
+Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id from verified JWT token", async () => {
+  let recordedInsert: any = null
+
+  const mockSupabase = {
+    auth: {
+      getUser: async (token: string) => {
+        if (token === "valid-user-jwt") {
+          return { data: { user: { id: "00000000-0000-0000-0000-000000000001", email: "auth@ithub.example.com" } }, error: null }
+        }
+        return { data: { user: null }, error: new Error("Invalid token") }
+      },
+    },
+    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
+    from: (table: string) => {
+      return {
+        select: (_cols?: string) => ({
+          in: async () => ({ data: [], error: null }),
+        }),
+        insert: (record: any) => {
+          recordedInsert = record
+          return {
+            select: () => ({
+              single: async () => ({ data: { id: "quote-auth-verified-uuid" }, error: null }),
+            }),
+          }
+        },
+      }
+    },
+  }
+
+  const payload = {
+    buildName: "Authenticated Customer Rig",
+    estimatedPrice: 9000,
+    parts: {
+      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+    },
+    customerInfo: { name: "Logged In User" },
+  }
+
+  const mockShopify = async (_q: string, vars: any) => ({
+    data: {
+      nodes: vars.ids.map((id: string) => ({
+        id,
+        price: { amount: "9000.00", currencyCode: "INR" },
+        availableForSale: true,
+      })),
+    },
+  })
+
+  // Authorization header supplied with valid token
+  const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer valid-user-jwt",
+      "x-forwarded-for": "172.16.0.42",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const res = await handleQuotationVerification(req, {
+    supabaseClient: mockSupabase as any,
+    shopifyFetch: mockShopify,
+  })
+
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.success, true)
+  assertEquals(body.isGuest, false)
+
+  // Verify database record has user_id = authenticated user ID
+  assertEquals(recordedInsert.user_id, "00000000-0000-0000-0000-000000000001")
+})
+
+

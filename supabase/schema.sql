@@ -1087,6 +1087,11 @@ declare
   v_ref text;
   v_name text;
 begin
+  -- Defense-in-depth: Restrict direct invocation strictly to service_role and postgres
+  if coalesce(current_setting('request.jwt.claim.role', true), auth.role(), '') not in ('service_role', 'postgres') and not is_admin() then
+    raise exception 'Unauthorized: PC quotations must be submitted through the verified Edge Function endpoint.';
+  end if;
+
   v_user_id := auth.uid();
   v_name := coalesce(nullif(trim(p_build_name), ''), 'Custom PC Build');
 
@@ -2684,8 +2689,8 @@ grant execute on function ensure_profile() to authenticated;
 revoke all on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) from public;
 grant execute on function log_visitor_event(uuid, text, text, text, jsonb, text, text, text, text, text, text, text, text, boolean) to anon, authenticated;
 
-revoke all on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public;
-grant execute on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to anon, authenticated;
+revoke all on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public, anon, authenticated;
+grant execute on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to service_role, postgres;
 
 revoke all on function health_check() from public;
 grant execute on function health_check() to anon, authenticated, service_role;

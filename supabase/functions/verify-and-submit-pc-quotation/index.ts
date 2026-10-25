@@ -52,7 +52,29 @@ export async function handleQuotationVerification(
 
     const supabase = deps?.supabaseClient ?? (supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null)
 
-    // 2. Distributed Rate Limit Check (5 requests per 60 seconds)
+    // 2. Authoritative User Identity Derivation
+    let userId: string | null = null
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
+    if (authHeader && supabase) {
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim()
+      if (
+        token &&
+        token !== serviceKey &&
+        token !== Deno.env.get("SUPABASE_ANON_KEY") &&
+        token !== Deno.env.get("VITE_SUPABASE_ANON_KEY")
+      ) {
+        try {
+          const { data: userData } = await supabase.auth.getUser(token)
+          if (userData?.user?.id) {
+            userId = userData.user.id
+          }
+        } catch {
+          // Token invalid or expired: proceed as guest (userId = null)
+        }
+      }
+    }
+
+    // 3. Distributed Rate Limit Check (5 requests per 60 seconds)
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("cf-connecting-ip") ||
@@ -85,10 +107,9 @@ export async function handleQuotationVerification(
       }
     }
 
-    // 3. Extract Variant GIDs & Recalculate Authoritative Pricing
-    const variantGids: string[] = []
+    // 4. Extract Variant GIDs & Recalculate Authoritative Pricing
     const partsArray = Array.isArray(parts) ? parts : Object.values(parts)
-
+    const variantGids: string[] = []
     for (const part of partsArray as any[]) {
       if (part && part.variantId) {
         variantGids.push(part.variantId)
@@ -102,7 +123,7 @@ export async function handleQuotationVerification(
     const shopifyDomain = Deno.env.get("VITE_SHOPIFY_STORE_DOMAIN") || "it-hub-m8tzfzjd.myshopify.com"
     const shopifyToken = Deno.env.get("VITE_SHOPIFY_STOREFRONT_TOKEN") || ""
 
-    if (variantGids.length > 0 && shopifyToken) {
+    if (variantGids.length > 0 && (shopifyToken || deps?.shopifyFetch)) {
       const query = `
         query getVariantPrices($ids: [ID!]!) {
           nodes(ids: $ids) {
@@ -133,12 +154,16 @@ export async function handleQuotationVerification(
           })
 
         const shopifyData = await fetcher(query, { ids: variantGids })
-        if (shopifyData?.data?.nodes) {
-          hasAuthoritativeLookup = true
+        if (shopifyData?.data?.nodes && Array.isArray(shopifyData.data.nodes)) {
+          let foundNodes = 0
           for (const node of shopifyData.data.nodes) {
             if (node && node.price?.amount) {
               authoritativePrice += Math.round(parseFloat(node.price.amount))
+              foundNodes++
             }
+          }
+          if (foundNodes === variantGids.length && variantGids.length > 0) {
+            hasAuthoritativeLookup = true
           }
         }
       } catch {
@@ -153,8 +178,7 @@ export async function handleQuotationVerification(
         .select("shopify_variant_id")
         .in("shopify_variant_id", variantGids)
 
-      if (dbVariants && dbVariants.length > 0) {
-        // Recalculate from parts array
+      if (dbVariants && dbVariants.length === variantGids.length) {
         authoritativePrice = partsArray.reduce((acc: number, p: any) => acc + (Number(p.price) || 0), 0)
         hasAuthoritativeLookup = true
       }
@@ -165,22 +189,23 @@ export async function handleQuotationVerification(
       authoritativePrice = partsArray.reduce((acc: number, p: any) => acc + (Number(p.price) || 0), 0)
     }
 
-    // 4. Anti-Tampering & Price Divergence Audit
+    // 5. Anti-Tampering & Price Divergence Audit
     const clientPrice = Math.round(Number(estimatedPrice) || 0)
     const priceDivergence = Math.abs(authoritativePrice - clientPrice)
-    const technicianReviewRequired = priceDivergence > 100 // Divergence > ₹100 flags review
+    const technicianReviewRequired = priceDivergence > 100 || !hasAuthoritativeLookup
 
-    // 5. Generate Authoritative Reference ID
+    // 6. Generate Authoritative Reference ID
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "")
     const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase()
     const referenceId = `ITH-PC-${today}-${randomHex}`
 
-    // 6. Persist to pc_builds table
+    // 7. Persist to pc_builds table
     let buildId = `quote-${Date.now()}`
     if (supabase) {
       const { data: inserted, error: insErr } = await supabase
         .from("pc_builds")
         .insert({
+          user_id: userId,
           name: buildName,
           reference_id: referenceId,
           parts,
@@ -197,7 +222,23 @@ export async function handleQuotationVerification(
         .select("id")
         .single()
 
-      if (!insErr && inserted?.id) {
+      if (insErr) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: insErr.message || "Failed to persist quotation request.",
+          }),
+          {
+            status: 500,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          },
+        )
+      }
+
+      if (inserted?.id) {
         buildId = inserted.id
       }
     }
@@ -211,6 +252,7 @@ export async function handleQuotationVerification(
         clientEstimatedPrice: clientPrice,
         priceDivergence,
         technicianReviewRequired,
+        isGuest: userId === null,
       }),
       {
         status: 200,
@@ -231,3 +273,4 @@ export async function handleQuotationVerification(
 if (import.meta.main) {
   serve((req) => handleQuotationVerification(req))
 }
+
