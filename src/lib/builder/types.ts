@@ -213,3 +213,78 @@ export interface QuotationRecord {
   createdAt: string
 }
 
+export type SpecVerificationStatus =
+  | "verified_manufacturer"
+  | "verified_technician"
+  | "supplier_spec"
+  | "ambiguous_unverified"
+  | "quarantined_rejected"
+
+export interface HardwareProductRecord {
+  id: string
+  shopify_product_id: string
+  handle?: string
+  brand?: string
+  model_family: string
+  category: ComponentSlotId
+  socket?: string
+  form_factor?: string
+  chipset?: string
+  memory_generation?: string
+  memory_slots?: number
+  max_memory_capacity_gb?: number
+  storage_interface?: string
+  m2_slot_count?: number
+  sata_port_count?: number
+  max_gpu_length_mm?: number
+  max_cooler_height_mm?: number
+  max_psu_length_mm?: number
+  supported_motherboards?: string[]
+  supported_sockets?: string[]
+  cooler_height_mm?: number
+  max_tdp_rating_watts?: number
+  tdp_watts?: number
+  has_integrated_graphics?: boolean
+  includes_stock_cooler?: boolean
+  has_wifi?: boolean
+  has_bluetooth?: boolean
+  bios_version_required?: string
+  benchmark_single_core?: number
+  benchmark_multi_core?: number
+  benchmark_gpu_raster?: number
+  benchmark_gpu_compute?: number
+  verification_status: SpecVerificationStatus
+  source_reference_url?: string
+  verified_by?: string
+  spec_provenance?: Record<string, any>
+  last_verified_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HardwareVariantRecord {
+  id: string
+  product_id: string
+  shopify_variant_id: string
+  sku?: string
+  variant_title: string
+  length_mm?: number
+  slot_width?: number
+  tdp_watts?: number
+  rated_wattage?: number
+  efficiency_rating?: string
+  pcie_power_connectors?: string[]
+  capacity_gb?: number
+  module_count?: number
+  speed_mhz?: number
+  cas_latency?: number
+  is_laptop_sodimm?: boolean
+  verification_status: SpecVerificationStatus
+  source_reference_url?: string
+  spec_provenance?: Record<string, any>
+  last_verified_at?: string
+  created_at: string
+  updated_at: string
+}
+
+

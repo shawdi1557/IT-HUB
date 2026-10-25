@@ -6,10 +6,55 @@ import type {
   CanonicalBuildComponent,
   ComponentSlotId,
   TechnicalSpecs,
+  HardwareProductRecord,
+  HardwareVariantRecord,
+  SpecVerificationStatus,
 } from "./types"
 import type { Product, ComponentOption } from "../../data/catalog"
 import { shopifyConfig, fetchShopifyCatalog } from "../shopify"
 import { toVariantGid } from "../shopify-schema"
+import { supabase } from "../supabase"
+
+export interface DatabaseHardwareMapping {
+  product: Partial<HardwareProductRecord>
+  variant: Partial<HardwareVariantRecord>
+}
+
+// In-memory registry for database-synced hardware specifications
+const registeredDatabaseSpecs: Map<string, DatabaseHardwareMapping> = new Map()
+
+export function registerDatabaseHardwareSpec(
+  variantId: string,
+  mapping: DatabaseHardwareMapping,
+): void {
+  registeredDatabaseSpecs.set(toVariantGid(variantId), mapping)
+}
+
+export function clearRegisteredDatabaseSpecs(): void {
+  registeredDatabaseSpecs.clear()
+}
+
+export async function loadDatabaseHardwareSpecs(): Promise<void> {
+  if (!supabase) return
+  try {
+    const { data: variants, error: vErr } = await supabase
+      .from("hardware_variants")
+      .select("*, hardware_products(*)")
+      .neq("verification_status", "quarantined_rejected")
+
+    if (vErr || !variants) return
+
+    for (const v of variants) {
+      const p = v.hardware_products as HardwareProductRecord
+      if (p && p.verification_status !== "quarantined_rejected") {
+        registeredDatabaseSpecs.set(v.shopify_variant_id, { product: p, variant: v })
+      }
+    }
+  } catch {
+    // Non-blocking fallback to local verified registry
+  }
+}
+
 
 export interface VerifiedSpecEntry {
   specs: TechnicalSpecs
@@ -457,7 +502,69 @@ export function matchShopifyProductToComponent(
   const cleanedTitle = normalizeHardwareTitle(product.name)
   const normCleaned = cleanedTitle.toLowerCase()
 
-  // Match against verified hardware specifications
+  // Ensure authentic variant ID
+  const variantId = product.variantId ? toVariantGid(product.variantId) : ""
+
+  // 1. Check Database Specification Registry
+  if (variantId && registeredDatabaseSpecs.has(variantId)) {
+    const { product: dbProd, variant: dbVar } = registeredDatabaseSpecs.get(variantId)!
+
+    // Strict Quarantine Check: If parent or variant is quarantined, block immediately
+    if (
+      dbProd.verification_status === "quarantined_rejected" ||
+      dbVar.verification_status === "quarantined_rejected"
+    ) {
+      return null
+    }
+
+    const isVerified =
+      dbVar.verification_status === "verified_manufacturer" ||
+      dbVar.verification_status === "verified_technician"
+
+    const specs: TechnicalSpecs = {
+      socket: dbProd.socket,
+      formFactor: dbProd.form_factor,
+      supportedRamGeneration: dbProd.memory_generation as any,
+      ramGeneration: (dbVar.capacity_gb ? dbProd.memory_generation : undefined) as any,
+      tdpWatts: dbVar.tdp_watts || dbProd.tdp_watts,
+      ratedWattage: dbVar.rated_wattage,
+      lengthMm: dbVar.length_mm,
+      maxGpuLengthMm: dbProd.max_gpu_length_mm,
+      maxCoolerHeightMm: dbProd.max_cooler_height_mm,
+      coolerHeightMm: dbProd.cooler_height_mm,
+      hasWifi: dbProd.has_wifi,
+      includesCooler: dbProd.includes_stock_cooler,
+      hasIntegratedGraphics: dbProd.has_integrated_graphics,
+      storageInterface: dbProd.storage_interface as any,
+      isLaptopSoDimm: dbVar.is_laptop_sodimm,
+      capacityGb: dbVar.capacity_gb,
+      speedMhz: dbVar.speed_mhz,
+      provenance: dbVar.verification_status as any,
+      lastVerifiedAt: dbVar.last_verified_at || dbProd.last_verified_at,
+    }
+
+    return {
+      slot,
+      productId: product.id,
+      variantId,
+      title: product.name,
+      brand: dbProd.brand || product.brand || "IT HUB",
+      model: dbProd.model_family || cleanedTitle,
+      price: Math.round(product.price),
+      currency: "INR",
+      productUrl: `/products/${product.handle || product.id}`,
+      imageUrl: product.image,
+      specs,
+      availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+      quantity: 1,
+      retrievedAt: new Date().toISOString(),
+      isShopifyLive: true,
+      isVerified,
+      matchedModelKey: `db-${dbProd.id || dbVar.id || variantId}`,
+    }
+  }
+
+  // 2. Match against verified hardware specifications
   let matchedKey: string | undefined
   let matchedEntry: VerifiedSpecEntry | undefined
 
@@ -476,9 +583,6 @@ export function matchShopifyProductToComponent(
       break
     }
   }
-
-  // Ensure authentic variant ID
-  const variantId = product.variantId ? toVariantGid(product.variantId) : ""
 
   if (matchedEntry && matchedKey) {
     const specs = { ...matchedEntry.specs }
