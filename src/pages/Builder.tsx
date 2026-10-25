@@ -31,7 +31,6 @@ import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
 import WhatsAppIcon from "../components/WhatsAppIcon"
 import {
-  componentOptions,
   images,
   money,
   type ComponentOption,
@@ -43,84 +42,78 @@ import {
 } from "../data/buildTemplates"
 import { Badge, Button, Modal, Page, PageHeading } from "../components/ui"
 
-export function compatibility(parts: Record<string, ComponentOption>) {
-  const result: {
-    label: string
-    state: "ok" | "warning" | "error"
-  }[] = []
-  const { CPU, Motherboard, RAM, GPU, PSU, Cabinet, Cooler, Storage } = parts
-  const watts =
-    (CPU?.watts || 0) + (GPU?.watts || 0) + (Object.keys(parts).length ? 80 : 0)
-  const recommended = Math.ceil((watts * 1.35) / 50) * 50
-  if (CPU && Motherboard) {
-    result.push({
-      label:
-        CPU.socket === Motherboard.socket
-          ? `CPU + motherboard · ${CPU.socket}`
-          : "CPU & motherboard sockets are incompatible",
-      state: CPU.socket === Motherboard.socket ? "ok" : "error",
-    })
-    if (CPU.id === "r7" && Motherboard.bios)
-      result.push({
-        label: "Motherboard BIOS update may be required",
-        state: "warning",
-      })
+import {
+  checkCompatibility,
+  compatibility,
+  fetchBuilderComponents,
+  saveBuild,
+  loadSavedBuilds,
+  deleteSavedBuild,
+  submitQuotationRequest,
+  savePendingQuotation,
+  getPendingQuotation,
+  clearPendingQuotation,
+  generateWhatsAppQuotation,
+  generateDynamicCatalogRecommendations,
+  getBudgetShortfallInfo,
+  type CanonicalBuild,
+  type CanonicalBuildComponent,
+  type ComponentSlotId,
+  type CompatibilitySummary,
+} from "../lib/builder"
+
+export { compatibility }
+
+function toCanonicalRecord(parts: Record<string, ComponentOption>): Partial<Record<ComponentSlotId, CanonicalBuildComponent>> {
+  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {}
+  for (const [key, part] of Object.entries(parts)) {
+    if (!part) continue
+    const slot = key as ComponentSlotId
+    canonicalParts[slot] = {
+      slot,
+      productId: part.id || `part-${key}`,
+      variantId: part.variantId || "",
+      title: part.name || `${key} component`,
+      price: part.price || 0,
+      currency: "INR",
+      specs: {
+        socket: part.socket,
+        supportedRamGeneration: part.ram,
+        ramGeneration: part.ram,
+        tdpWatts: part.watts,
+        powerWatts: part.watts,
+        ratedWattage: part.capacity,
+        lengthMm: part.length,
+        maxGpuLengthMm: part.clearance,
+        maxCoolerHeightMm: part.clearance,
+        coolerHeightMm: (part as any).height,
+        hasWifi: part.wifi,
+        requiresBiosUpdateForRyzen5000: part.bios,
+        includesCooler: (part as any).includesCooler,
+        hasIntegratedGraphics: (part as any).hasIntegratedGraphics ?? (key === "CPU" ? (part.name?.includes("G") || part.socket === "AM5") : undefined),
+        provenance: part.provenance as any || (part.isVerified === false ? "unverified" : "manufacturer_verified"),
+      },
+      availability: part.stock === 0 ? "unavailable" : "available",
+      quantity: 1,
+      retrievedAt: new Date().toISOString(),
+      isShopifyLive: Boolean(part.variantId),
+      isVerified: part.isVerified !== false,
+      matchedModelKey: part.matchedModelKey,
+    }
   }
-  if (RAM && Motherboard)
-    result.push({
-      label:
-        RAM.ram === Motherboard.ram
-          ? `Motherboard + RAM · ${RAM.ram}`
-          : "RAM generation incompatible with motherboard",
-      state: RAM.ram === Motherboard.ram ? "ok" : "error",
-    })
-  if (GPU && Cabinet)
-    result.push({
-      label:
-        (GPU.length || 0) <= (Cabinet.clearance || 0)
-          ? "GPU fits cabinet clearance"
-          : "GPU is too long for this cabinet",
-      state: (GPU.length || 0) <= (Cabinet.clearance || 0) ? "ok" : "error",
-    })
-  if (PSU)
-    result.push({
-      label:
-        (PSU.capacity || 0) < watts
-          ? "PSU capacity below estimated consumption"
-          : (PSU.capacity || 0) < recommended
-            ? "Power headroom is limited"
-            : "PSU has adequate power headroom",
-      state:
-        (PSU.capacity || 0) < watts
-          ? "error"
-          : (PSU.capacity || 0) < recommended
-            ? "warning"
-            : "ok",
-    })
-  if (CPU && Cooler)
-    result.push({
-      label:
-        (CPU.watts || 0) <= (Cooler.capacity || 0)
-          ? "Cooler thermal capacity is sufficient"
-          : "CPU cooler thermal capacity is insufficient",
-      state: (CPU.watts || 0) <= (Cooler.capacity || 0) ? "ok" : "error",
-    })
-  if (Storage && Motherboard)
-    result.push({
-      label:
-        Storage.interface === Motherboard.interface
-          ? "Storage interface supported"
-          : "Storage interface not supported",
-      state: Storage.interface === Motherboard.interface ? "ok" : "error",
-    })
-  return {
-    result,
-    watts,
-    recommended,
-    valid: !result.some((check) => check.state === "error"),
-    complete: Object.keys(parts).length === 8,
-  }
+  return canonicalParts
 }
+const EXPERT_BUILDER_SLOTS = [
+  "CPU",
+  "Motherboard",
+  "RAM",
+  "GPU",
+  "Storage",
+  "PSU",
+  "Cabinet",
+  "Cooler",
+]
+
 function ExpertBuilder({
   initialParts,
   initialName,
@@ -139,74 +132,152 @@ function ExpertBuilder({
   const [selection, setSelection] = useState("")
   const [name, setName] = useState(initialName)
   const [filter, setFilter] = useState("")
-  const [ready, setReady] = useState(false)
+  const [savingBuild, setSavingBuild] = useState(false)
+  const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [pendingRestored, setPendingRestored] = useState(false)
+  const [quoteResult, setQuoteResult] = useState<{
+    referenceId: string
+    estimatedPrice: number
+    parts: Array<{ type: string; name: string; price: number }>
+    buildName: string
+  } | null>(null)
   const total = Object.values(parts).reduce((sum, item) => sum + item.price, 0)
   const { result, watts, recommended, valid, complete } = compatibility(parts)
-  const createBuild = () => ({
-    id: crypto.randomUUID(),
+
+  // Restore any pending quotation saved before guest login
+  useEffect(() => {
+    if (store.loggedIn) {
+      const pending = getPendingQuotation()
+      if (pending && pending.mode === "wizard") {
+        if (pending.parts && Object.keys(pending.parts).length > 0) {
+          setParts(pending.parts)
+        }
+        if (pending.name) {
+          setName(pending.name)
+        }
+        setPendingRestored(true)
+      }
+    }
+  }, [store.loggedIn])
+
+  const createCanonical = (): CanonicalBuild => ({
+    id: savedId || crypto.randomUUID(),
+    userId: store.profile?.id,
     name: name.trim() || "My custom PC",
-    parts: { ...parts },
-    price: total,
+    mode: "expert",
+    currency: "INR",
+    components: toCanonicalRecord(parts),
+    compatibility: compatibility(parts).summary,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   })
-  const save = () => {
+
+  const save = async () => {
     if (!store.loggedIn) {
       store.notify("Please log in to save your build")
       store.setAuthOpen(true)
       return
     }
-    const build = createBuild()
-    if (savedId && store.builds.some((item) => item.id === savedId)) {
-      store.set((previous) => ({
-        builds: previous.builds.map((item) =>
-          item.id === savedId ? { ...item, ...build, id: savedId } : item,
-        ),
-      }))
-    } else store.set((previous) => ({ builds: [build, ...previous.builds] }))
-    track("PC Build Saved", { build: build.name })
-    store.log(`PC build saved: ${build.name}`)
-    store.notify("Your PC build is saved")
-    setReady(true)
+    setSavingBuild(true)
+    const canonical = createCanonical()
+    const res = await saveBuild(canonical)
+    setSavingBuild(false)
+
+    if (res.success) {
+      const build = {
+        id: res.id,
+        name: canonical.name,
+        parts: { ...parts },
+        price: total,
+      }
+      if (savedId && store.builds.some((item) => item.id === savedId)) {
+        store.set((previous) => ({
+          builds: previous.builds.map((item) =>
+            item.id === savedId ? { ...item, ...build, id: savedId } : item,
+          ),
+        }))
+      } else {
+        store.set((previous) => ({ builds: [build, ...previous.builds] }))
+      }
+      track("PC Build Saved", { build: canonical.name })
+      store.log(`PC build saved: ${canonical.name}`)
+      store.notify("Your PC build is saved to My Account")
+    } else {
+      store.notify(res.error || "Failed to save build")
+    }
   }
-  const partList = Object.keys(store.componentCatalog)
-    .filter((type) => parts[type])
+
+  const partList = Object.keys(parts)
+    .filter((type) => type !== "Peripherals" && type !== "OS" && parts[type])
     .map((type) => ({ type, name: parts[type].name, price: parts[type].price }))
-  const enquire = () => {
-    const message = `Hello IT HUB,\n\nI would like to enquire about this PC configuration.\n\n${partList
-      .map((part) => `${part.type}: ${part.name}`)
-      .join(
-        "\n",
-      )}\n\nEstimated Price: ${money(total)}\n\nPlease confirm availability and the final quotation.`
-    store.set((previous) => ({
-      pcEnquiries: [
-        {
-          id: crypto.randomUUID(),
-          summary: name.trim() || "My custom PC",
-          parts: partList,
-          estimate: total,
-          date: new Date().toISOString(),
-          status: "New",
-        },
-        ...previous.pcEnquiries,
-      ],
-    }))
-    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || "My custom PC"}`)
-    track("Contact/WhatsApp Action", { context: "PC Builder enquiry" })
-    window.open(
-      `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    )
-  }
-  const add = () => {
-    const build = createBuild()
-    store.addCart({
-      id: build.id,
-      name: build.name,
-      price: build.price,
-      image: images.pc,
-      build,
+
+  const handleRequestQuotation = async () => {
+    if (!complete || !valid) {
+      store.notify("Please select all essential components and resolve any compatibility issues.")
+      return
+    }
+
+    if (!store.loggedIn) {
+      const canonical = createCanonical()
+      savePendingQuotation({
+        mode: "wizard",
+        build: canonical,
+        parts,
+        name: name.trim() || "My custom PC",
+      })
+      store.notify("Please sign in to submit your official quotation request. Your build has been saved!")
+      store.setAuthOpen(true)
+      return
+    }
+
+    setSubmittingQuote(true)
+    const canonical = createCanonical()
+    const res = await submitQuotationRequest(canonical, {
+      name: store.profile?.name,
+      phone: store.profile?.phone,
+      email: store.profile?.email,
     })
-    navigate("/cart")
+    setSubmittingQuote(false)
+
+    if (res.requiresAuth) {
+      savePendingQuotation({
+        mode: "wizard",
+        build: canonical,
+        parts,
+        name: name.trim() || "My custom PC",
+      })
+      store.notify("Please sign in to submit your official quotation request.")
+      store.setAuthOpen(true)
+      return
+    }
+
+    if (res.success && res.referenceId) {
+      clearPendingQuotation()
+      setPendingRestored(false)
+      setQuoteResult({
+        referenceId: res.referenceId,
+        estimatedPrice: res.estimatedPrice ?? total,
+        parts: partList,
+        buildName: name.trim() || "My custom PC",
+      })
+      store.set((previous) => ({
+        pcEnquiries: [
+          {
+            id: res.referenceId!,
+            summary: name.trim() || "My custom PC",
+            parts: partList,
+            estimate: total,
+            date: new Date().toISOString(),
+            status: "New",
+          },
+          ...previous.pcEnquiries,
+        ],
+      }))
+      store.log(`PC quotation requested: ${res.referenceId}`)
+      track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: res.referenceId })
+    } else {
+      store.notify(res.error || "Failed to submit quotation request. Please try again.")
+    }
   }
   return (
     <Page>
@@ -242,7 +313,7 @@ function ExpertBuilder({
       </div>
       <div className="grid gap-8 lg:grid-cols-[1fr_370px]">
         <div className="space-y-3">
-          {Object.keys(store.componentCatalog).map((type, index) => (
+          {EXPERT_BUILDER_SLOTS.map((type, index) => (
             <div
               key={type}
               className={`flex flex-wrap items-center gap-4 rounded-lg border p-5 ${
@@ -340,33 +411,59 @@ function ExpertBuilder({
               pricing, configuration changes, assembly/service requirements and
               customer requirements.
             </p>
+            {pendingRestored && (
+              <div className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <CheckCircle2 size={14} /> Restored Build Ready for Review
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  Welcome back! Please review your build details and click <strong>Confirm &amp; Submit Quotation</strong> below to submit your official request.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!complete || !valid || submittingQuote}
+                    onClick={async () => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                      await handleRequestQuotation()
+                    }}
+                  >
+                    {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mt-6 grid gap-3">
               <Button
-                disabled={!complete || !valid}
-                onClick={() => setReady(true)}
+                disabled={!complete || !valid || submittingQuote}
+                onClick={handleRequestQuotation}
               >
-                Complete configuration <CheckCircle2 size={15} />
+                {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"} <CheckCircle2 size={15} />
               </Button>
               <Button
-                disabled={!complete || !valid}
-                variant="secondary"
-                onClick={add}
-              >
-                Add build to cart <ShoppingBag size={15} />
-              </Button>
-              <Button
-                disabled={!complete || !valid}
+                disabled={!complete || !valid || savingBuild}
                 variant="secondary"
                 onClick={save}
               >
-                Save build <Save size={15} />
+                {savingBuild ? "Saving to Account…" : "Save build"} <Save size={15} />
               </Button>
             </div>
             {(!complete || !valid) && (
               <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
                 {!complete
-                  ? "Select all 8 components to save or purchase your build."
-                  : "Resolve compatibility errors before saving or purchasing."}
+                  ? "Select essential components (CPU, Motherboard, RAM, Storage, PSU, Cabinet) to complete your build."
+                  : "Resolve compatibility errors before requesting a quotation."}
               </p>
             )}
           </div>
@@ -430,43 +527,81 @@ function ExpertBuilder({
         </aside>
       </div>
       <Modal
-        open={ready}
-        onOpenChange={setReady}
-        title="Preview your PC configuration"
-        description="Send this configuration to IT HUB on WhatsApp to confirm availability and get your final quotation."
+        open={Boolean(quoteResult)}
+        onOpenChange={(open) => !open && setQuoteResult(null)}
+        title="Your PC Build Request Has Been Received!"
+        description="Quotation Request Confirmation"
       >
-        <div className="space-y-2 rounded-lg bg-muted p-4 text-xs">
-          {partList.map((part) => (
-            <p key={part.type} className="flex justify-between gap-3">
-              <span>
-                <span className="text-muted-foreground">{part.type}:</span>{" "}
-                {part.name}
-              </span>
-              <strong className="shrink-0">{money(part.price)}</strong>
-            </p>
-          ))}
-        </div>
-        <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm">Estimated Price</span>
-          <strong className="text-2xl text-primary">{money(total)}</strong>
-        </div>
-        <p className="mt-2 text-[10px] leading-5 text-muted-foreground">
-          Estimated only — final price may change based on availability, market
-          pricing, configuration, assembly/service and your requirements.
-        </p>
-        <button
-          onClick={enquire}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95"
-        >
-          <WhatsAppIcon size={18} /> Contact IT HUB on WhatsApp
-        </button>
-        <Button
-          variant="secondary"
-          className="mt-3 w-full"
-          onClick={() => setReady(false)}
-        >
-          Keep editing
-        </Button>
+        {quoteResult && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>Reference ID: {quoteResult.referenceId}</span>
+              </div>
+              <p>
+                Thank you for choosing IT HUB. Our team will review your selected components, verify current availability, and contact you soon with the final quotation.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
+              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
+              {quoteResult.parts.map((part) => (
+                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
+                  <span>
+                    <strong className="text-foreground">{part.type}:</strong> {part.name}
+                  </span>
+                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
+                </p>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-border p-4 bg-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground">Estimated Build Price</span>
+                  <p className="text-[10px] text-muted-foreground">
+                    (Estimate only — final price will be confirmed in your official quotation)
+                  </p>
+                </div>
+                <strong className="text-2xl text-primary">{money(quoteResult.estimatedPrice)}</strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+              <Info size={16} className="text-primary shrink-0" />
+              <p>
+                <strong className="text-foreground">Next step: </strong>
+                Our team will contact you soon after reviewing your build.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => setQuoteResult(null)}
+              >
+                Continue Building
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setQuoteResult(null)}
+              >
+                Close
+              </Button>
+              <a
+                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                <WhatsAppIcon size={16} /> Send via WhatsApp
+              </a>
+            </div>
+          </div>
+        )}
       </Modal>
       <Modal
         open={Boolean(selection)}
@@ -474,7 +609,7 @@ function ExpertBuilder({
           if (!open) setSelection("")
         }}
         title={`Choose your ${selection.toLowerCase()}`}
-        description="Illustrative component prices. Compatibility updates when you select an option."
+        description="Authoritative Shopify products and verified technical specifications."
       >
         <input
           value={filter}
@@ -484,11 +619,31 @@ function ExpertBuilder({
           aria-label="Search components"
         />
         <div className="space-y-3">
-          {(store.componentCatalog[selection] || [])
-            .filter((item) =>
+          {(() => {
+            const slotItems = store.componentCatalog[selection] || []
+            if (slotItems.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    No matching products are currently available. Please contact IT HUB for assistance.
+                  </p>
+                </div>
+              )
+            }
+            const filtered = slotItems.filter((item) =>
               item.name.toLowerCase().includes(filter.toLowerCase()),
             )
-            .map((item) => (
+            if (filtered.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    No matching products found for "{filter}".
+                  </p>
+                </div>
+              )
+            }
+            return filtered.map((item) => (
               <button
                 key={item.id}
                 className={`flex w-full items-center justify-between gap-4 rounded-lg border p-4 text-left hover:bg-secondary ${
@@ -502,8 +657,29 @@ function ExpertBuilder({
                   store.notify("PC component added")
                 }}
               >
-                <div>
-                  <h3 className="text-sm font-semibold">{item.name}</h3>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
+                    {item.isShopifyLive ? (
+                      <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                        Shopify Live
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                        In-Store Quote
+                      </span>
+                    )}
+                    {item.isVerified === false && (
+                      <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Unverified Specs
+                      </span>
+                    )}
+                    {item.stock === 0 && (
+                      <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                        Out of Stock
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {[
                       item.socket,
@@ -521,14 +697,8 @@ function ExpertBuilder({
                   {money(item.price)}
                 </div>
               </button>
-            ))}
-          {!(store.componentCatalog[selection] || []).some((item) =>
-            item.name.toLowerCase().includes(filter.toLowerCase()),
-          ) && (
-            <p className="py-6 text-sm text-muted-foreground">
-              No matching components. Try a different search.
-            </p>
-          )}
+            ))
+          })()}
         </div>
       </Modal>
     </Page>
@@ -827,10 +997,31 @@ function findPart(
   type: string,
   id: string,
 ) {
-  return (
-    catalog[type]?.find((item) => item.id === id) ||
-    componentOptions[type]?.find((item) => item.id === id)
-  )
+  const normId = id.toLowerCase()
+  const bareId = normId.replace(/^[a-z]+-/, "")
+
+  // 1. Direct ID match
+  const direct = catalog[type]?.find((item) => item.id === id)
+  if (direct) return direct
+
+  // 2. Prioritize authentic live Shopify products matching model key or name
+  const liveMatch = catalog[type]?.find((item) => {
+    if (!item.isShopifyLive) return false
+    if (item.matchedModelKey && (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))) return true
+    if (item.name.toLowerCase().includes(bareId)) return true
+    return false
+  })
+  if (liveMatch) return liveMatch
+
+  // 3. Reference catalog model match
+  const keyMatch = catalog[type]?.find((item) => {
+    if (item.matchedModelKey && (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))) return true
+    if (item.name.toLowerCase().includes(bareId)) return true
+    return false
+  })
+  if (keyMatch) return keyMatch
+
+  return undefined
 }
 const sumParts = (parts: Record<string, ComponentOption>) =>
   Object.values(parts).reduce((sum, item) => sum + item.price, 0)
@@ -886,6 +1077,16 @@ function recommend(
         const part = findPart(catalog, type, id)
         if (part) parts[type] = part
       })
+
+      // Authenticity requirement: Only recommend builds if all essential components exist in the authentic catalog
+      const hasEssentials =
+        Boolean(parts.CPU) &&
+        Boolean(parts.Motherboard) &&
+        Boolean(parts.RAM) &&
+        Boolean(parts.Storage) &&
+        Boolean(parts.PSU) &&
+        Boolean(parts.Cabinet)
+      if (!hasEssentials) return null
       // Wi-Fi requested: swap to the cheapest compatible Wi-Fi board.
       if (
         answers.wifi === "Yes" &&
@@ -963,6 +1164,7 @@ function recommend(
         score,
       }
     })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
     .filter((item) => item.score > -500)
     .sort((a, b) => b.score - a.score)
   return scored.slice(0, 3).sort((a, b) => a.price - b.price)
@@ -1097,6 +1299,35 @@ function BuildDetail({
   const [customizing, setCustomizing] = useState(startCustomizing)
   const [selection, setSelection] = useState("")
   const [breakdown, setBreakdown] = useState(false)
+  const [savingBuild, setSavingBuild] = useState(false)
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [submittingQuote, setSubmittingQuote] = useState(false)
+  const [pendingRestored, setPendingRestored] = useState(false)
+  const [quoteResult, setQuoteResult] = useState<{
+    referenceId: string
+    estimatedPrice: number
+    parts: Array<{ type: string; name: string; price: number }>
+    buildName: string
+  } | null>(null)
+
+  // Restore any pending quotation saved before guest login
+  useEffect(() => {
+    if (store.loggedIn) {
+      const pending = getPendingQuotation()
+      if (pending && pending.mode === "customise") {
+        if (pending.parts && Object.keys(pending.parts).length > 0) {
+          setParts(pending.parts)
+        }
+        if (pending.name) {
+          setName(pending.name)
+        }
+        if (pending.ownedSlots) {
+          setOwned(pending.ownedSlots)
+        }
+        setPendingRestored(true)
+      }
+    }
+  }, [store.loggedIn])
   const priced: Record<string, ComponentOption> = { ...parts }
   owned.forEach((type) => delete priced[type])
   const componentTotal = sumParts(priced)
@@ -1139,58 +1370,68 @@ function BuildDetail({
           : ""
       : "",
   ].filter(Boolean)
+
   const swap = (type: string, item: ComponentOption) => {
     setParts({ ...parts, [type]: item })
     setOwned(owned.filter((value) => value !== type))
     store.notify(`${partLabels[type] || type} updated — estimate recalculated`)
   }
-  const save = () => {
+
+  const createCanonical = (): CanonicalBuild => ({
+    id: savedId || crypto.randomUUID(),
+    userId: store.profile?.id,
+    name: name.trim() || initial.name,
+    mode: "guided",
+    currency: "INR",
+    components: toCanonicalRecord(parts),
+    compatibility: compatibility(parts).summary,
+    designedFor: initial.designedFor,
+    templateId: initial.templateId,
+    ownedSlots: owned as any,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
+
+  const save = async () => {
     if (!store.loggedIn) {
       store.notify("Please log in to save your build")
       store.setAuthOpen(true)
       return
     }
-    const build = {
-      id: savedId || crypto.randomUUID(),
-      name: name.trim() || initial.name,
-      parts: { ...parts },
-      price: componentTotal,
-      designedFor: initial.designedFor,
-      templateId: initial.templateId,
-      owned,
+    setSavingBuild(true)
+    const canonical = createCanonical()
+    const res = await saveBuild(canonical)
+    setSavingBuild(false)
+
+    if (res.success) {
+      const build = {
+        id: res.id,
+        name: canonical.name,
+        parts: { ...parts },
+        price: componentTotal,
+        designedFor: initial.designedFor,
+        templateId: initial.templateId,
+        owned,
+      }
+      store.set((previous) => ({
+        builds: previous.builds.some((item) => item.id === build.id)
+          ? previous.builds.map((item) => (item.id === build.id ? build : item))
+          : [build, ...previous.builds],
+      }))
+      store.log(`PC build saved: ${canonical.name}`)
+      store.notify("Saved to My Account → PC Builds")
+    } else {
+      store.notify(res.error || "Failed to save build")
     }
-    store.set((previous) => ({
-      builds: previous.builds.some((item) => item.id === build.id)
-        ? previous.builds.map((item) => (item.id === build.id ? build : item))
-        : [build, ...previous.builds],
-    }))
-    store.log(`PC build saved: ${build.name}`)
-    store.notify("Saved to My Account → PC Builds")
   }
+
   const enquire = () => {
-    const line = (type: string) =>
-      `${partLabels[type] || type}:\n${display(type)}`
-    const message = [
-      "Hello IT HUB,",
-      "I would like to enquire about the following PC build:",
-      `Build:\n${name.trim() || initial.name}`,
-      ...[
-        "CPU",
-        "GPU",
-        "RAM",
-        "Storage",
-        "Motherboard",
-        "PSU",
-        "Cabinet",
-        "Cooler",
-      ].map(line),
-      `Estimated Price:\n${money(total)}`,
-      "Please confirm availability and provide the final quotation.",
-    ].join("\n\n")
+    const canonical = createCanonical()
+    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp)
     store.set((previous) => ({
       pcEnquiries: [
         {
-          id: crypto.randomUUID(),
+          id: quote.referenceId,
           summary: name.trim() || initial.name,
           parts: partOrder
             .filter((type) => priced[type])
@@ -1206,13 +1447,88 @@ function BuildDetail({
         ...previous.pcEnquiries,
       ],
     }))
-    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || initial.name}`)
-    track("Contact/WhatsApp Action", { context: "PC Builder enquiry" })
-    window.open(
-      `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    )
+    store.log(`PC enquiry sent via WhatsApp: ${name.trim() || initial.name} (${quote.referenceId})`)
+    track("Contact/WhatsApp Action", { context: "PC Builder enquiry", ref: quote.referenceId })
+    window.open(quote.whatsappUrl, "_blank", "noopener,noreferrer")
+  }
+
+  const handleRequestQuotation = async () => {
+    if (!checks.valid) {
+      store.notify("Please resolve compatibility issues before requesting a quotation.")
+      return
+    }
+
+    if (!store.loggedIn) {
+      const canonical = createCanonical()
+      savePendingQuotation({
+        mode: "customise",
+        build: canonical,
+        parts,
+        name: name.trim() || initial.name,
+        ownedSlots: owned,
+      })
+      store.notify("Please sign in to submit your official quotation request. Your build has been saved!")
+      store.setAuthOpen(true)
+      return
+    }
+
+    setSubmittingQuote(true)
+    const canonical = createCanonical()
+    const res = await submitQuotationRequest(canonical, {
+      name: store.profile?.name,
+      phone: store.profile?.phone,
+      email: store.profile?.email,
+    })
+    setSubmittingQuote(false)
+
+    if (res.requiresAuth) {
+      savePendingQuotation({
+        mode: "customise",
+        build: canonical,
+        parts,
+        name: name.trim() || initial.name,
+        ownedSlots: owned,
+      })
+      store.notify("Please sign in to submit your official quotation request.")
+      store.setAuthOpen(true)
+      return
+    }
+
+    if (res.success && res.referenceId) {
+      clearPendingQuotation()
+      setPendingRestored(false)
+      const summaryParts = partOrder
+        .filter((type) => priced[type])
+        .map((type) => ({
+          type,
+          name: priced[type].name,
+          price: priced[type].price,
+        }))
+
+      setQuoteResult({
+        referenceId: res.referenceId,
+        estimatedPrice: res.estimatedPrice ?? total,
+        parts: summaryParts,
+        buildName: name.trim() || initial.name,
+      })
+      store.set((previous) => ({
+        pcEnquiries: [
+          {
+            id: res.referenceId!,
+            summary: name.trim() || initial.name,
+            parts: summaryParts,
+            estimate: total,
+            date: new Date().toISOString(),
+            status: "New",
+          },
+          ...previous.pcEnquiries,
+        ],
+      }))
+      store.log(`PC quotation requested: ${res.referenceId}`)
+      track("Contact/WhatsApp Action", { context: "PC Builder quotation", ref: res.referenceId })
+    } else {
+      store.notify(res.error || "Failed to submit quotation request. Please try again.")
+    }
   }
   return (
     <div>
@@ -1452,28 +1768,67 @@ function BuildDetail({
             <p className="mt-4 text-[11px] leading-5 text-muted-foreground">
               {DISCLAIMER}
             </p>
+            {pendingRestored && (
+              <div className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <CheckCircle2 size={14} /> Restored Build Ready for Review
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  Welcome back! Please review your custom build and click <strong>Confirm &amp; Submit Quotation</strong> below to submit your official request.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!checks.valid || submittingQuote}
+                    onClick={async () => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                      await handleRequestQuotation()
+                    }}
+                  >
+                    {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setPendingRestored(false)
+                      clearPendingQuotation()
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="mt-6 grid gap-3">
-              <p className="text-sm font-bold">Talk to IT HUB</p>
+              <p className="text-sm font-bold">Request Official Quotation</p>
+              <Button
+                disabled={!checks.valid || submittingQuote}
+                onClick={handleRequestQuotation}
+              >
+                {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"} <CheckCircle2 size={15} />
+              </Button>
               <button
                 onClick={enquire}
                 disabled={!checks.valid}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
               >
                 <WhatsAppIcon size={18} /> Continue on WhatsApp
               </button>
               <Button
                 variant="secondary"
                 onClick={save}
-                disabled={!checks.valid}
+                disabled={!checks.valid || savingBuild}
               >
-                <Save size={15} /> {savedId ? "Save Changes" : "Save Build"}
+                <Save size={15} /> {savingBuild ? "Saving to Account…" : savedId ? "Save Changes" : "Save Build"}
               </Button>
               {!customizing && (
                 <Button
                   variant="secondary"
-                  onClick={() => setCustomizing(true)}
+                  onClick={() => onExpert(parts, name)}
                 >
-                  <SlidersHorizontal size={15} /> Customize This Build
+                  <SlidersHorizontal size={15} /> Customize in Expert Mode
                 </Button>
               )}
               {!checks.valid && (
@@ -1485,6 +1840,83 @@ function BuildDetail({
           </div>
         </aside>
       </div>
+      <Modal
+        open={Boolean(quoteResult)}
+        onOpenChange={(open) => !open && setQuoteResult(null)}
+        title="Your PC Build Request Has Been Received!"
+        description="Quotation Request Confirmation"
+      >
+        {quoteResult && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>Reference ID: {quoteResult.referenceId}</span>
+              </div>
+              <p>
+                Thank you for choosing IT HUB. Our team will review your selected components, verify current availability, and contact you soon with the final quotation.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
+              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
+              {quoteResult.parts.map((part) => (
+                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
+                  <span>
+                    <strong className="text-foreground">{part.type}:</strong> {part.name}
+                  </span>
+                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
+                </p>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-border p-4 bg-card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground">Estimated Build Price</span>
+                  <p className="text-[10px] text-muted-foreground">
+                    (Estimate only — final price will be confirmed in your official quotation)
+                  </p>
+                </div>
+                <strong className="text-2xl text-primary">{money(quoteResult.estimatedPrice)}</strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+              <Info size={16} className="text-primary shrink-0" />
+              <p>
+                <strong className="text-foreground">Next step: </strong>
+                Our team will contact you soon after reviewing your build.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => setQuoteResult(null)}
+              >
+                Continue Building
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setQuoteResult(null)}
+              >
+                Close
+              </Button>
+              <a
+                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                <WhatsAppIcon size={16} /> Send via WhatsApp
+              </a>
+            </div>
+          </div>
+        )}
+      </Modal>
       <Modal
         open={Boolean(selection)}
         onOpenChange={(open) => !open && setSelection("")}
@@ -1508,55 +1940,68 @@ function BuildDetail({
                 Use integrated graphics (remove graphics card)
               </button>
             )}
-          {(catalog[selection] || []).map((item) => {
-            const check = compatibility({ ...parts, [selection]: item })
-            const issue = check.result.find((row) => row.state === "error")
-            const current = parts[selection]
-            const diff =
-              current && !owned.includes(selection)
-                ? item.price - current.price
-                : item.price
-            const active = current?.id === item.id && !owned.includes(selection)
-            return (
-              <button
-                key={item.id}
-                disabled={!check.valid || active}
-                onClick={() => {
-                  swap(selection, item)
-                  setSelection("")
-                }}
-                className={`flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition enabled:hover:bg-secondary disabled:cursor-not-allowed ${
-                  active ? "border-primary bg-secondary/40" : "border-border"
-                } ${!check.valid ? "opacity-50" : ""}`}
-              >
-                <div>
-                  <p className="text-sm font-semibold">{item.name}</p>
-                  <p
-                    className={`mt-1 text-xs ${
-                      issue ? "text-red-600" : "text-muted-foreground"
-                    }`}
-                  >
-                    {active
-                      ? "Current selection"
-                      : issue
-                        ? issue.label
-                        : item.stock === 0
-                          ? "Currently unavailable"
-                          : "Compatible with this build"}
+          {(() => {
+            const slotItems = catalog[selection] || []
+            if (slotItems.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    No matching products are currently available. Please contact IT HUB for assistance.
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-bold">{money(item.price)}</p>
-                  {!active && (
-                    <p className="text-[11px] text-muted-foreground">
-                      {diff >= 0 ? "+" : "−"}
-                      {money(Math.abs(diff))}
+              )
+            }
+            return slotItems.map((item) => {
+              const check = compatibility({ ...parts, [selection]: item })
+              const issue = check.result.find((row) => row.state === "error")
+              const current = parts[selection]
+              const diff =
+                current && !owned.includes(selection)
+                  ? item.price - current.price
+                  : item.price
+              const active = current?.id === item.id && !owned.includes(selection)
+              return (
+                <button
+                  key={item.id}
+                  disabled={!check.valid || active}
+                  onClick={() => {
+                    swap(selection, item)
+                    setSelection("")
+                  }}
+                  className={`flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition enabled:hover:bg-secondary disabled:cursor-not-allowed ${
+                    active ? "border-primary bg-secondary/40" : "border-border"
+                  } ${!check.valid ? "opacity-50" : ""}`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{item.name}</p>
+                    <p
+                      className={`mt-1 text-xs ${
+                        issue ? "text-red-600" : "text-muted-foreground"
+                      }`}
+                    >
+                      {active
+                        ? "Current selection"
+                        : issue
+                          ? issue.label
+                          : item.stock === 0
+                            ? "Currently unavailable"
+                            : "Compatible with this build"}
                     </p>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-bold">{money(item.price)}</p>
+                    {!active && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {diff >= 0 ? "+" : "−"}
+                        {money(Math.abs(diff))}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              )
+            })
+          })()}
         </div>
       </Modal>
     </div>
@@ -1589,13 +2034,52 @@ function SmartBuilder() {
         }
       : null,
   )
+
+  useEffect(() => {
+    loadSavedBuilds().then((savedBuilds) => {
+      if (savedBuilds.length > 0) {
+        store.set((prev) => {
+          const existingIds = new Set(prev.builds.map((b) => b.id))
+          const fresh = savedBuilds
+            .filter((b) => !existingIds.has(b.id))
+            .map((b) => ({
+              id: b.id,
+              name: b.name,
+              parts: b.components as any,
+              price: Object.values(b.components).reduce((sum, c) => sum + (c?.price || 0), 0),
+              designedFor: b.designedFor,
+              templateId: b.templateId,
+              owned: b.ownedSlots as any,
+            }))
+          return fresh.length ? { builds: [...prev.builds, ...fresh] } : {}
+        })
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (store.products.length === 0 && !store.catalogLoading) {
+      store.refreshCatalog()
+    }
+  }, [store.products.length, store.catalogLoading])
+
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next })
   const templates = store.buildTemplates.length
     ? store.buildTemplates
     : initialBuildTemplates
-  const recommendations =
-    step === 2 ? recommend(templates, store.componentCatalog, answers) : []
   const budget = resolvedBudget(answers)
+  const recommendations =
+    step === 2
+      ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget)
+      : []
+  const shortfallInfo =
+    step === 2 && recommendations.length === 0
+      ? getBudgetShortfallInfo(store.componentCatalog, answers, budget)
+      : null
+  const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
+  const missingSlots = essentialSlots.filter(
+    (slot) => !answers.owned.includes(slot) && (!store.componentCatalog[slot] || store.componentCatalog[slot].length === 0),
+  )
   const purposeInfo = purposes.find((item) => item.id === answers.purpose)
   const basedOn = [
     answers.purpose === "custom" ? "Custom use" : purposeInfo?.title,
@@ -1701,6 +2185,42 @@ function SmartBuilder() {
             </div>
           ))}
         </div>
+        {store.builds.length > 0 && (
+          <div className="mt-10 rounded-2xl border border-border bg-card p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Your Saved Configurations</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Resume editing or request an updated quotation</p>
+              </div>
+              <Badge tone="blue">{store.builds.length} Saved</Badge>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {store.builds.map((b) => (
+                <div key={b.id} className="flex flex-col justify-between rounded-xl border border-border/80 p-4 bg-muted/20 hover:border-primary/40 transition">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground line-clamp-1">{b.name}</h3>
+                    <p className="text-xs text-primary font-bold mt-1">{money(b.price)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {Object.keys(b.parts || {}).length} components selected
+                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      className="text-xs flex-1 py-1"
+                      onClick={() => {
+                        setExpertSeed({ parts: b.parts, name: b.name, savedId: b.id })
+                        setMode("expert")
+                      }}
+                    >
+                      Open in Expert Mode
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Page>
     )
 
@@ -1893,7 +2413,7 @@ function SmartBuilder() {
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
               {recommendations.map((build, index) => {
                 const unavailable = Object.values(build.parts).some(
-                  (part) => part.stock === 0,
+                  (part: any) => part?.stock === 0,
                 )
                 return (
                   <article
@@ -1904,7 +2424,25 @@ function SmartBuilder() {
                       <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
                         BUILD 0{index + 1}
                       </span>
-                      <Badge>{build.tradeoff}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge>{build.tradeoff}</Badge>
+                        {build.confidenceBadge === "certified" && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
+                            title="All component specifications verified against official manufacturer datasheets."
+                          >
+                            <CheckCircle2 size={11} className="text-emerald-600" /> Certified
+                          </span>
+                        )}
+                        {build.confidenceBadge === "high" && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                            title="Core components verified against manufacturer specifications."
+                          >
+                            <AlertTriangle size={11} className="text-amber-600" /> High Confidence
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <h2 className="mt-3 text-xl font-bold">{build.name}</h2>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -1956,6 +2494,69 @@ function SmartBuilder() {
                   </article>
                 )
               })}
+            </div>
+          ) : missingSlots.length > 0 ? (
+            <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950">
+              <PackageX className="mx-auto h-10 w-10 text-amber-700 mb-3" />
+              <h2 className="text-lg font-bold">Catalog Incomplete for Pre-Configured Builds</h2>
+              <p className="mt-2 text-sm text-amber-900 max-w-xl mx-auto">
+                The live store catalog currently does not have eligible products for:{" "}
+                <span className="font-semibold underline">{missingSlots.join(", ")}</span>.
+                Rather than suggesting unverified or unavailable parts, our team can source them directly for you.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button onClick={() => setMode("expert")}>
+                  <Wrench size={15} /> Open Expert Mode
+                </Button>
+                <a
+                  href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(`Hi IT HUB, I'm looking for a custom PC configuration for ${basedOn || 'custom use'} with budget ${budget?.label || 'custom'}. Could you assist with component availability?`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"
+                >
+                  <WhatsAppIcon size={16} /> Contact on WhatsApp
+                </a>
+              </div>
+            </div>
+          ) : shortfallInfo ? (
+            <div className="mt-8 rounded-3xl border border-blue-200 bg-blue-50/70 p-8 text-center text-slate-900">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700 mb-3">
+                <SlidersHorizontal size={22} />
+              </div>
+              <h2 className="text-xl font-bold">
+                No complete compatible PC found within {budget?.label || "selected budget"}
+              </h2>
+              <p className="mt-2 text-sm text-slate-700 max-w-xl mx-auto">
+                The closest complete compatible configuration available in our live store starts at{" "}
+                <strong className="text-foreground">{money(shortfallInfo.closestBuild.price)}</strong>{" "}
+                (Budget shortfall: <strong className="text-primary">{money(shortfallInfo.shortfallAmount)}</strong>).
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button
+                  onClick={() => {
+                    setDetail(shortfallInfo.closestBuild)
+                    scrollTop()
+                  }}
+                >
+                  Show Closest Build ({money(shortfallInfo.closestBuild.price)}) <ArrowRight size={15} />
+                </Button>
+                <Button variant="secondary" onClick={() => go(1)}>
+                  <RotateCcw size={14} /> Adjust Budget
+                </Button>
+                <Button variant="secondary" onClick={() => setMode("expert")}>
+                  <Wrench size={14} /> Open Expert Mode
+                </Button>
+                <a
+                  href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                    `Hi IT HUB, I was looking for a custom PC for ${basedOn || "custom use"} with budget ${budget?.label || "custom"}. The closest build starts at ${money(shortfallInfo.closestBuild.price)} (Shortfall: ${money(shortfallInfo.shortfallAmount)}). Could you assist with component sourcing or custom pricing?`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"
+                >
+                  <WhatsAppIcon size={16} /> Contact on WhatsApp
+                </a>
+              </div>
             </div>
           ) : (
             <div className="mt-8 rounded-3xl bg-muted p-8 text-center">

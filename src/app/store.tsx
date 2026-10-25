@@ -9,6 +9,8 @@ import {
 import { track } from "../lib/analytics"
 
 import { supabase } from "../lib/supabase"
+import { shopifyConfig, fetchShopifyCatalog } from "../lib/shopify"
+import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog"
 
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth"
 
@@ -61,6 +63,10 @@ import {
 import { resourceDefinitions, type AdminRecord } from "../data/admin"
 
 type Profile = {
+  id?: string
+
+  role?: string
+
   name: string
 
   email: string
@@ -191,6 +197,8 @@ type State = {
 
   catalogError: string | null
 
+  catalogSource: "shopify" | "supabase" | "unconfigured"
+
   realtimeConnected: boolean
 }
 
@@ -202,6 +210,8 @@ const initial: State = {
   catalogLive: false,
 
   catalogError: null,
+
+  catalogSource: "unconfigured",
 
   realtimeConnected: false,
 
@@ -317,7 +327,7 @@ type Store = State & {
 
   log: (action: string) => void
 
-  refreshCatalog: () => Promise<void>
+  refreshCatalog: (options?: { force?: boolean }) => Promise<void>
 }
 
 // Keep one context instance across hot updates; otherwise an edited store
@@ -427,20 +437,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? parsed.supportCategories
           : initial.supportCategories,
 
-        // Append newly added catalog options missing from older saves.
-
+        // Rehydrate only authentic Shopify-backed component options, discarding old static mocks.
         componentCatalog: Object.fromEntries(
           Object.entries(initial.componentCatalog).map(([type, options]) => {
-            const saved = parsed.componentCatalog?.[type] || []
+            const saved = (parsed.componentCatalog?.[type] || []).filter(
+              (item: any) => item.isShopifyLive && item.variantId,
+            )
 
             return [
               type,
-
               [
                 ...saved,
-
                 ...options.filter(
-                  (option) => !saved.some((row) => row.id === option.id),
+                  (option) => !saved.some((row: any) => row.id === option.id),
                 ),
               ],
             ]
@@ -487,6 +496,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               profile: {
                 ...prev.profile,
 
+                id: session.user.id,
+
+                role: profile?.role || "customer",
+
                 phone: session.user.phone || prev.profile.phone,
 
                 name: profile?.full_name || prev.profile.name,
@@ -515,6 +528,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             profile: {
               ...prev.profile,
 
+              id: user.id,
+
+              role: profile?.role || "customer",
+
               phone: user.phone || prev.profile.phone,
 
               name: profile?.full_name || prev.profile.name,
@@ -533,55 +550,114 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const refreshCatalog = async () => {
-    setState((prev) => ({ ...prev, catalogLoading: true }))
+  const refreshCatalog = async (options: { force?: boolean } = {}) => {
+    setState((prev) =>
+      prev.products.length === 0 || options.force
+        ? { ...prev, catalogLoading: true }
+        : prev,
+    )
 
     try {
+      if (shopifyConfig.isConfigured) {
+        // Shopify is the authoritative source for commerce products
+        const [shopifyRes, offersRes, couponsRes] = await Promise.allSettled([
+          fetchShopifyCatalog({ first: 100, force: options.force }),
+          fetchActiveOffersDetailed(),
+          fetchActiveCouponsDetailed(),
+        ])
+
+        setState((prev) => {
+          const updates: Partial<State> = {
+            catalogLoading: false,
+            catalogSource: "shopify",
+          }
+
+          if (shopifyRes.status === "fulfilled") {
+            const { products: shopifyProducts, isLive, error } = shopifyRes.value
+            if (error) {
+              // Strictly display error; never silently substitute with Supabase
+              updates.catalogError = error
+              updates.catalogLive = false
+              updates.products = []
+            } else {
+              updates.products = shopifyProducts
+              updates.catalogLive = isLive
+              updates.catalogError = null
+
+              const liveCategories = Array.from(
+                new Set(shopifyProducts.map((p) => p.category).filter(Boolean)),
+              )
+              if (liveCategories.length > 0) {
+                updates.catalogCategories = [
+                  "All",
+                  ...liveCategories.filter((c) => c !== "All"),
+                ]
+              }
+              const liveBrands = Array.from(
+                new Set(shopifyProducts.map((p) => p.brand).filter(Boolean)),
+              )
+              if (liveBrands.length > 0) {
+                updates.brands = liveBrands
+              }
+
+              // Synchronize PC Builder catalog with authentic Shopify products (authoritative source)
+              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts)
+              updates.componentCatalog = syncResult.componentCatalog
+            }
+          } else {
+            updates.catalogError =
+              shopifyRes.reason?.message || "Failed to load products from Shopify Storefront."
+            updates.catalogLive = false
+            updates.products = []
+          }
+
+          if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
+            updates.offers = offersRes.value.offers
+          }
+          if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
+            updates.coupons = couponsRes.value.coupons
+          }
+
+          return { ...prev, ...updates }
+        })
+        return
+      }
+
+      // Unconfigured Shopify environment: fallback to Supabase for local development
       const [catalogRes, offersRes, couponsRes] = await Promise.allSettled([
         fetchCatalogDetailed(),
-
         fetchActiveOffersDetailed(),
-
         fetchActiveCouponsDetailed(),
       ])
 
       setState((prev) => {
-        const updates: Partial<State> = { catalogLoading: false }
+        const updates: Partial<State> = {
+          catalogLoading: false,
+          catalogSource: "supabase",
+        }
 
         if (catalogRes.status === "fulfilled") {
           const { products: liveProducts, isLive, error } = catalogRes.value
-
           if (error) {
             updates.catalogError = error
-
             updates.catalogLive = false
           } else if (isLive) {
-            // Live products from Supabase are the single source of truth
-
             updates.products = liveProducts
-
             updates.catalogLive = true
-
             updates.catalogError = null
-
-            // Derive dynamic categories and brands from live database products
 
             const liveCategories = Array.from(
               new Set(liveProducts.map((p) => p.category).filter(Boolean)),
             )
-
             if (liveCategories.length > 0) {
               updates.catalogCategories = [
                 "All",
-
                 ...liveCategories.filter((c) => c !== "All"),
               ]
             }
-
             const liveBrands = Array.from(
               new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
             )
-
             if (liveBrands.length > 0) {
               updates.brands = liveBrands
             }
@@ -589,14 +665,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } else {
           updates.catalogError =
             catalogRes.reason?.message || "Failed to load live catalog."
-
           updates.catalogLive = false
         }
 
         if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
           updates.offers = offersRes.value.offers
         }
-
         if (couponsRes.status === "fulfilled" && couponsRes.value.isLive) {
           updates.coupons = couponsRes.value.coupons
         }
@@ -710,9 +784,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }))
       })
 
+    let lastFocusSync = Date.now()
+
     const handleFocusSync = () => {
       if (document.visibilityState === "visible") {
-        refreshCatalog()
+        const now = Date.now()
+        // Throttle background focus revalidation to at most once per 60 seconds
+        if (now - lastFocusSync >= 60_000) {
+          lastFocusSync = now
+          refreshCatalog({ force: true })
+        }
       }
     }
 
@@ -766,16 +847,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       state.cart.find((row) => row.id === item.id)?.quantity || 0
 
     const product = item.productId
-      ? state.products.find((product) => product.id === item.productId)
+      ? state.products.find(
+          (product) =>
+            product.id === item.productId ||
+            product.variantId === item.id ||
+            product.id === item.id,
+        )
       : null
 
-    if (
-      item.productId &&
-      (!product || existingQuantity + quantity > product.stock)
-    ) {
-      notify("Not enough stock available. Please adjust your cart.")
+    if (item.productId) {
+      const isSoldOut = product
+        ? product.availableForSale !== undefined
+          ? !product.availableForSale
+          : product.stock <= 0
+        : false
 
-      return
+      if (!product || isSoldOut) {
+        notify("Sorry, this item is currently sold out.")
+        return
+      }
+
+      if (
+        product.availableForSale === undefined &&
+        existingQuantity + quantity > product.stock
+      ) {
+        notify("Not enough stock available. Please adjust your cart.")
+        return
+      }
     }
 
     set((previous) => {
@@ -788,7 +886,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 ? { ...row, quantity: row.quantity + quantity }
                 : row,
             )
-          : [...previous.cart, { ...item, quantity }],
+          : [...previous.cart, { ...item, variantId: item.variantId || product?.variantId, quantity }],
       }
     })
 

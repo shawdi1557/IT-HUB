@@ -243,6 +243,8 @@ export async function handleRazorpayWebhook(
   }
 }
 
-serve(async (req: Request) => {
-  return handleRazorpayWebhook(req)
-})
+if (import.meta.main && !Deno.env.get("DENO_TESTING")) {
+  serve(async (req: Request) => {
+    return handleRazorpayWebhook(req)
+  })
+}

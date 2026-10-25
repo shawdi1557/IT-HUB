@@ -75,6 +75,10 @@ const ServiceTracking = lazy(() =>
   })),
 )
 const Builder = lazy(() => import("../pages/Builder"))
+const Blog = lazy(() => import("../pages/Blog"))
+const ArticleDetail = lazy(() =>
+  import("../pages/Blog").then((module) => ({ default: module.ArticleDetail })),
+)
 const Account = lazy(() => import("../pages/Account"))
 const About = lazy(() =>
   import("../pages/Information").then((module) => ({ default: module.About })),
@@ -142,6 +146,8 @@ const router = createBrowserRouter([
       { path: "track-service", Component: ServiceTracking },
       { path: "track-service/:id", Component: ServiceTracking },
       { path: "pc-builder", Component: Builder },
+      { path: "blog", Component: Blog },
+      { path: "blog/:slug", Component: ArticleDetail },
       { path: "account", Component: Account },
       { path: "account/:section", Component: Account },
       { path: "about", Component: About },

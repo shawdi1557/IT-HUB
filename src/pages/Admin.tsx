@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+
 import { Link, useNavigate, useParams, useSearchParams } from "react-router"
+
 import {
   LayoutDashboard,
   ArrowUpRight,
@@ -36,7 +38,9 @@ import {
   LogOut,
   Award,
 } from "lucide-react"
+
 import type { User } from "@supabase/supabase-js"
+
 import {
   checkAdminSession,
   subscribeToAuthChanges,
@@ -44,9 +48,13 @@ import {
   type CustomerProfile,
   type AdminAccessState,
 } from "../lib/auth"
+
 import { AdminLogin, AdminAccessDenied, AdminAuthLoading } from "./AdminLogin"
+
 import WhatsAppIcon from "../components/WhatsAppIcon"
+
 import * as XLSX from "xlsx"
+
 import {
   ResponsiveContainer,
   AreaChart,
@@ -58,7 +66,9 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts"
+
 import { useStore } from "../app/store"
+
 import {
   adminGroups,
   slug,
@@ -83,6 +93,7 @@ import {
   checkWarranty,
   productConditions,
 } from "../data/catalog"
+
 import {
   chartData,
   resourceDefinitions,
@@ -92,20 +103,35 @@ import {
   type AdminRecord,
   type ImportRow,
 } from "../data/admin"
+
 import {
   checkStoreSettingsCompleteness,
   validateIndianPincode,
   validateHttpsUrl,
 } from "../lib/support"
+
+import { adminUpdateServiceRequest } from "../lib/services"
+
+import AdminServiceRequestEditor from "../components/AdminServiceRequestEditor"
+
 import { compatibility } from "./Builder"
+
 import VisitorAnalytics, { PrivacyPanel } from "./AdminAnalytics"
+
 import CouponsAdmin from "./AdminCoupons"
+
 import SellRequestsAdmin from "./AdminSellRequests"
+
 import AdminCertificates from "./AdminCertificates"
+
 import DatabaseConnectionPanel from "../components/DatabaseConnectionPanel"
+
 import AdminImageDiscovery from "./AdminImageDiscovery"
+
 import { track } from "../lib/analytics"
+
 import type { BuildTemplate, BuildPurpose } from "../data/buildTemplates"
+
 import {
   ActionLink,
   Badge,
@@ -119,35 +145,56 @@ import {
 } from "../components/ui"
 
 type Row = Record<string, unknown> & { id: string }
+
 type Column = {
   key: string
+
   label: string
+
   render?: (row: Row) => ReactNode
 }
+
 function DataTable({
   rows,
+
   columns,
+
   onView,
+
   actions,
 }: {
   rows: Row[]
+
   columns: Column[]
+
   onView?: (row: Row) => void
+
   actions?: (row: Row) => ReactNode
 }) {
   const [query, setQuery] = useState("")
+
   const [page, setPage] = useState(0)
+
   const [sort, setSort] = useState("")
+
   const [descending, setDescending] = useState(false)
+
   useEffect(() => setPage(0), [query, rows.length])
+
   const filtered = rows
+
     .filter((row) =>
       Object.values(row)
+
         .filter((value) => typeof value !== "object")
+
         .join(" ")
+
         .toLowerCase()
+
         .includes(query.toLowerCase()),
     )
+
     .sort((first, second) =>
       sort
         ? (typeof first[sort] === "number"
@@ -157,8 +204,11 @@ function DataTable({
               )) * (descending ? -1 : 1)
         : 0,
     )
+
   const pageCount = Math.max(1, Math.ceil(filtered.length / 7))
+
   const safePage = Math.min(page, pageCount - 1)
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="flex items-center justify-between gap-4 border-b border-border p-4">
@@ -189,6 +239,7 @@ function DataTable({
                     className="flex items-center gap-2"
                     onClick={() => {
                       setSort(column.key)
+
                       setDescending(sort === column.key ? !descending : false)
                     }}
                   >
@@ -283,6 +334,7 @@ function DataTable({
     </div>
   )
 }
+
 const statusBadge = (status: string) => (
   <Badge
     tone={
@@ -297,11 +349,14 @@ const statusBadge = (status: string) => (
     {status}
   </Badge>
 )
+
 function Chart({
   type = "revenue",
+
   title,
 }: {
   type?: "revenue" | "orders" | "services"
+
   title: string
 }) {
   return (
@@ -380,49 +435,73 @@ function Chart({
 
 const navIcons: Record<string, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
+
   products: Package,
+
   inventory: Boxes,
+
   orders: ShoppingBag,
+
   offers: Tag,
+
   customers: Users,
+
   reviews: Star,
+
   certificates: Award,
+
   services: Wrench,
+
   "pc-builder": Cpu,
+
   analytics: BarChart3,
+
   settings: Settings,
+
   "website-content": Globe,
 }
 
 export default function Admin() {
   const [authStatus, setAuthStatus] = useState<AdminAccessState>("loading")
+
   const [adminUser, setAdminUser] = useState<User | null>(null)
+
   const [adminProfile, setAdminProfile] = useState<CustomerProfile | null>(null)
 
   useEffect(() => {
     let mounted = true
 
     // Initial session verification
+
     checkAdminSession().then((res) => {
       if (!mounted) return
+
       setAuthStatus(res.state)
+
       setAdminUser(res.user)
+
       setAdminProfile(res.profile)
     })
 
     // Listen for auth state transitions (sign in, sign out, token refresh)
+
     const unsubscribe = subscribeToAuthChanges((user) => {
       if (!user) {
         if (mounted) {
           setAuthStatus("unauthenticated")
+
           setAdminUser(null)
+
           setAdminProfile(null)
         }
       } else {
         checkAdminSession().then((res) => {
           if (!mounted) return
+
           setAuthStatus(res.state)
+
           setAdminUser(res.user)
+
           setAdminProfile(res.profile)
         })
       }
@@ -430,294 +509,468 @@ export default function Admin() {
 
     return () => {
       mounted = false
+
       unsubscribe()
     }
   }, [])
 
   const handleSignOut = async () => {
     await signOutUser()
+
     setAuthStatus("unauthenticated")
+
     setAdminUser(null)
+
     setAdminProfile(null)
   }
 
   const { section = "dashboard" } = useParams()
+
   const store = useStore()
+
   const [params] = useSearchParams()
+
   const navigate = useNavigate()
+
   const view =
     params.get("view") ||
     adminGroups.find((group) => group.section === section)?.items?.[0]?.view ||
     ""
+
   const [menu, setMenu] = useState(false)
+
   const [openGroups, setOpenGroups] = useState<string[]>([])
+
   const [product, setProduct] = useState<Product | null>(null)
+
   const [productOpen, setProductOpen] = useState(false)
+
   const [offer, setOffer] = useState<Offer | null>(null)
+
   const [offerOpen, setOfferOpen] = useState(false)
+
   const [orderId, setOrderId] = useState("")
+
   const [requestId, setRequestId] = useState("")
+
   const [customerEmail, setCustomerEmail] = useState("")
+
   const [stockId, setStockId] = useState("")
+
   const [stockAmount, setStockAmount] = useState(1)
+
   const [categoryOpen, setCategoryOpen] = useState(false)
+
   const [category, setCategory] = useState("")
+
   const [componentOpen, setComponentOpen] = useState(false)
+
   const [componentType, setComponentType] = useState("CPU")
+
   const [component, setComponent] = useState<ComponentOption>({
     id: "",
+
     name: "",
+
     price: 0,
   })
+
   const [remove, setRemove] = useState<{
     type: string
+
     id: string
+
     name: string
   } | null>(null)
+
   const [sample, setSample] = useState(false)
+
   useEffect(() => {
     if (sessionStorage.getItem("ithub-admin-login")) return
+
     sessionStorage.setItem("ithub-admin-login", "1")
+
     track("Admin Login")
   }, [])
+
   const [error, setError] = useState("")
+
   useEffect(() => {
     setMenu(false)
+
     setError("")
+
     if (section === "products" && view === "add") {
       setProduct(null)
+
       setProductOpen(true)
     }
+
     if (section === "offers" && view === "create") {
       setOffer(null)
+
       setOfferOpen(true)
     }
   }, [section, view])
+
   const selectedOrder = store.orders.find((item) => item.id === orderId)
+
   const selectedRequest = store.requests.find((item) => item.id === requestId)
+
   const customers = useMemo(() => {
     const entries = new Map<string, {
       id: string
+
       name: string
+
       email: string
+
       orders: number
+
       services: number
+
       total: number
+
       status: string
     }>()
+
     for (const order of store.orders) {
       const row = entries.get(order.email) || {
         id: order.email,
+
         name: order.name,
+
         email: order.email,
+
         orders: 0,
+
         services: 0,
+
         total: 0,
+
         status: "Active",
       }
+
       row.orders++
+
       row.total += order.total
+
       entries.set(order.email, row)
     }
+
     for (const request of store.requests) {
       const row = entries.get(request.email) || {
         id: request.email,
+
         name: request.name,
+
         email: request.email,
+
         orders: 0,
+
         services: 0,
+
         total: 0,
+
         status: "Active",
       }
+
       row.services++
+
       entries.set(request.email, row)
     }
+
     return [...entries.values()]
   }, [store.orders, store.requests])
+
   const orderRows = store.orders.map((item) => ({
     ...item,
+
     amount: item.total,
+
     statusLabel: item.status < 0 ? "Cancelled" : orderStatuses[item.status],
+
     dateLabel: new Date(item.date).toLocaleDateString(),
   }))
+
   const serviceRows = store.requests.map((item) => ({
     ...item,
+
     amount: item.quote,
+
     statusLabel: serviceStatuses[item.status],
   }))
+
   const serviceFilters: Record<string, (item: {
     device: string
+
     method: string
   }) => boolean> = {
     requests: () => true,
+
     laptop: (item) => /laptop|notebook|macbook/i.test(item.device),
+
     mobile: (item) => /mobile|phone|tablet/i.test(item.device),
+
     pc: (item) => /\bpc\b|desktop|computer|cpu/i.test(item.device),
+
     printer: (item) => /printer/i.test(item.device),
+
     onsite: (item) => /on-?site/i.test(item.method),
   }
+
   const lowStock = store.products.filter(
     (item) => item.stock > 0 && item.stock <= (item.lowStockThreshold ?? 3),
   )
+
   const outOfStock = store.products.filter((item) => item.stock <= 0)
+
   const columnsOrders: Column[] = [
     { key: "id", label: "Order ID" },
+
     { key: "name", label: "Customer" },
+
     {
       key: "amount",
+
       label: "Amount",
+
       render: (row) => money(Number(row.amount)),
     },
+
     {
       key: "statusLabel",
+
       label: "Status",
+
       render: (row) => statusBadge(String(row.statusLabel)),
     },
+
     { key: "dateLabel", label: "Date" },
   ]
+
   const columnsServices: Column[] = [
     { key: "id", label: "Request ID" },
+
     { key: "name", label: "Customer" },
+
     { key: "model", label: "Device" },
+
     { key: "problem", label: "Issue" },
+
     { key: "technician", label: "Technician" },
+
     {
       key: "statusLabel",
+
       label: "Status",
+
       render: (row) => statusBadge(String(row.statusLabel)),
     },
+
     {
       key: "amount",
+
       label: "Quote",
+
       render: (row) => money(Number(row.amount)),
     },
   ]
+
   const currentGroup = adminGroups.find((group) => group.section === section)
+
   const currentItem = currentGroup?.items?.find((item) => item.view === view)
+
   const heading =
     section === "dashboard"
       ? "Your hub, at a glance."
       : currentItem
         ? currentItem.label
         : currentGroup?.name || "Not found"
+
   const orderBuckets: Record<string, (status: number) => boolean> = {
     all: () => true,
+
     pending: (status) => status >= 0 && status <= 1,
+
     processing: (status) => status >= 2 && status <= 3,
+
     shipped: (status) => status >= 4 && status <= 5,
+
     delivered: (status) => status === 6,
+
     cancelled: (status) => status < 0,
   }
+
   const inventoryProducts =
     view === "low" ? lowStock : view === "out" ? outOfStock : store.products
+
   const deleteItem = () => {
     if (!remove) return
+
     if (remove.type === "product")
       store.set((previous) => ({
         products: previous.products.filter((item) => item.id !== remove.id),
+
         wishlist: previous.wishlist.filter((id) => id !== remove.id),
+
         cart: previous.cart.filter((item) => item.productId !== remove.id),
       }))
+
     if (remove.type === "offer")
       store.set({
         offers: store.offers.filter((item) => item.id !== remove.id),
       })
+
     if (remove.type === "category")
       store.set({
         catalogCategories: store.catalogCategories.filter(
           (item) => item !== remove.id,
         ),
       })
+
     if (remove.type === "brand")
       store.set({ brands: store.brands.filter((item) => item !== remove.id) })
+
     if (remove.type === "location")
       store.set({
         locations: store.locations.filter((item) => item.id !== remove.id),
       })
+
     if (remove.type === "technician")
       store.set((previous) => ({
         technicians: previous.technicians.filter((item) => item !== remove.id),
+
         requests: previous.requests.map((item) =>
           item.technician === remove.id
             ? { ...item, technician: "Unassigned" }
             : item,
         ),
       }))
+
     if (remove.type === "component")
       store.set({
         componentCatalog: {
           ...store.componentCatalog,
+
           [componentType]: store.componentCatalog[componentType].filter(
             (item) => item.id !== remove.id,
           ),
         },
       })
+
     if (remove.type === "build")
       store.set({
         builds: store.builds.filter((item) => item.id !== remove.id),
       })
+
     store.log(`${remove.type} removed: ${remove.name}`)
+
     store.notify("Record removed")
+
     setRemove(null)
   }
+
   const loadSample = () => {
     const id = `ITH-DEMO-${crypto.randomUUID().slice(0, 5).toUpperCase()}`
+
     const gpu = store.products[0]
+
     if (!gpu) {
       store.notify("Add a product first to load a sample order")
+
       setSample(false)
+
       return
     }
+
     const demoOrder: Order = {
       id,
+
       name: "Example customer",
+
       email: "customer@example.com",
+
       address: "Example address · Kothamangalam, Kerala (demo)",
+
       items: [
         {
           id: gpu.id,
+
           productId: gpu.id,
+
           name: gpu.name,
+
           price: gpu.price,
+
           image: gpu.image,
+
           quantity: 1,
         },
       ],
+
       total: gpu.price,
+
       status: 3,
+
       date: new Date().toISOString(),
+
       payment: "UPI (demo)",
+
       delivery: "Kerala delivery",
     }
+
     const demoRequest: ServiceRequest = {
       id: `SRV-DEMO-${crypto.randomUUID().slice(0, 5).toUpperCase()}`,
+
       name: "Example customer",
+
       email: "customer@example.com",
+
       device: "Laptop",
+
       model: "Dell Inspiron 15 (demo)",
+
       problem: "Screen issue",
+
       method: "Courier pickup",
+
       address: "Example address · Kothamangalam, Kerala (demo)",
+
       date: new Date().toISOString().slice(0, 10),
+
       time: "10:00 – 12:00 (demo)",
+
       status: 4,
+
       quote: 9500,
+
       quoteState: "pending",
+
       technician: "Demo technician A",
+
       notes: "Sample request for the prototype walkthrough",
     }
+
     store.set((previous) => ({
       orders: [demoOrder, ...previous.orders],
+
       requests: [demoRequest, ...previous.requests],
+
       notifications: [
         "Sample order and service request loaded",
+
         ...previous.notifications,
       ],
     }))
+
     store.log("Sample activity loaded by administrator")
+
     setSample(false)
+
     store.notify("Sample activity loaded. Explore it in the customer account.")
   }
+
   const exportRows = () => {
     const rows =
       section === "services"
@@ -725,33 +978,46 @@ export default function Admin() {
         : section === "products" || section === "inventory"
           ? store.products
           : orderRows
+
     const keys = rows.length
       ? Object.keys(rows[0]).filter(
           (key) =>
             typeof (rows[0] as Record<string, unknown>)[key] !== "object",
         )
       : []
+
     const csv = [
       keys.join(","),
+
       ...rows.map((row) =>
         keys
+
           .map(
             (key) =>
               `"${String((row as unknown as Record<string, unknown>)[key] ?? "").replace(/"/g, '""')}"`,
           )
+
           .join(","),
       ),
     ].join("\n")
+
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }))
+
     const anchor = document.createElement("a")
+
     anchor.href = url
+
     anchor.download = `ithub-${section}.csv`
+
     anchor.click()
+
     URL.revokeObjectURL(url)
+
     store.notify("Report exported")
   }
 
   // Route Security Guard: Enforce authentication and administrator authorization
+
   if (authStatus === "loading") {
     return <AdminAuthLoading />
   }
@@ -761,7 +1027,9 @@ export default function Admin() {
       <AdminLogin
         onLoginSuccess={(user, profile) => {
           setAdminUser(user)
+
           setAdminProfile(profile)
+
           setAuthStatus("authorized")
         }}
       />
@@ -776,7 +1044,9 @@ export default function Admin() {
         }
         onSignOut={() => {
           setAuthStatus("unauthenticated")
+
           setAdminUser(null)
+
           setAdminProfile(null)
         }}
       />
@@ -806,8 +1076,11 @@ export default function Admin() {
         <div className="px-4 py-5">
           {adminGroups.map((group) => {
             const isCurrent = group.section === section
+
             const Icon = navIcons[group.section] || LayoutDashboard
+
             const expanded = isCurrent || openGroups.includes(group.section)
+
             return (
               <div key={group.section} className="mb-1">
                 {group.items ? (
@@ -982,6 +1255,7 @@ export default function Admin() {
               <Button
                 onClick={() => {
                   setProduct(null)
+
                   setProductOpen(true)
                 }}
               >
@@ -993,6 +1267,7 @@ export default function Admin() {
               <Button
                 onClick={() => {
                   setOffer(null)
+
                   setOfferOpen(true)
                 }}
               >
@@ -1004,6 +1279,7 @@ export default function Admin() {
               <Button
                 onClick={() => {
                   setCategory("")
+
                   setCategoryOpen(true)
                 }}
               >
@@ -1015,7 +1291,9 @@ export default function Admin() {
               <Button
                 onClick={() => {
                   setComponent({ id: "", name: "", price: 0 })
+
                   setComponentType("CPU")
+
                   setComponentOpen(true)
                 }}
               >
@@ -1031,69 +1309,104 @@ export default function Admin() {
                 {[
                   {
                     label: "Today’s sales",
+
                     value: money(
                       store.orders
+
                         .filter(
                           (item) =>
                             item.date.slice(0, 10) ===
                             new Date().toISOString().slice(0, 10),
                         )
+
                         .reduce((sum, item) => sum + item.total, 0),
                     ),
+
                     Icon: IndianRupee,
+
                     to: "orders",
                   },
+
                   {
                     label: "Monthly revenue",
+
                     value: money(
                       store.orders
+
                         .filter(
                           (item) =>
                             item.date.slice(0, 7) ===
                             new Date().toISOString().slice(0, 7),
                         )
+
                         .reduce((sum, item) => sum + item.total, 0),
                     ),
+
                     Icon: IndianRupee,
+
                     to: "analytics",
                   },
+
                   {
                     label: "Orders",
+
                     value: store.orders.length,
+
                     Icon: ShoppingBag,
+
                     to: "orders",
                   },
+
                   {
                     label: "Pending services",
+
                     value: store.requests.filter((item) => item.status < 9)
                       .length,
+
                     Icon: Wrench,
+
                     to: "services",
                   },
+
                   {
                     label: "Active shipments",
+
                     value: store.orders.filter(
                       (item) => item.status >= 4 && item.status < 6,
                     ).length,
+
                     Icon: Truck,
+
                     to: "orders?view=shipped",
                   },
+
                   {
                     label: "Low stock",
+
                     value: lowStock.length,
+
                     Icon: AlertTriangle,
+
                     to: "inventory?view=low",
                   },
+
                   {
                     label: "Customers",
+
                     value: customers.length,
+
                     Icon: Users,
+
                     to: "customers",
                   },
+
                   {
                     label: "Catalog products",
+
                     value: store.products.length,
+
                     Icon: Package,
+
                     to: "products",
                   },
                 ].map(({ label, value, Icon, to }) => (
@@ -1176,18 +1489,25 @@ export default function Admin() {
                   {[
                     {
                       title: `${store.requests.filter((item) => item.status === 4 && item.quoteState === "pending").length} quotations awaiting approval`,
+
                       to: "services",
                     },
+
                     {
                       title: `${store.orders.filter((item) => item.status >= 0 && item.status < 4).length} orders to prepare`,
+
                       to: "orders?view=pending",
                     },
+
                     {
                       title: `${store.pcEnquiries.filter((item) => item.status === "New").length} new PC build requests`,
+
                       to: "pc-builder?view=requests",
                     },
+
                     {
                       title: "Supabase database connection health & latency",
+
                       to: "settings?view=database",
                     },
                   ].map((item) => (
@@ -1208,23 +1528,35 @@ export default function Admin() {
             <DataTable
               rows={store.products.map((item) => ({
                 ...item,
+
                 sku: item.sku || `ITH-${item.id.toUpperCase()}`,
+
                 status: item.status || (item.stock ? "Active" : "Out of stock"),
               }))}
               columns={[
                 { key: "name", label: "Product" },
+
                 { key: "sku", label: "SKU" },
+
                 { key: "category", label: "Category" },
+
                 { key: "brand", label: "Brand" },
+
                 {
                   key: "price",
+
                   label: "Price",
+
                   render: (row) => money(Number(row.price)),
                 },
+
                 { key: "stock", label: "Stock" },
+
                 {
                   key: "status",
+
                   label: "Status",
+
                   render: (row) => statusBadge(String(row.status)),
                 },
               ]}
@@ -1232,6 +1564,7 @@ export default function Admin() {
                 setProduct(
                   store.products.find((item) => item.id === row.id) || null,
                 )
+
                 setProductOpen(true)
               }}
               actions={(row) => (
@@ -1244,6 +1577,7 @@ export default function Admin() {
                         store.products.find((item) => item.id === row.id) ||
                           null,
                       )
+
                       setProductOpen(true)
                     }}
                   >
@@ -1255,7 +1589,9 @@ export default function Admin() {
                     onClick={() =>
                       setRemove({
                         type: "product",
+
                         id: row.id,
+
                         name: String(row.name),
                       })
                     }
@@ -1271,22 +1607,34 @@ export default function Admin() {
               key={view}
               rows={inventoryProducts.map((item) => {
                 const reserved = store.orders
+
                   .filter((order) => order.status < 4)
+
                   .reduce(
                     (sum, order) =>
                       sum +
                       order.items
+
                         .filter((row) => row.productId === item.id)
+
                         .reduce((count, row) => count + row.quantity, 0),
+
                     0,
                   )
+
                 return {
                   ...item,
+
                   sku: item.sku || `ITH-${item.id.toUpperCase()}`,
+
                   current: item.stock + reserved,
+
                   reserved,
+
                   available: item.stock,
+
                   reorder: item.lowStockThreshold ?? 3,
+
                   status:
                     item.stock === 0
                       ? "Out of stock"
@@ -1297,14 +1645,22 @@ export default function Admin() {
               })}
               columns={[
                 { key: "name", label: "Product" },
+
                 { key: "sku", label: "SKU" },
+
                 { key: "current", label: "Current stock" },
+
                 { key: "reserved", label: "Reserved" },
+
                 { key: "available", label: "Available" },
+
                 { key: "reorder", label: "Reorder level" },
+
                 {
                   key: "status",
+
                   label: "Status",
+
                   render: (row) => statusBadge(String(row.status)),
                 },
               ]}
@@ -1313,6 +1669,7 @@ export default function Admin() {
                   <button
                     onClick={() => {
                       setStockId(row.id)
+
                       setStockAmount(1)
                     }}
                     className="flex items-center gap-1 text-xs font-semibold text-primary"
@@ -1346,17 +1703,26 @@ export default function Admin() {
               rows={customers}
               columns={[
                 { key: "name", label: "Customer" },
+
                 { key: "email", label: "Email" },
+
                 { key: "orders", label: "Orders" },
+
                 { key: "services", label: "Services" },
+
                 {
                   key: "total",
+
                   label: "Lifetime value (demo)",
+
                   render: (row) => money(Number(row.total)),
                 },
+
                 {
                   key: "status",
+
                   label: "Status",
+
                   render: (row) => statusBadge(String(row.status)),
                 },
               ]}
@@ -1367,21 +1733,31 @@ export default function Admin() {
             <DataTable
               key={view}
               rows={store.offers
+
                 .map((item) => ({
                   ...item,
+
                   status: offerStatus(item),
+
                   headline: offerHeadline(item),
+
                   targets: [
                     item.products.length
                       ? `${item.products.length} product(s)`
                       : "",
+
                     item.categories.join(", "),
+
                     item.brands.join(", "),
                   ]
+
                     .filter(Boolean)
+
                     .join(" · "),
+
                   window: `${formatDate(item.startsAt)} – ${formatDate(item.endsAt)}`,
                 }))
+
                 .filter((item) =>
                   view === "scheduled"
                     ? item.status === "Scheduled"
@@ -1393,13 +1769,20 @@ export default function Admin() {
                 )}
               columns={[
                 { key: "name", label: "Offer" },
+
                 { key: "type", label: "Type" },
+
                 { key: "headline", label: "Headline" },
+
                 { key: "targets", label: "Applies to" },
+
                 { key: "window", label: "Validity" },
+
                 {
                   key: "status",
+
                   label: "Status",
+
                   render: (row) => (
                     <Badge
                       tone={
@@ -1421,6 +1804,7 @@ export default function Admin() {
                 setOffer(
                   store.offers.find((item) => item.id === row.id) || null,
                 )
+
                 setOfferOpen(true)
               }}
               actions={(row) => (
@@ -1431,6 +1815,7 @@ export default function Admin() {
                       setOffer(
                         store.offers.find((item) => item.id === row.id) || null,
                       )
+
                       setOfferOpen(true)
                     }}
                   >
@@ -1446,7 +1831,9 @@ export default function Admin() {
                             : item,
                         ),
                       })
+
                       store.log(`Offer toggled: ${row.name}`)
+
                       store.notify("Offer updated")
                     }}
                   >
@@ -1457,7 +1844,9 @@ export default function Admin() {
                     onClick={() =>
                       setRemove({
                         type: "offer",
+
                         id: row.id,
+
                         name: String(row.name),
                       })
                     }
@@ -1472,17 +1861,24 @@ export default function Admin() {
             <DataTable
               rows={store.catalogCategories.map((name) => ({
                 id: name,
+
                 name,
+
                 count: store.products.filter((item) => item.category === name)
                   .length,
+
                 status: "Active",
               }))}
               columns={[
                 { key: "name", label: "Category" },
+
                 { key: "count", label: "Products" },
+
                 {
                   key: "status",
+
                   label: "Status",
+
                   render: (row) => statusBadge(String(row.status)),
                 },
               ]}
@@ -1505,7 +1901,9 @@ export default function Admin() {
                     onClick={() =>
                       setRemove({
                         type: "category",
+
                         id: row.id,
+
                         name: String(row.name),
                       })
                     }
@@ -1527,32 +1925,46 @@ export default function Admin() {
                   ([type, items]) =>
                     items.map((item) => ({
                       ...item,
+
                       id: `${type}::${item.id}`,
+
                       componentId: item.id,
+
                       type,
+
                       socket: item.socket || "—",
+
                       ram: item.ram || "—",
                     })),
                 )}
                 columns={[
                   { key: "name", label: "Component" },
+
                   { key: "type", label: "Type" },
+
                   {
                     key: "price",
+
                     label: "Price",
+
                     render: (row) => money(Number(row.price)),
                   },
+
                   { key: "socket", label: "Socket" },
+
                   { key: "ram", label: "RAM generation" },
                 ]}
                 onView={(row) => {
                   const type = String(row.type)
+
                   setComponentType(type)
+
                   setComponent(
                     store.componentCatalog[type].find(
                       (item) => item.id === row.componentId,
                     )!,
                   )
+
                   setComponentOpen(true)
                 }}
                 actions={(row) => (
@@ -1561,12 +1973,15 @@ export default function Admin() {
                       className="text-primary"
                       onClick={() => {
                         const type = String(row.type)
+
                         setComponentType(type)
+
                         setComponent(
                           store.componentCatalog[type].find(
                             (item) => item.id === row.componentId,
                           )!,
                         )
+
                         setComponentOpen(true)
                       }}
                     >
@@ -1576,9 +1991,12 @@ export default function Admin() {
                       className="text-red-600"
                       onClick={() => {
                         setComponentType(String(row.type))
+
                         setRemove({
                           type: "component",
+
                           id: String(row.componentId),
+
                           name: String(row.name),
                         })
                       }}
@@ -1594,22 +2012,31 @@ export default function Admin() {
             <DataTable
               rows={store.builds.map((item) => ({
                 ...item,
+
                 components: Object.keys(item.parts).length,
+
                 compatibility: compatibility(item.parts).valid
                   ? "Compatible"
                   : "Incompatible",
               }))}
               columns={[
                 { key: "name", label: "Build name" },
+
                 { key: "components", label: "Components" },
+
                 {
                   key: "price",
+
                   label: "Price",
+
                   render: (row) => money(Number(row.price)),
                 },
+
                 {
                   key: "compatibility",
+
                   label: "Compatibility",
+
                   render: (row) => statusBadge(String(row.compatibility)),
                 },
               ]}
@@ -1626,7 +2053,9 @@ export default function Admin() {
                     onClick={() =>
                       setRemove({
                         type: "build",
+
                         id: row.id,
+
                         name: String(row.name),
                       })
                     }
@@ -1651,22 +2080,30 @@ export default function Admin() {
                     {[
                       [
                         "Order revenue",
+
                         money(
                           store.orders.reduce(
                             (sum, item) => sum + item.total,
+
                             0,
                           ),
                         ),
                       ],
+
                       [
                         "Approved service revenue",
+
                         money(
                           store.requests
+
                             .filter((item) => item.quoteState === "approved")
+
                             .reduce((sum, item) => sum + item.quote, 0),
                         ),
                       ],
+
                       ["Order count", store.orders.length],
+
                       ["Service requests", store.requests.length],
                     ].map(([label, value]) => (
                       <div
@@ -1688,19 +2125,26 @@ export default function Admin() {
                     <DataTable
                       rows={store.products.map((item) => ({
                         ...item,
+
                         sold: store.orders.reduce(
                           (sum, order) =>
                             sum +
                             order.items
+
                               .filter((row) => row.productId === item.id)
+
                               .reduce((count, row) => count + row.quantity, 0),
+
                           0,
                         ),
                       }))}
                       columns={[
                         { key: "name", label: "Product" },
+
                         { key: "category", label: "Category" },
+
                         { key: "sold", label: "Units sold" },
+
                         { key: "stock", label: "Stock" },
                       ]}
                     />
@@ -1780,6 +2224,7 @@ export default function Admin() {
         open={productOpen}
         onOpenChange={(open) => {
           setProductOpen(open)
+
           if (!open && view === "add") navigate("/admin/products?view=all")
         }}
         product={product}
@@ -1788,6 +2233,7 @@ export default function Admin() {
         open={offerOpen}
         onOpenChange={(open) => {
           setOfferOpen(open)
+
           if (!open && view === "create") navigate("/admin/offers?view=active")
         }}
         offer={offer}
@@ -1803,6 +2249,7 @@ export default function Admin() {
           className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault()
+
             store.set({
               products: store.products.map((item) =>
                 item.id === stockId
@@ -1810,8 +2257,11 @@ export default function Admin() {
                   : item,
               ),
             })
+
             store.log(`Stock adjusted by ${stockAmount} for ${stockId}`)
+
             setStockId("")
+
             store.notify("Stock updated in the storefront")
           }}
         >
@@ -1850,15 +2300,21 @@ export default function Admin() {
           className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault()
+
             if (store.catalogCategories.includes(category.trim())) {
               store.notify("This category already exists")
+
               return
             }
+
             store.set({
               catalogCategories: [...store.catalogCategories, category.trim()],
             })
+
             store.log(`Category created: ${category}`)
+
             setCategoryOpen(false)
+
             store.notify("Category added to storefront filters")
           }}
         >
@@ -1905,18 +2361,23 @@ export default function Admin() {
                 value={selectedOrder.status}
                 onChange={(event) => {
                   const status = Number(event.target.value)
+
                   store.set((previous) => ({
                     orders: previous.orders.map((item) =>
                       item.id === orderId ? { ...item, status } : item,
                     ),
+
                     notifications: [
                       `Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`,
+
                       ...previous.notifications,
                     ],
                   }))
+
                   store.log(
                     `Order ${orderId}: ${orderStatuses[status] || "Cancelled"}`,
                   )
+
                   store.notify("Order status updated for the customer")
                 }}
               >
@@ -1948,138 +2409,18 @@ export default function Admin() {
         onOpenChange={(open) => {
           if (!open) setRequestId("")
         }}
-        title={selectedRequest?.id || "Service details"}
+        size="max-w-4xl"
+        title={
+          selectedRequest
+            ? `Service Ticket: ${selectedRequest.id}`
+            : "Service details"
+        }
       >
         {selectedRequest && (
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-xl font-bold">{selectedRequest.model}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {selectedRequest.name} · {selectedRequest.email}
-              </p>
-              <p className="mt-3 text-sm">Issue: {selectedRequest.problem}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {selectedRequest.notes || "No additional notes"}
-              </p>
-            </div>
-            <Field label="Technician">
-              <select
-                className={fieldClass}
-                value={selectedRequest.technician}
-                onChange={(event) => {
-                  store.set({
-                    requests: store.requests.map((item) =>
-                      item.id === requestId
-                        ? { ...item, technician: event.target.value }
-                        : item,
-                    ),
-                  })
-                  store.log(`Technician assigned to ${requestId}`)
-                  store.notify("Technician assigned")
-                }}
-              >
-                {store.technicians.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Service status">
-              <select
-                className={fieldClass}
-                value={selectedRequest.status}
-                onChange={(event) => {
-                  const status = Number(event.target.value)
-                  if (
-                    status >= 5 &&
-                    selectedRequest.quoteState !== "approved"
-                  ) {
-                    setError(
-                      "The customer must approve the quotation before repair can proceed.",
-                    )
-                    return
-                  }
-                  setError("")
-                  store.set((previous) => ({
-                    requests: previous.requests.map((item) =>
-                      item.id === requestId ? { ...item, status } : item,
-                    ),
-                    notifications: [
-                      `Service ${requestId}: ${serviceStatuses[status]}`,
-                      ...previous.notifications,
-                    ],
-                  }))
-                  store.log(`Service ${requestId}: ${serviceStatuses[status]}`)
-                  store.notify("Service status updated")
-                }}
-              >
-                {serviceStatuses.map((status, index) => (
-                  <option value={index} key={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {error && (
-              <p role="alert" className="text-xs text-red-600">
-                {error}
-              </p>
-            )}
-            <Field label="Quotation amount (₹, demo)">
-              <input
-                type="number"
-                min={1000}
-                step={1}
-                disabled={selectedRequest.quoteState !== "pending"}
-                value={selectedRequest.quote}
-                onChange={(event) =>
-                  store.set({
-                    requests: store.requests.map((item) =>
-                      item.id === requestId
-                        ? { ...item, quote: Number(event.target.value) }
-                        : item,
-                    ),
-                  })
-                }
-                className={fieldClass}
-              />
-            </Field>
-            <p className="text-xs text-muted-foreground">
-              Approval: <strong>{selectedRequest.quoteState}</strong>. Approved
-              quotations are locked.
-            </p>
-            <Button
-              onClick={() => {
-                if (selectedRequest.quote < 1000) {
-                  setError(
-                    "Quote must be at least ₹1,000 for the sample labour line.",
-                  )
-                  return
-                }
-                store.set((previous) => ({
-                  requests: previous.requests.map((item) =>
-                    item.id === requestId
-                      ? { ...item, status: Math.max(item.status, 4) }
-                      : item,
-                  ),
-                  notifications: [
-                    `Quotation ready for ${requestId}`,
-                    ...previous.notifications,
-                  ],
-                }))
-                store.log(`Quotation published for ${requestId}`)
-                store.notify("Quotation published for customer review")
-              }}
-            >
-              Publish demo quotation
-            </Button>
-            <ActionLink
-              secondary
-              to={`/track-service/${selectedRequest.id}`}
-              className="ml-3"
-            >
-              Customer view
-            </ActionLink>
-          </div>
+          <AdminServiceRequestEditor
+            request={selectedRequest}
+            onClose={() => setRequestId("")}
+          />
         )}
       </Modal>
       <Modal
@@ -2096,7 +2437,9 @@ export default function Admin() {
           <p className="text-sm text-muted-foreground">{customerEmail}</p>
           <h4 className="font-bold">Orders & payments</h4>
           {store.orders
+
             .filter((item) => item.email === customerEmail)
+
             .map((item) => (
               <Link
                 className="flex justify-between rounded bg-muted p-3 text-xs text-primary"
@@ -2109,7 +2452,9 @@ export default function Admin() {
             ))}
           <h4 className="font-bold">Service requests</h4>
           {store.requests
+
             .filter((item) => item.email === customerEmail)
+
             .map((item) => (
               <Link
                 className="block rounded bg-muted p-3 text-xs text-primary"
@@ -2140,13 +2485,17 @@ export default function Admin() {
           className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault()
+
             const next = {
               ...component,
+
               id: component.id || crypto.randomUUID(),
             }
+
             store.set({
               componentCatalog: {
                 ...store.componentCatalog,
+
                 [componentType]: component.id
                   ? store.componentCatalog[componentType].map((item) =>
                       item.id === component.id ? next : item,
@@ -2154,8 +2503,11 @@ export default function Admin() {
                   : [...store.componentCatalog[componentType], next],
               },
             })
+
             store.log(`Builder component saved: ${component.name}`)
+
             setComponentOpen(false)
+
             store.notify("PC builder component updated")
           }}
         >
@@ -2190,6 +2542,7 @@ export default function Admin() {
               onChange={(event) =>
                 setComponent({
                   ...component,
+
                   price: Number(event.target.value),
                 })
               }
@@ -2238,6 +2591,7 @@ export default function Admin() {
                 onChange={(event) =>
                   setComponent({
                     ...component,
+
                     watts: Number(event.target.value),
                   })
                 }
@@ -2255,6 +2609,7 @@ export default function Admin() {
                 onChange={(event) =>
                   setComponent({
                     ...component,
+
                     capacity: Number(event.target.value),
                   })
                 }
@@ -2272,6 +2627,7 @@ export default function Admin() {
                 onChange={(event) =>
                   setComponent({
                     ...component,
+
                     length: Number(event.target.value),
                   })
                 }
@@ -2289,6 +2645,7 @@ export default function Admin() {
                 onChange={(event) =>
                   setComponent({
                     ...component,
+
                     clearance: Number(event.target.value),
                   })
                 }
@@ -2362,50 +2719,79 @@ export default function Admin() {
 
 function ProductEditor({
   open,
+
   onOpenChange,
+
   product,
 }: {
   open: boolean
+
   onOpenChange: (open: boolean) => void
+
   product: Product | null
 }) {
   const store = useStore()
+
   const [draft, setDraft] = useState<Product>(
     product || {
       id: "",
+
       name: "",
+
       brand: "",
+
       category: "Laptops",
+
       price: 0,
+
       original: 0,
+
       image: "",
+
       stock: 0,
+
       rating: 4.8,
+
       specs: { Warranty: "Contact IT HUB" },
     },
   )
+
   const [specText, setSpecText] = useState("")
+
   const [error, setError] = useState("")
+
   useEffect(() => {
     setDraft(
       product || {
         id: "",
+
         name: "",
+
         brand: "",
+
         category: store.catalogCategories[0] || "Laptops",
+
         price: 0,
+
         original: 0,
+
         image: "",
+
         stock: 0,
+
         rating: 4.8,
+
         specs: { Warranty: "Contact IT HUB" },
       },
     )
+
     setSpecText(
       JSON.stringify(product?.specs || { Warranty: "Contact IT HUB" }, null, 2),
     )
+
     setError("")
   }, [product, open])
+
   return (
     <Modal
       open={open}
@@ -2417,15 +2803,19 @@ function ProductEditor({
         className="space-y-5"
         onSubmit={(event) => {
           event.preventDefault()
+
           try {
             const specs = JSON.parse(specText)
+
             if (
               !/^https?:\/\//.test(draft.image) &&
               !draft.image.startsWith("/")
             ) {
               setError("Use an https:// image URL or a local /images/ path.")
+
               return
             }
+
             if (
               !specs ||
               Array.isArray(specs) ||
@@ -2433,17 +2823,23 @@ function ProductEditor({
               Object.values(specs).some((value) => typeof value !== "string")
             )
               throw new Error()
+
             const next = {
               ...draft,
+
               specs,
+
               id:
                 product?.id ||
                 slug(draft.name) + "-" + crypto.randomUUID().slice(0, 4),
             }
+
             if (next.original < next.price) {
               setError("Original price cannot be below the current price.")
+
               return
             }
+
             store.set((previous) => ({
               products: product
                 ? previous.products.map((item) =>
@@ -2451,10 +2847,13 @@ function ProductEditor({
                   )
                 : [next, ...previous.products],
             }))
+
             store.log(
               `Product ${product ? "updated" : "created"}: ${next.name}`,
             )
+
             onOpenChange(false)
+
             store.notify("Product saved to storefront")
           } catch {
             setError(
@@ -2561,6 +2960,7 @@ function ProductEditor({
               onChange={(event) =>
                 setDraft({
                   ...draft,
+
                   lowStockThreshold: Number(event.target.value),
                 })
               }
@@ -2573,6 +2973,7 @@ function ProductEditor({
               onChange={(event) =>
                 setDraft({
                   ...draft,
+
                   status: event.target.value as Product["status"],
                 })
               }
@@ -2591,7 +2992,9 @@ function ProductEditor({
               onChange={(event) =>
                 setDraft({
                   ...draft,
+
                   secondHand: event.target.value === "secondHand",
+
                   condition:
                     event.target.value === "secondHand"
                       ? draft.condition || "Good"
@@ -2663,61 +3066,98 @@ function ProductEditor({
     </Modal>
   )
 }
+
 const emptyOffer = (): Offer => {
   const now = new Date()
+
   const start = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+
   const end = new Date(start.getTime() + 7 * 86400000)
+
   return {
     id: "",
+
     name: "",
+
     description: "",
+
     type: offerTypes[0],
+
     discount: 10,
+
     amount: 0,
+
     products: [],
+
     categories: [],
+
     brands: [],
+
     startsAt: start.toISOString().slice(0, 16),
+
     endsAt: end.toISOString().slice(0, 16),
+
     banner: "",
+
     active: true,
   }
 }
+
 /** Read an image file and downscale it to a JPEG data URL for localStorage. */
+
 const readImage = (file: File, max = 1200) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
+
     reader.onerror = reject
+
     reader.onload = () => {
       const img = new Image()
+
       img.onerror = reject
+
       img.onload = () => {
         const scale = Math.min(1, max / Math.max(img.width, img.height))
+
         const canvas = document.createElement("canvas")
+
         canvas.width = Math.round(img.width * scale)
+
         canvas.height = Math.round(img.height * scale)
+
         canvas
+
           .getContext("2d")!
+
           .drawImage(img, 0, 0, canvas.width, canvas.height)
+
         resolve(canvas.toDataURL("image/jpeg", 0.82))
       }
+
       img.src = String(reader.result)
     }
+
     reader.readAsDataURL(file)
   })
+
 function Chips({
   options,
+
   selected,
+
   onChange,
 }: {
   options: string[]
+
   selected: string[]
+
   onChange: (next: string[]) => void
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => {
         const on = selected.includes(option)
+
         return (
           <button
             type="button"
@@ -2742,32 +3182,50 @@ function Chips({
     </div>
   )
 }
+
 function OfferEditor({
   open,
+
   onOpenChange,
+
   offer,
 }: {
   open: boolean
+
   onOpenChange: (open: boolean) => void
+
   offer: Offer | null
 }) {
   const store = useStore()
+
   const [draft, setDraft] = useState<Offer>(emptyOffer)
+
   const [mode, setMode] = useState<"percent" | "fixed">("percent")
+
   const [search, setSearch] = useState("")
+
   const [error, setError] = useState("")
+
   useEffect(() => {
     const next = offer || emptyOffer()
+
     setDraft(next)
+
     setMode(next.discount > 0 || !next.amount ? "percent" : "fixed")
+
     setSearch("")
+
     setError("")
   }, [offer, open])
+
   const matches = store.products.filter((item) =>
     `${item.name} ${item.brand} ${item.category}`
+
       .toLowerCase()
+
       .includes(search.toLowerCase()),
   )
+
   return (
     <Modal
       open={open}
@@ -2779,38 +3237,53 @@ function OfferEditor({
         className="space-y-5"
         onSubmit={(event) => {
           event.preventDefault()
+
           const next: Offer = {
             ...draft,
+
             name: draft.name.trim(),
+
             discount: mode === "percent" ? draft.discount : 0,
+
             amount: mode === "fixed" ? draft.amount : 0,
+
             id: offer?.id || crypto.randomUUID(),
           }
+
           if (!next.name) return setError("Offer name is required.")
+
           if (
             mode === "percent" &&
             (!(next.discount >= 1) || next.discount > 90)
           )
             return setError("Percentage discount must be between 1 and 90.")
+
           if (mode === "fixed" && !(next.amount > 0))
             return setError("Fixed discount amount must be greater than ₹0.")
+
           if (!next.startsAt || !next.endsAt)
             return setError("Choose a start and end date/time.")
+
           if (new Date(next.endsAt) <= new Date(next.startsAt))
             return setError("End date/time must be after the start.")
+
           if (
             !next.products.length &&
             !next.categories.length &&
             !next.brands.length
           )
             return setError("Select at least one product, category or brand.")
+
           store.set({
             offers: offer
               ? store.offers.map((item) => (item.id === offer.id ? next : item))
               : [next, ...store.offers],
           })
+
           store.log(`Offer saved: ${next.name}`)
+
           onOpenChange(false)
+
           store.notify(`Offer saved · ${offerStatus(next)}`)
         }}
       >
@@ -2841,6 +3314,7 @@ function OfferEditor({
               onChange={(event) =>
                 setDraft({
                   ...draft,
+
                   type: event.target.value as Offer["type"],
                 })
               }
@@ -2913,6 +3387,7 @@ function OfferEditor({
                   onChange={(event) =>
                     setDraft({
                       ...draft,
+
                       products: event.target.checked
                         ? [...draft.products, item.id]
                         : draft.products.filter((id) => id !== item.id),
@@ -2993,9 +3468,13 @@ function OfferEditor({
                 className="sr-only"
                 onChange={async (event) => {
                   const file = event.target.files?.[0]
+
                   event.target.value = ""
+
                   if (!file || !file.type.startsWith("image/")) return
+
                   const banner = await readImage(file)
+
                   setDraft((current) => ({ ...current, banner }))
                 }}
               />
@@ -3025,7 +3504,9 @@ function OfferEditor({
           <strong>
             {offerHeadline({
               ...draft,
+
               discount: mode === "percent" ? draft.discount : 0,
+
               amount: mode === "fixed" ? draft.amount : 0,
             })}
           </strong>{" "}
@@ -3041,13 +3522,18 @@ function OfferEditor({
     </Modal>
   )
 }
+
 function Panel({
   title,
+
   children,
+
   description,
 }: {
   title: string
+
   description?: string
+
   children: ReactNode
 }) {
   return (
@@ -3062,9 +3548,12 @@ function Panel({
     </div>
   )
 }
+
 function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
   const store = useStore()
+
   const [name, setName] = useState("")
+
   return (
     <>
       <Panel title="Add brand">
@@ -3072,23 +3561,31 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+
             const value = name.trim()
+
             if (!value) return
+
             if (
               store.brands.some(
                 (item) => item.toLowerCase() === value.toLowerCase(),
               )
             ) {
               store.notify("This brand already exists")
+
               return
             }
+
             store.set({
               brands: [...store.brands, value].sort((a, b) =>
                 a.localeCompare(b),
               ),
             })
+
             store.log(`Brand added: ${value}`)
+
             store.notify("Brand added")
+
             setName("")
           }}
         >
@@ -3106,11 +3603,14 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
       <DataTable
         rows={store.brands.map((brand) => ({
           id: brand,
+
           name: brand,
+
           count: store.products.filter((item) => item.brand === brand).length,
         }))}
         columns={[
           { key: "name", label: "Brand" },
+
           { key: "count", label: "Products" },
         ]}
         actions={(row) => (
@@ -3131,42 +3631,70 @@ function BrandsManager({ onRemove }: { onRemove: (name: string) => void }) {
     </>
   )
 }
+
 const importSteps = [
   "Upload",
+
   "Parse",
+
   "Validate",
+
   "Preview",
+
   "Errors/Warnings",
+
   "Confirm",
+
   "Import",
+
   "Summary",
 ]
+
 type ImportSummary = {
   imported: number
+
   updated: number
+
   created: number
+
   skipped: number
+
   failed: number
 }
+
 function BulkImport() {
   const store = useStore()
+
   const [tab, setTab] = useState<"csv" | "excel" | "template" | "history">(
     "csv",
   )
+
   const [file, setFile] = useState("")
+
   const [rows, setRows] = useState<ImportRow[] | null>(null)
+
   const [parseError, setParseError] = useState("")
+
   const [showIssues, setShowIssues] = useState(false)
+
   const [confirming, setConfirming] = useState(false)
+
   const [summary, setSummary] = useState<ImportSummary | null>(null)
+
   const reset = () => {
     setFile("")
+
     setRows(null)
+
     setParseError("")
+
     setShowIssues(false)
+
     setConfirming(false)
+
     setSummary(null)
   }
+
   const step = summary
     ? 7
     : confirming
@@ -3178,40 +3706,56 @@ function BulkImport() {
         : file
           ? 1
           : 0
+
   const parse = async (input: File) => {
     reset()
+
     setFile(input.name)
+
     const extension = input.name.split(".").pop()?.toLowerCase()
+
     if (!["csv", "xlsx"].includes(extension || "")) {
       setParseError("Unsupported file type. Upload a .csv or .xlsx file.")
+
       return
     }
+
     try {
       const workbook =
         extension === "csv"
           ? XLSX.read(await input.text(), { type: "string" })
           : XLSX.read(await input.arrayBuffer(), { type: "array" })
+
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
+
       const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
         defval: "",
+
         raw: false,
       })
+
       if (!raw.length) {
         setParseError(
           "No data rows found. Check that the first row contains the column headers.",
         )
+
         return
       }
+
       const headers = Object.keys(raw[0])
+
       const missing = ["SKU", "Product Name", "Price", "Stock"].filter(
         (key) => !headers.includes(key),
       )
+
       if (missing.length) {
         setParseError(
           `Missing required columns: ${missing.join(", ")}. Download the template for the expected format.`,
         )
+
         return
       }
+
       setRows(validateImportRows(raw, store.catalogCategories, store.brands))
     } catch {
       setParseError(
@@ -3219,44 +3763,65 @@ function BulkImport() {
       )
     }
   }
+
   const download = (type: "csv" | "xlsx") => {
     const sheet = XLSX.utils.json_to_sheet(importTemplateRows, {
       header: [...importColumns],
     })
+
     const workbook = XLSX.utils.book_new()
+
     XLSX.utils.book_append_sheet(workbook, sheet, "Products")
+
     XLSX.writeFile(workbook, `ithub-product-import-template.${type}`, {
       bookType: type,
     })
   }
+
   const valid = rows?.filter((row) => row.valid) || []
+
   const errorRows = rows?.filter((row) => !row.valid) || []
+
   const warningCount =
     rows?.reduce(
       (sum, row) =>
         sum + row.issues.filter((issue) => issue.level === "warning").length,
+
       0,
     ) || 0
+
   const runImport = () => {
     if (!rows) return
+
     let created = 0
+
     let updated = 0
+
     let failed = 0
+
     const products = [...store.products]
+
     const brands = [...store.brands]
+
     for (const row of valid) {
       try {
         const d = row.data
+
         const num = (key: string) =>
           d[key] ? Number(d[key].replace(/[,₹\s]/g, "")) : undefined
+
         const price = num("Price")!
+
         const sale = num("Sale Price")
+
         const mrp = num("MRP")
+
         const isSecondHand =
           d["Second Hand"]?.toLowerCase() === "yes" ||
           d["Second Hand"]?.toLowerCase() === "true" ||
           (Boolean(d.Condition) && d.Condition?.toLowerCase() !== "new") ||
           d.SKU.toUpperCase().startsWith("SH-")
+
         const condition =
           d.Condition as Product["condition"] || (isSecondHand ? "Good" : "New")
 
@@ -3270,10 +3835,13 @@ function BulkImport() {
         let brand = brands.find(
           (name) => name.toLowerCase() === d.Brand.toLowerCase(),
         )
+
         if (!brand) {
           brand = d.Brand || "Generic / OEM"
+
           brands.push(brand)
         }
+
         const status = (
           d.Status
             ? d.Status[0].toUpperCase() + d.Status.slice(1).toLowerCase()
@@ -3281,86 +3849,138 @@ function BulkImport() {
         ) as Product["status"]
 
         const specs: Record<string, string> = {}
+
         if (d["Model Number"]) specs["Model / MPN"] = d["Model Number"]
+
         if (d.Warranty) specs.Warranty = d.Warranty
 
         const fields: Partial<Product> = {
           sku: d.SKU,
+
           name: d["Product Name"],
+
           brand,
+
           category,
+
           subcategory: d.Subcategory || undefined,
+
           description: d.Description || undefined,
+
           original: mrp && mrp >= price ? mrp : price,
+
           price: sale ?? price,
+
           costPrice: num("Cost Price"),
+
           stock: num("Stock") ?? 0,
+
           lowStockThreshold: num("Low Stock Threshold") ?? 3,
+
           warranty: d.Warranty || undefined,
+
           weight: d.Weight || undefined,
+
           secondHand: isSecondHand,
+
           condition,
+
           status,
         }
+
         const index = products.findIndex(
           (item) => item.sku?.toLowerCase() === d.SKU.toLowerCase(),
         )
+
         if (index >= 0) {
           products[index] = {
             ...products[index],
+
             ...fields,
+
             specs: { ...products[index].specs, ...specs },
           }
+
           updated++
         } else {
           products.unshift({
             id: `${slug(d["Product Name"]).replace(/[^a-z0-9-]/g, "")}-${crypto.randomUUID().slice(0, 4)}`,
+
             image: images.pc,
+
             rating: 4.8,
+
             specs,
+
             ...fields as Omit<Product, "id" | "image" | "rating" | "specs">,
           })
+
           created++
         }
       } catch {
         failed++
       }
     }
+
     const result = {
       imported: created + updated,
+
       created,
+
       updated,
+
       skipped: errorRows.length,
+
       failed,
     }
+
     store.set((previous) => ({
       products,
+
       brands: brands.sort((a, b) => a.localeCompare(b)),
+
       importHistory: [
         {
           id: crypto.randomUUID(),
+
           file,
+
           date: new Date().toLocaleString(),
+
           rows: rows.length,
+
           created,
+
           updated,
+
           skipped: result.skipped,
+
           failed,
         },
+
         ...previous.importHistory,
       ],
     }))
+
     store.log(`Bulk import ${file}: ${created} created, ${updated} updated`)
+
     store.notify(`${result.imported} products imported`)
+
     setConfirming(false)
+
     setSummary(result)
   }
+
   const tabs = [
     ["csv", "CSV"],
+
     ["excel", "Excel"],
+
     ["template", "Template"],
+
     ["history", "Import History"],
   ] as const
+
   return (
     <div>
       <div className="mb-6 flex gap-1 border-b border-border">
@@ -3398,11 +4018,17 @@ function BulkImport() {
           rows={store.importHistory}
           columns={[
             { key: "file", label: "File" },
+
             { key: "date", label: "Date" },
+
             { key: "rows", label: "Rows" },
+
             { key: "created", label: "Created" },
+
             { key: "updated", label: "Updated" },
+
             { key: "skipped", label: "Skipped" },
+
             { key: "failed", label: "Failed" },
           ]}
         />
@@ -3451,7 +4077,9 @@ function BulkImport() {
                   className="sr-only"
                   onChange={(event) => {
                     const input = event.target.files?.[0]
+
                     event.target.value = ""
+
                     if (input) parse(input)
                   }}
                 />
@@ -3523,12 +4151,19 @@ function BulkImport() {
                       <th className="px-4 py-3">Status</th>
                       {[
                         "SKU",
+
                         "Product Name",
+
                         "Brand",
+
                         "Category",
+
                         "Price",
+
                         "Sale Price",
+
                         "Stock",
+
                         "Status",
                       ].map((key) => (
                         <th key={key} className="px-4 py-3">
@@ -3552,12 +4187,19 @@ function BulkImport() {
                         </td>
                         {[
                           "SKU",
+
                           "Product Name",
+
                           "Brand",
+
                           "Category",
+
                           "Price",
+
                           "Sale Price",
+
                           "Stock",
+
                           "Status",
                         ].map((key) => (
                           <td key={key} className="max-w-48 truncate px-4 py-3">
@@ -3611,9 +4253,13 @@ function BulkImport() {
               <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {([
                   ["Imported", summary.imported],
+
                   ["Updated", summary.updated],
+
                   ["Created", summary.created],
+
                   ["Skipped", summary.skipped],
+
                   ["Failed", summary.failed],
                 ] as const).map(([label, value]) => (
                   <div key={label} className="rounded-md bg-muted p-4">
@@ -3637,9 +4283,12 @@ function BulkImport() {
     </div>
   )
 }
+
 function TechnicianManager() {
   const store = useStore()
+
   const [name, setName] = useState("")
+
   return (
     <div className="mt-6">
       <Panel
@@ -3648,7 +4297,9 @@ function TechnicianManager() {
       >
         <div className="mb-4 flex flex-wrap gap-2">
           {store.technicians
+
             .filter((item) => item !== "Unassigned")
+
             .map((item) => (
               <span
                 key={item}
@@ -3663,12 +4314,14 @@ function TechnicianManager() {
                       technicians: previous.technicians.filter(
                         (value) => value !== item,
                       ),
+
                       requests: previous.requests.map((request) =>
                         request.technician === item
                           ? { ...request, technician: "Unassigned" }
                           : request,
                       ),
                     }))
+
                     store.log(`Service staff removed: ${item}`)
                   }}
                 >
@@ -3681,10 +4334,15 @@ function TechnicianManager() {
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+
             const value = name.trim()
+
             if (!value || store.technicians.includes(value)) return
+
             store.set({ technicians: [...store.technicians, value] })
+
             store.log(`Service staff added: ${value}`)
+
             setName("")
           }}
         >
@@ -3702,11 +4360,16 @@ function TechnicianManager() {
     </div>
   )
 }
+
 function WarrantyAdmin() {
   const store = useStore()
+
   const [pin, setPin] = useState("")
+
   const [checked, setChecked] = useState("")
+
   const result = checked ? checkWarranty(checked, store.locations) : null
+
   return (
     <>
       <Panel
@@ -3717,6 +4380,7 @@ function WarrantyAdmin() {
           className="flex max-w-md gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+
             setChecked(pin)
           }}
         >
@@ -3772,15 +4436,20 @@ function WarrantyAdmin() {
       <DataTable
         rows={store.warrantyChecks.map((item) => ({
           ...item,
+
           distance:
             item.distanceKm === null ? "—" : `approx. ${item.distanceKm} km`,
         }))}
         columns={[
           { key: "pincode", label: "PIN code" },
+
           { key: "area", label: "Area" },
+
           {
             key: "result",
+
             label: "Result",
+
             render: (row) => (
               <Badge
                 tone={
@@ -3795,55 +4464,82 @@ function WarrantyAdmin() {
               </Badge>
             ),
           },
+
           { key: "distance", label: "Distance" },
+
           { key: "source", label: "Source" },
+
           { key: "date", label: "Date" },
         ]}
       />
     </>
   )
 }
+
 const emptyLocation = (): ItHubLocation => ({
   id: "",
+
   name: "",
+
   address: "",
+
   pincode: "",
+
   latitude: 10.0602,
+
   longitude: 76.6351,
+
   serviceRadiusKm: 15,
+
   active: true,
 })
+
 function LocationForm({
   value,
+
   onSave,
+
   submitLabel = "Save location",
 }: {
   value: ItHubLocation
+
   onSave: (location: ItHubLocation) => void
+
   submitLabel?: string
 }) {
   const [draft, setDraft] = useState(value)
+
   const [error, setError] = useState("")
+
   useEffect(() => setDraft(value), [value])
+
   return (
     <form
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault()
+
         if (draft.name.trim().length < 2) return setError("Name is required.")
+
         if (!/^[1-9]\d{5}$/.test(draft.pincode))
           return setError("Enter a valid 6-digit PIN code.")
+
         if (
           !(Math.abs(draft.latitude) <= 90) ||
           !(Math.abs(draft.longitude) <= 180)
         )
           return setError("Latitude must be −90…90 and longitude −180…180.")
+
         if (!(draft.serviceRadiusKm > 0))
           return setError("Service radius must be greater than 0 km.")
+
         setError("")
+
         onSave({
           ...draft,
+
           name: draft.name.trim(),
+
           id: draft.id || crypto.randomUUID(),
         })
       }}
@@ -3865,6 +4561,7 @@ function LocationForm({
             onChange={(event) =>
               setDraft({
                 ...draft,
+
                 pincode: event.target.value.replace(/\D/g, ""),
               })
             }
@@ -3913,6 +4610,7 @@ function LocationForm({
             onChange={(event) =>
               setDraft({
                 ...draft,
+
                 serviceRadiusKm: Number(event.target.value),
               })
             }
@@ -3940,13 +4638,16 @@ function LocationForm({
     </form>
   )
 }
+
 function ServiceAreas({
   onRemove,
 }: {
   onRemove: (id: string, name: string) => void
 }) {
   const store = useStore()
+
   const [editing, setEditing] = useState<ItHubLocation | null>(null)
+
   return (
     <>
       <div className="mb-5 flex justify-end">
@@ -3957,19 +4658,29 @@ function ServiceAreas({
       <DataTable
         rows={store.locations.map((item) => ({
           ...item,
+
           coords: `${item.latitude}, ${item.longitude}`,
+
           radius: `${item.serviceRadiusKm} km`,
+
           status: item.active ? "Active" : "Inactive",
         }))}
         columns={[
           { key: "name", label: "Location" },
+
           { key: "address", label: "Address" },
+
           { key: "pincode", label: "PIN" },
+
           { key: "coords", label: "Lat, Lng" },
+
           { key: "radius", label: "Radius" },
+
           {
             key: "status",
+
             label: "Status",
+
             render: (row) => statusBadge(String(row.status)),
           },
         ]}
@@ -4012,8 +4723,11 @@ function ServiceAreas({
                     )
                   : [...previous.locations, location],
               }))
+
               store.log(`Service location saved: ${location.name}`)
+
               store.notify("Service location saved")
+
               setEditing(null)
             }}
           />
@@ -4022,16 +4736,24 @@ function ServiceAreas({
     </>
   )
 }
+
 function PcRequests() {
   const store = useStore()
+
   const [openId, setOpenId] = useState("")
+
   const selected = store.pcEnquiries.find((item) => item.id === openId)
+
   const statuses: PcEnquiry["status"][] = [
     "New",
+
     "Contacted",
+
     "Quoted",
+
     "Closed",
   ]
+
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
@@ -4041,21 +4763,31 @@ function PcRequests() {
       <DataTable
         rows={store.pcEnquiries.map((item) => ({
           ...item,
+
           count: item.parts.length,
         }))}
         columns={[
           { key: "id", label: "Request" },
+
           { key: "summary", label: "Summary" },
+
           { key: "count", label: "Parts" },
+
           {
             key: "estimate",
+
             label: "Estimate",
+
             render: (row) => money(Number(row.estimate)),
           },
+
           { key: "date", label: "Date" },
+
           {
             key: "status",
+
             label: "Status",
+
             render: (row) => statusBadge(String(row.status)),
           },
         ]}
@@ -4067,12 +4799,15 @@ function PcRequests() {
             value={String(row.status)}
             onChange={(event) => {
               const status = event.target.value as PcEnquiry["status"]
+
               store.set({
                 pcEnquiries: store.pcEnquiries.map((item) =>
                   item.id === row.id ? { ...item, status } : item,
                 ),
               })
+
               store.log(`PC request ${row.id}: ${status}`)
+
               store.notify("Request status updated")
             }}
           >
@@ -4110,18 +4845,28 @@ function PcRequests() {
     </>
   )
 }
+
 function SettingsPanel({ view }: { view: string }) {
   const store = useStore()
+
   const [settings, setSettings] = useState(store.settings)
+
   const [error, setError] = useState("")
+
   const save = (message: string) => {
     store.set({ settings })
+
     store.log(message)
+
     store.notify("Settings saved")
   }
+
   const primary = store.locations[0]
+
   if (view === "database") return <DatabaseConnectionPanel />
+
   if (view === "privacy") return <PrivacyPanel />
+
   if (view === "location")
     return (
       <Panel
@@ -4136,12 +4881,15 @@ function SettingsPanel({ view }: { view: string }) {
                 ? [location, ...previous.locations.slice(1)]
                 : [location],
             }))
+
             store.log("Primary IT HUB location updated")
+
             store.notify("Location saved")
           }}
         />
       </Panel>
     )
+
   if (view === "radius")
     return (
       <Panel
@@ -4168,6 +4916,7 @@ function SettingsPanel({ view }: { view: string }) {
                       item.id === location.id
                         ? {
                             ...item,
+
                             serviceRadiusKm: Number(event.target.value),
                           }
                         : item,
@@ -4191,6 +4940,7 @@ function SettingsPanel({ view }: { view: string }) {
         </div>
       </Panel>
     )
+
   if (view === "whatsapp")
     return (
       <Panel
@@ -4201,13 +4951,17 @@ function SettingsPanel({ view }: { view: string }) {
           className="max-w-md space-y-4"
           onSubmit={(event) => {
             event.preventDefault()
+
             if (!/^\d{10,15}$/.test(settings.whatsapp)) {
               setError(
                 "Enter 10–15 digits including the country code, e.g. 919876543210.",
               )
+
               return
             }
+
             setError("")
+
             save("WhatsApp number updated")
           }}
         >
@@ -4218,6 +4972,7 @@ function SettingsPanel({ view }: { view: string }) {
               onChange={(event) =>
                 setSettings({
                   ...settings,
+
                   whatsapp: event.target.value.replace(/\D/g, ""),
                 })
               }
@@ -4244,17 +4999,22 @@ function SettingsPanel({ view }: { view: string }) {
         </form>
       </Panel>
     )
+
   return (
     <Panel title="Store information">
       <form
         className="max-w-2xl space-y-5"
         onSubmit={(event) => {
           event.preventDefault()
+
           if (settings.email && !/^\S+@\S+\.\S+$/.test(settings.email)) {
             setError("Enter a valid email address.")
+
             return
           }
+
           setError("")
+
           save("Store information updated")
         }}
       >
@@ -4316,6 +5076,7 @@ function SettingsPanel({ view }: { view: string }) {
             onChange={(event) =>
               setSettings({
                 ...settings,
+
                 emailNotifications: event.target.checked,
               })
             }
@@ -4333,21 +5094,34 @@ function SettingsPanel({ view }: { view: string }) {
     </Panel>
   )
 }
+
 function ResourceManager({ section }: { section: string }) {
   const store = useStore()
+
   const config = resourceDefinitions[section]
+
   const rows = store.resources[section] || []
+
   const [editing, setEditing] = useState<AdminRecord | null>(null)
+
   const [open, setOpen] = useState(false)
+
   const [deleting, setDeleting] = useState<string | null>(null)
+
   const [draft, setDraft] = useState<AdminRecord>({
     id: "",
+
     name: "",
+
     detail: "",
+
     value: "",
+
     status: config.statuses[0],
   })
+
   const immutable = section === "compatibility"
+
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -4358,13 +5132,19 @@ function ResourceManager({ section }: { section: string }) {
           <Button
             onClick={() => {
               setEditing(null)
+
               setDraft({
                 id: "",
+
                 name: "",
+
                 detail: "",
+
                 value: "",
+
                 status: config.statuses[0],
               })
+
               setOpen(true)
             }}
           >
@@ -4377,11 +5157,16 @@ function ResourceManager({ section }: { section: string }) {
         rows={rows}
         columns={[
           { key: "name", label: config.labels[0] },
+
           { key: "detail", label: config.labels[1] },
+
           { key: "value", label: config.labels[2] },
+
           {
             key: "status",
+
             label: "Status",
+
             render: (row) => statusBadge(String(row.status)),
           },
         ]}
@@ -4394,7 +5179,9 @@ function ResourceManager({ section }: { section: string }) {
                     className="text-primary"
                     onClick={() => {
                       setEditing(row as AdminRecord)
+
                       setDraft(row as AdminRecord)
+
                       setOpen(true)
                     }}
                   >
@@ -4424,21 +5211,27 @@ function ResourceManager({ section }: { section: string }) {
           className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault()
+
             const next = { ...draft, id: editing?.id || crypto.randomUUID() }
+
             store.set({
               resources: {
                 ...store.resources,
+
                 [section]: editing
                   ? rows.map((item) => (item.id === editing.id ? next : item))
                   : [...rows, next],
               },
             })
+
             store.log(
               `${config.title}: ${
                 editing ? "updated" : "created"
               } ${next.name}`,
             )
+
             setOpen(false)
+
             store.notify("Record saved")
           }}
         >
@@ -4485,11 +5278,15 @@ function ResourceManager({ section }: { section: string }) {
             store.set({
               resources: {
                 ...store.resources,
+
                 [section]: rows.filter((item) => item.id !== deleting),
               },
             })
+
             store.log(`${config.title}: record deleted`)
+
             setDeleting(null)
+
             store.notify("Record deleted")
           }}
         >
@@ -4502,49 +5299,75 @@ function ResourceManager({ section }: { section: string }) {
 
 function ShowcaseManager() {
   const store = useStore()
+
   const [caption, setCaption] = useState("")
+
   const [remove, setRemove] = useState<string | null>(null)
+
   const upload = (files: FileList | null) => {
     if (!files?.length) return
+
     Array.from(files).forEach((file) => {
       if (!file.type.startsWith("image/")) return
+
       const reader = new FileReader()
+
       reader.onload = () => {
         // Downscale so the prototype's localStorage can hold several uploads.
+
         const img = new Image()
+
         img.onload = () => {
           const scale = Math.min(1, 900 / Math.max(img.width, img.height))
+
           const canvas = document.createElement("canvas")
+
           canvas.width = Math.round(img.width * scale)
+
           canvas.height = Math.round(img.height * scale)
+
           canvas
+
             .getContext("2d")!
+
             .drawImage(img, 0, 0, canvas.width, canvas.height)
+
           const src = canvas.toDataURL("image/jpeg", 0.82)
+
           store.set((s) => ({
             showcase: [
               {
                 id: `showcase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+
                 src,
+
                 caption: caption.trim() || "Another happy IT HUB customer",
               },
+
               ...s.showcase,
             ],
           }))
+
           store.log(`Added showcase image ${file.name}`)
         }
+
         img.src = String(reader.result)
       }
+
       reader.readAsDataURL(file)
     })
+
     setCaption("")
+
     store.notify(
       files.length > 1
         ? `${files.length} images added to showcase`
         : "Image added to showcase",
     )
   }
+
   const target = store.showcase.find((item) => item.id === remove)
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-border bg-white p-5">
@@ -4569,6 +5392,7 @@ function ShowcaseManager() {
               className="sr-only"
               onChange={(e) => {
                 upload(e.target.files)
+
                 e.target.value = ""
               }}
             />
@@ -4630,8 +5454,11 @@ function ShowcaseManager() {
               store.set((s) => ({
                 showcase: s.showcase.filter((item) => item.id !== remove),
               }))
+
               store.log("Deleted a showcase image")
+
               store.notify("Image removed from showcase")
+
               setRemove(null)
             }}
           >
@@ -4648,95 +5475,149 @@ const supportWarning =
 
 const emptySupport = (category = ""): BrandSupport => ({
   id: "",
+
   brand: "",
+
   category:
     category === "all" || category === "centres" || category === "history"
       ? ""
       : category,
+
   warrantyPhone: "",
+
   customerCarePhone: "",
+
   supportUrl: "",
+
   warrantyUrl: "",
+
   serviceLocatorUrl: "",
+
   email: "",
+
   notes: "",
+
   sourceUrl: "",
+
   verifiedBy: "",
+
   lastVerifiedAt: "",
+
   region: "India",
+
   verificationStatus: "pending_verification",
+
   isPublished: false,
+
   popular: false,
+
   active: true,
+
   createdAt: "",
+
   updatedAt: "",
 })
 
 const emptyServiceCentre = (category = ""): ServiceCentre => ({
   id: "",
+
   name: "",
+
   brandName: "",
+
   category:
     category === "all" || category === "centres" || category === "history"
       ? "laptop"
       : category,
+
   address: "",
+
   city: "Kochi",
+
   state: "Kerala",
+
   pincode: "",
+
   phone: "",
+
   email: "",
+
   servicesOffered: [],
+
   isAuthorized: true,
+
   authorizationEvidence: "",
+
   sourceUrl: "",
+
   latitude: undefined,
+
   longitude: undefined,
+
   active: true,
+
   verifiedAt: new Date().toISOString(),
 })
 
 const contactKeys = [
   "warrantyPhone",
+
   "customerCarePhone",
+
   "supportUrl",
+
   "warrantyUrl",
+
   "serviceLocatorUrl",
+
   "email",
 ] as const
 
 const badUrl = (value?: string) => {
   if (!value || !value.trim()) return false
+
   return !/^https:\/\/\S+$/i.test(value.trim())
 }
 
 function SupportAdmin({ view }: { view: string }) {
   const store = useStore()
+
   const [status, setStatus] = useState("all")
+
   const [query, setQuery] = useState("")
+
   const [editing, setEditing] = useState<BrandSupport | null>(null)
+
   const [verifying, setVerifying] = useState<BrandSupport | null>(null)
+
   const [removing, setRemoving] = useState<BrandSupport | null>(null)
+
   const [editingCentre, setEditingCentre] = useState<ServiceCentre | null>(null)
+
   const [removingCentre, setRemovingCentre] = useState<ServiceCentre | null>(
     null,
   )
 
   const settingsStatus = useMemo(
     () => checkStoreSettingsCompleteness(store.settings),
+
     [store.settings],
   )
 
   const categoryName = (id: string) =>
     store.supportCategories.find((item) => item.id === id)?.name || id
+
   const history = view === "history"
+
   const isCentres = view === "centres"
 
   const rows = store.brandSupport
+
     .filter(
       (item) =>
         view === "all" || history || isCentres || item.category === view,
     )
+
     .filter((item) =>
       status === "all"
         ? true
@@ -4750,30 +5631,46 @@ function SupportAdmin({ view }: { view: string }) {
                 ? Boolean(item.lastVerifiedAt)
                 : !item.lastVerifiedAt,
     )
+
     .filter((item) =>
       [
         item.brand,
+
         categoryName(item.category),
+
         item.warrantyPhone,
+
         item.customerCarePhone,
+
         item.supportUrl,
       ]
+
         .join(" ")
+
         .toLowerCase()
+
         .includes(query.toLowerCase()),
     )
 
   const centreRows = store.serviceCentres.filter((item) =>
     [
       item.name,
+
       item.brandName,
+
       item.city,
+
       item.pincode,
+
       item.address,
+
       item.phone || "",
     ]
+
       .join(" ")
+
       .toLowerCase()
+
       .includes(query.toLowerCase()),
   )
 
@@ -4814,20 +5711,30 @@ function SupportAdmin({ view }: { view: string }) {
       {history && (
         <DataTable
           rows={[...store.supportVerifications]
+
             .sort((a, b) => b.date.localeCompare(a.date))
+
             .map((item) => ({
               ...item,
+
               categoryLabel: categoryName(item.category),
+
               when: new Date(item.date).toLocaleString("en-IN"),
             }))}
           columns={[
             { key: "when", label: "Date" },
+
             { key: "brand", label: "Brand" },
+
             { key: "categoryLabel", label: "Category" },
+
             { key: "verifiedBy", label: "Verified by" },
+
             {
               key: "sourceUrl",
+
               label: "Source",
+
               render: (row) => (
                 <a
                   href={String(row.sourceUrl)}
@@ -4839,6 +5746,7 @@ function SupportAdmin({ view }: { view: string }) {
                 </a>
               ),
             },
+
             { key: "changes", label: "Changes" },
           ]}
         />
@@ -4873,11 +5781,17 @@ function SupportAdmin({ view }: { view: string }) {
                 <tr>
                   {[
                     "Centre Name",
+
                     "Brand & Category",
+
                     "Location & PIN",
+
                     "Phone & Contact",
+
                     "Authorization",
+
                     "Verified",
+
                     "",
                   ].map((label) => (
                     <th key={label} className="px-4 py-3 font-semibold">
@@ -5006,12 +5920,19 @@ function SupportAdmin({ view }: { view: string }) {
                 <tr>
                   {[
                     "Brand",
+
                     "Category",
+
                     "Phones (Warranty / Care)",
+
                     "Official Portals",
+
                     "Verification",
+
                     "Public",
+
                     "Active",
+
                     "",
                   ].map((label) => (
                     <th key={label} className="px-4 py-3 font-semibold">
@@ -5047,10 +5968,14 @@ function SupportAdmin({ view }: { view: string }) {
                     <td className="max-w-[220px] px-4 py-3">
                       {[
                         item.supportUrl,
+
                         item.warrantyUrl,
+
                         item.serviceLocatorUrl,
                       ]
+
                         .filter(Boolean)
+
                         .map((url) => (
                           <a
                             key={url}
@@ -5098,11 +6023,13 @@ function SupportAdmin({ view }: { view: string }) {
                         }`}
                         onClick={() => {
                           update(item.id, { active: !item.active })
+
                           store.log(
                             `Brand support ${
                               item.active ? "disabled" : "enabled"
                             }: ${item.brand} (${item.category})`,
                           )
+
                           store.notify(
                             item.active ? "Record disabled" : "Record enabled",
                           )
@@ -5169,15 +6096,19 @@ function SupportAdmin({ view }: { view: string }) {
           <Button
             onClick={() => {
               if (!removing) return
+
               store.set((state) => ({
                 brandSupport: state.brandSupport.filter(
                   (item) => item.id !== removing.id,
                 ),
               }))
+
               store.log(
                 `Brand support deleted: ${removing.brand} (${removing.category})`,
               )
+
               store.notify("Support record deleted")
+
               setRemoving(null)
             }}
           >
@@ -5205,13 +6136,17 @@ function SupportAdmin({ view }: { view: string }) {
           <Button
             onClick={() => {
               if (!removingCentre) return
+
               store.set((state) => ({
                 serviceCentres: state.serviceCentres.filter(
                   (item) => item.id !== removingCentre.id,
                 ),
               }))
+
               store.log(`Service centre deleted: ${removingCentre.name}`)
+
               store.notify("Service centre deleted")
+
               setRemovingCentre(null)
             }}
           >
@@ -5225,36 +6160,53 @@ function SupportAdmin({ view }: { view: string }) {
 
 const appendVerification = (
   record: BrandSupport,
+
   verifiedBy: string,
+
   sourceUrl: string,
+
   changes: string,
 ) => ({
   id: `ver-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+
   supportId: record.id,
+
   brand: record.brand,
+
   category: record.category,
+
   verifiedBy,
+
   sourceUrl,
+
   changes,
+
   date: new Date().toISOString(),
 })
 
 function SupportEditor({
   record,
+
   onClose,
 }: {
   record: BrandSupport | null
+
   onClose: () => void
 }) {
   const store = useStore()
+
   const [form, setForm] = useState<BrandSupport>(emptySupport())
+
   const [reverify, setReverify] = useState(false)
+
   const [error, setError] = useState("")
 
   useEffect(() => {
     if (record) {
       setForm(record)
+
       setReverify(false)
+
       setError("")
     }
   }, [record])
@@ -5272,13 +6224,17 @@ function SupportEditor({
 
   const save = () => {
     const brand = form.brand.trim()
+
     if (!brand || !form.category)
       return setError("Brand and category are required.")
 
     for (const key of [
       "supportUrl",
+
       "warrantyUrl",
+
       "serviceLocatorUrl",
+
       "sourceUrl",
     ] as const)
       if (badUrl(form[key])) return setError(`${key} must start with https://`)
@@ -5307,6 +6263,7 @@ function SupportEditor({
       return setError("Re-verifying requires a source URL and verifier name.")
 
     const now = new Date().toISOString()
+
     const changed = record?.id
       ? contactKeys.filter(
           (key) => (record[key] || "").trim() !== (form[key] || "").trim(),
@@ -5315,15 +6272,20 @@ function SupportEditor({
 
     let next: BrandSupport = {
       ...form,
+
       brand,
+
       updatedAt: now,
+
       region: "India",
     }
 
     if (!record?.id) {
       next = {
         ...next,
+
         id: `${form.category}-${brand.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+
         createdAt: now,
       }
     }
@@ -5331,15 +6293,21 @@ function SupportEditor({
     if (reverify) {
       next = {
         ...next,
+
         lastVerifiedAt: now,
+
         verificationStatus: "verified",
       }
     } else if (!record?.id || changed.length) {
       next = {
         ...next,
+
         lastVerifiedAt: "",
+
         verifiedBy: "",
+
         verificationStatus: "pending_verification",
+
         isPublished: false, // unpublish until verified
       }
     }
@@ -5348,13 +6316,18 @@ function SupportEditor({
       brandSupport: record?.id
         ? state.brandSupport.map((item) => (item.id === next.id ? next : item))
         : [...state.brandSupport, next],
+
       supportVerifications: reverify
         ? [
             ...state.supportVerifications,
+
             appendVerification(
               next,
+
               next.verifiedBy.trim(),
+
               next.sourceUrl.trim(),
+
               changed.length
                 ? `Updated: ${changed.join(", ")}`
                 : "Re-verified on save",
@@ -5368,11 +6341,13 @@ function SupportEditor({
         record?.id ? "updated" : "added"
       }: ${brand} (${form.category})`,
     )
+
     store.notify(
       changed.length && !reverify
         ? "Saved — contact details changed, marked Unverified and Draft"
         : "Support record saved",
     )
+
     onClose()
   }
 
@@ -5486,28 +6461,38 @@ function SupportEditor({
 
 function ServiceCentreEditor({
   record,
+
   onClose,
 }: {
   record: ServiceCentre | null
+
   onClose: () => void
 }) {
   const store = useStore()
+
   const [form, setForm] = useState<ServiceCentre>(emptyServiceCentre())
+
   const [servicesInput, setServicesInput] = useState("")
+
   const [error, setError] = useState("")
 
   useEffect(() => {
     if (record) {
       setForm(record)
+
       setServicesInput((record.servicesOffered || []).join(", "))
+
       setError("")
     }
   }, [record])
 
   const save = () => {
     const name = form.name.trim()
+
     const brandName = form.brandName.trim()
+
     const pincode = form.pincode.trim()
+
     const sourceUrl = form.sourceUrl.trim()
 
     if (!name || !brandName || !form.category) {
@@ -5527,20 +6512,30 @@ function ServiceCentreEditor({
     }
 
     const services = servicesInput
+
       .split(",")
+
       .map((s) => s.trim())
+
       .filter(Boolean)
 
     const next: ServiceCentre = {
       ...form,
+
       name,
+
       brandName,
+
       pincode,
+
       sourceUrl,
+
       servicesOffered: services,
+
       id:
         form.id ||
         `sc-${brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
+
       verifiedAt: form.verifiedAt || new Date().toISOString(),
     }
 
@@ -5553,7 +6548,9 @@ function ServiceCentreEditor({
     }))
 
     store.log(`Service centre ${record?.id ? "updated" : "added"}: ${name}`)
+
     store.notify("Service centre saved")
+
     onClose()
   }
 
@@ -5656,6 +6653,7 @@ function ServiceCentreEditor({
             onChange={(e) =>
               setForm({
                 ...form,
+
                 latitude: e.target.value ? Number(e.target.value) : undefined,
               })
             }
@@ -5671,6 +6669,7 @@ function ServiceCentreEditor({
             onChange={(e) =>
               setForm({
                 ...form,
+
                 longitude: e.target.value ? Number(e.target.value) : undefined,
               })
             }
@@ -5748,20 +6747,27 @@ function ServiceCentreEditor({
 
 function VerifyModal({
   record,
+
   onClose,
 }: {
   record: BrandSupport | null
+
   onClose: () => void
 }) {
   const store = useStore()
+
   const [sourceUrl, setSourceUrl] = useState("")
+
   const [verifiedBy, setVerifiedBy] = useState("")
+
   const [error, setError] = useState("")
 
   useEffect(() => {
     if (record) {
       setSourceUrl(record.sourceUrl)
+
       setVerifiedBy(record.verifiedBy || "Store Administrator")
+
       setError("")
     }
   }, [record])
@@ -5782,38 +6788,58 @@ function VerifyModal({
         className="grid gap-4"
         onSubmit={(event) => {
           event.preventDefault()
+
           if (!record) return
+
           if (!sourceUrl.trim() || badUrl(sourceUrl))
             return setError("Enter the official source URL (https://).")
+
           if (!verifiedBy.trim()) return setError("Enter the verifier name.")
+
           const now = new Date().toISOString()
+
           const next: BrandSupport = {
             ...record,
+
             sourceUrl: sourceUrl.trim(),
+
             verifiedBy: verifiedBy.trim(),
+
             lastVerifiedAt: now,
+
             verificationStatus: "verified",
+
             isPublished: true,
+
             updatedAt: now,
           }
+
           store.set((state) => ({
             brandSupport: state.brandSupport.map((item) =>
               item.id === record.id ? next : item,
             ),
+
             supportVerifications: [
               ...state.supportVerifications,
+
               appendVerification(
                 next,
+
                 next.verifiedBy,
+
                 next.sourceUrl,
+
                 "Marked verified & published",
               ),
             ],
           }))
+
           store.log(
             `Brand support verified: ${record.brand} (${record.category})`,
           )
+
           store.notify("Marked as verified and published on storefront")
+
           onClose()
         }}
       >
@@ -5845,11 +6871,16 @@ function VerifyModal({
     </Modal>
   )
 }
+
 function SupportCategories() {
   const store = useStore()
+
   const [name, setName] = useState("")
+
   const [icon, setIcon] = useState("monitor")
+
   const [mapped, setMapped] = useState("")
+
   return (
     <div className="mt-8">
       <Panel
@@ -5860,26 +6891,41 @@ function SupportCategories() {
           className="mb-4 flex flex-wrap gap-3"
           onSubmit={(event) => {
             event.preventDefault()
+
             const value = name.trim()
+
             if (!value) return
+
             const id = value.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+
             if (store.supportCategories.some((item) => item.id === id)) {
               store.notify("This category already exists")
+
               return
             }
+
             const catalogCategories = mapped
+
               .split(",")
+
               .map((item) => item.trim())
+
               .filter(Boolean)
+
             store.set((state) => ({
               supportCategories: [
                 ...state.supportCategories,
+
                 { id, name: value, icon, catalogCategories, active: true },
               ],
             }))
+
             store.log(`Support category added: ${value}`)
+
             store.notify("Category added")
+
             setName("")
+
             setMapped("")
           }}
         >
@@ -5896,13 +6942,21 @@ function SupportCategories() {
           >
             {[
               "laptop",
+
               "smartphone",
+
               "printer",
+
               "monitor",
+
               "tv",
+
               "camera",
+
               "router",
+
               "gamepad",
+
               "cpu",
             ].map((item) => (
               <option key={item} value={item}>
@@ -5952,89 +7006,145 @@ function SupportCategories() {
 
 const buildPurposes: BuildPurpose[] = [
   "gaming",
+
   "creation",
+
   "work",
+
   "professional",
+
   "general",
 ]
+
 const tradeoffOptions = [
   "Value-focused",
+
   "Balanced",
+
   "Higher-performance",
+
   "Upgrade-friendly",
 ]
+
 const templatePartTypes = [
   "CPU",
+
   "Motherboard",
+
   "RAM",
+
   "GPU",
+
   "Storage",
+
   "PSU",
+
   "Cabinet",
+
   "Cooler",
 ]
+
 const emptyTemplate = (): BuildTemplate => ({
   id: "",
+
   name: "",
+
   purpose: "gaming",
+
   budgetMin: 50000,
+
   budgetMax: 80000,
+
   resolution: "1080p",
+
   usage: "",
+
   tradeoff: "Balanced",
+
   parts: {},
+
   highlights: [],
+
   active: true,
 })
 
 function BuildTemplatesAdmin() {
   const store = useStore()
+
   const [purpose, setPurpose] = useState<"all" | BuildPurpose>("all")
+
   const [draft, setDraft] = useState<BuildTemplate | null>(null)
+
   const [highlights, setHighlights] = useState("")
+
   const [removeId, setRemoveId] = useState("")
+
   const [error, setError] = useState("")
+
   const [charge, setCharge] = useState(String(store.assemblyCharge))
+
   useEffect(
     () => setCharge(String(store.assemblyCharge)),
+
     [store.assemblyCharge],
   )
+
   const estimate = (parts: Record<string, string>) =>
     Object.entries(parts).reduce((total, [type, id]) => {
       const option = (store.componentCatalog[type] || []).find(
         (item) => item.id === id,
       )
+
       return total + (option?.price || 0)
     }, 0)
+
   const templates = store.buildTemplates.filter(
     (item) => purpose === "all" || item.purpose === purpose,
   )
+
   const toRemove = store.buildTemplates.find((item) => item.id === removeId)
+
   const openEditor = (template: BuildTemplate) => {
     setDraft({ ...template, parts: { ...template.parts } })
+
     setHighlights(template.highlights.join("\n"))
+
     setError("")
   }
+
   const save = () => {
     if (!draft) return
+
     if (!draft.name.trim()) return setError("Template name is required.")
+
     if (draft.budgetMin <= 0 || draft.budgetMax < draft.budgetMin)
       return setError(
         "Budget maximum must be at least the minimum, and both above zero.",
       )
+
     const missing = templatePartTypes.filter((type) => !draft.parts[type])
+
     if (missing.length)
       return setError(`Select parts for: ${missing.join(", ")}`)
+
     const record: BuildTemplate = {
       ...draft,
+
       name: draft.name.trim(),
+
       highlights: highlights
+
         .split("\n")
+
         .map((line) => line.trim())
+
         .filter(Boolean),
     }
+
     const isNew = !record.id
+
     if (isNew) record.id = `tpl-${slug(record.name)}-${Date.now().toString(36)}`
+
     store.set((previous) => ({
       buildTemplates: isNew
         ? [...previous.buildTemplates, record]
@@ -6042,10 +7152,14 @@ function BuildTemplatesAdmin() {
             item.id === record.id ? record : item,
           ),
     }))
+
     store.log(`Build template ${isNew ? "created" : "updated"}: ${record.name}`)
+
     store.notify(isNew ? "Build template added" : "Build template updated")
+
     setDraft(null)
   }
+
   return (
     <>
       <p className="mb-5 max-w-2xl text-xs leading-6 text-muted-foreground">
@@ -6082,14 +7196,19 @@ function BuildTemplatesAdmin() {
             variant="secondary"
             onClick={() => {
               const value = Number(charge)
+
               if (!Number.isFinite(value) || value < 0) {
                 store.notify("Assembly charge must be zero or more")
+
                 return
               }
+
               store.set({ assemblyCharge: Math.round(value) })
+
               store.log(
                 `Assembly charge set to ${value ? money(value) : "free"}`,
               )
+
               store.notify("Assembly charge updated")
             }}
           >
@@ -6103,34 +7222,50 @@ function BuildTemplatesAdmin() {
       <DataTable
         rows={templates.map((item) => ({
           ...item,
+
           budget: item.budgetMin,
+
           estimate: estimate(item.parts),
         }))}
         columns={[
           { key: "name", label: "Name" },
+
           {
             key: "purpose",
+
             label: "Purpose",
+
             render: (row) => (
               <span className="capitalize">{String(row.purpose)}</span>
             ),
           },
+
           {
             key: "budget",
+
             label: "Budget",
+
             render: (row) =>
               `${money(Number(row.budgetMin))} – ${money(Number(row.budgetMax))}`,
           },
+
           { key: "resolution", label: "Resolution" },
+
           { key: "tradeoff", label: "Trade-off" },
+
           {
             key: "estimate",
+
             label: "Est. price",
+
             render: (row) => money(Number(row.estimate)),
           },
+
           {
             key: "active",
+
             label: "Status",
+
             render: (row) => (
               <button
                 onClick={() => {
@@ -6141,7 +7276,9 @@ function BuildTemplatesAdmin() {
                         : item,
                     ),
                   }))
+
                   store.log(`Build template toggled: ${String(row.name)}`)
+
                   store.notify("Template status updated")
                 }}
               >
@@ -6154,10 +7291,12 @@ function BuildTemplatesAdmin() {
         ]}
         onView={(row) => {
           const found = store.buildTemplates.find((item) => item.id === row.id)
+
           if (found) openEditor(found)
         }}
         actions={(row) => {
           const found = store.buildTemplates.find((item) => item.id === row.id)
+
           return (
             <div className="flex gap-3">
               <button
@@ -6170,18 +7309,27 @@ function BuildTemplatesAdmin() {
                 className="text-primary"
                 onClick={() => {
                   if (!found) return
+
                   const copy: BuildTemplate = {
                     ...found,
+
                     parts: { ...found.parts },
+
                     highlights: [...found.highlights],
+
                     id: `tpl-${slug(found.name)}-${Date.now().toString(36)}`,
+
                     name: `${found.name} (copy)`,
+
                     active: false,
                   }
+
                   store.set((previous) => ({
                     buildTemplates: [...previous.buildTemplates, copy],
                   }))
+
                   store.log(`Build template duplicated: ${found.name}`)
+
                   store.notify("Template duplicated as inactive copy")
                 }}
               >
@@ -6221,6 +7369,7 @@ function BuildTemplatesAdmin() {
                   onChange={(event) =>
                     setDraft({
                       ...draft,
+
                       purpose: event.target.value as BuildPurpose,
                     })
                   }
@@ -6241,6 +7390,7 @@ function BuildTemplatesAdmin() {
                   onChange={(event) =>
                     setDraft({
                       ...draft,
+
                       budgetMin: Number(event.target.value),
                     })
                   }
@@ -6255,6 +7405,7 @@ function BuildTemplatesAdmin() {
                   onChange={(event) =>
                     setDraft({
                       ...draft,
+
                       budgetMax: Number(event.target.value),
                     })
                   }
@@ -6305,6 +7456,7 @@ function BuildTemplatesAdmin() {
                     onChange={(event) =>
                       setDraft({
                         ...draft,
+
                         parts: { ...draft.parts, [type]: event.target.value },
                       })
                     }
@@ -6368,13 +7520,17 @@ function BuildTemplatesAdmin() {
           <Button
             onClick={() => {
               if (!toRemove) return
+
               store.set((previous) => ({
                 buildTemplates: previous.buildTemplates.filter(
                   (item) => item.id !== toRemove.id,
                 ),
               }))
+
               store.log(`Build template deleted: ${toRemove.name}`)
+
               store.notify("Build template deleted")
+
               setRemoveId("")
             }}
           >

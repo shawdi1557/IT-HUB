@@ -8,7 +8,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js"
  * Normalized Supabase project URL from Vite environment.
  */
 export const SUPABASE_URL = (
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) ||
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SUPABASE_URL) ||
   (typeof (globalThis as any).Deno !== "undefined" &&
     (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_URL")) ||
   "https://aeulrulvpxyqmxmypzey.supabase.co"
@@ -20,8 +20,8 @@ export const SUPABASE_URL = (
  */
 export const SUPABASE_ANON_KEY = (
   (typeof import.meta !== "undefined" &&
-    (import.meta.env?.VITE_SUPABASE_ANON_KEY ||
-      import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
+    ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
+      (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
   (typeof (globalThis as any).Deno !== "undefined" &&
     ((globalThis as any).Deno.env?.get?.("VITE_SUPABASE_ANON_KEY") ||
       (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_PUBLISHABLE_KEY"))) ||

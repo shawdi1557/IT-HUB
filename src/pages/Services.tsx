@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { LoginGate } from "../components/AuthModal"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router"
 import {
@@ -21,136 +21,1003 @@ import {
   Code2,
   AlertCircle,
   Info,
+  Clock,
+  ChevronDown,
+  Lock,
+  Layers,
+  Check,
+  AlertTriangle,
+  ShieldAlert,
+  Sparkles,
+  PhoneCall,
+  RotateCcw,
 } from "lucide-react"
+import WhatsAppIcon from "../components/WhatsAppIcon"
 import OurServices from "../components/OurServices"
-import WarrantyCheck from "../components/WarrantyCheck"
 import { useStore } from "../app/store"
 import { track } from "../lib/analytics"
 import {
   serviceTypes,
   problemsFor,
   serviceStatuses,
+  serviceCatalogItems,
+  serviceWarrantyPolicy,
+  repairEstimates,
   money,
+  type ServiceCatalogItem,
+  type ServiceRequest,
 } from "../data/catalog"
+import {
+  createServiceBooking,
+  updateServiceQuoteDecision,
+  maskServiceRequestForPublicTracking,
+  checkServiceCoverage,
+  isUserTicketOwner,
+  fetchServiceRequestById,
+  type SafePublicTracking,
+} from "../lib/services"
 import {
   ActionLink,
   Badge,
   Button,
   Empty,
   Field,
+  Loading,
   Logo,
   Page,
   PageHeading,
   Timeline,
   fieldClass,
+  buttonClass,
+  secondaryClass,
 } from "../components/ui"
+import QuotationApprovalPanel from "../components/QuotationApprovalPanel"
 
-const serviceCategories = [
-  {
-    name: "Laptop Services",
-    Icon: Laptop,
-    text: "Repair, upgrades, software support and diagnostics.",
-    items: ["Laptop Repair", "Laptop Cleaning", "SSD Upgrade", "RAM Upgrade"],
-    service: "Laptop Repair",
-    device: "Laptop",
-  },
-  {
-    name: "Mobile Services",
-    Icon: Smartphone,
-    text: "Device diagnostics, repair and technical assistance.",
-    items: ["Mobile Repair", "Hardware Diagnostics", "Data Recovery"],
-    service: "Mobile Repair",
-    device: "Mobile",
-  },
-  {
-    name: "Computer / PC Services",
-    Icon: Monitor,
-    text: "Repair, upgrades, maintenance and custom PC builds.",
-    items: ["PC Repair", "PC Upgrade", "PC Maintenance", "PC Builder"],
-    service: "PC Repair",
-    device: "Desktop",
-  },
-  {
-    name: "Printer Services",
-    Icon: Printer,
-    text: "Installation, maintenance and troubleshooting.",
-    items: ["Printer Service", "Driver Setup", "Network Printing"],
-    service: "Printer Service",
-    device: "Printer",
-  },
-  {
-    name: "Software Services",
-    Icon: AppWindow,
-    text: "OS installation, software setup and virus removal.",
-    items: ["Windows Installation", "Software Installation", "Virus Removal"],
-    service: "Software Installation",
-  },
-  {
-    name: "Web & Software Development",
-    Icon: Code2,
-    text: "Websites, web applications and custom software for your business.",
-    items: ["Website Development", "Web Applications", "Custom Software"],
-    service: "Website Development",
-  },
-]
-const pcServiceLink = (item: string) =>
-  item === "PC Builder"
-    ? "/pc-builder"
-    : `/services/book?service=${encodeURIComponent(
-        item === "PC Upgrade"
-          ? "Hardware Upgrade"
-          : item === "PC Maintenance"
-            ? "PC Troubleshooting"
-            : item,
-      )}`
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. MAIN SERVICES LANDING PAGE
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function Services() {
+  const store = useStore()
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(null)
+
+  // Estimator State
+  const [estimatorDevice, setEstimatorDevice] = useState<string>("Laptop")
+  const availableProblems = useMemo(
+    () => problemsFor(estimatorDevice),
+    [estimatorDevice],
+  )
+  const [estimatorIssue, setEstimatorIssue] = useState<string>("Screen issue")
+  const [estimatorDelivery, setEstimatorDelivery] =
+    useState<"walkin" | "courier" | "onsite">("walkin")
+
+  // Update issue when device changes if needed
+  useEffect(() => {
+    if (!availableProblems.includes(estimatorIssue)) {
+      setEstimatorIssue(availableProblems[0] || "Screen issue")
+    }
+  }, [availableProblems, estimatorIssue])
+
+  // Lookup matching estimate rule
+  const matchedEstimate = useMemo(() => {
+    const match = repairEstimates.find(
+      (e) =>
+        e.device.toLowerCase() === estimatorDevice.toLowerCase() &&
+        e.issue.toLowerCase() === estimatorIssue.toLowerCase(),
+    )
+    if (match) return match
+
+    // Default fallback calculation if no exact combination exists
+    return {
+      device: estimatorDevice,
+      issue: estimatorIssue,
+      diagnosticFee: 299,
+      labourMin: 400,
+      labourMax: 700,
+      partsMin: 800,
+      partsMax: 2500,
+      turnaround: "24–48 hrs",
+      notes: "Quotation provided after workbench diagnostic assessment.",
+    }
+  }, [estimatorDevice, estimatorIssue])
+
+  const deliveryCost =
+    estimatorDelivery === "courier"
+      ? 150
+      : estimatorDelivery === "onsite"
+        ? 250
+        : 0
+  const estimatedMinTotal =
+    matchedEstimate.labourMin + matchedEstimate.partsMin + deliveryCost
+  const estimatedMaxTotal =
+    matchedEstimate.labourMax + matchedEstimate.partsMax + deliveryCost
+
+  // Service Coverage State
+  const [coveragePin, setCoveragePin] = useState<string>("686691")
+  const coverageResult = useMemo(
+    () => checkServiceCoverage(coveragePin, store.locations),
+    [coveragePin, store.locations],
+  )
+
+  // Live Quick Tracker State
+  const [trackQuery, setTrackQuery] = useState<string>("")
+  const [searchedId, setSearchedId] = useState<string>("")
+  const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false)
+
+  const matchedRequest = useMemo(() => {
+    if (!searchedId.trim()) return null
+    const q = searchedId.trim().toUpperCase()
+    return store.requests.find(
+      (r) => r.id.toUpperCase() === q || r.id.toUpperCase().includes(q),
+    )
+  }, [searchedId, store.requests])
+
+  // Async fallback: fetch from Supabase if not found in local cache
+  useEffect(() => {
+    const cleanId = searchedId.trim()
+    if (cleanId && !matchedRequest && !isSearchingRemote) {
+      setIsSearchingRemote(true)
+      fetchServiceRequestById(cleanId)
+        .then((fetched) => {
+          if (fetched) {
+            store.set((prev) => {
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev
+              return { requests: [...prev.requests, fetched] }
+            })
+          }
+        })
+        .finally(() => setIsSearchingRemote(false))
+    }
+  }, [searchedId, matchedRequest, isSearchingRemote])
+
+  const safeTrackData: SafePublicTracking | null = useMemo(() => {
+    if (!matchedRequest) return null
+    const isOwner = isUserTicketOwner(matchedRequest, store.profile, {
+      id: store.profile.id,
+      email: store.profile.email,
+      phone: store.profile.phone,
+    })
+    return maskServiceRequestForPublicTracking(
+      matchedRequest,
+      isOwner,
+      serviceStatuses,
+    )
+  }, [matchedRequest, store.profile])
+
+  // Filter Catalog Items
+  const filteredCatalog = useMemo(() => {
+    if (selectedCategory === "all") return serviceCatalogItems
+    return serviceCatalogItems.filter(
+      (item) => item.category === selectedCategory,
+    )
+  }, [selectedCategory])
+
+  // Safe WhatsApp prefill link
+  const safeWhatsappLink = useMemo(() => {
+    const text = `Hello IT HUB, I would like an initial repair estimate:\n• Device: ${estimatorDevice}\n• Issue: ${estimatorIssue}\n• Preferred Mode: ${
+      estimatorDelivery === "walkin"
+        ? "Store Walk-in (Kothamangalam)"
+        : estimatorDelivery === "courier"
+          ? "Insured Courier Pickup"
+          : "Doorstep Technician Visit"
+    }\n\nI am attaching photos/videos of the device issue for preliminary assessment.`
+    return `https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(text)}`
+  }, [
+    estimatorDevice,
+    estimatorIssue,
+    estimatorDelivery,
+    store.settings.whatsapp,
+  ])
+
   return (
     <Page>
+      {/* Hero Presentation */}
       <OurServices bleedTop />
-      <section
-        id="on-site"
-        className="mt-14 grid gap-8 overflow-hidden rounded-[2rem] border border-primary/20 bg-secondary/50 p-7 md:grid-cols-[1fr_1.1fr] md:p-10"
-      >
-        <div>
-          <p className="text-[10px] font-semibold tracking-[.17em] text-primary">
-            ON-SITE SERVICE
-          </p>
-          <h2 className="mt-3 text-2xl font-bold tracking-[-.02em] md:text-3xl">
-            IT Support at Your Location
-          </h2>
-          <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-            Professional technical assistance without needing to bring your
-            device to the store. Available within our local service radius of IT
-            HUB Kothamangalam — check your PIN code to confirm.
-          </p>
-          <ol className="mt-6 grid gap-2 text-xs sm:grid-cols-2">
-            {[
-              "Request Service",
-              "Enter PIN",
-              "Check availability",
-              "Schedule / contact IT HUB",
-            ].map((step, index) => (
-              <li
-                key={step}
-                className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5"
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-                  {index + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-          <ActionLink
-            to="/services/book?method=On-site%20service"
-            className="mt-6"
-          >
-            Request On-Site Service <ArrowRight size={15} />
-          </ActionLink>
+
+      {/* Honest Trust Badges & Policies */}
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold">90-Day Service Warranty</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Warranty on replaced hardware components and labour workmanship.
+            </p>
+          </div>
         </div>
-        <WarrantyCheck source="Services on-site" />
+
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <CheckCircle2 size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold">Fair Diagnostic Policy</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Bench inspection fee is credited directly when you approve the
+              repair.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Layers size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold">Genuine OEM & Grade-A Parts</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Tested displays, brand batteries, and certified storage upgrades.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <MapPin size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold">In-Store Kothamangalam Lab</h3>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Direct workbench facility at Kothamangalam with certified staff.
+            </p>
+          </div>
+        </div>
       </section>
+
+      {/* Interactive Service Catalog */}
+      <section className="mt-16">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-[.18em] text-primary">
+              Hardware & Software Solutions
+            </span>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Professional Repair Catalog & Starting Rates
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Transparent baseline pricing, diagnostics policies, and turnaround
+              estimates.
+            </p>
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: "all", label: "All Services" },
+              { id: "laptop", label: "Laptop" },
+              { id: "mobile", label: "Mobile" },
+              { id: "pc", label: "PC & Desktop" },
+              { id: "printer", label: "Printer" },
+              { id: "software", label: "Software & Data" },
+              { id: "onsite", label: "On-Site Doorstep" },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                  selectedCategory === cat.id
+                    ? "bg-primary text-white shadow-sm"
+                    : "border border-border bg-white text-muted-foreground hover:border-primary hover:text-primary"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Catalog Grid */}
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredCatalog.map((service) => (
+            <div
+              key={service.id}
+              className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="inline-block rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary uppercase tracking-wide">
+                    {service.category}
+                  </span>
+                  {service.popular && (
+                    <Badge tone="green">
+                      <Sparkles size={11} className="mr-1 inline" /> Popular
+                    </Badge>
+                  )}
+                </div>
+
+                <h3 className="mt-3 text-lg font-bold text-foreground">
+                  {service.name}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-primary/80">
+                  {service.tagline}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {service.description}
+                </p>
+
+                {/* Pricing & Commercial Structure */}
+                <div className="mt-4 rounded-xl border border-border/80 bg-secondary/40 p-3.5 text-xs">
+                  <div className="flex items-baseline justify-between border-b border-border/60 pb-2">
+                    <span className="font-semibold text-muted-foreground">
+                      Starting From
+                    </span>
+                    <span className="text-base font-extrabold text-foreground">
+                      {money(service.startingTotal)}*
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 space-y-1.5 text-[11px] text-muted-foreground">
+                    <p className="flex justify-between">
+                      <span>Inspection Fee:</span>
+                      <span className="font-medium text-foreground">
+                        {service.diagnosticFee > 0
+                          ? `${money(service.diagnosticFee)} (waived on repair)`
+                          : "Free Bench Check"}
+                      </span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Est. Labour:</span>
+                      <span className="font-medium text-foreground">
+                        {money(service.labourRange[0])} –{" "}
+                        {money(service.labourRange[1])}
+                      </span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Turnaround:</span>
+                      <span className="font-medium text-foreground">
+                        {service.turnaroundEstimate}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Common Symptoms Checklist */}
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Common Symptoms:
+                  </p>
+                  <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+                    {service.commonSymptoms.map((sym, idx) => (
+                      <li key={idx} className="flex items-center gap-1.5">
+                        <Check
+                          size={13}
+                          className="shrink-0 text-emerald-600"
+                        />
+                        <span>{sym}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="mt-6 border-t border-border/70 pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-muted-foreground leading-tight">
+                    {service.warrantyText}
+                  </span>
+                  <Link
+                    to={`/services/book?service=${encodeURIComponent(
+                      service.name,
+                    )}&device=${encodeURIComponent(
+                      service.category === "laptop"
+                        ? "Laptop"
+                        : service.category === "mobile"
+                          ? "Mobile"
+                          : service.category === "pc"
+                            ? "Desktop"
+                            : service.category === "printer"
+                              ? "Printer"
+                              : "Laptop",
+                    )}`}
+                    className="inline-flex items-center gap-1 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 shrink-0"
+                  >
+                    Book Service <ArrowRight size={13} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Realistic Repair Cost Estimator */}
+      <section className="mt-16 rounded-[2rem] border border-primary/20 bg-gradient-to-b from-white via-white to-secondary/30 p-7 shadow-sm md:p-10">
+        <div className="flex flex-col justify-between gap-3 border-b border-border/80 pb-6 md:flex-row md:items-end">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Wrench size={18} />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-[.18em] text-primary">
+                Commercial Estimator
+              </span>
+            </div>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl">
+              Instant Repair Cost & Timeline Estimator
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ballpark estimates separating diagnostic fees, labour, parts, and
+              courier logistics.
+            </p>
+          </div>
+          <Badge tone="amber">
+            <Info size={12} className="mr-1 inline" /> Indicative Estimate
+          </Badge>
+        </div>
+
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+          {/* Estimator Controls */}
+          <div className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                1. Select Device Type:
+              </label>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { id: "Laptop", Icon: Laptop },
+                  { id: "Mobile", Icon: Smartphone },
+                  { id: "Desktop", Icon: Monitor },
+                  { id: "Printer", Icon: Printer },
+                ].map(({ id, Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setEstimatorDevice(id)}
+                    className={`flex items-center gap-2 rounded-xl border p-3 text-xs font-semibold transition ${
+                      estimatorDevice === id
+                        ? "border-primary bg-primary/10 text-primary shadow-sm"
+                        : "border-border bg-white text-muted-foreground hover:border-primary/50 hover:text-primary"
+                    }`}
+                  >
+                    <Icon size={16} />
+                    <span>{id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                2. Select Observed Issue:
+              </label>
+              <select
+                value={estimatorIssue}
+                onChange={(e) => setEstimatorIssue(e.target.value)}
+                className={`${fieldClass} mt-2 text-xs`}
+              >
+                {availableProblems.map((prob) => (
+                  <option key={prob} value={prob}>
+                    {prob}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                3. Service Delivery Method:
+              </label>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {[
+                  {
+                    id: "walkin",
+                    title: "Store Walk-in",
+                    fee: "Free",
+                    note: "IT HUB Kothamangalam",
+                  },
+                  {
+                    id: "courier",
+                    title: "Insured Courier",
+                    fee: "₹150 return",
+                    note: "All 14 Kerala Districts",
+                  },
+                  {
+                    id: "onsite",
+                    title: "Doorstep On-Site",
+                    fee: "₹250",
+                    note: "Within ~15km radius",
+                  },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setEstimatorDelivery(m.id as any)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      estimatorDelivery === m.id
+                        ? "border-primary bg-primary/10 text-primary shadow-sm"
+                        : "border-border bg-white text-muted-foreground hover:border-primary/50 hover:text-primary"
+                    }`}
+                  >
+                    <p className="text-xs font-bold">{m.title}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-foreground">
+                      {m.fee}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {m.note}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Estimate Breakdown Card */}
+          <div className="flex flex-col justify-between rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div>
+              <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                  Indicative Cost Breakdown
+                </span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                  Est. {matchedEstimate.turnaround}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Bench Diagnostic Fee:
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {matchedEstimate.diagnosticFee > 0
+                      ? `${money(matchedEstimate.diagnosticFee)}*`
+                      : "₹0 (Included)"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Estimated Labour:
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {money(matchedEstimate.labourMin)} –{" "}
+                    {money(matchedEstimate.labourMax)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Indicative Parts Range:
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {matchedEstimate.partsMin > 0
+                      ? `${money(matchedEstimate.partsMin)} – ${money(matchedEstimate.partsMax)}`
+                      : "No hardware required"}
+                  </span>
+                </div>
+
+                {deliveryCost > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Logistics Charge (
+                      {estimatorDelivery === "courier"
+                        ? "Courier Return"
+                        : "Doorstep Visit"}
+                      ):
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {money(deliveryCost)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="border-t border-border/80 pt-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm font-bold text-foreground">
+                      Estimated Total:
+                    </span>
+                    <span className="text-xl font-extrabold text-primary">
+                      {money(estimatedMinTotal)} – {money(estimatedMaxTotal)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    * Diagnostic fee is credited in full against total invoice
+                    when repair proceeds.
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+                <strong>Notice:</strong> This is a ballpark range. Fixed pricing
+                and exact part availability are confirmed following physical
+                bench diagnosis.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link
+                to={`/services/book?service=${encodeURIComponent(
+                  `${estimatorDevice} Repair`,
+                )}&device=${encodeURIComponent(estimatorDevice)}`}
+                className={`${buttonClass} flex-1 text-center justify-center text-xs`}
+              >
+                Proceed to Booking <ArrowRight size={14} />
+              </Link>
+              <a
+                href={safeWhatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
+              >
+                <WhatsAppIcon size={14} /> WhatsApp Quote
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Safe WhatsApp Diagnostics Card */}
+      <section className="mt-12 overflow-hidden rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-50/70 via-white to-emerald-50/30 p-6 md:p-8">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-emerald-800">
+              <WhatsAppIcon size={20} />
+              <span className="text-[11px] font-bold uppercase tracking-[.18em]">
+                Direct Technician Consultation
+              </span>
+            </div>
+            <h3 className="mt-2 text-xl font-bold text-foreground">
+              Send Device Photos/Videos for Preliminary Diagnosis
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              Have a broken screen, strange motherboard beep, or printer error
+              code? Send a photo or video directly to our Kothamangalam service
+              team for quick triage and parts availability check.
+            </p>
+
+            {/* Crucial Security Notice */}
+            <div className="mt-3.5 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 text-xs text-amber-900">
+              <ShieldAlert
+                size={16}
+                className="mt-0.5 shrink-0 text-amber-700"
+              />
+              <p className="text-[11px] leading-relaxed">
+                <strong>Security & Privacy Advisory:</strong> Please{" "}
+                <strong>never</strong> send device unlock PINs, passwords,
+                UPI/banking OTPs, or confidential personal files. IT HUB
+                technicians will never request personal passwords over WhatsApp
+                or phone.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href={safeWhatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            <WhatsAppIcon size={16} /> Open WhatsApp Chat{" "}
+            <ArrowUpRight size={14} />
+          </a>
+        </div>
+      </section>
+
+      {/* Accurate Kerala Service Coverage Checker */}
+      <section className="mt-14 rounded-2xl border border-border bg-card p-7 md:p-10 shadow-sm">
+        <div className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-end">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <MapPin size={18} />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-[.18em] text-primary">
+                Service Delivery Radius
+              </span>
+            </div>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
+              Kerala Service Coverage Checker
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Enter your PIN code to check exact doorstep vs. courier service
+              eligibility.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              Hub Location: <strong>Kothamangalam, Kerala</strong>
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.3fr]">
+          <div>
+            <label className="block text-xs font-bold text-foreground">
+              Enter 6-Digit Indian PIN Code:
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={coveragePin}
+                onChange={(e) =>
+                  setCoveragePin(
+                    e.target.value.replace(/[^0-9]/g, "").slice(0, 6),
+                  )
+                }
+                placeholder="e.g. 686691"
+                className={`${fieldClass} text-xs font-semibold`}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => setCoveragePin(coveragePin.trim())}
+              >
+                Check
+              </Button>
+            </div>
+
+            {/* Real-time Coverage Feedback */}
+            <div className="mt-4 rounded-xl border border-border bg-secondary/50 p-4 text-xs">
+              <p className="font-semibold text-foreground">Coverage Status:</p>
+              <p className="mt-1.5 leading-relaxed text-muted-foreground">
+                {coverageResult.message}
+              </p>
+            </div>
+          </div>
+
+          {/* Distinct Delivery Tiers */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-white p-4 text-xs">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary mb-2">
+                <Wrench size={16} />
+              </div>
+              <h4 className="font-bold text-foreground">Store Walk-In</h4>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Direct drop-off at IT HUB Kothamangalam. No logistics fee. Open
+                Mon–Sat 9AM–7:30PM.
+              </p>
+              <span className="mt-3 inline-block rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                All Customers
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-4 text-xs">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary mb-2">
+                <Truck size={16} />
+              </div>
+              <h4 className="font-bold text-foreground">Insured Courier</h4>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Available across all 14 Kerala districts. We return serviced
+                devices via insured courier.
+              </p>
+              <span className="mt-3 inline-block rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                Whole Kerala
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-4 text-xs">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary mb-2">
+                <MapPin size={16} />
+              </div>
+              <h4 className="font-bold text-foreground">Doorstep Visit</h4>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Certified technician on-site visit for PCs, Wi-Fi and setup
+                within local ~15km radius.
+              </p>
+              <span className="mt-3 inline-block rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                Local Radius Only
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Embedded Secure Live Ticket Quick-Tracker Widget */}
+      <section className="mt-14 rounded-2xl border border-border bg-card p-7 md:p-10 shadow-sm">
+        <div className="flex flex-col justify-between gap-3 border-b border-border pb-6 md:flex-row md:items-end">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Search size={18} />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-[.18em] text-primary">
+                Live Ticket Lookup
+              </span>
+            </div>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
+              Track Your Repair in Real Time
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Enter your Service Request ID to check status. Customer details
+              are masked for your privacy.
+            </p>
+          </div>
+          <Link
+            to="/track-service"
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Open Full Tracking Page →
+          </Link>
+        </div>
+
+        <div className="mt-6">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setSearchedId(trackQuery.trim())
+            }}
+            className="flex max-w-xl gap-2"
+          >
+            <input
+              required
+              aria-label="Service request ID"
+              placeholder="Enter Service Request ID (e.g. SRV-XXXXXXX)"
+              value={trackQuery}
+              onChange={(e) => setTrackQuery(e.target.value)}
+              className={`${fieldClass} text-xs font-mono`}
+            />
+            <Button type="submit">
+              Track <Search size={15} />
+            </Button>
+          </form>
+
+          {/* Quick Tracking Result Container */}
+          {searchedId && (
+            <div className="mt-6">
+              {isSearchingRemote ? (
+                <div className="rounded-2xl border border-border bg-white p-8 text-center text-xs text-muted-foreground shadow-sm">
+                  <Loading />
+                  <p className="mt-2 font-medium">
+                    Looking up ticket {searchedId}...
+                  </p>
+                </div>
+              ) : safeTrackData && matchedRequest ? (
+                <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                        Ticket ID
+                      </span>
+                      <h3 className="text-lg font-extrabold text-foreground">
+                        {safeTrackData.id}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Device: <strong>{safeTrackData.device}</strong> · Issue:{" "}
+                        <strong>{safeTrackData.problem}</strong>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <Badge>{safeTrackData.statusLabel}</Badge>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Customer: {safeTrackData.customerMaskedName}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <Timeline
+                      steps={serviceStatuses}
+                      current={safeTrackData.status}
+                    />
+                  </div>
+
+                  {/* Customer-facing Quotation Actions on Embedded Tracker */}
+                  {(matchedRequest.quote || matchedRequest.status >= 4) && (
+                    <QuotationApprovalPanel
+                      request={matchedRequest}
+                      safeData={safeTrackData}
+                      isEmbedded
+                    />
+                  )}
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-4 text-xs">
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        Technician:
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        {safeTrackData.technicianPublic}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        Quote Status:
+                      </span>{" "}
+                      <span className="capitalize text-muted-foreground">
+                        {safeTrackData.quoteState}
+                      </span>
+                    </div>
+                    <Link
+                      to={`/track-service/${encodeURIComponent(safeTrackData.id)}`}
+                      className="font-bold text-primary hover:underline"
+                    >
+                      View Full Details & Approvals →
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border bg-secondary/30 p-6 text-center text-xs text-muted-foreground">
+                  <p className="font-bold text-foreground">
+                    No active service ticket found for "{searchedId}".
+                  </p>
+                  <p className="mt-1">
+                    Please check the ticket ID format (e.g. SRV-XXXXXXX) or view
+                    your account bookings.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Transparent Service Warranty Policy & Exclusions */}
+      <section className="mt-14 rounded-2xl border border-border bg-card p-7 md:p-10 shadow-sm">
+        <div className="border-b border-border pb-5">
+          <span className="text-[11px] font-bold uppercase tracking-[.18em] text-primary">
+            Official Store Policies
+          </span>
+          <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
+            Service Warranty Terms & Disclaimers
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Clear guidelines on what our {serviceWarrantyPolicy.durationDays}
+            -day post-service warranty covers and standard industry exclusions.
+          </p>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          {[
+            {
+              title: "What does the 90-day warranty cover?",
+              content:
+                serviceWarrantyPolicy.coverageScope +
+                " " +
+                serviceWarrantyPolicy.partsGuarantee,
+            },
+            {
+              title: "How does the Diagnostic Assessment Fee work?",
+              content: serviceWarrantyPolicy.inspectionPolicy,
+            },
+            {
+              title: "What is explicitly excluded from service warranty?",
+              isList: true,
+              items: serviceWarrantyPolicy.exclusions,
+            },
+            {
+              title: "Customer Data & Privacy Guarantee",
+              content:
+                "IT HUB strictly respects customer privacy. We do not access, copy, or browse personal photo galleries, documents, or browser histories during hardware repairs. However, storage drive repairs always carry risk of data corruption, so customers are advised to create backups prior to servicing.",
+            },
+          ].map((item, idx) => {
+            const isOpen = faqOpenIndex === idx
+            return (
+              <div
+                key={idx}
+                className="overflow-hidden rounded-xl border border-border bg-white transition"
+              >
+                <button
+                  onClick={() => setFaqOpenIndex(isOpen ? null : idx)}
+                  className="flex w-full items-center justify-between p-4 text-left text-xs font-bold text-foreground hover:bg-secondary/40"
+                >
+                  <span>{item.title}</span>
+                  <ChevronDown
+                    size={16}
+                    className={`transition duration-200 ${
+                      isOpen
+                        ? "rotate-180 text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="border-t border-border/70 p-4 text-xs leading-relaxed text-muted-foreground">
+                    {item.isList ? (
+                      <ul className="space-y-1.5 list-disc list-inside">
+                        {item.items?.map((it, i) => <li key={i}>{it}</li>)}
+                      </ul>
+                    ) : (
+                      <p>{item.content}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* How Service Works - 7 Clear Steps */}
       <section className="mt-14 overflow-hidden rounded-[2rem] border border-border bg-card">
         <div className="flex flex-col gap-4 border-b border-border bg-secondary/60 px-7 py-8 md:flex-row md:items-end md:justify-between md:px-10">
           <div>
@@ -221,45 +1088,59 @@ export function Services() {
         </ol>
         <p className="flex items-center gap-2 border-t border-border px-7 py-5 text-xs text-muted-foreground md:px-10">
           <Truck size={15} className="shrink-0 text-primary" /> Send your device
-          to IT HUB through courier and receive it back after service. Courier
-          availability is simulated.
+          to IT HUB through courier and receive it back after service. Insured
+          logistics available across Kerala.
         </p>
       </section>
+
+      {/* Support Directory Cross-link */}
       <section
         id="warranty-check"
-        className="mt-10 flex flex-col gap-4 rounded-2xl border border-border bg-card p-7 md:flex-row md:items-center md:justify-between"
+        className="mt-10 mb-8 flex flex-col gap-4 rounded-2xl border border-border bg-card p-7 md:flex-row md:items-center md:justify-between"
       >
         <div>
-          <h2 className="text-xl font-bold">Need Warranty Help?</h2>
+          <h2 className="text-xl font-bold">
+            Need Manufacturer Warranty Contacts?
+          </h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            Find official warranty and customer-care information for laptops,
-            mobiles and printers — or contact IT HUB for assistance.
+            Looking for authorized service centres for Apple, Dell, HP, Lenovo
+            or Samsung across Kerala? Check our official manufacturer directory.
           </p>
         </div>
         <ActionLink to="/support?view=warranty">
-          Help & Support <ArrowRight size={15} />
+          Manufacturer Directory <ArrowRight size={15} />
         </ActionLink>
       </section>
     </Page>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. ENHANCED SERVICE BOOKING FLOW
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function ServiceBooking() {
-  /** Fixed courier charge per leg (pickup → IT HUB, IT HUB → customer). */
   const COURIER_CHARGE_PER_LEG = 150
   const store = useStore()
   const navigate = useNavigate()
   const [params] = useSearchParams()
+
   const chosen = params.get("service") || "Laptop Repair"
   const presetDevice = params.get("device")
   const [step, setStep] = useState(0)
-  useEffect(() => track("Service Booking Started", { service: chosen }), [])
+
+  useEffect(
+    () => track("Service Booking Started", { service: chosen }),
+    [chosen],
+  )
+
   const [busy, setBusy] = useState(false)
   const [details, setDetails] = useState({
     device:
       presetDevice ||
       (chosen.includes("Mobile")
         ? "Mobile"
-        : chosen.includes("PC")
+        : chosen.includes("PC") || chosen.includes("Desktop")
           ? "Desktop"
           : chosen.includes("Printer")
             ? "Printer"
@@ -269,7 +1150,7 @@ export function ServiceBooking() {
       ? "Data recovery"
       : presetDevice === "Printer" || chosen.includes("Printer")
         ? "Not printing"
-        : "Overheating",
+        : "Screen issue",
     notes: "",
     method: params.get("method")?.includes("On-site")
       ? "On-site service"
@@ -278,10 +1159,12 @@ export function ServiceBooking() {
     email: store.profile.email,
     address: store.profile.address,
     date: "",
-    time: "10:00 – 12:00 (demo)",
+    time: "10:00 – 12:00",
   })
+
   const update = (key: string, value: string) =>
     setDetails({ ...details, [key]: value })
+
   const steps = [
     "Device",
     "Problem",
@@ -290,35 +1173,40 @@ export function ServiceBooking() {
     "Date & time",
     "Confirm",
   ]
+
   const next = async () => {
     if (step < 5) {
       setStep(step + 1)
       return
     }
+
     setBusy(true)
-    await new Promise((resolve) => setTimeout(resolve, 650))
-    const id = `SRV-${crypto.randomUUID().slice(0, 7).toUpperCase()}`
+
     const isCourier = details.method === "Courier to IT HUB"
+    const currentUserId = (store.profile as any)?.id || undefined
+
+    const { id } = await createServiceBooking(details, currentUserId)
+
     const request = {
       ...details,
       id,
       status: 0,
-      quote: details.problem === "Screen issue" ? 9500 : 1500,
+      quote: details.problem === "Screen issue" ? 2850 : 1500,
       quoteState: "pending" as const,
-      technician: "Unassigned",
+      technician: "IT HUB Bench Specialist",
       ...(isCourier && {
         courierCharge: {
-          // Customer ships to IT HUB at their own cost — no inbound charge from IT HUB.
-          // IT HUB charges only for the return delivery (after repair OR after rejection).
           returnDelivery: COURIER_CHARGE_PER_LEG,
         },
       }),
     }
+
     track("Service Request Created", {
       request: id,
       device: details.device,
       problem: details.problem,
     })
+
     store.set((previous) => ({
       requests: [request, ...previous.requests],
       notifications: [
@@ -326,526 +1214,486 @@ export function ServiceBooking() {
         ...previous.notifications,
       ],
     }))
+
     store.log(`Service request ${id} submitted`)
-    store.notify("Service request submitted")
+    store.notify("Service request submitted successfully")
     navigate(`/service-success/${id}`)
   }
+
   if (!store.loggedIn)
     return (
       <Page>
         <LoginGate
           title="Login to book a service"
-          text="Sign in with your mobile number to book a repair, schedule a pickup and track your service request."
+          text="Sign in with your mobile number to book a repair, schedule a pickup, and track your service request."
         />
       </Page>
     )
+
   return (
     <Page>
       <PageHeading
-        title="Let’s get your device back on track."
-        description={`Book ${chosen.toLowerCase()}. Tell us what’s wrong — we’ll take it from there.`}
+        title="Book a repair or maintenance"
+        description="Transparent diagnostics, genuine parts, and tracking from intake to return."
       />
-      <div className="mb-9 flex gap-3 overflow-x-auto pb-2">
-        {steps.map((label, index) => (
-          <button
-            key={label}
-            disabled={index > step}
-            onClick={() => setStep(index)}
-            className={`flex shrink-0 items-center gap-2 text-xs ${
-              index === step
-                ? "font-bold text-primary"
-                : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                index <= step ? "bg-primary text-white" : "bg-muted"
+
+      <div className="mx-auto max-w-2xl">
+        {/* Step Progress Pills */}
+        <div className="mb-8 flex justify-between gap-1 border-b border-border pb-4">
+          {steps.map((label, idx) => (
+            <div
+              key={label}
+              className={`flex items-center gap-1.5 text-xs font-semibold ${
+                idx === step
+                  ? "text-primary"
+                  : idx < step
+                    ? "text-emerald-600"
+                    : "text-muted-foreground/60"
               }`}
             >
-              {index < step ? "✓" : index + 1}
-            </span>
-            {label}
-            {index < 5 && <span className="ml-2 text-border">—</span>}
-          </button>
-        ))}
-      </div>
-      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <form
-          className="rounded-lg border border-border p-6 md:p-8"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void next()
-          }}
-        >
-          <h2 className="mb-6 text-xl font-bold">
-            {
-              [
-                "What needs our attention?",
-                "Tell us what’s happening.",
-                "How would you like to reach us?",
-                "Your contact & address details",
-                "Choose a preferred appointment.",
-                "Review your service request.",
-              ][step]
-            }
-          </h2>
-          {step === 0 && (
-            <>
-              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {["Laptop", "Desktop", "Mobile", "Printer", "Other"].map(
-                  (device) => (
-                    <button
-                      type="button"
-                      key={device}
-                      onClick={() =>
-                        setDetails((current) => ({
-                          ...current,
-                          device,
-                          problem: problemsFor(device).includes(current.problem)
-                            ? current.problem
-                            : problemsFor(device)[0],
-                        }))
-                      }
-                      className={`rounded-md border p-5 text-center text-sm ${
-                        details.device === device
-                          ? "border-primary bg-secondary text-primary"
-                          : "border-border"
-                      }`}
-                    >
-                      {device === "Mobile" ? (
-                        <Smartphone className="mx-auto mb-3" />
-                      ) : device === "Laptop" ? (
-                        <Laptop className="mx-auto mb-3" />
-                      ) : device === "Printer" ? (
-                        <Printer className="mx-auto mb-3" />
-                      ) : (
-                        <Monitor className="mx-auto mb-3" />
-                      )}
-                      {device}
-                    </button>
-                  ),
-                )}
-              </div>
-              <Field label="Device brand & model">
-                <input
-                  required
-                  minLength={2}
-                  placeholder={
-                    details.device === "Printer"
-                      ? "e.g. HP DeskJet 2331, Canon PIXMA G3010, Epson L3250"
-                      : details.device === "Mobile"
-                        ? "e.g. Samsung Galaxy A54"
-                        : "e.g. Dell Inspiron 15"
-                  }
-                  value={details.model}
-                  onChange={(event) => update("model", event.target.value)}
-                  className={fieldClass}
-                />
-              </Field>
-            </>
-          )}
-          {step === 1 && (
-            <>
-              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {problemsFor(details.device).map((problem) => (
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                  idx === step
+                    ? "bg-primary text-white"
+                    : idx < step
+                      ? "bg-emerald-600 text-white"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {idx < step ? "✓" : idx + 1}
+              </span>
+              <span className="hidden sm:inline">{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Step 0: Device Selection */}
+        {step === 0 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Select Device Type</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { id: "Laptop", Icon: Laptop },
+                { id: "Mobile", Icon: Smartphone },
+                { id: "Desktop", Icon: Monitor },
+                { id: "Printer", Icon: Printer },
+              ].map(({ id, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => update("device", id)}
+                  className={`flex flex-col items-center gap-2 rounded-2xl border p-5 text-center transition ${
+                    details.device === id
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-white text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <Icon size={24} />
+                  <span className="text-xs font-bold text-foreground">
+                    {id}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-foreground">
+                Device Brand & Model Number (optional but recommended):
+              </label>
+              <input
+                value={details.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder="e.g. Dell Inspiron 15 3511, HP Pavilion Gaming, iPhone 13"
+                className={`${fieldClass} mt-1.5 text-xs`}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Problem Selection */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">What issue are you facing?</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {problemsFor(details.device).map((prob) => (
+                <button
+                  key={prob}
+                  onClick={() => update("problem", prob)}
+                  className={`rounded-xl border p-3.5 text-left text-xs font-semibold transition ${
+                    details.problem === prob
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-white text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                >
+                  {prob}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-foreground">
+                Additional observations or error messages:
+              </label>
+              <textarea
+                value={details.notes}
+                onChange={(e) => update("notes", e.target.value)}
+                placeholder="e.g. Device fell down yesterday, display is flickering when moved, power adapter light blinks..."
+                className={`${fieldClass} mt-1.5 text-xs`}
+                rows={3}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Service Method */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Select Service Method</h3>
+            <div className="space-y-3">
+              {[
+                {
+                  id: "Visit IT HUB",
+                  title: "Direct Store Walk-In (Kothamangalam)",
+                  description:
+                    "Bring your device to IT HUB Kothamangalam. Immediate intake receipt, free initial visual check, diagnostic fee credited on repair.",
+                  charge: "No logistics charge",
+                  Icon: Wrench,
+                },
+                {
+                  id: "Courier to IT HUB",
+                  title: "Insured Courier Pickup & Return",
+                  description:
+                    "Available across all Kerala districts. Pack securely; we arrange pickup and return delivery post-service.",
+                  charge: `₹${COURIER_CHARGE_PER_LEG} return delivery fee`,
+                  Icon: Truck,
+                },
+                {
+                  id: "On-site service",
+                  title: "Doorstep Technician Visit",
+                  description:
+                    "Certified technician visits your home/office within ~15 km of Kothamangalam for PC & network setup.",
+                  charge: "₹250 doorstep callout",
+                  Icon: MapPin,
+                },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => update("method", m.id)}
+                  className={`flex w-full items-start gap-4 rounded-2xl border p-5 text-left transition ${
+                    details.method === m.id
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-white text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  <m.Icon size={22} className="mt-0.5 shrink-0 text-primary" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-foreground">
+                        {m.title}
+                      </p>
+                      <span className="text-xs font-semibold text-primary">
+                        {m.charge}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                      {m.description}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Contact Details */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Customer Contact Details</h3>
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                Your Full Name:
+              </label>
+              <input
+                value={details.name}
+                onChange={(e) => update("name", e.target.value)}
+                className={`${fieldClass} mt-1.5 text-xs`}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                Email Address:
+              </label>
+              <input
+                type="email"
+                value={details.email}
+                onChange={(e) => update("email", e.target.value)}
+                className={`${fieldClass} mt-1.5 text-xs`}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                Pickup / Service Address with PIN Code:
+              </label>
+              <textarea
+                value={details.address}
+                onChange={(e) => update("address", e.target.value)}
+                placeholder="House / building name, road, town, Kerala PIN code"
+                className={`${fieldClass} mt-1.5 text-xs`}
+                rows={3}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Preferred Date & Time */}
+        {step === 4 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">
+              Preferred Appointment / Handover
+            </h3>
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                Preferred Date:
+              </label>
+              <input
+                type="date"
+                value={details.date}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => update("date", e.target.value)}
+                className={`${fieldClass} mt-1.5 text-xs`}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-foreground">
+                Preferred Time Slot:
+              </label>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {[
+                  "10:00 – 12:00",
+                  "12:00 – 14:00",
+                  "14:00 – 16:00",
+                  "16:00 – 18:00",
+                  "18:00 – 19:30",
+                ].map((slot) => (
                   <button
-                    type="button"
-                    key={problem}
-                    onClick={() => update("problem", problem)}
-                    className={`rounded-md border p-4 text-left text-xs ${
-                      details.problem === problem
-                        ? "border-primary bg-secondary text-primary"
-                        : "border-border"
+                    key={slot}
+                    onClick={() => update("time", slot)}
+                    className={`rounded-xl border p-3 text-center text-xs font-semibold transition ${
+                      details.time === slot
+                        ? "border-primary bg-primary text-white shadow-sm"
+                        : "border-border bg-white text-muted-foreground hover:border-primary"
                     }`}
                   >
-                    {problem}
+                    {slot}
                   </button>
                 ))}
               </div>
-              <Field label="Anything else we should know?">
-                <textarea
-                  required={details.problem === "Other"}
-                  value={details.notes}
-                  onChange={(event) => update("notes", event.target.value)}
-                  className={fieldClass}
-                  rows={3}
-                  placeholder="Describe symptoms, when they started, or any important details."
-                />
-              </Field>
-            </>
-          )}
-          {step === 2 && (
-            <div className="space-y-4">
-              {[
-                {
-                  name: "Visit IT HUB",
-                  Icon: MapPin,
-                  text: "Bring your device to our Kothamangalam store.",
-                },
-                {
-                  name: "Courier to IT HUB",
-                  Icon: Truck,
-                  text: "Ship your device to IT HUB's address. We'll diagnose, repair, and courier it back.",
-                },
-                {
-                  name: "On-site service",
-                  Icon: Wrench,
-                  text: "Request assistance at your location.",
-                },
-              ].map(({ name, Icon, text }) => (
-                <button
-                  type="button"
-                  key={name}
-                  onClick={() => update("method", name)}
-                  className={`flex w-full items-center gap-4 rounded-lg border p-5 text-left ${
-                    details.method === name
-                      ? "border-primary bg-secondary/50"
-                      : "border-border"
-                  }`}
-                >
-                  <Icon size={25} className="text-primary" />
-                  <span className="flex-1">
-                    <strong className="text-sm">{name}</strong>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {text}
-                    </span>
-                  </span>
-                  {details.method === name && (
-                    <CheckCircle2 size={19} className="text-primary" />
-                  )}
-                </button>
-              ))}
-              {/* Courier info — shown only when Courier to IT HUB is selected */}
-              {details.method === "Courier to IT HUB" && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-                  <p className="mb-3 flex items-center gap-2 text-xs font-semibold text-amber-800">
-                    <Truck size={14} className="shrink-0" />
-                    How courier service works
-                  </p>
-                  <ol className="space-y-2 text-xs leading-6 text-amber-700">
-                    <li className="flex gap-2">
-                      <span className="font-bold text-amber-900">1.</span> You
-                      ship the device to IT HUB's address at your own courier
-                      cost.
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="font-bold text-amber-900">2.</span> IT
-                      HUB diagnoses and sends you a repair quotation for
-                      approval.
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="font-bold text-amber-900">3.</span> IT
-                      HUB couriers the device back to you after repair — or
-                      after rejection.
-                    </li>
-                  </ol>
-                  <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-4 py-2.5 text-xs font-medium">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <ShieldCheck size={13} className="text-primary" />
-                      Diagnosis Charge (includes inspection & return logistics)
-                    </span>
-                    <strong className="text-foreground">
-                      ₹{COURIER_CHARGE_PER_LEG}
-                    </strong>
-                  </div>
-                  <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-100 px-3 py-2.5 text-xs leading-5 text-amber-800">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                    <span>
-                      If you approve the repair quotation, diagnosis is adjusted
-                      against your repair total. If you{" "}
-                      <strong>decline the quotation</strong>, only the{" "}
-                      <strong>
-                        Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})
-                      </strong>{" "}
-                      is payable.
-                    </span>
-                  </p>
-                </div>
-              )}
-              {/* On-site 15 km info */}
-              {details.method === "On-site service" && (
-                <div className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">
-                  <Info size={14} className="mt-0.5 shrink-0" />
-                  <span>
-                    On-site service is available within approximately{" "}
-                    <strong>15 km</strong> of IT HUB Kothamangalam. Your PIN
-                    code will be checked in the next step.
-                  </span>
-                </div>
-              )}
             </div>
-          )}
-          {step === 3 && (
-            <div className="space-y-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Full name">
-                  <input
-                    required
-                    minLength={2}
-                    value={details.name}
-                    onChange={(event) => update("name", event.target.value)}
-                    className={fieldClass}
-                  />
-                </Field>
-                <Field label="Email address">
-                  <input
-                    required
-                    type="email"
-                    value={details.email}
-                    onChange={(event) => update("email", event.target.value)}
-                    className={fieldClass}
-                  />
-                </Field>
+          </div>
+        )}
+
+        {/* Step 5: Order Review & Confirmation */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold">Confirm Service Request</h3>
+            <div className="rounded-2xl border border-border bg-white p-5 space-y-3 text-xs">
+              <div className="flex justify-between border-b border-border/80 pb-2">
+                <span className="text-muted-foreground">Device:</span>
+                <span className="font-bold text-foreground">
+                  {details.device} {details.model ? `(${details.model})` : ""}
+                </span>
               </div>
-              <Field
-                label={
-                  details.method === "Visit IT HUB"
-                    ? "Address (optional for store visit)"
-                    : details.method === "Courier to IT HUB"
-                      ? "Your return address (where to ship the device back)"
-                      : "Service address in Kerala"
-                }
-              >
-                <textarea
-                  required={details.method !== "Visit IT HUB"}
-                  value={details.address}
-                  onChange={(event) => update("address", event.target.value)}
-                  rows={3}
-                  placeholder="Street, city and PIN code"
-                  className={fieldClass}
-                />
-              </Field>
-              {details.method === "Visit IT HUB" && (
-                <p className="rounded-lg bg-muted p-4 text-xs text-muted-foreground">
-                  Visit IT HUB in Kothamangalam, Kerala. Contact the store to
-                  confirm its exact location and availability.
-                </p>
-              )}
-              {details.method === "On-site service" && (
-                <WarrantyCheck
-                  compact
-                  source="Service booking"
-                  pincode={details.address.match(/\b\d{6}\b/)?.[0] || ""}
-                />
-              )}
+              <div className="flex justify-between border-b border-border/80 pb-2">
+                <span className="text-muted-foreground">Reported Issue:</span>
+                <span className="font-bold text-foreground">
+                  {details.problem}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-border/80 pb-2">
+                <span className="text-muted-foreground">Delivery Mode:</span>
+                <span className="font-bold text-foreground">
+                  {details.method}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-border/80 pb-2">
+                <span className="text-muted-foreground">Appointment:</span>
+                <span className="font-bold text-foreground">
+                  {details.date ? details.date : "Earliest Available"} ·{" "}
+                  {details.time}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-border/80 pb-2">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-bold text-foreground">
+                  {details.name} ({details.email})
+                </span>
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-muted-foreground">
+                  Initial Diagnostic Deposit:
+                </span>
+                <span className="font-bold text-foreground">
+                  ₹299 (Credited in full when repair proceeds)
+                </span>
+              </div>
             </div>
-          )}
-          {step === 4 && (
-            <div className="space-y-5">
-              <Field label="Preferred date">
-                <input
-                  required
-                  type="date"
-                  min={new Date().toLocaleDateString("en-CA")}
-                  value={details.date}
-                  onChange={(event) => update("date", event.target.value)}
-                  className={fieldClass}
-                />
-              </Field>
-              <Field label="Preferred time (illustrative, not store hours)">
-                <select
-                  value={details.time}
-                  onChange={(event) => update("time", event.target.value)}
-                  className={fieldClass}
-                >
-                  {[
-                    "10:00 – 12:00 (demo)",
-                    "12:00 – 14:00 (demo)",
-                    "14:00 – 16:00 (demo)",
-                  ].map((value) => (
-                    <option key={value}>{value}</option>
-                  ))}
-                </select>
-              </Field>
-              <p className="text-xs leading-6 text-muted-foreground">
-                These are prototype scheduling options, not confirmed opening
-                hours. IT HUB would confirm the appointment before service.
-              </p>
-            </div>
-          )}
-          {step === 5 && (
-            <>
-              <dl className="space-y-4">
-                {[
-                  ["Device", `${details.device} · ${details.model}`],
-                  ["Issue", details.problem],
-                  ["Method", details.method],
-                  ["Customer", `${details.name} · ${details.email}`],
-                  ["Address", details.address || "Store visit · Kothamangalam"],
-                  ["Appointment", `${details.date} · ${details.time}`],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="grid grid-cols-[90px_1fr] gap-5 border-b border-border pb-3 text-sm"
-                  >
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="break-words font-medium">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              {/* Diagnosis charge notice — shown only for Courier to IT HUB */}
-              {details.method === "Courier to IT HUB" && (
-                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="mb-3 flex items-center gap-2 text-xs font-semibold text-amber-800">
-                    <ShieldCheck
-                      size={14}
-                      className="shrink-0 text-amber-800"
-                    />
-                    Service & Diagnosis Charge Policy
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-amber-700">
-                    <li className="flex items-center justify-between">
-                      <span>Inbound shipping to IT HUB</span>
-                      <span className="font-medium text-muted-foreground">
-                        Self-arranged
-                      </span>
-                    </li>
-                    <li className="flex items-center justify-between border-t border-amber-200 pt-2 font-semibold">
-                      <span>Diagnosis Charge</span>
-                      <strong className="text-foreground">
-                        ₹{COURIER_CHARGE_PER_LEG}
-                      </strong>
-                    </li>
-                  </ul>
-                  <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-100 px-3 py-2.5 text-xs leading-5 text-amber-800">
-                    <AlertCircle size={13} className="mt-0.5 shrink-0" />
-                    <span>
-                      The{" "}
-                      <strong>
-                        Diagnosis Charge (₹{COURIER_CHARGE_PER_LEG})
-                      </strong>{" "}
-                      is only payable if you choose to reject the final repair
-                      quotation. If repair is approved, diagnosis is adjusted
-                      into the repair invoice.
-                    </span>
-                  </p>
-                </div>
-              )}
-              <label className="mt-6 flex items-start gap-2 text-xs leading-6">
-                <input
-                  required
-                  type="checkbox"
-                  className="mt-1 accent-primary"
-                />{" "}
-                {details.method === "Courier to IT HUB"
-                  ? "I understand this is a demo service request. I acknowledge that the diagnosis charge (₹150) applies only if I decline the repair quotation."
-                  : "I understand this is a demo service request. No actual appointment or pickup is created."}
-              </label>
-            </>
-          )}
-          <div className="mt-9 flex justify-between gap-3">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() =>
-                step > 0 ? setStep(step - 1) : navigate("/services")
-              }
-            >
-              Back
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {busy
-                ? "Submitting…"
-                : step === 5
-                  ? "Confirm service request"
-                  : "Continue"}
-              <ArrowRight size={16} />
-            </Button>
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              By submitting this request, you authorize IT HUB to perform bench
+              diagnostics. No repair will be carried out without your advance
+              quotation approval.
+            </p>
           </div>
-        </form>
-        <aside className="self-start rounded-lg bg-muted p-6">
-          <Logo />
-          <h3 className="mt-5 text-lg font-bold">
-            Expert care. Clear communication.
-          </h3>
-          <p className="mt-3 text-xs leading-6 text-muted-foreground">
-            Your device is diagnosed first. A quotation is provided for your
-            approval before the repair proceeds.
-          </p>
-          <div className="mt-6 space-y-4 text-xs">
-            {[
-              "No repair without your approval",
-              "Track every step of the process",
-              "Local product & service support",
-            ].map((value) => (
-              <p key={value} className="flex gap-2">
-                <ShieldCheck size={15} className="shrink-0 text-primary" />
-                {value}
-              </p>
-            ))}
-          </div>
-        </aside>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="mt-8 flex justify-between gap-3 border-t border-border pt-4">
+          <Button
+            variant="secondary"
+            onClick={() =>
+              step > 0 ? setStep(step - 1) : navigate("/services")
+            }
+          >
+            {step === 0 ? "Cancel" : "Back"}
+          </Button>
+
+          <Button onClick={next} disabled={busy}>
+            {busy
+              ? "Submitting..."
+              : step === 5
+                ? "Submit Service Request"
+                : "Continue"}
+          </Button>
+        </div>
       </div>
     </Page>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. SERVICE SUCCESS SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function ServiceSuccess() {
   const { id } = useParams()
   const store = useStore()
   const request = store.requests.find((item) => item.id === id)
-  if (!request)
-    return (
-      <Page>
-        <Empty
-          title="Request not found"
-          description="Start a service booking to create a demo request."
-          to="/services/book"
-          label="Book a service"
-        />
-      </Page>
-    )
+
   return (
     <Page>
-      <div className="mx-auto max-w-2xl rounded-xl border border-border p-8 text-center md:p-12">
-        <CheckCircle2 size={48} className="mx-auto mb-5 text-emerald-600" />
-        <Badge tone="green">SERVICE REQUEST CREATED</Badge>
-        <h1 className="mt-5 text-3xl font-bold">You’re in good hands.</h1>
-        <p className="mt-4 text-sm text-muted-foreground">
-          Your demo request has been submitted to IT HUB.
-        </p>
-        <div className="my-7 rounded-lg bg-muted p-6 text-left">
-          {[
-            ["Request ID", request.id],
-            ["Device", request.model],
-            ["Issue", request.problem],
-            ["Service", request.method],
-            ["Status", "Requested"],
-          ].map(([label, value]) => (
-            <p key={label} className="mb-3 flex justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">{label}</span>
-              <strong>{value}</strong>
-            </p>
-          ))}
+      <div className="mx-auto max-w-xl text-center py-10">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+          <CheckCircle2 size={36} />
         </div>
-        <ActionLink to={`/track-service/${request.id}`}>
-          Track service <ArrowRight size={16} />
-        </ActionLink>
-        <p className="mt-5 text-xs text-muted-foreground">
-          Prototype only. No actual service appointment was created.
+        <h1 className="mt-4 text-3xl font-extrabold text-foreground">
+          Service Request Booked!
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your request ID is{" "}
+          <strong className="font-mono text-primary text-base font-bold">
+            {id}
+          </strong>
+          . Keep this code to track your device status.
         </p>
+
+        {request && (
+          <div className="mt-6 rounded-2xl border border-border bg-white p-6 text-left text-xs space-y-2.5 shadow-sm">
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Device:</span>
+              <span className="font-bold text-foreground">
+                {request.device}
+              </span>
+            </p>
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Reported Issue:</span>
+              <span className="font-bold text-foreground">
+                {request.problem}
+              </span>
+            </p>
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Method:</span>
+              <span className="font-bold text-foreground">
+                {request.method}
+              </span>
+            </p>
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Initial Status:</span>
+              <span className="font-bold text-emerald-600">
+                Booked & Queued
+              </span>
+            </p>
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link
+            to={`/track-service/${encodeURIComponent(id || "")}`}
+            className={buttonClass}
+          >
+            Track Status Now
+          </Link>
+          <Link to="/services" className={secondaryClass}>
+            Back to Services
+          </Link>
+        </div>
       </div>
     </Page>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. SECURE SERVICE TRACKING PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function ServiceTracking() {
   const { id } = useParams()
   const navigate = useNavigate()
   const store = useStore()
   const [query, setQuery] = useState(id || "")
+  const [isFetchingRemote, setIsFetchingRemote] = useState(false)
+
   const request = store.requests.find((item) => item.id === id)
-  const update = (changes: Partial<NonNullable<typeof request>>) => {
-    store.set((previous) => ({
-      requests: previous.requests.map((item) =>
-        item.id === id ? { ...item, ...changes } : item,
-      ),
-    }))
-  }
+
+  // Fetch from Supabase if not in local store cache
+  useEffect(() => {
+    if (id && !request && !isFetchingRemote) {
+      setIsFetchingRemote(true)
+      fetchServiceRequestById(id)
+        .then((fetched) => {
+          if (fetched) {
+            store.set((prev) => {
+              if (prev.requests.some((r) => r.id === fetched.id)) return prev
+              return { requests: [...prev.requests, fetched] }
+            })
+          }
+        })
+        .finally(() => setIsFetchingRemote(false))
+    }
+  }, [id, request, isFetchingRemote])
+
+  const isOwnerOrAdmin = useMemo(() => {
+    return isUserTicketOwner(request, store.profile, {
+      id: store.profile.id,
+      email: store.profile.email,
+      phone: store.profile.phone,
+    })
+  }, [request, store.profile])
+
+  const safeData: SafePublicTracking | null = useMemo(() => {
+    if (!request) return null
+    return maskServiceRequestForPublicTracking(
+      request,
+      isOwnerOrAdmin,
+      serviceStatuses,
+    )
+  }, [request, isOwnerOrAdmin])
+
   return (
     <Page>
       <PageHeading
-        title="Your device. Every detail."
-        description="Stay in the loop from diagnosis to delivery."
+        title="Service Tracker & Status"
+        description="Real-time workbench status, diagnostic quotes, and handover milestones."
       />
+
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -856,213 +1704,98 @@ export function ServiceTracking() {
         <input
           required
           aria-label="Service request ID"
-          placeholder="Enter your service request ID"
+          placeholder="Enter your service request ID (e.g. SRV-XXXXXXX)"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className={fieldClass}
+          className={`${fieldClass} font-mono text-xs`}
         />
         <Button type="submit">
           Track <Search size={16} />
         </Button>
       </form>
-      {request ? (
+
+      {isFetchingRemote ? (
+        <div className="rounded-2xl border border-border bg-white p-12 text-center text-xs text-muted-foreground shadow-sm">
+          <Loading />
+          <p className="mt-3 font-medium">
+            Loading ticket details from workbench...
+          </p>
+        </div>
+      ) : request && safeData ? (
         <div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr]">
-          <div className="rounded-lg border border-border p-7">
+          <div className="rounded-2xl border border-border bg-white p-7 shadow-sm">
             <div className="mb-7 flex flex-wrap justify-between gap-3">
-              <h2 className="text-lg font-bold">{request.id}</h2>
-              <Badge>{serviceStatuses[request.status]}</Badge>
-            </div>
-            <Timeline steps={serviceStatuses} current={request.status} />
-          </div>
-          <div className="space-y-6">
-            <div className="rounded-lg bg-muted p-7">
-              <h2 className="mb-5 text-lg font-bold">Service details</h2>
-              <dl className="grid grid-cols-2 gap-5 text-sm">
-                {[
-                  ["Device", request.model],
-                  ["Issue", request.problem],
-                  ["Service method", request.method],
-                  [
-                    "Preferred appointment",
-                    `${request.date} · ${request.time}`,
-                  ],
-                  ["Technician", request.technician],
-                  ["Address", request.address || "IT HUB, Kothamangalam"],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs text-muted-foreground">{label}</dt>
-                    <dd className="mt-1 break-words">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-            {request.status < 4 ? (
-              <div className="rounded-lg border border-primary/20 p-7">
-                <Badge>PROTOTYPE WALKTHROUGH</Badge>
-                <h3 className="mt-4 text-lg font-bold">
-                  Explore the diagnosis & quotation.
-                </h3>
-                <p className="my-4 text-xs leading-6 text-muted-foreground">
-                  Simulate the next stage to review a sample quotation. In the
-                  real service, the IT HUB team would diagnose your device
-                  first.
-                </p>
-                <Button
-                  onClick={() => {
-                    update({ status: 4 })
-                    store.notify("Demo diagnosis complete. Quotation ready.")
-                  }}
-                >
-                  Preview diagnosis & quote <ArrowRight size={16} />
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border p-7">
-                <Badge
-                  tone={
-                    request.quoteState === "approved"
-                      ? "green"
-                      : request.quoteState === "rejected"
-                        ? "red"
-                        : "amber"
-                  }
-                >
-                  {request.quoteState === "approved"
-                    ? "REPAIR APPROVED"
-                    : request.quoteState === "rejected"
-                      ? "QUOTATION DECLINED"
-                      : "DIAGNOSIS COMPLETE · SAMPLE QUOTATION"}
-                </Badge>
-                <h2 className="mt-5 text-xl font-bold">
-                  {request.problem === "Screen issue"
-                    ? "Display replacement recommended."
-                    : "Device servicing recommended."}
+              <div>
+                <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                  Ticket ID
+                </span>
+                <h2 className="text-xl font-extrabold text-foreground">
+                  {safeData.id}
                 </h2>
-                <p className="mt-3 text-xs leading-6 text-muted-foreground">
-                  {request.problem === "Screen issue"
-                    ? "Demo diagnosis: laptop display panel replacement is required."
-                    : `Demo diagnosis for ${request.problem.toLowerCase()}: inspection, servicing and testing.`}
-                </p>
-                <div className="my-6 space-y-3 text-sm">
-                  <p className="flex justify-between">
-                    <span>
-                      {request.problem === "Screen issue"
-                        ? "Display panel"
-                        : "Parts / servicing"}
-                    </span>
-                    {money(Math.max(0, request.quote - 1000))}
-                  </p>
-                  <p className="flex justify-between">
-                    <span>Labour</span>
-                    {money(Math.min(1000, request.quote))}
-                  </p>
-                  {/* Diagnosis charge — only for Courier to IT HUB requests */}
-                  {request.courierCharge && (
-                    <p
-                      className={`flex justify-between ${
-                        request.quoteState === "rejected"
-                          ? "font-medium text-red-600"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck size={13} className="text-primary" />
-                        Diagnosis Charge
-                        {request.quoteState === "rejected" && (
-                          <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
-                            PAYABLE
-                          </span>
-                        )}
-                      </span>
-                      {money(request.courierCharge.returnDelivery)}
-                    </p>
-                  )}
-                  <p className="flex justify-between border-t border-border pt-4 text-lg font-bold">
-                    <span>
-                      {request.courierCharge &&
-                      request.quoteState === "approved"
-                        ? "Total"
-                        : request.courierCharge &&
-                            request.quoteState === "rejected"
-                          ? "Amount due (Diagnosis Charge)"
-                          : "Total"}
-                    </span>
-                    {request.courierCharge && request.quoteState !== "pending"
-                      ? money(
-                          request.quote + request.courierCharge.returnDelivery,
-                        )
-                      : money(request.quote)}
-                  </p>
-                </div>
-                {request.quoteState === "pending" ? (
-                  <>
-                    {/* Rejection warning — shown before the customer clicks Reject */}
-                    {request.courierCharge && (
-                      <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
-                        <AlertCircle size={13} className="mt-0.5 shrink-0" />
-                        <span>
-                          If you <strong>reject</strong> this quote, the{" "}
-                          <strong>
-                            Diagnosis Charge (₹
-                            {request.courierCharge.returnDelivery})
-                          </strong>{" "}
-                          covers bench inspection, testing, and return
-                          logistics.
-                        </span>
-                      </p>
-                    )}
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => {
-                          update({ quoteState: "approved", status: 5 })
-                          store.log(`Repair ${request.id} approved`)
-                          store.notify(
-                            "Repair approved. IT HUB will proceed with the repair (demo).",
-                          )
-                        }}
-                      >
-                        Approve repair
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          update({ quoteState: "rejected" })
-                          store.log(`Repair ${request.id} declined`)
-                          store.notify(
-                            request.courierCharge
-                              ? `Quotation declined. Diagnosis Charge of ₹${request.courierCharge.returnDelivery} applies.`
-                              : "Quotation declined. No repair will proceed.",
-                          )
-                        }}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <p
-                    className={`rounded-md p-4 text-xs leading-6 ${
-                      request.quoteState === "approved"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-red-50 text-red-700"
-                    }`}
-                  >
-                    {request.quoteState === "approved"
-                      ? "Repair approved. IT HUB will proceed with the repair. Follow its progress in the timeline."
-                      : request.courierCharge
-                        ? `You declined this quotation. The Diagnosis Charge of ₹${request.courierCharge.returnDelivery} is payable — IT HUB will safely dispatch your device. Contact IT HUB to arrange payment.`
-                        : "You declined this quotation. No repair will proceed. Contact IT HUB for next steps."}
-                  </p>
-                )}
-                <p className="mt-4 text-[10px] text-muted-foreground">
-                  Illustrative diagnosis and pricing. No actual repair is
-                  authorised.
-                </p>
               </div>
-            )}
-            <ActionLink secondary to="/account/support">
-              Contact support
-            </ActionLink>
+              <Badge>{safeData.statusLabel}</Badge>
+            </div>
+            <Timeline steps={serviceStatuses} current={safeData.status} />
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-7 shadow-sm">
+              <h2 className="mb-5 text-base font-bold text-foreground">
+                Service Overview
+              </h2>
+              <dl className="grid grid-cols-2 gap-5 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Device / Model</dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.device}{" "}
+                    {safeData.model ? `(${safeData.model})` : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Reported Issue</dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.problem}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Service Method</dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.method}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Technician</dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.technicianPublic}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Customer</dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.customerMaskedName}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">
+                    Delivery / Service Area
+                  </dt>
+                  <dd className="mt-1 font-semibold text-foreground">
+                    {safeData.maskedAddress}
+                  </dd>
+                </div>
+              </dl>
+
+              {!safeData.isOwnerOrAdmin && (
+                <p className="mt-4 rounded-lg bg-secondary/70 p-2.5 text-[11px] text-muted-foreground">
+                  <Lock size={12} className="inline mr-1 text-primary" />{" "}
+                  Customer personal details, invoices, and direct approvals
+                  require signing in as the ticket owner.
+                </p>
+              )}
+            </div>
+
+            {/* Quotation & Diagnosis Approval Panel */}
+            <QuotationApprovalPanel request={request} safeData={safeData} />
           </div>
         </div>
       ) : (
@@ -1071,7 +1804,7 @@ export function ServiceTracking() {
           description={
             id
               ? "Check your request ID or find it in your account."
-              : "Book a demo service to track its progress here."
+              : "Book a service to track its progress here."
           }
           to={store.requests.length ? "/account/services" : "/services/book"}
           label={store.requests.length ? "View my requests" : "Book a service"}
