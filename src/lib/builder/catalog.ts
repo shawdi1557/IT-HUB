@@ -481,6 +481,15 @@ export function matchShopifyProductToComponent(
   const variantId = product.variantId ? toVariantGid(product.variantId) : ""
 
   if (matchedEntry && matchedKey) {
+    const specs = { ...matchedEntry.specs }
+    if (normCleaned.includes("ddr4")) {
+      specs.supportedRamGeneration = "DDR4"
+      specs.ramGeneration = "DDR4"
+    } else if (normCleaned.includes("ddr5")) {
+      specs.supportedRamGeneration = "DDR5"
+      specs.ramGeneration = "DDR5"
+    }
+
     return {
       slot,
       productId: product.id,
@@ -493,10 +502,10 @@ export function matchShopifyProductToComponent(
       productUrl: `/products/${product.handle || product.id}`,
       imageUrl: product.image,
       specs: {
-        ...matchedEntry.specs,
+        ...specs,
         provenance: "manufacturer_verified",
       },
-      availability: product.availableForSale && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+      availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
       quantity: 1,
       retrievedAt: new Date().toISOString(),
       isShopifyLive: true,
@@ -505,10 +514,22 @@ export function matchShopifyProductToComponent(
     }
   }
 
-  // Parse structured specifications from product specs if available
+  // Parse structured specifications from product specs or tags/title
   const pSpecs = product.specs || {}
-  const socket = pSpecs["Socket"] || pSpecs["socket"]
-  const ramGen = pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"]
+  const allTags = (product.tags || []).map((t: string) => t.toLowerCase())
+  let socket = pSpecs["Socket"] || pSpecs["socket"]
+  if (!socket) {
+    if (allTags.includes("am5") || normCleaned.includes("am5") || normCleaned.includes("b650") || normCleaned.includes("x670")) socket = "AM5"
+    else if (allTags.includes("am4") || normCleaned.includes("am4") || normCleaned.includes("b550") || normCleaned.includes("a520")) socket = "AM4"
+    else if (allTags.includes("lga1700") || allTags.includes("1700") || normCleaned.includes("lga1700") || normCleaned.includes("b760") || normCleaned.includes("z790") || normCleaned.includes("12400") || normCleaned.includes("13400") || normCleaned.includes("14400")) socket = "LGA1700"
+  }
+
+  let ramGen = pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"]
+  if (!ramGen) {
+    if (allTags.includes("ddr5") || normCleaned.includes("ddr5") || socket === "AM5") ramGen = "DDR5"
+    else if (allTags.includes("ddr4") || normCleaned.includes("ddr4") || socket === "AM4") ramGen = "DDR4"
+  }
+
   const tdp = parseInt(pSpecs["TDP"] || pSpecs["tdp_watts"] || "0", 10) || undefined
   const hasMetafields = Boolean(socket || ramGen || tdp)
 
@@ -517,6 +538,8 @@ export function matchShopifyProductToComponent(
     supportedRamGeneration: ramGen || undefined,
     ramGeneration: ramGen || undefined,
     tdpWatts: tdp,
+    hasWifi: allTags.includes("wifi") || normCleaned.includes("wifi"),
+    includesCooler: normCleaned.includes("12400") || normCleaned.includes("5600"),
     provenance: hasMetafields ? "supplier_spec" : "unverified",
   }
 
@@ -532,7 +555,7 @@ export function matchShopifyProductToComponent(
     productUrl: `/products/${product.handle || product.id}`,
     imageUrl: product.image,
     specs: inferredSpecs,
-    availability: product.availableForSale && (product.stock ?? 1) > 0 ? "available" : "unavailable",
+    availability: (product.availableForSale ?? true) && (product.stock ?? 1) > 0 ? "available" : "unavailable",
     quantity: 1,
     retrievedAt: new Date().toISOString(),
     isShopifyLive: true,
@@ -601,6 +624,8 @@ export function toComponentOption(comp: CanonicalBuildComponent): ComponentOptio
     wifi: comp.specs.hasWifi,
     interface: comp.specs.storageInterface,
     stock: comp.availability === "available" ? 6 : 0,
+    includesCooler: comp.specs.includesCooler,
+    hasIntegratedGraphics: comp.specs.hasIntegratedGraphics,
   }
 }
 

@@ -1417,6 +1417,12 @@ export type ComponentOption = {
 
   /** Internal model key for mapping with build templates */
   matchedModelKey?: string
+
+  /** True if CPU includes bundled factory cooler */
+  includesCooler?: boolean
+
+  /** True if CPU includes integrated display graphics */
+  hasIntegratedGraphics?: boolean
 }
 
 export const componentOptions: Record<string, ComponentOption[]> = {

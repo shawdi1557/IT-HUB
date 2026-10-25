@@ -51,6 +51,7 @@ import {
   deleteSavedBuild,
   submitQuotationRequest,
   generateWhatsAppQuotation,
+  generateDynamicCatalogRecommendations,
   type CanonicalBuild,
   type CanonicalBuildComponent,
   type ComponentSlotId,
@@ -1902,9 +1903,12 @@ function SmartBuilder() {
     ? store.buildTemplates
     : initialBuildTemplates
   const recommendations =
-    step === 2 ? recommend(templates, store.componentCatalog, answers) : []
-  const missingSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"].filter(
-    (slot) => !store.componentCatalog[slot] || store.componentCatalog[slot].length === 0,
+    step === 2
+      ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, templates)
+      : []
+  const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"]
+  const missingSlots = essentialSlots.filter(
+    (slot) => !answers.owned.includes(slot) && (!store.componentCatalog[slot] || store.componentCatalog[slot].length === 0),
   )
   const budget = resolvedBudget(answers)
   const purposeInfo = purposes.find((item) => item.id === answers.purpose)
@@ -2240,7 +2244,7 @@ function SmartBuilder() {
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
               {recommendations.map((build, index) => {
                 const unavailable = Object.values(build.parts).some(
-                  (part) => part.stock === 0,
+                  (part: any) => part?.stock === 0,
                 )
                 return (
                   <article
