@@ -39,6 +39,7 @@ import {
   toVariantGid,
   toProductGid,
 } from "../lib/shopify";
+import { requestCheckoutAssociationToken } from "../lib/shopify-orders";
 import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize";
 import ProductCard, { ProductImage } from "../components/ProductCard";
 import SellYourItem from "../components/SellYourItem";
@@ -960,7 +961,40 @@ export function ProductDetail() {
           return;
         }
 
-        const returnUrl = `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}`;
+        let assocToken: string | null = null;
+        if (store.loggedIn) {
+          try {
+            assocToken = await requestCheckoutAssociationToken();
+          } catch {
+            // Non-blocking fallback
+          }
+        }
+
+        const returnUrl = store.loggedIn
+          ? `${window.location.origin}/account/orders?checkout_completed=true`
+          : `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}?checkout_completed=true`;
+
+        const cartAttributes = [
+          {
+            key: "return_to_store",
+            value: returnUrl,
+          },
+        ];
+
+        if (assocToken) {
+          cartAttributes.push({
+            key: "_hub_assoc_token",
+            value: assocToken,
+          });
+        }
+
+        const buyerIdentity =
+          store.loggedIn && (store.profile.email || store.profile.phone)
+            ? {
+                email: store.profile.email || undefined,
+                phone: store.profile.phone || undefined,
+              }
+            : undefined;
 
         // Real-time pre-flight availability check before creating checkout URL
         const availability = await checkShopifyAvailability([variantId]);
@@ -980,12 +1014,8 @@ export function ProductDetail() {
             },
           ],
           {
-            attributes: [
-              {
-                key: "return_to_store",
-                value: returnUrl,
-              },
-            ],
+            attributes: cartAttributes,
+            buyerIdentity,
           },
         );
 

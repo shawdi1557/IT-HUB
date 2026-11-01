@@ -146,6 +146,7 @@ export interface FetchOrdersResult {
   totalCount: number;
   syncedAt?: string;
   error?: string;
+  authError?: boolean;
 }
 
 /**
@@ -155,12 +156,14 @@ export async function fetchCustomerShopifyOrders(options?: {
   refresh?: boolean;
   offset?: number;
   limit?: number;
+  linkQuery?: string;
 }): Promise<FetchOrdersResult> {
   if (!supabase || !supabaseConfig.isConfigured) {
     return {
       orders: [],
       pageInfo: { hasNextPage: false, endCursor: null },
       totalCount: 0,
+      error: "Supabase connection is not configured.",
     };
   }
 
@@ -174,16 +177,22 @@ export async function fetchCustomerShopifyOrders(options?: {
       pageInfo: { hasNextPage: false, endCursor: null },
       totalCount: 0,
       error: "Please sign in to view your order history.",
+      authError: true,
     };
   }
 
   const limit = options?.limit ?? 10;
   const offset = options?.offset ?? 0;
   const refresh = options?.refresh ?? false;
+  const linkQuery = options?.linkQuery
+    ? `&link_query=${encodeURIComponent(options.linkQuery)}`
+    : "";
+
+  let edgeFnError: string | null = null;
 
   // 1. First attempt to call the customer-shopify-orders Edge Function
   try {
-    const fnUrl = `${supabaseConfig.url}/functions/v1/customer-shopify-orders?limit=${limit}&offset=${offset}&reconcile=${refresh ? "true" : "false"}`;
+    const fnUrl = `${supabaseConfig.url}/functions/v1/customer-shopify-orders?limit=${limit}&offset=${offset}&reconcile=${refresh ? "true" : "false"}${linkQuery}`;
     const res = await fetch(fnUrl, {
       method: "GET",
       headers: {
@@ -191,6 +200,16 @@ export async function fetchCustomerShopifyOrders(options?: {
         "Content-Type": "application/json",
       },
     });
+
+    if (res.status === 401) {
+      return {
+        orders: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+        totalCount: 0,
+        error: "Your session has expired. Please sign in again.",
+        authError: true,
+      };
+    }
 
     if (res.ok) {
       const data = await res.json();
@@ -202,9 +221,12 @@ export async function fetchCustomerShopifyOrders(options?: {
           syncedAt: data.syncedAt,
         };
       }
+    } else {
+      const errPayload = await res.json().catch(() => null);
+      edgeFnError = errPayload?.error || `Temporary order sync error (HTTP ${res.status}).`;
     }
-  } catch {
-    // Edge function invocation fallback to authoritative PostgREST RLS query
+  } catch (err: any) {
+    edgeFnError = err?.message || "Unable to connect to order sync service.";
   }
 
   // 2. Direct PostgREST RLS query fallback (authoritative, protected by user_id = auth.uid())
@@ -220,13 +242,24 @@ export async function fetchCustomerShopifyOrders(options?: {
         orders: [],
         pageInfo: { hasNextPage: false, endCursor: null },
         totalCount: 0,
-        error: error.message || "Failed to load order history.",
+        error: error.message || "Failed to load order history from database.",
       };
     }
 
     const hasNextPage = (data || []).length > limit;
     const orders = hasNextPage ? (data || []).slice(0, limit) : data || [];
     const endCursor = hasNextPage ? String(offset + limit) : null;
+
+    // If edge function failed and local database has 0 orders, surface the actual error
+    // rather than misleading the user into thinking no orders ever existed
+    if (edgeFnError && orders.length === 0 && (refresh || options?.linkQuery)) {
+      return {
+        orders: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+        totalCount: 0,
+        error: edgeFnError,
+      };
+    }
 
     return {
       orders: orders as ShopifyCustomerOrder[],
@@ -239,7 +272,7 @@ export async function fetchCustomerShopifyOrders(options?: {
       orders: [],
       pageInfo: { hasNextPage: false, endCursor: null },
       totalCount: 0,
-      error: err?.message || "Unexpected network error loading orders.",
+      error: err?.message || edgeFnError || "Unexpected network error loading orders.",
     };
   }
 }

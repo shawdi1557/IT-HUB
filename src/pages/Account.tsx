@@ -128,6 +128,13 @@ export default function Account() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersRefreshing, setOrdersRefreshing] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersAuthError, setOrdersAuthError] = useState(false);
+  const [linkQueryInput, setLinkQueryInput] = useState("");
+  const [linkingOrder, setLinkingOrder] = useState(false);
+  const [linkStatusMsg, setLinkStatusMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [ordersPageInfo, setOrdersPageInfo] = useState<{
     hasNextPage: boolean;
     endCursor: string | null;
@@ -140,8 +147,12 @@ export default function Account() {
   );
   const [checkoutCompletedBanner, setCheckoutCompletedBanner] = useState(false);
 
-  const loadOrders = async (isManualRefresh = false) => {
-    if (!store.loggedIn) return;
+  const loadOrders = async (isManualRefresh = false, linkQuery?: string) => {
+    if (!store.loggedIn) {
+      setOrdersAuthError(true);
+      return;
+    }
+    setOrdersAuthError(false);
     if (isManualRefresh) {
       setOrdersRefreshing(true);
     } else {
@@ -149,15 +160,45 @@ export default function Account() {
     }
     setOrdersError(null);
 
-    const res = await fetchCustomerShopifyOrders({ refresh: isManualRefresh, limit: 10 });
-    if (res.error) {
+    const res = await fetchCustomerShopifyOrders({
+      refresh: isManualRefresh,
+      limit: 10,
+      linkQuery,
+    });
+    if (res.authError) {
+      setOrdersAuthError(true);
+      setOrdersError(res.error || "Please sign in to view your order history.");
+    } else if (res.error) {
       setOrdersError(res.error);
     } else {
       setShopifyOrders(res.orders);
       setOrdersPageInfo(res.pageInfo);
+      if (linkQuery && res.orders.length > 0) {
+        setLinkStatusMsg({
+          type: "success",
+          text: "Order located and successfully linked to your account!",
+        });
+      } else if (linkQuery && res.orders.length === 0) {
+        setLinkStatusMsg({
+          type: "error",
+          text: "No matching order found for the provided information. Please verify your payment ID, email, or mobile number.",
+        });
+      }
     }
     setOrdersLoading(false);
     setOrdersRefreshing(false);
+  };
+
+  const handleLinkOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkQueryInput.trim()) return;
+    setLinkingOrder(true);
+    setLinkStatusMsg(null);
+    try {
+      await loadOrders(true, linkQueryInput.trim());
+    } finally {
+      setLinkingOrder(false);
+    }
   };
 
   const loadMoreOrders = async () => {
@@ -914,7 +955,56 @@ export default function Account() {
                 </div>
               )}
 
-              {ordersLoading && !shopifyOrders.length ? (
+              {linkStatusMsg && (
+                <div
+                  className={`mb-6 flex items-start gap-3 rounded-2xl border p-4 text-xs shadow-xs animate-in fade-in ${
+                    linkStatusMsg.type === "success"
+                      ? "border-emerald-200 bg-emerald-50/90 text-emerald-950"
+                      : "border-red-200 bg-red-50/90 text-red-950"
+                  }`}
+                >
+                  {linkStatusMsg.type === "success" ? (
+                    <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-bold text-sm">
+                      {linkStatusMsg.type === "success"
+                        ? "Order Linked Successfully"
+                        : "Order Lookup Notice"}
+                    </p>
+                    <p className="mt-0.5">{linkStatusMsg.text}</p>
+                  </div>
+                  <button
+                    onClick={() => setLinkStatusMsg(null)}
+                    className="text-xs font-semibold opacity-70 hover:opacity-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {!store.loggedIn || ordersAuthError ? (
+                <div className="rounded-3xl border border-border bg-card p-8 text-center shadow-xs">
+                  <UserRound size={36} className="mx-auto text-primary mb-3" />
+                  <h3 className="text-base font-bold">Sign In Required</h3>
+                  <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                    Please sign in or link your verified mobile number to view your authoritative
+                    Shopify order history and track deliveries.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setProfile(store.profile);
+                      setAddressError("");
+                      setLogin(true);
+                    }}
+                    className="mt-5 text-xs"
+                  >
+                    Sign In / Register
+                  </Button>
+                </div>
+              ) : ordersLoading && !shopifyOrders.length ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((n) => (
                     <div
@@ -934,17 +1024,47 @@ export default function Account() {
                   ))}
                 </div>
               ) : ordersError && !shopifyOrders.length ? (
-                <div className="rounded-3xl border border-red-200 bg-red-50/90 p-8 text-center text-red-950">
-                  <AlertCircle size={32} className="mx-auto text-red-600 mb-3" />
-                  <h3 className="text-base font-bold">Unable to Load Shopify Orders</h3>
-                  <p className="mt-1 text-xs text-red-700 max-w-md mx-auto">{ordersError}</p>
-                  <Button
-                    variant="secondary"
-                    onClick={() => loadOrders(true)}
-                    className="mt-5 text-xs inline-flex items-center gap-2"
-                  >
-                    <RefreshCw size={14} /> Retry Order Sync
-                  </Button>
+                <div className="space-y-6">
+                  <div className="rounded-3xl border border-red-200 bg-red-50/90 p-8 text-center text-red-950">
+                    <AlertCircle size={32} className="mx-auto text-red-600 mb-3" />
+                    <h3 className="text-base font-bold">Unable to Synchronize Shopify Orders</h3>
+                    <p className="mt-1 text-xs text-red-700 max-w-md mx-auto">{ordersError}</p>
+                    <Button
+                      variant="secondary"
+                      onClick={() => loadOrders(true)}
+                      className="mt-5 text-xs inline-flex items-center gap-2"
+                    >
+                      <RefreshCw size={14} /> Retry Order Sync
+                    </Button>
+                  </div>
+
+                  {/* Manual Order Recovery Form */}
+                  <div className="rounded-2xl border border-border bg-card p-6">
+                    <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Tag size={16} className="text-primary" /> Find &amp; Link Your Purchase
+                    </h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      If your order was placed using an alternate email, phone number, or Razorpay
+                      payment reference:
+                    </p>
+                    <form onSubmit={handleLinkOrderSubmit} className="mt-4 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={linkQueryInput}
+                        onChange={(e) => setLinkQueryInput(e.target.value)}
+                        placeholder="e.g. alternate email, mobile number, or payment ID (pay_...)"
+                        className={`${fieldClass} flex-1 min-w-[240px] text-xs`}
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={linkingOrder || !linkQueryInput.trim()}
+                        className="text-xs"
+                      >
+                        {linkingOrder ? "Searching..." : "Find & Link Order"}
+                      </Button>
+                    </form>
+                  </div>
                 </div>
               ) : shopifyOrders.length > 0 ? (
                 <div className="space-y-4">
@@ -1009,7 +1129,12 @@ export default function Account() {
                                   <p className="text-xs font-semibold text-foreground line-clamp-1">
                                     {item.title}
                                   </p>
-                                  {item.variantTitle && (
+                                  {item.sku && (
+                                    <p className="text-[10px] font-mono text-muted-foreground">
+                                      SKU: {item.sku}
+                                    </p>
+                                  )}
+                                  {item.variantTitle && item.variantTitle !== "Default Title" && (
                                     <p className="text-[11px] text-muted-foreground">
                                       {item.variantTitle}
                                     </p>
@@ -1074,14 +1199,83 @@ export default function Account() {
                       </Button>
                     </div>
                   )}
+
+                  {/* Secondary Link Helper in Case Customer Has Another Order */}
+                  <div className="mt-8 rounded-2xl border border-dashed border-border bg-muted/30 p-5">
+                    <p className="text-xs font-semibold text-foreground">
+                      Missing an order placed under a different email or phone number?
+                    </p>
+                    <form onSubmit={handleLinkOrderSubmit} className="mt-3 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={linkQueryInput}
+                        onChange={(e) => setLinkQueryInput(e.target.value)}
+                        placeholder="Alternate email, phone (+91...), or payment ID (pay_...)"
+                        className={`${fieldClass} flex-1 min-w-[200px] text-xs`}
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        variant="secondary"
+                        disabled={linkingOrder || !linkQueryInput.trim()}
+                        className="text-xs"
+                      >
+                        {linkingOrder ? "Searching..." : "Link Order"}
+                      </Button>
+                    </form>
+                  </div>
                 </div>
               ) : (
-                <Empty
-                  title="You haven't placed any orders yet."
-                  description="Explore our laptops, custom gaming PCs, displays, and high-performance components."
-                  to="/products"
-                  label="Explore Products"
-                />
+                <div className="space-y-6">
+                  <div className="rounded-3xl border border-border bg-card p-8 text-center shadow-xs">
+                    <ShoppingBag size={36} className="mx-auto text-muted-foreground/60 mb-3" />
+                    <h3 className="text-base font-bold text-foreground">No Orders Found Yet</h3>
+                    <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                      You haven't placed any product orders with your primary account credentials
+                      yet.
+                    </p>
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                      <ActionLink to="/products" className="text-xs">
+                        Browse Products
+                      </ActionLink>
+                      <Button
+                        variant="secondary"
+                        onClick={() => loadOrders(true)}
+                        className="text-xs"
+                      >
+                        <RefreshCw size={12} className="mr-1.5" /> Re-check Orders
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Dedicated Order Recovery Form for Empty State */}
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
+                    <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Tag size={16} className="text-primary" /> Already Completed a Purchase?
+                    </h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      If you checked out using an alternate email, phone number, or paid via
+                      Razorpay, enter your details below to securely link your order:
+                    </p>
+                    <form onSubmit={handleLinkOrderSubmit} className="mt-4 flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        value={linkQueryInput}
+                        onChange={(e) => setLinkQueryInput(e.target.value)}
+                        placeholder="e.g. alternate email, mobile number, or payment ID (pay_...)"
+                        className={`${fieldClass} flex-1 min-w-[240px] text-xs`}
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={linkingOrder || !linkQueryInput.trim()}
+                        className="text-xs"
+                      >
+                        {linkingOrder ? "Searching..." : "Find & Link Order"}
+                      </Button>
+                    </form>
+                  </div>
+                </div>
               )}
             </>
           )}

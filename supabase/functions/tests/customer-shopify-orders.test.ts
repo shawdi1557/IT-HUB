@@ -149,3 +149,133 @@ Deno.test("ORD-API-3: Supports pagination and newest-first sort order", async ()
   // Clean up
   await adminClient.from("shopify_customer_orders").delete().eq("user_id", testUserId);
 });
+
+Deno.test("ORD-API-4: Gateway reconciliation retrieves captured payments and binds to customer", async () => {
+  const { data: profs } = await adminClient.from("profiles").select("id, email, phone").limit(1);
+  const testUserId = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
+
+  await adminClient.from("shopify_customer_orders").delete().eq("user_id", testUserId);
+
+  const mockRzpPayment = {
+    id: `pay_test_${Date.now()}`,
+    amount: 1100000,
+    currency: "INR",
+    status: "captured",
+    email: profs?.[0]?.email || "test@example.com",
+    contact: profs?.[0]?.phone || "+919876543210",
+    created_at: Math.floor(Date.now() / 1000),
+    notes: {
+      domain: "it-hub-m8tzfzjd.myshopify.com",
+      shopify_order_id: `gid://shopify/PaymentSession/ps_${Date.now()}`,
+    },
+  };
+
+  const mockFetch: typeof fetch = async (input, init) => {
+    const urlStr =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (urlStr.includes("api.razorpay.com")) {
+      return new Response(
+        JSON.stringify({
+          entity: "collection",
+          count: 1,
+          items: [mockRzpPayment],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return fetch(input, init);
+  };
+
+  const req = new Request("http://localhost/customer-shopify-orders?reconcile=true", {
+    method: "GET",
+  });
+  const res = await handleCustomerShopifyOrders(req, {
+    supabaseUrl: SUPABASE_URL,
+    supabaseServiceRoleKey: SERVICE_KEY,
+    overrideUserId: testUserId,
+    razorpayKeyId: "rzp_test_mock",
+    razorpayKeySecret: "secret_mock",
+    fetchImpl: mockFetch,
+  });
+
+  assertEquals(res.status, 200);
+  const data = await res.json();
+  assertEquals(data.ok, true);
+  assertEquals(data.orders.length, 1);
+  assertEquals(data.orders[0].total_price, 11000);
+  assertEquals(data.orders[0].financial_status, "paid");
+
+  // Clean up
+  await adminClient.from("shopify_customer_orders").delete().eq("user_id", testUserId);
+});
+
+Deno.test("ORD-API-5: Cross-customer claim prevention blocks claiming another user's order", async () => {
+  const { data: profs } = await adminClient.from("profiles").select("id").limit(2);
+  const userA = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
+  const userB = profs?.[1]?.id || "0370fb7a-7896-44bc-a543-023dd399913f";
+
+  const orderGid = `gid://shopify/Order/claimed_by_b_${Date.now()}`;
+  await adminClient.from("shopify_customer_orders").delete().in("user_id", [userA, userB]);
+
+  // User B already owns this order
+  await adminClient.from("shopify_customer_orders").insert({
+    user_id: userB,
+    shopify_order_id: orderGid,
+    order_number: "#ITH-CLAIMED",
+    created_at: new Date().toISOString(),
+    total_price: 11000,
+    financial_status: "paid",
+    line_items: [],
+  });
+
+  // Mock payment returns the same order ID
+  const mockFetch: typeof fetch = async (input, init) => {
+    const urlStr =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (urlStr.includes("api.razorpay.com")) {
+      return new Response(
+        JSON.stringify({
+          entity: "collection",
+          count: 1,
+          items: [
+            {
+              id: `pay_claimed_${Date.now()}`,
+              amount: 1100000,
+              currency: "INR",
+              status: "captured",
+              email: "user_a@example.com",
+              created_at: Math.floor(Date.now() / 1000),
+              notes: {
+                domain: "it-hub-m8tzfzjd.myshopify.com",
+                shopify_order_id: orderGid,
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return fetch(input, init);
+  };
+
+  // User A tries to reconcile this order
+  const req = new Request("http://localhost/customer-shopify-orders?reconcile=true", {
+    method: "GET",
+  });
+  const res = await handleCustomerShopifyOrders(req, {
+    supabaseUrl: SUPABASE_URL,
+    supabaseServiceRoleKey: SERVICE_KEY,
+    overrideUserId: userA,
+    razorpayKeyId: "rzp_test_mock",
+    razorpayKeySecret: "secret_mock",
+    fetchImpl: mockFetch,
+  });
+
+  assertEquals(res.status, 200);
+  const data = await res.json();
+  // User A gets 0 orders because order belongs to user B!
+  assertEquals(data.orders.length, 0);
+
+  // Clean up
+  await adminClient.from("shopify_customer_orders").delete().in("user_id", [userA, userB]);
+});
