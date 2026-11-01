@@ -3,6 +3,7 @@
 // Prototype: persisted in localStorage under its own key so audit data
 // never bloats the main store.
 import { useSyncExternalStore } from "react";
+import { supabase } from "./supabase";
 
 export type EventType =
   | "Session Started"
@@ -248,6 +249,36 @@ const currentSession = () => {
   void locate(session.id);
   return session;
 };
+const persistEventToSupabase = async (
+  session: VisitorSession,
+  type: EventType,
+  path: string,
+  meta?: Record<string, string>,
+) => {
+  if (!supabase) return;
+  try {
+    await supabase.rpc("log_visitor_event", {
+      p_session_id: session.id,
+      p_visitor_id: session.visitorId,
+      p_event_type: type,
+      p_path: path,
+      p_meta: meta || {},
+      p_device: session.device,
+      p_os: session.os,
+      p_browser: session.browser,
+      p_referrer: session.referrer,
+      p_country: session.country || null,
+      p_region: session.region || null,
+      p_city: session.city || null,
+      p_isp: session.isp || null,
+      p_returning: Boolean(session.returning),
+    });
+  } catch (err) {
+    // Non-blocking fire-and-forget
+    console.debug("[Analytics] Failed to push event to Supabase:", err);
+  }
+};
+
 const push = (
   session: VisitorSession,
   type: EventType,
@@ -266,6 +297,7 @@ const push = (
     meta,
   };
   commit({ events: [event, ...state.events].slice(0, 5000) });
+  void persistEventToSupabase(session, type, path, meta);
 };
 
 /** Record an event for the current visitor session. No-op when analytics is disabled. */

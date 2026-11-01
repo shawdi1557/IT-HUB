@@ -5,30 +5,35 @@ import {
   isRouteErrorResponse,
   useRouteError,
 } from "react-router";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { StoreProvider } from "./store";
 import Layout from "../components/Layout";
 import Home from "../pages/Home";
-import { Empty, Loading, Page } from "../components/ui";
+import { ActionLink, Button, Empty, Loading, Page } from "../components/ui";
 
 // A stale module URL (after a hot update) makes dynamic imports fail;
-// reload the page once to fetch fresh modules instead of crashing.
+// reload the page to fetch fresh modules instead of crashing, but guard against infinite loops.
 const lazy = <T extends ComponentType<any>>(load: () => Promise<{ default: T }>) =>
-  reactLazy(() =>
-    load().then(
-      (module) => {
+  reactLazy(async () => {
+    try {
+      const module = await load();
+      if (typeof window !== "undefined") {
         sessionStorage.removeItem("ithub-chunk-reload");
-        return module;
-      },
-      (error) => {
-        if (!sessionStorage.getItem("ithub-chunk-reload")) {
-          sessionStorage.setItem("ithub-chunk-reload", "1");
+      }
+      return module;
+    } catch (error) {
+      if (typeof window !== "undefined") {
+        const reloadCount = parseInt(sessionStorage.getItem("ithub-chunk-reload") || "0", 10);
+        if (reloadCount < 1) {
+          sessionStorage.setItem("ithub-chunk-reload", String(reloadCount + 1));
           window.location.reload();
           return new Promise<never>(() => {});
         }
-        throw error;
-      },
-    ),
-  );
+        sessionStorage.removeItem("ithub-chunk-reload");
+      }
+      throw error;
+    }
+  });
 const Products = lazy(() =>
   import("../pages/Products").then((module) => ({ default: module.Products })),
 );
@@ -88,7 +93,6 @@ const Contact = lazy(() =>
   })),
 );
 const Support = lazy(() => import("../pages/Support"));
-const Admin = lazy(() => import("../pages/Admin"));
 function NotFound() {
   return (
     <Page>
@@ -103,21 +107,104 @@ function NotFound() {
 }
 function RouteError() {
   const error = useRouteError();
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : isRouteErrorResponse(error)
+          ? `${error.status} ${error.statusText}`
+          : "An unexpected error occurred.";
+
+  const isNotFound = isRouteErrorResponse(error) && error.status === 404;
+
   return (
     <Page>
-      <Empty
-        title={
-          isRouteErrorResponse(error) && error.status === 404
-            ? "Page not found"
-            : "Something interrupted this page."
-        }
-        description="Return to the store and try again. Your local demo data is preserved."
-        to="/"
-        label="Back to IT HUB"
-      />
+      <div className="mx-auto my-12 max-w-lg rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center shadow-xs">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">
+          {isNotFound ? "Page Not Found" : "Something interrupted this page"}
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
+          {isNotFound ? "Your technology journey is still right here." : errorMessage}
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {!isNotFound && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("ithub-chunk-reload");
+                  window.location.reload();
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold"
+            >
+              <RefreshCw size={14} />
+              Retry
+            </Button>
+          )}
+          <ActionLink to="/" secondary className="px-4 py-2 text-xs">
+            Back to IT HUB
+          </ActionLink>
+        </div>
+      </div>
     </Page>
   );
 }
+
+export function CatalogRouteError() {
+  const error = useRouteError();
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Catalog service is currently unavailable.";
+
+  const isDynamicImportError =
+    errorMessage.includes("Failed to fetch dynamically imported module") ||
+    errorMessage.includes("Importing a module script failed");
+
+  return (
+    <Page>
+      <div className="mx-auto my-12 max-w-lg rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center shadow-xs">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">
+          {isDynamicImportError ? "Catalog Loading Interrupted" : "Catalog Connection Issue"}
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
+          {isDynamicImportError
+            ? "A newer version of the catalog module was updated or network connectivity was temporarily interrupted."
+            : errorMessage}
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("ithub-chunk-reload");
+                window.location.reload();
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold"
+          >
+            <RefreshCw size={14} />
+            Reload & Retry Catalog
+          </Button>
+          <ActionLink to="/" secondary className="px-4 py-2 text-xs">
+            Return to Store
+          </ActionLink>
+        </div>
+      </div>
+    </Page>
+  );
+}
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -125,11 +212,11 @@ const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, Component: Home },
-      { path: "products", Component: Products },
-      { path: "products/:id", Component: ProductDetail },
-      { path: "second-hand", Component: Products },
-      { path: "sell", Component: Products },
-      { path: "sell-your-item", Component: Products },
+      { path: "products", Component: Products, errorElement: <CatalogRouteError /> },
+      { path: "products/:id", Component: ProductDetail, errorElement: <CatalogRouteError /> },
+      { path: "second-hand", Component: Products, errorElement: <CatalogRouteError /> },
+      { path: "sell", Component: Products, errorElement: <CatalogRouteError /> },
+      { path: "sell-your-item", Component: Products, errorElement: <CatalogRouteError /> },
       { path: "cart", Component: Cart },
       { path: "checkout", Component: Checkout },
       { path: "order-success/:id", Component: OrderSuccess },
@@ -153,8 +240,6 @@ const router = createBrowserRouter([
       { path: "*", Component: NotFound },
     ],
   },
-  { path: "/admin", Component: Admin, errorElement: <RouteError /> },
-  { path: "/admin/:section", Component: Admin, errorElement: <RouteError /> },
 ]);
 export default function App() {
   return (

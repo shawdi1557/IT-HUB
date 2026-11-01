@@ -29,13 +29,38 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    optimizeDeps: {
+      include: [
+        "dompurify",
+        "@radix-ui/react-dialog",
+        "@supabase/supabase-js",
+        "lenis",
+        "lucide-react",
+        "react",
+        "react-dom",
+        "react-router",
+      ],
+    },
     server: {
       host: process.env.FIGMA_DEV_SERVER_HOST || "0.0.0.0",
       port: parseInt(process.env.PORT || "8443"),
       strictPort: true,
       cors: true,
       watch: {
-        ignored: ["**/.figma/**"],
+        ignored: [
+          (filePath: string) => {
+            const normalized = filePath.replace(/\\/g, "/");
+            return (
+              normalized.includes("/.figma/") ||
+              normalized.includes("/ITHUB_ADMIN/") ||
+              normalized.includes("/dist/") ||
+              normalized.includes("/.system_generated/") ||
+              normalized.includes("/scratch/") ||
+              normalized.includes("/.git/") ||
+              normalized.includes("/node_modules/")
+            );
+          },
+        ],
       },
     },
     preview: {

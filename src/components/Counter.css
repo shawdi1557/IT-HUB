@@ -1,0 +1,55 @@
+/* src/components/Counter.css */
+/* React Bits Odometer-Style Rolling Number Counter */
+
+.react-bits-counter {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter-char {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+/* Viewport window container for a single digit */
+.counter-column-container {
+  position: relative;
+  display: inline-flex;
+  overflow: hidden;
+  height: 1.15em;
+  width: 0.65em;
+  justify-content: center;
+}
+
+/* Vertical strip containing digits 0 through 9 */
+.counter-column {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* Individual digit tile */
+.counter-digit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.15em;
+  width: 100%;
+  user-select: none;
+}
+
+/* Respect user's reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .counter-column {
+    transition: none !important;
+  }
+}

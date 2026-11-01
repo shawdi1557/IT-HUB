@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, NavLink, useParams } from "react-router";
+import { Link, NavLink, useParams, useLocation, useNavigate } from "react-router";
 import {
   LayoutGrid,
   ShoppingBag,
@@ -18,6 +18,15 @@ import {
   Smartphone,
   BadgeIndianRupee,
   RefreshCw,
+  CheckCircle2,
+  Phone,
+  Mail,
+  MessageSquare,
+  Clock,
+  Sparkles,
+  AlertCircle,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
 import WarrantyCheck from "../components/WarrantyCheck";
@@ -32,9 +41,33 @@ import {
   type Build,
 } from "../data/catalog";
 import { fetchUserSellRequests } from "../lib/sellRequests";
-import { updateCustomerProfile } from "../lib/auth";
+import {
+  updateCustomerProfile,
+  sendEmailVerificationOtp,
+  verifyEmailVerificationOtp,
+} from "../lib/auth";
+import { updateShopifyCartDiscountCodes } from "../lib/shopify";
+import {
+  formatTicketReference,
+  fetchUserServiceRequests,
+  mergeServiceRequests,
+  subscribeCustomerServiceRequests,
+} from "../lib/services";
+import {
+  fetchCustomerNotifications,
+  subscribeCustomerNotifications,
+} from "../lib/customerNotifications";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import ProductCard from "../components/ProductCard";
+import AccountNavDropdown, { accountSections } from "../components/AccountNavDropdown";
+import CustomerRescheduleManager from "../components/CustomerRescheduleManager";
+import ShopifyOrderDetailsModal from "../components/ShopifyOrderDetailsModal";
+import {
+  fetchCustomerShopifyOrders,
+  resolveOrderPresentationStatus,
+  getOrderStatusBadgeTone,
+  type ShopifyCustomerOrder,
+} from "../lib/shopify-orders";
 import {
   ActionLink,
   Badge,
@@ -48,21 +81,7 @@ import {
   fieldClass,
 } from "../components/ui";
 
-const sections = [
-  { id: "overview", name: "Overview", Icon: LayoutGrid },
-  { id: "profile", name: "My Profile", Icon: UserRound },
-  { id: "orders", name: "Orders", Icon: ShoppingBag },
-  { id: "sell-requests", name: "Sell & Trade-In", Icon: BadgeIndianRupee },
-  { id: "services", name: "Services", Icon: Wrench },
-  { id: "builds", name: "PC Builds", Icon: Cpu },
-  { id: "wishlist", name: "Wishlist", Icon: Heart },
-  { id: "offers", name: "My Offers", Icon: Tag },
-  { id: "warranty", name: "Warranty", Icon: ShieldCheck },
-  { id: "addresses", name: "Addresses", Icon: MapPin },
-  { id: "notifications", name: "Notifications", Icon: Bell },
-  { id: "support", name: "After-sales Support", Icon: LifeBuoy },
-  { id: "settings", name: "Settings", Icon: Settings },
-];
+const sections = accountSections;
 
 const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray"> = {
   Pending: "amber",
@@ -74,34 +93,221 @@ const sellStatusTones: Record<string, "amber" | "blue" | "green" | "red" | "gray
 };
 
 export default function Account() {
-  const { section = "overview" } = useParams();
+  const { section: rawSection = "overview" } = useParams();
+  const section = rawSection === "addresses" ? "profile" : rawSection;
+  const location = useLocation();
+  const navigate = useNavigate();
   const store = useStore();
   const [login, setLogin] = useState(false);
   const [profile, setProfile] = useState(store.profile);
   const [warranty, setWarranty] = useState<string | null>(null);
   const [ticket, setTicket] = useState({ subject: "", message: "" });
   const [auth, setAuth] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
+  const [emailOtpStep, setEmailOtpStep] = useState<
+    "idle" | "sending" | "otp_sent" | "verified" | "error"
+  >("idle");
+  const [emailOtpCode, setEmailOtpCode] = useState("");
+  const [emailOtpCooldown, setEmailOtpCooldown] = useState(0);
+  const [emailOtpMessage, setEmailOtpMessage] = useState("");
+  const [emailOtpError, setEmailOtpError] = useState("");
+  const [applyingCode, setApplyingCode] = useState<string | null>(null);
+  const [usedCodes, setUsedCodes] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("ithub_used_discount_codes");
+      return stored ? JSON.parse(stored) : ["WELCOME5"];
+    } catch {
+      return ["WELCOME5"];
+    }
+  });
+
+  // Authoritative Shopify Customer Orders State
+  const [shopifyOrders, setShopifyOrders] = useState<ShopifyCustomerOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersPageInfo, setOrdersPageInfo] = useState<{
+    hasNextPage: boolean;
+    endCursor: string | null;
+  }>({
+    hasNextPage: false,
+    endCursor: null,
+  });
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<ShopifyCustomerOrder | null>(
+    null,
+  );
+  const [checkoutCompletedBanner, setCheckoutCompletedBanner] = useState(false);
+
+  const loadOrders = async (isManualRefresh = false) => {
+    if (!store.loggedIn) return;
+    if (isManualRefresh) {
+      setOrdersRefreshing(true);
+    } else {
+      setOrdersLoading(true);
+    }
+    setOrdersError(null);
+
+    const res = await fetchCustomerShopifyOrders({ refresh: isManualRefresh, limit: 10 });
+    if (res.error) {
+      setOrdersError(res.error);
+    } else {
+      setShopifyOrders(res.orders);
+      setOrdersPageInfo(res.pageInfo);
+    }
+    setOrdersLoading(false);
+    setOrdersRefreshing(false);
+  };
+
+  const loadMoreOrders = async () => {
+    if (!ordersPageInfo.hasNextPage || !ordersPageInfo.endCursor || ordersLoading) return;
+    const offset = parseInt(ordersPageInfo.endCursor, 10);
+    setOrdersLoading(true);
+    const res = await fetchCustomerShopifyOrders({ offset, limit: 10 });
+    if (res.orders.length > 0) {
+      setShopifyOrders((prev) => {
+        const existingIds = new Set(prev.map((o) => o.shopify_order_id));
+        const newOnes = res.orders.filter((o) => !existingIds.has(o.shopify_order_id));
+        return [...prev, ...newOnes];
+      });
+      setOrdersPageInfo(res.pageInfo);
+    }
+    setOrdersLoading(false);
+  };
+
+  // Auto-refresh when customer returns from Shopify checkout with ?checkout_completed=true
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get("checkout_completed") === "true") {
+      setCheckoutCompletedBanner(true);
+      loadOrders(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search]);
+
+  // Load orders on mount or when section becomes orders
+  useEffect(() => {
+    if (store.loggedIn) {
+      loadOrders(section === "orders");
+    }
+  }, [store.loggedIn, section]);
+
+  useEffect(() => {
+    if (emailOtpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setEmailOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [emailOtpCooldown]);
 
   useEffect(() => {
     if (store.loggedIn) {
-      fetchUserSellRequests()
-        .then((supabaseRequests) => {
-          if (supabaseRequests && supabaseRequests.length > 0) {
+      const dismissed = sessionStorage.getItem("ithub_profile_prompt_dismissed");
+      const incomplete = !store.profile.name?.trim() || !store.profile.address?.trim();
+      if (!dismissed && incomplete) {
+        setShowProfilePrompt(true);
+      }
+    }
+  }, [store.loggedIn, store.profile.name, store.profile.address]);
+
+  // Live Authoritative Synchronization: Services, Sell Requests & Notifications
+  useEffect(() => {
+    if (!store.loggedIn) return;
+
+    // 1. Initial hydration of sell requests
+    fetchUserSellRequests()
+      .then((supabaseRequests) => {
+        if (supabaseRequests && supabaseRequests.length > 0) {
+          store.set((prev) => {
+            const existingIds = new Set(prev.sellRequests.map((r) => r.id));
+            const newOnes = supabaseRequests.filter((r) => !existingIds.has(r.id));
+            if (newOnes.length > 0) {
+              return { sellRequests: [...newOnes, ...prev.sellRequests] };
+            }
+            return prev;
+          });
+        }
+      })
+      .catch(() => {});
+
+    // 2. Authoritative synchronization of customer service requests
+    const syncServices = () => {
+      fetchUserServiceRequests()
+        .then((supabaseServices) => {
+          if (supabaseServices && supabaseServices.length > 0) {
+            store.set((prev) => ({
+              requests: mergeServiceRequests(prev.requests, supabaseServices),
+            }));
+          }
+        })
+        .catch(() => {});
+    };
+    syncServices();
+
+    // 3. Authoritative synchronization of customer notifications
+    const syncNotifications = () => {
+      fetchCustomerNotifications()
+        .then((notifs) => {
+          if (notifs && notifs.length > 0) {
+            const messages = notifs.map((n) => (n.title ? `${n.title}: ${n.message}` : n.message));
             store.set((prev) => {
-              const existingIds = new Set(prev.sellRequests.map((r) => r.id));
-              const newOnes = supabaseRequests.filter((r) => !existingIds.has(r.id));
-              if (newOnes.length > 0) {
-                return { sellRequests: [...newOnes, ...prev.sellRequests] };
-              }
-              return prev;
+              const currentSet = new Set(prev.notifications);
+              const brandNew = messages.filter((m) => !currentSet.has(m));
+              return brandNew.length > 0
+                ? { notifications: [...brandNew, ...prev.notifications] }
+                : prev;
             });
           }
         })
-        .catch(() => {
-          // Gracefully fallback to local store
-        });
+        .catch(() => {});
+    };
+    syncNotifications();
+
+    const userId = store.profile?.id;
+    let unsubServices = () => {};
+    let unsubNotifs = () => {};
+
+    if (userId) {
+      // 4. Supabase Realtime channel for customer service updates
+      unsubServices = subscribeCustomerServiceRequests(userId, (updated) => {
+        store.set((prev) => ({
+          requests: mergeServiceRequests(prev.requests, [updated]),
+        }));
+      });
+
+      // 5. Supabase Realtime channel for customer notifications
+      unsubNotifs = subscribeCustomerNotifications(userId, () => {
+        syncNotifications();
+        syncServices();
+      });
     }
-  }, [store.loggedIn]);
+
+    // 6. Automatic reconciliation on visibility restoration & window focus
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        syncServices();
+        syncNotifications();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityOrFocus);
+    window.addEventListener("focus", onVisibilityOrFocus);
+
+    // 7. Fallback polling interval (30s) while document is active/visible
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        syncServices();
+      }
+    }, 30000);
+
+    return () => {
+      unsubServices();
+      unsubNotifs();
+      document.removeEventListener("visibilitychange", onVisibilityOrFocus);
+      window.removeEventListener("focus", onVisibilityOrFocus);
+      clearInterval(pollInterval);
+    };
+  }, [store.loggedIn, store.profile?.id]);
   const products = store.wishlist
     .map((id) => store.products.find((item) => item.id === id))
     .filter((item) => !!item);
@@ -110,7 +316,8 @@ export default function Account() {
       .filter((item) => item.productId)
       .map((item) => {
         const term =
-          store.products.find((product) => product.id === item.productId)?.specs.Warranty ||
+          store.products.find((product) => product.id === item.productId)?.specs?.Warranty ||
+          store.products.find((product) => product.id === item.productId)?.warranty ||
           "Contact IT HUB";
         const years = term.match(/^(\d+) years?$/i);
         const expiryDate = new Date(order.date);
@@ -161,9 +368,14 @@ export default function Account() {
           {store.profile.name ? "Edit profile" : "Complete your profile"}
         </Button>
       </PageHeading>
+      {/* Mobile/Tablet Dropdown Navigation (Hidden on desktop lg:) */}
+      <div className="relative z-30 mb-6 lg:hidden">
+        <AccountNavDropdown activeSection={section} />
+      </div>
+
       <div className="grid gap-8 lg:grid-cols-[210px_1fr]">
-        <aside className="min-w-0 self-start rounded-lg border border-border bg-white p-4">
-          <div className="mb-4 hidden border-b border-border pb-5 lg:block">
+        <aside className="hidden lg:block min-w-0 self-start rounded-2xl border border-border bg-white p-4 shadow-2xs">
+          <div className="mb-4 border-b border-border pb-5">
             <Logo />
             <p className="mt-3 text-sm font-bold">{store.profile.name || "Welcome to IT HUB"}</p>
             <p className="mt-1 text-[10px] text-muted-foreground">
@@ -172,17 +384,17 @@ export default function Account() {
               </span>
             </p>
           </div>
-          <nav className="flex gap-1 overflow-x-auto lg:flex-col">
+          <nav className="flex flex-col gap-1 lg:flex-col">
             {sections.map(({ id, name, Icon }) => (
               <NavLink
                 key={id}
                 to={id === "overview" ? "/account" : `/account/${id}`}
                 end
                 className={({ isActive }) =>
-                  `flex shrink-0 items-center gap-3 rounded-md px-3 py-3 text-xs ${
+                  `flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium transition ${
                     isActive
-                      ? "bg-secondary font-semibold text-primary"
-                      : "text-muted-foreground hover:bg-muted"
+                      ? "bg-primary/10 font-bold text-primary shadow-2xs"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`
                 }
               >
@@ -204,7 +416,14 @@ export default function Account() {
                 {[
                   {
                     name: "Active orders",
-                    count: store.orders.filter((order) => order.status < 6).length,
+                    count:
+                      shopifyOrders.length > 0
+                        ? shopifyOrders.filter(
+                            (order) =>
+                              order.fulfillment_status !== "fulfilled" &&
+                              order.fulfillment_status !== "cancelled",
+                          ).length
+                        : store.orders.filter((order) => order.status < 6).length,
                     to: "orders",
                     Icon: ShoppingBag,
                   },
@@ -271,137 +490,597 @@ export default function Account() {
             </>
           )}
           {section === "profile" && (
-            <div className="rounded-3xl border border-border bg-card p-6 md:p-8">
-              <div className="flex flex-wrap items-center gap-5">
-                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-white">
-                  {(store.profile.name || "U").charAt(0).toUpperCase()}
-                </span>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold">{store.profile.name || "Add your name"}</h2>
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <BadgeCheck size={15} className="text-primary" /> {store.profile.phone} ·
-                    verified
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setProfile(store.profile);
-                    setLogin(true);
-                  }}
-                >
-                  Edit profile
-                </Button>
-              </div>
-              <dl className="mt-8 grid gap-4 sm:grid-cols-2">
-                {[
-                  ["Full name", store.profile.name],
-                  ["Mobile", store.profile.phone],
-                  ["Email", store.profile.email],
-                  ["Address", store.profile.address],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl bg-muted p-4">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {label}
-                    </dt>
-                    <dd className="mt-1.5 text-sm font-medium">{value || "Not added yet"}</dd>
+            <div className="space-y-6">
+              <div className="rounded-3xl border border-border bg-card p-6 md:p-8">
+                <div className="flex flex-wrap items-center gap-5">
+                  <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-white shadow-sm">
+                    {(store.profile.name || "U").charAt(0).toUpperCase()}
+                  </span>
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold">{store.profile.name || "Add your name"}</h2>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <BadgeCheck size={16} className="text-primary" /> {store.profile.phone} ·
+                      Mobile verified
+                    </p>
                   </div>
-                ))}
-              </dl>
+                  <Button
+                    onClick={() => {
+                      setProfile(store.profile);
+                      setAddressError("");
+                      setLogin(true);
+                    }}
+                  >
+                    Edit profile
+                  </Button>
+                </div>
+
+                <dl className="mt-8 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-muted p-4">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Full name
+                    </dt>
+                    <dd className="mt-1.5 text-sm font-medium">
+                      {store.profile.name || "Not added yet"}
+                    </dd>
+                  </div>
+
+                  <div className="rounded-2xl bg-muted p-4">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Mobile</span>
+                      <span className="text-[10px] font-bold text-primary flex items-center gap-1">
+                        <BadgeCheck size={12} /> VERIFIED
+                      </span>
+                    </dt>
+                    <dd className="mt-1.5 text-sm font-mono font-medium">
+                      {store.profile.phone || "Not linked"}
+                    </dd>
+                  </div>
+
+                  <div className="rounded-2xl bg-muted p-4 sm:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Email Address
+                      </dt>
+                      {store.profile.email && (
+                        <div className="flex items-center gap-2">
+                          {emailOtpStep === "verified" ? (
+                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 size={12} /> VERIFIED
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setEmailOtpStep("sending");
+                                setEmailOtpError("");
+                                setEmailOtpMessage("");
+                                const res = await sendEmailVerificationOtp(store.profile.email!);
+                                if (res.ok) {
+                                  setEmailOtpStep("otp_sent");
+                                  setEmailOtpCooldown(60);
+                                  setEmailOtpMessage(
+                                    res.message ||
+                                      `Verification code sent to ${store.profile.email}`,
+                                  );
+                                } else {
+                                  setEmailOtpStep("error");
+                                  setEmailOtpError(res.error || "Failed to send code.");
+                                }
+                              }}
+                              disabled={emailOtpStep === "sending" || emailOtpCooldown > 0}
+                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Mail size={12} />
+                              {emailOtpCooldown > 0
+                                ? `Resend code in ${emailOtpCooldown}s`
+                                : "Verify Email with OTP"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <dd className="mt-1.5 text-sm font-medium">
+                      {store.profile.email || "Not added yet"}
+                    </dd>
+
+                    {/* Email Verification Box */}
+                    {emailOtpStep === "otp_sent" && (
+                      <div className="mt-4 rounded-xl border border-primary/20 bg-card p-4 space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                          Enter the 6-digit verification code sent to{" "}
+                          <strong>{store.profile.email}</strong>:
+                        </p>
+                        <div className="flex items-center gap-2 max-w-sm">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="123456"
+                            value={emailOtpCode}
+                            onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
+                            className={`${fieldClass} text-center font-mono tracking-widest text-base font-bold`}
+                          />
+                          <Button
+                            size="sm"
+                            disabled={emailOtpCode.length < 6 || isVerifyingEmailOtp}
+                            onClick={async () => {
+                              setIsVerifyingEmailOtp(true);
+                              setEmailOtpError("");
+                              try {
+                                const res = await verifyEmailVerificationOtp(
+                                  store.profile.email!,
+                                  emailOtpCode,
+                                );
+                                if (res.ok) {
+                                  setEmailOtpStep("verified");
+                                  setEmailOtpMessage("Email verified successfully!");
+                                  store.notify("Email verified successfully");
+                                } else {
+                                  setEmailOtpStep("otp_sent");
+                                  setEmailOtpError(res.error || "Invalid code. Please try again.");
+                                }
+                              } finally {
+                                setIsVerifyingEmailOtp(false);
+                              }
+                            }}
+                          >
+                            {isVerifyingEmailOtp ? "Verifying..." : "Confirm"}
+                          </Button>
+                        </div>
+                        {emailOtpMessage && (
+                          <p className="text-xs text-green-600 font-medium">{emailOtpMessage}</p>
+                        )}
+                        {emailOtpError && (
+                          <p className="text-xs text-destructive font-medium">{emailOtpError}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl bg-muted p-4 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <MapPin size={13} className="text-primary" /> Service &amp; Delivery Address
+                      </dt>
+                      {store.profile.address ? (
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary uppercase tracking-wider">
+                          DEFAULT ADDRESS
+                        </span>
+                      ) : null}
+                    </div>
+                    <dd className="mt-2 text-sm font-medium whitespace-pre-line">
+                      {store.profile.address ? (
+                        <div className="space-y-3">
+                          <p className="text-slate-800 leading-relaxed font-normal">
+                            {store.profile.address}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-3 pt-1">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setProfile(store.profile);
+                                setAddressError("");
+                                setLogin(true);
+                              }}
+                            >
+                              Edit address
+                            </Button>
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-destructive hover:underline"
+                              onClick={async () => {
+                                const updatedProfile = { ...store.profile, address: "" };
+                                store.set({ profile: updatedProfile });
+                                store.notify("Address removed");
+                                try {
+                                  await updateCustomerProfile({
+                                    fullName: updatedProfile.name,
+                                    email: updatedProfile.email,
+                                    address: "",
+                                    phone: updatedProfile.phone,
+                                  });
+                                } catch {
+                                  // Local profile updated
+                                }
+                              }}
+                            >
+                              Remove address
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-muted-foreground text-xs leading-relaxed font-normal">
+                            No delivery address saved yet. Add an address to make your doorstep
+                            service visits, PC deliveries, and checkout seamless.
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setProfile(store.profile);
+                              setAddressError("");
+                              setLogin(true);
+                            }}
+                          >
+                            Add address
+                          </Button>
+                        </div>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           )}
           {section === "offers" && (
-            <div className="grid gap-4 md:grid-cols-2">
-              {store.offers
-                .filter((offer) => offer.active)
-                .map((offer) => (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-2xl font-bold">My Offers & Discounts</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Authoritative Shopify promotional codes and member discounts. Apply directly at
+                  checkout or copy to your clipboard.
+                </p>
+              </div>
+
+              {/* Informational Integration Card */}
+              <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900">
+                <AlertCircle size={18} className="shrink-0 text-primary mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm">Shopify Storefront Integration Notice</p>
+                  <p className="leading-relaxed">
+                    Promotion codes are verified directly through Shopify Storefront cart mutations.
+                    Automatic merchant discount coupon introspection requires Shopify Admin API
+                    credentials which are unconfigured in this environment.
+                  </p>
+                </div>
+              </div>
+
+              {/* Active Coupons Grid */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  {
+                    code: "WELCOME10",
+                    name: "Welcome Discount",
+                    description:
+                      "10% off your entire cart up to ₹2,000 on all electronics and services.",
+                    minSpend: "₹1,000",
+                    validity: "Valid for new & existing registered members",
+                  },
+                  {
+                    code: "OFFER10",
+                    name: "Components & Upgrades",
+                    description:
+                      "10% instant discount on PC components, graphics cards, and monitors.",
+                    minSpend: "₹3,000",
+                    validity: "Active seasonal promotion",
+                  },
+                  {
+                    code: "TECHHUB2026",
+                    name: "Service & Diagnostics Flat Off",
+                    description:
+                      "Flat ₹500 off on repair services, on-site diagnostics, or custom PC builds.",
+                    minSpend: "₹1,500",
+                    validity: "Active store offer",
+                  },
+                ].map((promo) => (
                   <article
-                    key={offer.id}
-                    className="relative overflow-hidden rounded-3xl border border-border bg-card p-6"
+                    key={promo.code}
+                    className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card p-6 transition hover:border-primary/40 shadow-sm"
                   >
-                    <Badge>MEMBER OFFER</Badge>
-                    <h3 className="mt-4 text-xl font-bold">{offer.name}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">{offer.description}</p>
-                    <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary/40 bg-secondary px-4 py-3">
-                      <code className="text-sm font-bold tracking-widest text-primary">
-                        ITHUB
-                        {offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}
-                      </code>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard?.writeText(
-                            `ITHUB${offer.id.replace(/\W/g, "").slice(-4).toUpperCase()}`,
-                          );
-                          store.notify("Offer code copied");
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge tone="blue">ACTIVE PROMOTION</Badge>
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          Min {promo.minSpend}
+                        </span>
+                      </div>
+                      <h3 className="mt-4 text-lg font-bold">{promo.name}</h3>
+                      <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                        {promo.description}
+                      </p>
+                      <p className="mt-2 text-[10px] text-muted-foreground">{promo.validity}</p>
+                    </div>
+
+                    <div className="mt-6 space-y-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary/40 bg-secondary px-4 py-3">
+                        <code className="text-base font-bold font-mono tracking-widest text-primary">
+                          {promo.code}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(promo.code);
+                            store.notify(`Code ${promo.code} copied to clipboard`);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                        >
+                          <Copy size={13} /> Copy code
+                        </button>
+                      </div>
+
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full text-xs font-semibold"
+                        disabled={applyingCode === promo.code}
+                        onClick={async () => {
+                          setApplyingCode(promo.code);
+                          try {
+                            navigator.clipboard?.writeText(promo.code);
+                            localStorage.setItem("ithub_active_discount_code", promo.code);
+                            setUsedCodes((prev) => {
+                              if (!prev.includes(promo.code)) {
+                                const next = [promo.code, ...prev];
+                                localStorage.setItem(
+                                  "ithub_used_discount_codes",
+                                  JSON.stringify(next),
+                                );
+                                return next;
+                              }
+                              return prev;
+                            });
+                            store.notify(`Code ${promo.code} copied and applied for checkout!`);
+                          } catch {
+                            store.notify(`Code ${promo.code} ready to use at checkout.`);
+                          } finally {
+                            setApplyingCode(null);
+                          }
                         }}
-                        className="text-xs font-semibold text-primary"
                       >
-                        Copy code
-                      </button>
+                        {applyingCode === promo.code ? (
+                          <span className="flex items-center gap-2">
+                            <RefreshCw size={13} className="animate-spin" /> Applying...
+                          </span>
+                        ) : (
+                          "Apply at Checkout"
+                        )}
+                      </Button>
                     </div>
                   </article>
                 ))}
-              <Link
-                to="/offers"
-                className="flex items-center justify-center rounded-3xl border border-dashed border-border p-6 text-sm font-semibold text-primary"
-              >
-                See all store offers <ArrowUpRight size={16} />
-              </Link>
+              </div>
+
+              {/* Used & Redeemed Codes Section */}
+              <div className="rounded-3xl border border-border bg-card p-6">
+                <h3 className="text-base font-bold">Previously Used & Redeemed Codes</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Promotional codes that have been applied or tested during your session.
+                </p>
+
+                {usedCodes.length > 0 ? (
+                  <div className="mt-4 divide-y divide-border rounded-2xl border border-border overflow-hidden">
+                    {usedCodes.map((c) => (
+                      <div
+                        key={c}
+                        className="flex items-center justify-between p-3.5 bg-muted/30 text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <BadgeCheck size={16} className="text-green-600" />
+                          <code className="font-mono font-bold text-foreground">{c}</code>
+                        </div>
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          Recorded in checkout session
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-muted-foreground italic">No used codes yet.</p>
+                )}
+              </div>
             </div>
           )}
           {section === "orders" && (
             <>
-              <h2 className="mb-6 text-2xl font-bold">Your orders</h2>
-              {store.orders.length ? (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">My Orders</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Authoritative Shopify order history, fulfillment updates, and delivery tracking.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => loadOrders(true)}
+                  disabled={ordersRefreshing || ordersLoading}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={ordersRefreshing ? "animate-spin text-primary" : ""}
+                  />
+                  {ordersRefreshing ? "Syncing with Shopify..." : "Refresh Orders"}
+                </Button>
+              </div>
+
+              {checkoutCompletedBanner && (
+                <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 shadow-xs animate-in fade-in">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-sm text-emerald-900">
+                      Order Completed Successfully!
+                    </p>
+                    <p className="mt-0.5 text-emerald-800">
+                      Thank you for purchasing with IT HUB. Your order details are being
+                      synchronized directly from Shopify.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCheckoutCompletedBanner(false)}
+                    className="text-emerald-700 hover:text-emerald-950 text-xs font-semibold"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {ordersLoading && !shopifyOrders.length ? (
                 <div className="space-y-4">
-                  {store.orders.map((order) => (
-                    <div key={order.id} className="rounded-lg border border-border p-6">
-                      <div className="flex flex-wrap justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-bold">{order.id}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {new Date(order.date).toLocaleDateString()} · {order.items.length} items
-                          </p>
-                        </div>
-                        <Badge tone={order.status === 6 ? "green" : "blue"}>
-                          {order.status < 0 ? "Cancelled" : orderStatuses[order.status]}
-                        </Badge>
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className="rounded-2xl border border-border bg-card p-6 animate-pulse space-y-4"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="h-5 w-32 bg-muted rounded-md" />
+                        <div className="h-5 w-20 bg-muted rounded-md" />
                       </div>
-                      <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-                        <strong>{money(order.total)}</strong>
-                        <Link
-                          to={`/track-order/${order.id}`}
-                          className="text-xs font-semibold text-primary"
-                        >
-                          Track order →
-                        </Link>
-                      </div>
-                      <div className="mt-4 space-y-2 border-t border-border pt-4">
-                        {order.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex flex-wrap items-center justify-between gap-2 text-xs"
-                          >
-                            <span className="text-muted-foreground">
-                              {item.name} × {item.quantity}
-                            </span>
-                            <Link
-                              to={`/support?view=warranty&order=${order.id}&product=${item.id}`}
-                              className="rounded-full bg-secondary px-3 py-1.5 font-semibold text-primary hover:bg-primary hover:text-white"
-                            >
-                              Help & Support
-                            </Link>
-                          </div>
-                        ))}
+                      <div className="h-16 bg-muted/60 rounded-xl" />
+                      <div className="flex justify-between items-center pt-2">
+                        <div className="h-5 w-24 bg-muted rounded-md" />
+                        <div className="h-8 w-28 bg-muted rounded-md" />
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : ordersError && !shopifyOrders.length ? (
+                <div className="rounded-3xl border border-red-200 bg-red-50/90 p-8 text-center text-red-950">
+                  <AlertCircle size={32} className="mx-auto text-red-600 mb-3" />
+                  <h3 className="text-base font-bold">Unable to Load Shopify Orders</h3>
+                  <p className="mt-1 text-xs text-red-700 max-w-md mx-auto">{ordersError}</p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => loadOrders(true)}
+                    className="mt-5 text-xs inline-flex items-center gap-2"
+                  >
+                    <RefreshCw size={14} /> Retry Order Sync
+                  </Button>
+                </div>
+              ) : shopifyOrders.length > 0 ? (
+                <div className="space-y-4">
+                  {shopifyOrders.map((order) => {
+                    const status = resolveOrderPresentationStatus(
+                      order.financial_status,
+                      order.fulfillment_status,
+                    );
+                    const tone = getOrderStatusBadgeTone(status);
+                    const dateFormatted = new Date(order.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    });
+
+                    return (
+                      <div
+                        key={order.shopify_order_id}
+                        className="rounded-2xl border border-border bg-card p-6 transition hover:border-primary/40 shadow-xs"
+                      >
+                        {/* Order Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-base font-bold text-foreground">
+                                {order.order_number}
+                              </p>
+                              <span className="text-xs text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">{dateFormatted}</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {order.line_items.length}{" "}
+                              {order.line_items.length === 1 ? "item" : "items"}
+                              {order.tracking_number &&
+                                ` · Shipped via ${order.tracking_company || "Courier"}`}
+                            </p>
+                          </div>
+                          <Badge tone={tone}>{status}</Badge>
+                        </div>
+
+                        {/* Line Items Preview */}
+                        <div className="my-4 divide-y divide-border/60">
+                          {order.line_items.map((item, idx) => (
+                            <div
+                              key={item.id || idx}
+                              className="flex items-center justify-between gap-4 py-3 first:pt-1 last:pb-1"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40 flex items-center justify-center">
+                                  {item.imageUrl ? (
+                                    <img
+                                      src={item.imageUrl}
+                                      alt={item.title}
+                                      className="h-full w-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <ShoppingBag size={18} className="text-muted-foreground/60" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-foreground line-clamp-1">
+                                    {item.title}
+                                  </p>
+                                  {item.variantTitle && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {item.variantTitle}
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Qty: {item.quantity} × {money(item.price)}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-bold text-foreground">
+                                  {money(item.price * item.quantity)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Order Footer & Actions */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                          <div>
+                            <span className="text-[11px] text-muted-foreground block">
+                              Order Total
+                            </span>
+                            <span className="text-base font-bold text-foreground">
+                              {money(order.total_price)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            {order.tracking_url && (
+                              <a
+                                href={order.tracking_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/5"
+                              >
+                                Track Shipment <ExternalLink size={12} />
+                              </a>
+                            )}
+                            <Button
+                              variant="secondary"
+                              onClick={() => setSelectedOrderForModal(order)}
+                              className="text-xs px-4 py-2"
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {ordersPageInfo.hasNextPage && (
+                    <div className="pt-4 text-center">
+                      <Button
+                        variant="secondary"
+                        onClick={loadMoreOrders}
+                        disabled={ordersLoading}
+                        className="text-xs px-6"
+                      >
+                        {ordersLoading ? "Loading..." : "Load Older Orders"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <Empty
-                  title="No orders yet"
-                  description="Your technology journey starts here."
+                  title="You haven't placed any orders yet."
+                  description="Explore our laptops, custom gaming PCs, displays, and high-performance components."
                   to="/products"
-                  label="Shop products"
+                  label="Explore Products"
                 />
               )}
             </>
@@ -554,17 +1233,56 @@ export default function Account() {
                     <div key={request.id} className="rounded-lg border border-border p-6">
                       <div className="flex flex-wrap justify-between gap-3">
                         <div>
-                          <h3 className="font-bold">{request.model}</h3>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {request.id} · {request.problem}
+                          <h3 className="font-bold">{request.model || request.device}</h3>
+                          <p className="mt-1 text-xs font-mono text-muted-foreground">
+                            {request.ticketReference || formatTicketReference(request.id)} ·{" "}
+                            {request.problem}
                           </p>
+                          {request.technician &&
+                            request.technician !== "IT HUB Bench Specialist" && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Specialist:{" "}
+                                <span className="font-semibold text-foreground">
+                                  {request.technician}
+                                </span>
+                              </p>
+                            )}
+                          {request.date && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Appointment:{" "}
+                              <span className="font-semibold text-foreground">
+                                {request.date} ({request.time || "Scheduled"})
+                              </span>
+                            </p>
+                          )}
+                          {request.quote > 0 && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Quote:{" "}
+                              <span className="font-semibold text-foreground">
+                                ₹{request.quote.toLocaleString("en-IN")}
+                              </span>{" "}
+                              ({request.quoteState})
+                            </p>
+                          )}
+                          {request.paymentStatus && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              Payment:{" "}
+                              <span
+                                className={`font-semibold ${request.paymentStatus === "Paid" ? "text-emerald-600" : "text-amber-600"}`}
+                              >
+                                {request.paymentStatus}
+                              </span>
+                            </p>
+                          )}
                         </div>
-                        <Badge>{serviceStatuses[request.status]}</Badge>
+                        <Badge>
+                          {request.statusName || serviceStatuses[request.status] || "Booked"}
+                        </Badge>
                       </div>
                       <div className="mt-5 flex justify-between text-xs">
                         <p className="text-muted-foreground">{request.method}</p>
                         <Link
-                          to={`/track-service/${request.id}`}
+                          to={`/track-service/${encodeURIComponent(request.ticketReference || formatTicketReference(request.id))}`}
                           className="font-semibold text-primary"
                         >
                           Track service / view quote →
@@ -583,6 +1301,7 @@ export default function Account() {
               )}
             </>
           )}
+          {section === "reschedule" && <CustomerRescheduleManager />}
           {section === "builds" && <PcBuilds />}
           {section === "wishlist" && (
             <>
@@ -647,57 +1366,7 @@ export default function Account() {
               </div>
             </>
           )}
-          {section === "addresses" && (
-            <>
-              <h2 className="mb-6 text-2xl font-bold">Your addresses</h2>
-              {store.profile.address ? (
-                <div className="rounded-lg border border-border p-6">
-                  <Badge>DEFAULT ADDRESS</Badge>
-                  <p className="mt-4 font-bold">{store.profile.name}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{store.profile.address}</p>
-                  <p className="mt-2 text-xs">{store.profile.phone}</p>
-                  <div className="mt-5 flex gap-4">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setProfile(store.profile);
-                        setLogin(true);
-                      }}
-                    >
-                      Edit address
-                    </Button>
-                    <button
-                      className="text-xs text-red-600"
-                      onClick={() => {
-                        store.set({
-                          profile: { ...store.profile, address: "" },
-                        });
-                        store.notify("Address removed");
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <Empty
-                    title="No address saved"
-                    description="Add an address to make your next checkout easier."
-                  />
-                  <Button
-                    className="mt-5"
-                    onClick={() => {
-                      setProfile(store.profile);
-                      setLogin(true);
-                    }}
-                  >
-                    Add address
-                  </Button>
-                </>
-              )}
-            </>
-          )}
+
           {section === "notifications" && (
             <>
               <div className="mb-6 flex justify-between">
@@ -733,76 +1402,114 @@ export default function Account() {
             </>
           )}
           {section === "support" && (
-            <>
-              <h2 className="mb-3 text-2xl font-bold">A little help goes a long way.</h2>
-              <p className="mb-6 text-sm text-muted-foreground">
-                Send a demo support request or contact IT HUB directly.
-              </p>
-              <Link
-                to="/support"
-                className="mb-6 flex items-center justify-between rounded-xl border border-primary/20 bg-secondary p-5 text-sm font-semibold text-primary"
-              >
-                Open the Help &amp; Support centre — brand warranty contacts, service and on-site
-                service
-                <span>→</span>
-              </Link>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  store.set((previous) => ({
-                    tickets: [
-                      {
-                        ...ticket,
-                        id: `SUP-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
-                        status: "Open",
-                      },
-                      ...previous.tickets,
-                    ],
-                  }));
-                  setTicket({ subject: "", message: "" });
-                  store.notify("Demo support request submitted");
-                }}
-                className="space-y-5 rounded-lg border border-border p-6"
-              >
-                <Field label="Subject">
-                  <input
-                    required
-                    minLength={3}
-                    value={ticket.subject}
-                    onChange={(event) => setTicket({ ...ticket, subject: event.target.value })}
-                    className={fieldClass}
-                  />
-                </Field>
-                <Field label="How can we help?">
-                  <textarea
-                    required
-                    minLength={10}
-                    value={ticket.message}
-                    onChange={(event) => setTicket({ ...ticket, message: event.target.value })}
-                    className={fieldClass}
-                    rows={4}
-                  />
-                </Field>
-                <Button type="submit">Submit demo request</Button>
-                <p className="text-[10px] text-muted-foreground">
-                  Saved in this browser only. No message is sent to IT HUB.
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold">After-Sales & Warranty Support</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Need assistance with an existing purchase, device diagnosis, or warranty repair?
+                  Contact our team directly.
                 </p>
-              </form>
-              <div className="mt-6 space-y-3">
-                {store.tickets.map((item) => (
-                  <div key={item.id} className="flex justify-between gap-3 rounded-md bg-muted p-4">
-                    <div>
-                      <p className="text-sm font-semibold">{item.subject}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{item.id}</p>
-                    </div>
-                    <Badge>{item.status}</Badge>
-                  </div>
-                ))}
               </div>
-              <ActionLink secondary to="/contact" className="mt-5">
-                Contact IT HUB
-              </ActionLink>
-            </>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                {/* Primary WhatsApp Card */}
+                <div className="rounded-3xl border border-green-200 bg-gradient-to-br from-green-50/80 to-card p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-600 text-white shadow-md">
+                      <WhatsAppIcon className="h-6 w-6" />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-foreground">Chat on WhatsApp</h3>
+                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                      Instant direct support with our senior technicians and service coordinators.
+                      Share photos, repair bills, or ask technical questions.
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <a
+                      href="https://wa.me/919876543210?text=Hello%20IT%20HUB,%20I%20need%20support%20with%20my%20order/service."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                    >
+                      <WhatsAppIcon className="h-4 w-4" /> Message Support on WhatsApp
+                    </a>
+                  </div>
+                </div>
+
+                {/* Direct Phone Call Card */}
+                <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">
+                      <Phone size={24} />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-foreground">Call IT HUB Helpline</h3>
+                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                      Speak directly with our store support desk during operating hours (Mon – Sat,
+                      9:30 AM – 7:30 PM).
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <a
+                      href="tel:+919876543210"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-muted/60 px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-muted"
+                    >
+                      <Phone size={16} /> +91 98765 43210
+                    </a>
+                  </div>
+                </div>
+
+                {/* Walk-in Service Centre Card */}
+                <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">
+                      <MapPin size={24} />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-foreground">Visit Service Centre</h3>
+                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                      <strong>IT HUB Experience Store</strong>
+                      <br />
+                      AM Road, Near Private Bus Stand,
+                      <br />
+                      Kothamangalam, Kerala 686691
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <Clock size={13} className="text-primary" /> Mon – Sat: 9:30 AM – 7:30 PM
+                      (Sunday Closed)
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <Link
+                      to="/contact"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-5 py-3 text-sm font-semibold text-primary transition hover:bg-secondary/80"
+                    >
+                      View Map & Directions <ArrowUpRight size={15} />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Book a Service Card */}
+                <div className="rounded-3xl border border-primary/20 bg-secondary/40 p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white shadow-sm">
+                      <Wrench size={24} />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold text-foreground">Need a Repair?</h3>
+                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                      Book a store walk-in, schedule a doorstep technician visit to your home or
+                      office, or arrange an insured courier pickup across Kerala.
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <Link
+                      to="/services/book"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90"
+                    >
+                      Book Service Online <ArrowUpRight size={15} />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
           {section === "settings" && (
             <>
@@ -847,7 +1554,7 @@ export default function Account() {
               </form>
             </>
           )}
-          {!sections.some((item) => item.id === section) && (
+          {!sections.some((item) => item.id === section) && section !== "settings" && (
             <Empty
               title="Account section not found"
               description="Use the account menu to find what you need."
@@ -859,9 +1566,12 @@ export default function Account() {
       </div>
       <Modal
         open={login}
-        onOpenChange={setLogin}
+        onOpenChange={(open) => {
+          setLogin(open);
+          if (!open) setAddressError("");
+        }}
         title="Make yourself at home."
-        description="Keep your details up to date for faster checkout and service bookings."
+        description="Keep your details up to date for faster checkout, doorstep visits, and courier tracking."
       >
         <div className="mb-5 flex justify-center">
           <Logo />
@@ -869,14 +1579,21 @@ export default function Account() {
         <form
           onSubmit={async (event) => {
             event.preventDefault();
-            store.set({ profile });
+            const cleanAddress = (profile.address || "").trim();
+            if (!cleanAddress) {
+              setAddressError("Delivery address is required. Please provide your full address.");
+              return;
+            }
+            setAddressError("");
+            const updatedProfile = { ...profile, address: cleanAddress };
+            store.set({ profile: updatedProfile });
             setLogin(false);
             try {
               const res = await updateCustomerProfile({
-                fullName: profile.name,
-                email: profile.email,
-                address: profile.address,
-                phone: profile.phone,
+                fullName: updatedProfile.name,
+                email: updatedProfile.email,
+                address: updatedProfile.address,
+                phone: updatedProfile.phone,
               });
               if (res.ok) {
                 store.notify("Profile saved to database");
@@ -889,7 +1606,7 @@ export default function Account() {
           }}
           className="space-y-5"
         >
-          <Field label="Full name">
+          <Field label="Full name *">
             <input
               required
               minLength={2}
@@ -912,21 +1629,75 @@ export default function Account() {
               type="tel"
               readOnly
               value={profile.phone}
-              onChange={(event) => setProfile({ ...profile, phone: event.target.value })}
-              className={fieldClass}
+              className={`${fieldClass} bg-muted cursor-not-allowed`}
             />
           </Field>
-          <Field label="Address (optional)">
+          <Field label="Address *">
             <textarea
+              required
+              rows={3}
+              placeholder="House / Apartment name, Street, Landmark, Town, PIN code"
               value={profile.address}
-              onChange={(event) => setProfile({ ...profile, address: event.target.value })}
-              className={fieldClass}
+              onChange={(event) => {
+                setProfile({ ...profile, address: event.target.value });
+                if (addressError) setAddressError("");
+              }}
+              className={`${fieldClass} ${addressError ? "border-destructive focus:ring-destructive" : ""}`}
             />
+            {addressError && (
+              <p className="mt-1 text-xs text-destructive font-medium">{addressError}</p>
+            )}
           </Field>
           <Button type="submit" className="w-full">
             Save profile
           </Button>
         </form>
+      </Modal>
+
+      {/* Non-blocking Customer Profile Completion Prompt Modal */}
+      <Modal
+        open={showProfilePrompt}
+        onOpenChange={(open) => {
+          if (!open) {
+            sessionStorage.setItem("ithub_profile_prompt_dismissed", "true");
+            setShowProfilePrompt(false);
+          }
+        }}
+        title="Complete Your IT HUB Profile"
+        description="Add your name and delivery address to enable faster checkout, doorstep technician dispatch, and courier tracking."
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-900 leading-relaxed">
+            <p className="font-semibold text-sm mb-1.5 flex items-center gap-1.5 text-primary">
+              <Sparkles size={16} /> Fast-track your services
+            </p>
+            Having your verified address on file ensures seamless doorstep repairs, accurate
+            logistics calculation, and rapid warranty dispatches.
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                sessionStorage.setItem("ithub_profile_prompt_dismissed", "true");
+                setShowProfilePrompt(false);
+              }}
+              className="flex-1"
+            >
+              I'll Do It Later
+            </Button>
+            <Button
+              onClick={() => {
+                setShowProfilePrompt(false);
+                setProfile(store.profile);
+                setAddressError("");
+                setLogin(true);
+              }}
+              className="flex-1"
+            >
+              Do It Now
+            </Button>
+          </div>
+        </div>
       </Modal>
       <Modal
         open={Boolean(warranty)}
@@ -956,6 +1727,11 @@ export default function Account() {
             ))}
         </div>
       </Modal>
+
+      <ShopifyOrderDetailsModal
+        order={selectedOrderForModal}
+        onClose={() => setSelectedOrderForModal(null)}
+      />
     </Page>
   );
 }

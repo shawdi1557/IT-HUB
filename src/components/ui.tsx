@@ -6,13 +6,15 @@ import { SplitText } from "./reactbits";
 import ShinyText from "./ShinyText";
 import logo from "../imports/ITHUBLOGO-1.jpeg";
 
-export const buttonClass =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-8px_rgba(26,79,214,.6)] transition hover:-translate-y-0.5 hover:bg-[#0c2f8a] hover:shadow-[0_14px_30px_-10px_rgba(26,79,214,.7)] disabled:opacity-40";
-export const secondaryClass =
-  "inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-semibold transition hover:border-primary hover:text-primary disabled:opacity-40";
+export const buttonBaseClass =
+  "inline-flex items-center justify-center gap-2 rounded-full bg-primary font-semibold text-white shadow-[0_8px_24px_-8px_rgba(26,79,214,.6)] transition hover:-translate-y-0.5 hover:bg-[#0c2f8a] hover:shadow-[0_14px_30px_-10px_rgba(26,79,214,.7)] disabled:opacity-40";
+export const secondaryBaseClass =
+  "inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white font-semibold transition hover:border-primary hover:text-primary disabled:opacity-40";
+export const buttonClass = `${buttonBaseClass} px-6 py-3 text-sm`;
+export const secondaryClass = `${secondaryBaseClass} px-6 py-3 text-sm`;
 export const fieldClass =
   "w-full rounded-xl border border-border bg-white px-4 py-3 text-sm transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:bg-muted";
-export const containerClass = "mx-auto w-full max-w-[1320px] px-5 md:px-9 lg:px-12";
+export const containerClass = "mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-8";
 export function Button({
   variant = "primary",
   size = "md",
@@ -46,20 +48,28 @@ export function ActionLink({
   secondary?: boolean;
   className?: string;
 }) {
+  const base = secondary ? secondaryBaseClass : buttonBaseClass;
+  const hasPadding = /\bpx-/.test(className);
+  const hasHeight = /\bh-/.test(className);
+  const defaultSizing = `${hasPadding ? "" : "px-6"} ${hasHeight ? "" : "py-3 text-sm"}`.trim();
   return (
-    <Link to={to} className={`${secondary ? secondaryClass : buttonClass} ${className}`}>
+    <Link to={to} className={`${base} ${defaultSizing} ${className}`.trim()}>
       {children}
     </Link>
   );
 }
-export function Logo({ large = false }: { large?: boolean }) {
+export function Logo({ large = false, className = "" }: { large?: boolean; className?: string }) {
+  const hasHeight = /\bh-/.test(className);
+  const hasWidth = /\bw-/.test(className);
+  const defaultHeight = large ? "h-36" : "h-[66px]";
+  const defaultWidth = large ? "w-36" : "w-[66px]";
+  const sizeClasses = `${hasHeight ? "" : defaultHeight} ${hasWidth ? "" : defaultWidth}`.trim();
+
   return (
     <img
       src={logo}
       alt="IT HUB — The Complete IT Store, since 2011"
-      className={`${
-        large ? "h-36 w-36" : "h-[66px] w-[66px]"
-      } shrink-0 rounded-sm bg-white object-contain`}
+      className={`${sizeClasses} shrink-0 rounded-sm bg-white object-contain ${className}`.trim()}
     />
   );
 }
@@ -238,45 +248,101 @@ export function Field({ label, children }: { label: string; children: ReactNode 
     </label>
   );
 }
-export function Timeline({ steps, current }: { steps: string[]; current: number }) {
+export interface TimelineProps {
+  steps: string[];
+  current: number;
+  statusName?: string;
+  isCompleted?: boolean;
+  completedAt?: string;
+  isCancelled?: boolean;
+}
+
+export function Timeline({
+  steps,
+  current,
+  statusName,
+  isCompleted,
+  completedAt,
+  isCancelled,
+}: TimelineProps) {
+  const isFinished = Boolean(
+    isCompleted ||
+    statusName === "Completed" ||
+    (current >= steps.length - 1 && steps[steps.length - 1] === "Completed"),
+  );
+  const isTerminated = Boolean(isCancelled || statusName === "Cancelled");
+
   return (
     <div className="space-y-0">
-      {steps.map((step, index) => (
-        <div key={step} className="relative flex gap-4 pb-7 last:pb-0">
-          {index < steps.length - 1 && (
-            <div
-              className={`absolute left-[15px] top-8 h-[calc(100%-32px)] w-px ${
-                index < current ? "bg-primary" : "bg-border"
-              }`}
-            />
-          )}
-          <div
-            className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs ${
-              index < current
-                ? "bg-primary text-white"
-                : index === current
-                  ? "bg-secondary text-primary ring-4 ring-primary/10"
-                  : "border border-border bg-white text-muted-foreground"
-            }`}
-          >
-            {index < current ? (
-              <Check size={14} />
-            ) : index === current ? (
-              <span className="h-2 w-2 rounded-full bg-primary" />
-            ) : (
-              index + 1
+      {steps.map((step, index) => {
+        const isLast = index === steps.length - 1;
+        const isStepCompleted = isFinished ? index <= current || isLast : index < current;
+        const isCurrentActive = !isFinished && !isTerminated && index === current;
+
+        // Line color
+        const isLineActive = isFinished ? index < steps.length - 1 : index < current;
+
+        return (
+          <div key={step} className="relative flex gap-4 pb-7 last:pb-0">
+            {index < steps.length - 1 && (
+              <div
+                className={`absolute left-[15px] top-8 h-[calc(100%-32px)] w-px ${
+                  isLineActive ? (isFinished ? "bg-emerald-600" : "bg-primary") : "bg-border"
+                }`}
+              />
             )}
-          </div>
-          <div className="pt-1">
-            <p
-              className={`text-sm font-semibold ${index > current ? "text-muted-foreground" : ""}`}
+            <div
+              className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                isStepCompleted
+                  ? isLast || isFinished
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-primary text-white"
+                  : isCurrentActive
+                    ? "bg-secondary text-primary ring-4 ring-primary/10"
+                    : isTerminated && index === 0
+                      ? "bg-red-50 text-red-600 border border-red-300 ring-4 ring-red-100"
+                      : "border border-border bg-white text-muted-foreground"
+              }`}
             >
-              {step}
-            </p>
-            {index === current && <p className="mt-1 text-xs text-primary">Current status</p>}
+              {isStepCompleted ? (
+                <Check size={14} className="stroke-[2.5]" />
+              ) : isCurrentActive ? (
+                <span className="h-2 w-2 rounded-full bg-primary" />
+              ) : isTerminated && index === 0 ? (
+                <X size={14} className="stroke-[2.5]" />
+              ) : (
+                index + 1
+              )}
+            </div>
+            <div className="pt-1">
+              <p
+                className={`text-sm font-semibold ${
+                  isStepCompleted
+                    ? "text-foreground"
+                    : isCurrentActive
+                      ? "text-primary"
+                      : isTerminated && index === 0
+                        ? "text-red-700"
+                        : "text-muted-foreground"
+                }`}
+              >
+                {step}
+              </p>
+              {isCurrentActive && (
+                <p className="mt-1 text-xs font-medium text-primary">Current status</p>
+              )}
+              {isFinished && isLast && (
+                <p className="mt-1 text-xs font-medium text-emerald-600">
+                  {completedAt ? `Completed on ${completedAt}` : "Service completed & delivered"}
+                </p>
+              )}
+              {isTerminated && index === 0 && (
+                <p className="mt-1 text-xs font-medium text-red-600">Service booking cancelled</p>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

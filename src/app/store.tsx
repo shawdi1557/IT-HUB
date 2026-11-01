@@ -1,12 +1,31 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { track } from "../lib/analytics";
 
 import { supabase } from "../lib/supabase";
-import { shopifyConfig, fetchShopifyCatalog } from "../lib/shopify";
+import {
+  shopifyConfig,
+  fetchShopifyCatalog,
+  checkShopifyAvailability,
+  patchShopifyAvailability,
+  syncShopifyAvailability,
+  diffCatalogProducts,
+  broadcastShopifySync,
+  subscribeToShopifySync,
+  toProductGid,
+  toVariantGid,
+  type VariantAvailabilityInfo,
+  recordInventoryMeasurement,
+} from "../lib/shopify";
 import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog";
+import { WEBSITE_CATEGORIES } from "../lib/categoryMapping";
 
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth";
+import {
+  initContentSync,
+  type AnnouncementItem,
+  type PromotionalCampaign,
+} from "../lib/realtime/contentSync";
 
 import {
   fetchCatalogDetailed,
@@ -191,6 +210,12 @@ type State = {
   catalogSource: "shopify" | "supabase" | "unconfigured";
 
   realtimeConnected: boolean;
+
+  announcement: AnnouncementItem | null;
+
+  promotionalCampaigns: PromotionalCampaign[];
+
+  contentSyncConnected: boolean;
 };
 
 const initial: State = {
@@ -205,6 +230,12 @@ const initial: State = {
   catalogSource: "unconfigured",
 
   realtimeConnected: false,
+
+  announcement: null,
+
+  promotionalCampaigns: [],
+
+  contentSyncConnected: false,
 
   cart: [],
 
@@ -246,7 +277,7 @@ const initial: State = {
 
   audit: [],
 
-  technicians: ["Unassigned", "Demo technician A", "Demo technician B"],
+  technicians: ["Unassigned"],
 
   catalogCategories: categories,
 
@@ -318,7 +349,11 @@ type Store = State & {
 
   log: (action: string) => void;
 
-  refreshCatalog: (options?: { force?: boolean }) => Promise<void>;
+  refreshCatalog: (options?: { force?: boolean; silent?: boolean }) => Promise<void>;
+
+  syncAvailability: () => Promise<boolean>;
+
+  patchAvailability: (availabilityMap: Record<string, VariantAvailabilityInfo>) => void;
 };
 
 // Keep one context instance across hot updates; otherwise an edited store
@@ -375,10 +410,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? parsed.buildTemplates
           : initial.buildTemplates,
 
-        certificates:
-          Array.isArray(parsed.certificates) && parsed.certificates.length > 0
-            ? parsed.certificates
-            : initial.certificates,
+        certificates: (() => {
+          if (!Array.isArray(parsed.certificates) || parsed.certificates.length === 0) {
+            return initial.certificates;
+          }
+          const list = parsed.certificates.map((c: CertificateItem) => {
+            if (c.id === "cert-intel") {
+              const needsTitleFix = c.text === "Intel Technology Partner";
+              const isDuplicateImage = c.image === "/images/recognition/intel-partner.jpg";
+              if (needsTitleFix || isDuplicateImage) {
+                return {
+                  ...c,
+                  text: needsTitleFix ? "Intel Partner Alliance" : c.text,
+                  image: isDuplicateImage ? "/images/about-store.png" : c.image,
+                  alt: "Intel Partner Alliance Membership Certificate for IT HUB",
+                };
+              }
+            }
+            return c;
+          });
+          const hasIggis = list.some((c: CertificateItem) => c.id === "cert-iggis");
+          if (!hasIggis) {
+            const iggisDefault = initial.certificates.find((c) => c.id === "cert-iggis");
+            if (iggisDefault) {
+              const intelIndex = list.findIndex((c: CertificateItem) => c.id === "cert-intel");
+              if (intelIndex !== -1) {
+                list.splice(intelIndex, 0, iggisDefault);
+              } else {
+                list.push(iggisDefault);
+              }
+            }
+          }
+          return list;
+        })(),
 
         locations:
           parsed.locations && parsed.locations.length > 0
@@ -482,11 +546,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
                 role: profile?.role || "customer",
 
-                phone: session.user.phone || prev.profile.phone,
+                phone: profile?.phone || session.user.phone || prev.profile.phone,
 
                 name: profile?.full_name || prev.profile.name,
 
-                email: profile?.email || session.user.email || prev.profile.email,
+                email:
+                  profile?.email ||
+                  (session.user.email && !session.user.email.endsWith("@customer.ithub.internal")
+                    ? session.user.email
+                    : "") ||
+                  prev.profile.email,
 
                 address: profile?.address || prev.profile.address,
               },
@@ -513,11 +582,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
               role: profile?.role || "customer",
 
-              phone: user.phone || prev.profile.phone,
+              phone: profile?.phone || user.phone || prev.profile.phone,
 
               name: profile?.full_name || prev.profile.name,
 
-              email: profile?.email || user.email || prev.profile.email,
+              email:
+                profile?.email ||
+                (user.email && !user.email.endsWith("@customer.ithub.internal")
+                  ? user.email
+                  : "") ||
+                prev.profile.email,
 
               address: profile?.address || prev.profile.address,
             },
@@ -531,10 +605,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const refreshCatalog = async (options: { force?: boolean } = {}) => {
-    setState((prev) =>
-      prev.products.length === 0 || options.force ? { ...prev, catalogLoading: true } : prev,
+  // Realtime Event-Driven Storefront Content Synchronization
+  // Synchronizes partner_certificates, website_showcase, announcements, store_settings, and it_hub_locations
+  useEffect(() => {
+    const cleanup = initContentSync(
+      { set: setState },
+      {
+        enableLogging: false,
+        onStatusChange: (status) => {
+          setState((prev) => ({
+            ...prev,
+            contentSyncConnected: status.isConnected,
+          }));
+        },
+      },
     );
+
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  const catalogSyncVersionRef = useRef(0);
+  const isCatalogSyncingRef = useRef(false);
+
+  const refreshCatalog = async (options: { force?: boolean; silent?: boolean } = {}) => {
+    // Only show loading spinner on initial cold load or explicit non-silent force
+    if (!options.silent) {
+      setState((prev) =>
+        prev.products.length === 0 || options.force ? { ...prev, catalogLoading: true } : prev,
+      );
+    }
+
+    if (isCatalogSyncingRef.current && !options.force) {
+      return;
+    }
+    isCatalogSyncingRef.current = true;
+    const currentVersion = ++catalogSyncVersionRef.current;
 
     try {
       if (shopifyConfig.isConfigured) {
@@ -545,6 +652,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           fetchActiveCouponsDetailed(),
         ]);
 
+        // Discard stale out-of-order response
+        if (currentVersion < catalogSyncVersionRef.current) {
+          return;
+        }
+
         setState((prev) => {
           const updates: Partial<State> = {
             catalogLoading: false,
@@ -554,37 +666,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (shopifyRes.status === "fulfilled") {
             const { products: shopifyProducts, isLive, error } = shopifyRes.value;
             if (error) {
-              // Strictly display error; never silently substitute with Supabase
+              // Strictly display error; preserve last known good catalog (never wipe to empty array)
               updates.catalogError = error;
               updates.catalogLive = false;
-              updates.products = [];
+              console.warn(
+                "[store] Shopify catalog sync warning (retaining last known good):",
+                error,
+              );
             } else {
-              updates.products = shopifyProducts;
-              updates.catalogLive = isLive;
-              updates.catalogError = null;
+              const diff = diffCatalogProducts(prev.products, shopifyProducts);
+              if (diff.hasChanges || prev.products.length === 0) {
+                updates.products = shopifyProducts;
+                updates.catalogLive = isLive;
+                updates.catalogError = null;
 
-              const liveCategories = Array.from(
-                new Set(shopifyProducts.map((p) => p.category).filter(Boolean)),
-              );
-              if (liveCategories.length > 0) {
-                updates.catalogCategories = ["All", ...liveCategories.filter((c) => c !== "All")];
-              }
-              const liveBrands = Array.from(
-                new Set(shopifyProducts.map((p) => p.brand).filter(Boolean)),
-              );
-              if (liveBrands.length > 0) {
-                updates.brands = liveBrands;
-              }
+                const liveCategories = Array.from(
+                  new Set(shopifyProducts.map((p) => p.category).filter(Boolean)),
+                );
+                updates.catalogCategories = ["All", ...WEBSITE_CATEGORIES];
+                const liveBrands = Array.from(
+                  new Set(
+                    shopifyProducts.map((p) => p.brand).filter((b) => Boolean(b && b.trim())),
+                  ),
+                );
+                if (liveBrands.length > 0) {
+                  updates.brands = liveBrands;
+                }
 
-              // Synchronize PC Builder catalog with authentic Shopify products (authoritative source)
-              const syncResult = syncBuilderCatalogWithShopify(shopifyProducts);
-              updates.componentCatalog = syncResult.componentCatalog;
+                // Synchronize PC Builder catalog with authentic Shopify products (authoritative source)
+                const syncResult = syncBuilderCatalogWithShopify(shopifyProducts);
+                updates.componentCatalog = syncResult.componentCatalog;
+
+                // Broadcast structural update to other open browser tabs
+                if (diff.hasStructuralChanges) {
+                  broadcastShopifySync({ type: "CATALOG_SYNC", timestamp: Date.now() });
+                }
+              }
             }
           } else {
             updates.catalogError =
               shopifyRes.reason?.message || "Failed to load products from Shopify Storefront.";
             updates.catalogLive = false;
-            updates.products = [];
+            // Retain prev.products as last known good
+            console.warn(
+              "[store] Shopify catalog request rejected (retaining last known good):",
+              shopifyRes.reason,
+            );
           }
 
           if (offersRes.status === "fulfilled" && offersRes.value.isLive) {
@@ -606,6 +733,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         fetchActiveCouponsDetailed(),
       ]);
 
+      if (currentVersion < catalogSyncVersionRef.current) return;
+
       setState((prev) => {
         const updates: Partial<State> = {
           catalogLoading: false,
@@ -625,11 +754,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const liveCategories = Array.from(
               new Set(liveProducts.map((p) => p.category).filter(Boolean)),
             );
-            if (liveCategories.length > 0) {
-              updates.catalogCategories = ["All", ...liveCategories.filter((c) => c !== "All")];
-            }
+            updates.catalogCategories = ["All", ...WEBSITE_CATEGORIES];
             const liveBrands = Array.from(
-              new Set(liveProducts.map((p) => p.brand).filter(Boolean)),
+              new Set(liveProducts.map((p) => p.brand).filter((b) => Boolean(b && b.trim()))),
             );
             if (liveBrands.length > 0) {
               updates.brands = liveBrands;
@@ -659,7 +786,143 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         catalogError: err instanceof Error ? err.message : String(err),
       }));
+    } finally {
+      if (currentVersion === catalogSyncVersionRef.current) {
+        isCatalogSyncingRef.current = false;
+      }
     }
+  };
+
+  const productsRef = useRef(state.products);
+  useEffect(() => {
+    productsRef.current = state.products;
+  }, [state.products]);
+
+  const isAvailabilitySyncingRef = useRef(false);
+
+  const syncAvailability = async (
+    trigger: "poll" | "focus" | "visibility" | "manual" = "poll",
+  ): Promise<boolean> => {
+    const currentProducts = productsRef.current;
+    if (!shopifyConfig.isConfigured || currentProducts.length === 0) return false;
+
+    // Concurrency lock: Prevent overlapping in-flight availability checks
+    if (isAvailabilitySyncingRef.current) return false;
+    isAvailabilitySyncingRef.current = true;
+
+    try {
+      const syncResult = await syncShopifyAvailability(currentProducts);
+      const t3 = syncResult.t3 || performance.now();
+      const t4 = performance.now();
+
+      if (syncResult.hasChanges && syncResult.availability) {
+        const availabilityMap = syncResult.availability;
+        setState((prev) => {
+          // Functionally patch against latest prev.products in case a concurrent structural sync completed
+          const { updatedProducts, hasChanges: stateHasChanges } = patchShopifyAvailability(
+            prev.products,
+            availabilityMap,
+          );
+          if (!stateHasChanges) return prev;
+          const syncResultBuilder = syncBuilderCatalogWithShopify(updatedProducts);
+          return {
+            ...prev,
+            products: updatedProducts,
+            componentCatalog: syncResultBuilder.componentCatalog,
+          };
+        });
+
+        // Record T5 when React has committed changes and browser prepares paint
+        const t4_snapshot = t4;
+        if (typeof window !== "undefined" && "requestAnimationFrame" in window) {
+          requestAnimationFrame(() => {
+            const t5 = performance.now();
+            recordInventoryMeasurement({
+              id: `meas-${Date.now()}`,
+              trigger,
+              t2_requestStarted: syncResult.t2 || t3 - (syncResult.durationMs || 0),
+              t3_responseReceived: t3,
+              t4_statePatched: t4_snapshot,
+              t5_uiRendered: t5,
+              requestDurationMs: syncResult.durationMs || t3 - (syncResult.t2 || t3),
+              processingDurationMs: t4_snapshot - t3,
+              renderDurationMs: t5 - t4_snapshot,
+              hasChanges: true,
+              nodeCount: currentProducts.length,
+              status: "success",
+            });
+          });
+        }
+
+        // Broadcast availability update (including variants) to all other open tabs
+        const availabilityPayload: Record<string, any> = {};
+        for (const p of syncResult.updatedProducts) {
+          availabilityPayload[toProductGid(p.id)] = {
+            id: toProductGid(p.id),
+            availableForSale: p.availableForSale,
+          };
+          availabilityPayload[p.id] = {
+            id: toProductGid(p.id),
+            availableForSale: p.availableForSale,
+          };
+          if (p.variants) {
+            for (const v of p.variants) {
+              const vInfo = {
+                id: v.id,
+                availableForSale: v.availableForSale,
+              };
+              availabilityPayload[v.id] = vInfo;
+              availabilityPayload[toVariantGid(v.id)] = vInfo;
+            }
+          }
+        }
+        broadcastShopifySync({
+          type: "AVAILABILITY_SYNC",
+          timestamp: Date.now(),
+          payload: availabilityPayload,
+        });
+
+        return true;
+      } else {
+        // Record unchanged poll measurement
+        recordInventoryMeasurement({
+          id: `meas-${Date.now()}`,
+          trigger,
+          t2_requestStarted: syncResult.t2 || t3 - (syncResult.durationMs || 0),
+          t3_responseReceived: t3,
+          t4_statePatched: t4,
+          t5_uiRendered: t4,
+          requestDurationMs: syncResult.durationMs || t3 - (syncResult.t2 || t3),
+          processingDurationMs: t4 - t3,
+          renderDurationMs: 0,
+          hasChanges: false,
+          nodeCount: currentProducts.length,
+          status: syncResult.error ? "error" : "unchanged",
+          error: syncResult.error,
+        });
+      }
+    } catch {
+      // Graceful fallback
+    } finally {
+      isAvailabilitySyncingRef.current = false;
+    }
+    return false;
+  };
+
+  const patchAvailability = (availabilityMap: Record<string, VariantAvailabilityInfo>) => {
+    setState((prev) => {
+      const { updatedProducts, hasChanges } = patchShopifyAvailability(
+        prev.products,
+        availabilityMap,
+      );
+      if (!hasChanges) return prev;
+      const syncResult = syncBuilderCatalogWithShopify(updatedProducts);
+      return {
+        ...prev,
+        products: updatedProducts,
+        componentCatalog: syncResult.componentCatalog,
+      };
+    });
   };
 
   // Phase 3 Step 3: Background Stale-While-Revalidate catalog hydration
@@ -752,14 +1015,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
 
     let lastFocusSync = Date.now();
+    let lastStructuralSync = Date.now();
 
     const handleFocusSync = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        // Throttle background focus revalidation to at most once per 60 seconds
-        if (now - lastFocusSync >= 60_000) {
+        // Responsive tab focus revalidation (3s debounce prevents event storming)
+        if (now - lastFocusSync >= 3_000) {
           lastFocusSync = now;
-          refreshCatalog({ force: true });
+          if (shopifyConfig.isConfigured) {
+            syncAvailability("focus");
+            if (now - lastStructuralSync >= 15_000) {
+              lastStructuralSync = now;
+              refreshCatalog({ silent: true });
+            }
+          } else {
+            refreshCatalog({ force: true });
+          }
         }
       }
     };
@@ -774,6 +1046,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", handleFocusSync);
 
       client.removeChannel(channel);
+    };
+  }, []);
+
+  // Phase 2: Active tab visibility-aware dual-tier synchronization & cross-tab sync
+  // Tier 1: Real-time availability check every 5 seconds (198ms lightweight query)
+  // Tier 2: Structural catalog sync every 20 seconds (silent, zero layout shift)
+  useEffect(() => {
+    if (!shopifyConfig.isConfigured) return;
+
+    let availabilityTimer: any = null;
+    let structuralTimer: any = null;
+
+    const startPolling = () => {
+      stopPolling();
+      availabilityTimer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          syncAvailability("poll");
+        }
+      }, 5_000);
+
+      structuralTimer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          refreshCatalog({ silent: true });
+        }
+      }, 20_000);
+    };
+
+    const stopPolling = () => {
+      if (availabilityTimer) {
+        clearInterval(availabilityTimer);
+        availabilityTimer = null;
+      }
+      if (structuralTimer) {
+        clearInterval(structuralTimer);
+        structuralTimer = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        syncAvailability("visibility");
+        refreshCatalog({ silent: true });
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    if (document.visibilityState === "visible") {
+      startPolling();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Cross-tab broadcast synchronization subscription
+    const unsubscribeBroadcast = subscribeToShopifySync((msg) => {
+      if (msg.type === "AVAILABILITY_SYNC" && msg.payload) {
+        patchAvailability(msg.payload);
+      } else if (msg.type === "CATALOG_SYNC") {
+        refreshCatalog({ silent: true });
+      }
+    });
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+      unsubscribeBroadcast();
     };
   }, []);
 
@@ -819,13 +1158,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       : null;
 
     if (item.productId) {
+      const variant = product?.variants?.find((v) => v.id === item.variantId || v.id === item.id);
+      const isVariantSoldOut = variant ? !variant.availableForSale : false;
       const isSoldOut = product
         ? product.availableForSale !== undefined
           ? !product.availableForSale
           : product.stock <= 0
         : false;
 
-      if (!product || isSoldOut) {
+      if (!product || isSoldOut || isVariantSoldOut) {
         notify("Sorry, this item is currently sold out.");
         return;
       }
@@ -902,6 +1243,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         log,
 
         refreshCatalog,
+
+        syncAvailability,
+
+        patchAvailability,
       }}
     >
       {children}

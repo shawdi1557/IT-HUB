@@ -21,6 +21,10 @@ export type Product = {
 
   brand: string;
 
+  brandSource?: "metafield" | "tag" | "vendor" | "provenance" | "unspecified";
+
+  brandFlaggedForReview?: boolean;
+
   category: string;
 
   categorySource?: "taxonomy" | "productType" | "collection" | "fallback";
@@ -463,24 +467,46 @@ export const orderStatuses = [
 ];
 
 export const serviceStatuses = [
-  "Requested",
-
-  "Pickup scheduled",
-
-  "Device received",
-
-  "Diagnosing",
-
-  "Awaiting approval",
-
+  "Booked",
+  "Device Received",
+  "Under Diagnosis",
+  "Awaiting Approval",
   "Approved",
+  "In Progress",
+  "Quality Check",
+  "Ready for Delivery",
+  "Completed",
+];
 
-  "Repairing",
+// Method-specific tracking pipelines
+export const doorstepServiceStatuses = [
+  "Booked",
+  "Technician Assigned",
+  "Technician has Left IT HUB",
+  "Technician Arrived at Your Location",
+  "Service in Progress",
+  "Completed",
+];
 
-  "Quality check",
+export const courierServiceStatuses = [
+  "Booked",
+  "Device Received",
+  "Under Diagnosis",
+  "Awaiting Approval",
+  "In Progress",
+  "Quality Check",
+  "Ready for Delivery",
+  "Completed",
+];
 
-  "Ready for delivery",
-
+export const walkInServiceStatuses = [
+  "Booked",
+  "Device Received",
+  "Under Diagnosis",
+  "Awaiting Approval",
+  "In Progress",
+  "Quality Check",
+  "Ready for Pickup",
   "Completed",
 ];
 
@@ -1515,6 +1541,7 @@ export interface QuotationItem {
   canDefer: boolean;
   dependsOn?: string[];
   approvalState: QuotationItemState;
+  requirementLevel?: "required" | "recommended" | "optional";
 }
 
 export interface QuotationRevision {
@@ -1530,7 +1557,11 @@ export interface QuotationRevision {
 export type ServiceRequest = {
   id: string;
 
+  ticketReference?: string;
+
   userId?: string;
+
+  isOwner?: boolean;
 
   name: string;
 
@@ -1584,7 +1615,27 @@ export type ServiceRequest = {
 
   quotationHistory?: QuotationRevision[];
 
+  guestToken?: string;
+
+  pincode?: string;
+
+  inboundCourierTrackingNo?: string;
+
+  outboundCourierTrackingNo?: string;
+
+  statusDescriptions?: Record<string, string>;
+
+  addressDetails?: Record<string, any>;
+
+  customerDescription?: string;
+  createdAt?: string;
+
   payment?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  paidAmount?: number;
+  paidAt?: string;
+  rescheduleDetails?: any;
 };
 
 // ── Offers (no coupon codes — offers apply automatically by date window) ──
@@ -2399,8 +2450,6 @@ export const adminGroups: AdminNavGroup[] = [
   },
 
   { name: "Customers", section: "customers" },
-
-  { name: "Reviews", section: "reviews" },
 
   {
     name: "Certificates",

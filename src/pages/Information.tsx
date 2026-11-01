@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import {
   ArrowUpRight,
@@ -49,6 +49,8 @@ import {
   type CertificateItem,
   initialCertificates,
 } from "../data/catalog";
+import { fetchPublishedCertificates } from "../lib/certificates";
+import { supabase } from "../lib/supabase";
 
 const offerLink = (offer: Offer) =>
   offer.categories[0]
@@ -154,6 +156,7 @@ export function LocationCard() {
 export function About() {
   const store = useStore();
   const [viewCert, setViewCert] = useState<CertificateItem | null>(null);
+
   const certificates =
     store.certificates && store.certificates.length > 0 ? store.certificates : initialCertificates;
   return (
@@ -343,6 +346,15 @@ export function About() {
                   <img
                     src={item.image}
                     alt={item.alt}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.dataset.triedFallback) {
+                        target.dataset.triedFallback = "true";
+                        if (item.id === "cert-intel" || item.brand === "Intel") {
+                          target.src = "/images/about-store.png";
+                        }
+                      }
+                    }}
                     className="h-full w-full object-contain rounded-lg transition-transform duration-500 group-hover:scale-[1.03]"
                     loading="lazy"
                   />
@@ -421,9 +433,18 @@ export function About() {
         <p className="mt-3 text-sm text-muted-foreground">
           Technology products, service support and local assistance.
         </p>
-        <p className="mt-3 text-[10px] text-muted-foreground">
-          Customer rating · supplied static prototype value · no live review integration
-        </p>
+        <div className="mt-4">
+          <a
+            href={MAP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 px-4 py-1.5 text-xs font-semibold text-foreground shadow-2xs hover:border-primary hover:text-primary transition"
+            title="View IT HUB customer reviews on Google Maps"
+          >
+            <span className="font-bold text-amber-500">4.8</span> Customer rating on Google Maps
+            <ArrowUpRight size={13} className="text-muted-foreground" />
+          </a>
+        </div>
       </div>
       <div className="grid items-center gap-8 md:grid-cols-2">
         <div>
@@ -451,6 +472,15 @@ export function About() {
               <img
                 src={viewCert.image}
                 alt={viewCert.alt || viewCert.text}
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.dataset.triedFallback) {
+                    target.dataset.triedFallback = "true";
+                    if (viewCert.id === "cert-intel" || viewCert.brand === "Intel") {
+                      target.src = "/images/about-store.png";
+                    }
+                  }
+                }}
                 className="max-h-[65vh] w-auto max-w-full rounded-xl object-contain shadow-xs"
               />
             </div>

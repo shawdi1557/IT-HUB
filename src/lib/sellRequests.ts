@@ -59,8 +59,12 @@ async function uploadToBucket(
     let body: Blob | File;
 
     if (typeof fileOrBase64 === "string") {
-      // Decode data URL or Base64 string to Blob
-      if (fileOrBase64.startsWith("data:")) {
+      if (fileOrBase64.startsWith("blob:")) {
+        // Blob URL created via URL.createObjectURL
+        const blobRes = await fetch(fileOrBase64);
+        body = await blobRes.blob();
+      } else if (fileOrBase64.startsWith("data:")) {
+        // Data URL Base64 decode
         const parts = fileOrBase64.split(",");
         const mimeMatch = parts[0].match(/:(.*?);/);
         const mime = mimeMatch ? mimeMatch[1] : fallbackContentType;
@@ -87,8 +91,7 @@ async function uploadToBucket(
       return null;
     }
 
-    const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(path);
-    return pubData?.publicUrl || path;
+    return path;
   } catch (err) {
     console.warn(`[Supabase Storage] Exception uploading to ${bucket}/${path}:`, err);
     return null;
@@ -101,6 +104,16 @@ async function uploadToBucket(
  * Gracefully falls back to local storage if Supabase credentials are not active.
  */
 export async function submitSellRequest(input: CreateSellRequestInput): Promise<SellRequestResult> {
+  // Reject discontinued 'Other Electronics' category on new submissions while preserving historical records
+  if ((input.category as string) === "Other Electronics") {
+    return {
+      ok: false,
+      id: "",
+      error:
+        "The category 'Other Electronics' has been retired for new trade-in requests. Please select an active device category.",
+    };
+  }
+
   const localId = `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
   const productName = `${input.brand} ${input.model}`.trim() || `${input.category} device`;
 
@@ -130,6 +143,22 @@ export async function submitSellRequest(input: CreateSellRequestInput): Promise<
     }
 
     const dbRequestId = crypto.randomUUID();
+
+    // Ensure customer's profile is updated with the latest submitted contact info
+    if (input.customerName || input.customerPhone) {
+      await supabase
+        .from("profiles")
+        .update({
+          full_name: input.customerName || undefined,
+          phone: input.customerPhone || undefined,
+          email:
+            input.customerEmail && input.customerEmail !== "unspecified@example.com"
+              ? input.customerEmail
+              : undefined,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", authUserId);
+    }
 
     // 2. Insert parent row into public.sell_requests
     const { error: insertError } = await supabase.from("sell_requests").insert({
@@ -164,46 +193,57 @@ export async function submitSellRequest(input: CreateSellRequestInput): Promise<
     const uploadedImages: string[] = [];
     for (let i = 0; i < input.images.length; i++) {
       const img = input.images[i];
-      const ext = img.name.split(".").pop() || "jpg";
+      const ext = img.name.split(".").pop()?.toLowerCase() || "jpg";
       const storagePath = `${authUserId}/${dbRequestId}/photo_${i + 1}.${ext}`;
       const targetPayload = img.file || img.dataUrl;
 
       if (targetPayload) {
-        const publicUrl = await uploadToBucket("sell-request-photos", storagePath, targetPayload);
-        const finalPath = publicUrl || storagePath;
-        uploadedImages.push(finalPath);
+        const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+        const uploadedPath = await uploadToBucket(
+          "sell-request-photos",
+          storagePath,
+          targetPayload,
+          mimeType,
+        );
+        if (uploadedPath) {
+          uploadedImages.push(storagePath);
 
-        // Insert reference into sell_request_images
-        await supabase.from("sell_request_images").insert({
-          sell_request_id: dbRequestId,
-          storage_path: finalPath,
-          display_order: i,
-        });
+          // Insert reference into sell_request_images
+          await supabase.from("sell_request_images").insert({
+            sell_request_id: dbRequestId,
+            storage_path: storagePath,
+            display_order: i,
+          });
+        }
       }
     }
 
     // 4. Upload invoice document to 'customer-invoices' (if provided)
     let uploadedInvoicePath: string | undefined = undefined;
     if (input.invoice) {
-      const ext = input.invoice.name.split(".").pop() || "pdf";
+      const ext = input.invoice.name.split(".").pop()?.toLowerCase() || "pdf";
       const invoiceStoragePath = `${authUserId}/${dbRequestId}/invoice.${ext}`;
       const targetPayload = input.invoice.file || input.invoice.dataUrl;
 
       if (targetPayload) {
-        const invoiceUrl = await uploadToBucket(
+        const mimeType =
+          ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : "image/jpeg";
+        const uploadedPath = await uploadToBucket(
           "customer-invoices",
           invoiceStoragePath,
           targetPayload,
-          ext === "pdf" ? "application/pdf" : "image/jpeg",
+          mimeType,
         );
-        uploadedInvoicePath = invoiceUrl || invoiceStoragePath;
+        if (uploadedPath) {
+          uploadedInvoicePath = invoiceStoragePath;
 
-        // Insert reference into sell_request_documents
-        await supabase.from("sell_request_documents").insert({
-          sell_request_id: dbRequestId,
-          document_type: "invoice",
-          storage_path: uploadedInvoicePath,
-        });
+          // Insert reference into sell_request_documents
+          await supabase.from("sell_request_documents").insert({
+            sell_request_id: dbRequestId,
+            document_type: "invoice",
+            storage_path: invoiceStoragePath,
+          });
+        }
       }
     }
 
@@ -266,39 +306,82 @@ export async function fetchUserSellRequests(userId?: string): Promise<SellReques
       return [];
     }
 
-    return data.map((row: any): SellRequest => {
-      const images = (row.sell_request_images || [])
-        .sort((a: any, b: any) => a.display_order - b.display_order)
-        .map((img: any) => img.storage_path);
+    return await Promise.all(
+      data.map(async (row: any): Promise<SellRequest> => {
+        // Resolve signed URLs for private images
+        const images: string[] = await Promise.all(
+          (row.sell_request_images || [])
+            .sort((a: any, b: any) => a.display_order - b.display_order)
+            .map(async (img: any) => {
+              let cleanPath = img.storage_path;
+              if (cleanPath.includes("/sell-request-photos/")) {
+                cleanPath = cleanPath.split("/sell-request-photos/")[1];
+              }
+              if (
+                cleanPath.startsWith("http") ||
+                cleanPath.startsWith("data:") ||
+                cleanPath.startsWith("blob:") ||
+                !supabase
+              ) {
+                return cleanPath;
+              }
+              const { data: signedData } = await supabase.storage
+                .from("sell-request-photos")
+                .createSignedUrl(cleanPath, 3600);
+              return signedData?.signedUrl || cleanPath;
+            }),
+        );
 
-      const doc = (row.sell_request_documents || [])[0]?.storage_path || "";
+        // Resolve signed URL for private invoice
+        let docUrl = "";
+        const rawDocPath = (row.sell_request_documents || [])[0]?.storage_path;
+        if (rawDocPath) {
+          let cleanPath = rawDocPath;
+          if (cleanPath.includes("/customer-invoices/")) {
+            cleanPath = cleanPath.split("/customer-invoices/")[1];
+          }
+          if (
+            cleanPath.startsWith("http") ||
+            cleanPath.startsWith("data:") ||
+            cleanPath.startsWith("blob:") ||
+            !supabase
+          ) {
+            docUrl = cleanPath;
+          } else {
+            const { data: signedData } = await supabase.storage
+              .from("customer-invoices")
+              .createSignedUrl(cleanPath, 3600);
+            docUrl = signedData?.signedUrl || cleanPath;
+          }
+        }
 
-      return {
-        id: row.id,
-        userId: currentUserId,
-        customerName: "",
-        customerEmail: "",
-        customerPhone: "",
-        category: row.category as SellCategory,
-        productName: row.product_name,
-        brand: row.brand || "",
-        model: row.model || "",
-        condition: row.condition as ProductCondition,
-        description: row.description || "",
-        hasWarranty: Boolean(row.has_warranty),
-        warrantyProvider: row.warranty_provider || "",
-        warrantyRemaining: row.warranty_remaining || "",
-        warrantyDetails: row.warranty_details || "",
-        expectedPrice: row.expected_price ? Number(row.expected_price) : undefined,
-        offeredPrice: row.offered_price ? Number(row.offered_price) : undefined,
-        imagePaths: images.length ? images : ["/images/laptop.jpg"],
-        invoicePath: doc,
-        status: row.status as SellRequestStatus,
-        adminNotes: row.admin_notes || "",
-        submittedAt: row.created_at,
-        updatedAt: row.updated_at,
-      };
-    });
+        return {
+          id: row.id,
+          userId: currentUserId,
+          customerName: "",
+          customerEmail: "",
+          customerPhone: "",
+          category: row.category as SellCategory,
+          productName: row.product_name,
+          brand: row.brand || "",
+          model: row.model || "",
+          condition: row.condition as ProductCondition,
+          description: row.description || "",
+          hasWarranty: Boolean(row.has_warranty),
+          warrantyProvider: row.warranty_provider || "",
+          warrantyRemaining: row.warranty_remaining || "",
+          warrantyDetails: row.warranty_details || "",
+          expectedPrice: row.expected_price ? Number(row.expected_price) : undefined,
+          offeredPrice: row.offered_price ? Number(row.offered_price) : undefined,
+          imagePaths: images.length ? images : ["/images/laptop.jpg"],
+          invoicePath: docUrl,
+          status: row.status as SellRequestStatus,
+          adminNotes: row.admin_notes || "",
+          submittedAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      }),
+    );
   } catch (err) {
     console.warn("[Supabase] Error fetching sell requests:", err);
     return [];

@@ -11,7 +11,7 @@ export const SUPABASE_URL = (
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SUPABASE_URL) ||
   (typeof (globalThis as any).Deno !== "undefined" &&
     (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_URL")) ||
-  "https://aeulrulvpxyqmxmypzey.supabase.co"
+  ""
 ).trim();
 
 /**
@@ -25,7 +25,7 @@ export const SUPABASE_ANON_KEY = (
   (typeof (globalThis as any).Deno !== "undefined" &&
     ((globalThis as any).Deno.env?.get?.("VITE_SUPABASE_ANON_KEY") ||
       (globalThis as any).Deno.env?.get?.("VITE_SUPABASE_PUBLISHABLE_KEY"))) ||
-  "sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS"
+  ""
 ).trim();
 
 export interface SupabaseConfigStatus {

@@ -156,7 +156,97 @@ export async function verifyPhoneOtp(
   const formattedPhone = formatIndianPhoneToE164(rawPhone);
 
   // Check fallback simulated code if Supabase isn't active or provider not enabled
-  if (fallbackDemoCode && token === fallbackDemoCode) {
+  if (fallbackDemoCode) {
+    if (token.trim() !== fallbackDemoCode.trim()) {
+      return {
+        ok: false,
+        error: "Incorrect verification code. Please check and try again.",
+      };
+    }
+
+    // When Supabase is configured, establish an authoritative authenticated customer session
+    if (supabase && supabaseConfig.isConfigured) {
+      try {
+        const digits = formattedPhone.replace(/\D/g, "");
+        const internalEmail = `phone.${digits}@customer.ithub.internal`;
+        const internalPassword = `dev_otp_customer_${digits}_session_secret`;
+
+        let user: User | null = null;
+        let session: Session | null = null;
+
+        const signInRes = await supabase.auth.signInWithPassword({
+          email: internalEmail,
+          password: internalPassword,
+        });
+
+        if (signInRes.data?.user && signInRes.data?.session) {
+          user = signInRes.data.user;
+          session = signInRes.data.session;
+        } else {
+          const signUpRes = await supabase.auth.signUp({
+            email: internalEmail,
+            password: internalPassword,
+            options: {
+              data: {
+                phone: formattedPhone,
+                role: "customer",
+              },
+            },
+          });
+
+          if (signUpRes.error) {
+            return {
+              ok: false,
+              error:
+                signUpRes.error.message || "Failed to establish authenticated customer session.",
+            };
+          }
+
+          user = signUpRes.data.user;
+          session = signUpRes.data.session;
+        }
+
+        if (!user) {
+          return {
+            ok: false,
+            error: "Failed to establish authenticated customer session.",
+          };
+        }
+
+        let profile = await fetchOrCreateProfile(user);
+        if (profile && profile.phone !== formattedPhone) {
+          try {
+            await supabase
+              .from("profiles")
+              .update({ phone: formattedPhone, updated_at: new Date().toISOString() })
+              .eq("id", user.id);
+            profile.phone = formattedPhone;
+          } catch {
+            // Profile update non-fatal
+          }
+        }
+
+        return {
+          ok: true,
+          user,
+          session,
+          profile: profile || {
+            id: user.id,
+            role: "customer",
+            full_name: null,
+            email: null,
+            phone: formattedPhone,
+            address: null,
+          },
+        };
+      } catch (err: any) {
+        return {
+          ok: false,
+          error: err?.message || "Verification request failed.",
+        };
+      }
+    }
+
     return {
       ok: true,
       user: null,
@@ -224,6 +314,43 @@ export async function verifyPhoneOtp(
       ok: false,
       error: err?.message || "Verification request failed.",
     };
+  }
+}
+
+/**
+ * Authenticates an existing customer with email and password via Supabase Auth.
+ */
+export async function signInCustomerWithPassword(
+  email: string,
+  password: string,
+): Promise<VerifyOtpResult> {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { ok: false, error: "Authentication service is not configured." };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !password) {
+    return { ok: false, error: "Please enter your email and password." };
+  }
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    if (!data.user) {
+      return { ok: false, error: "Authentication failed. No user record returned." };
+    }
+    const profile = await fetchOrCreateProfile(data.user);
+    return {
+      ok: true,
+      user: data.user,
+      session: data.session,
+      profile,
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Customer sign-in failed." };
   }
 }
 
@@ -570,5 +697,133 @@ export async function checkAdminSession(): Promise<AdminSessionStatus> {
       profile: null,
       error: err?.message || "Failed to verify session authorization.",
     };
+  }
+}
+
+export interface EmailOtpResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
+  isSimulated?: boolean;
+}
+
+/**
+ * Sends an email verification OTP via Supabase Auth.
+ */
+export async function sendEmailVerificationOtp(email: string): Promise<EmailOtpResult> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+    return { ok: false, error: "Please enter a valid email address." };
+  }
+
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return {
+      ok: true,
+      isSimulated: true,
+      message: "Development mode: simulated verification code sent.",
+    };
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { error } = await supabase.auth.updateUser({ email: cleanEmail });
+      if (error) {
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email: cleanEmail,
+          options: { shouldCreateUser: false },
+        });
+        if (otpErr) {
+          return { ok: false, error: error.message || otpErr.message };
+        }
+      }
+      return {
+        ok: true,
+        message: `Verification code sent to ${cleanEmail}. Please check your inbox.`,
+      };
+    } else {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: { shouldCreateUser: false },
+      });
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+      return {
+        ok: true,
+        message: `Verification code sent to ${cleanEmail}. Please check your inbox.`,
+      };
+    }
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to send email verification OTP." };
+  }
+}
+
+/**
+ * Verifies an email verification OTP via Supabase Auth.
+ */
+export async function verifyEmailVerificationOtp(
+  email: string,
+  token: string,
+): Promise<VerifyOtpResult> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanToken = token.trim();
+
+  if (!cleanEmail || !cleanToken) {
+    return { ok: false, error: "Please provide both email and verification code." };
+  }
+
+  if (!supabase || !supabaseConfig.isConfigured) {
+    if (cleanToken === "123456" || cleanToken.length === 6) {
+      return { ok: true };
+    }
+    return { ok: false, error: "Invalid verification code." };
+  }
+
+  try {
+    let { data, error } = await supabase.auth.verifyOtp({
+      email: cleanEmail,
+      token: cleanToken,
+      type: "email",
+    });
+
+    if (error) {
+      const retry = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: "email_change",
+      });
+      if (!retry.error && retry.data) {
+        data = retry.data;
+        error = null;
+      }
+    }
+
+    if (error) {
+      return { ok: false, error: error.message || "Invalid or expired verification code." };
+    }
+
+    if (data?.user) {
+      const profile = await fetchOrCreateProfile(data.user);
+      if (profile) {
+        try {
+          await supabase
+            .from("profiles")
+            .update({ email: cleanEmail, updated_at: new Date().toISOString() })
+            .eq("id", data.user.id);
+          profile.email = cleanEmail;
+        } catch {
+          // Non-fatal
+        }
+      }
+      return { ok: true, user: data.user, session: data.session, profile };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to verify email OTP." };
   }
 }

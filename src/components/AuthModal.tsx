@@ -5,6 +5,7 @@ import {
   LockKeyhole,
   MessageSquareText,
   Smartphone,
+  Mail,
   RefreshCw,
   CheckCircle2,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import { Button, Modal } from "./ui";
 import {
   sendPhoneOtp,
   verifyPhoneOtp,
+  signInCustomerWithPassword,
   isValidIndianMobile,
   formatIndianPhoneToE164,
 } from "../lib/auth";
@@ -28,8 +30,10 @@ export default function AuthModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const store = useStore();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [step, setStep] = useState<"phone" | "otp" | "email">("phone");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [code, setCode] = useState("");
   const [isSimulated, setIsSimulated] = useState(false);
@@ -43,10 +47,13 @@ export default function AuthModal({
     if (!open) {
       setStep("phone");
       setOtp(["", "", "", "", "", ""]);
+      setEmail("");
+      setPassword("");
       setError("");
       setLoading(false);
     }
   }, [open]);
+
   useEffect(() => {
     if (timer <= 0) return;
     const id = setTimeout(() => setTimer(timer - 1), 1000);
@@ -112,9 +119,17 @@ export default function AuthModal({
         loggedIn: true,
         profile: {
           ...s.profile,
-          phone: formatted,
+          id: res.user?.id || res.profile?.id || s.profile.id,
+          role: res.profile?.role || s.profile.role || "customer",
+          phone: res.profile?.phone || formatted,
           name: res.profile?.full_name || s.profile.name || "",
-          email: res.profile?.email || s.profile.email || "",
+          email:
+            res.profile?.email ||
+            (res.user?.email && !res.user.email.endsWith("@customer.ithub.internal")
+              ? res.user.email
+              : "") ||
+            s.profile.email ||
+            "",
           address: res.profile?.address || s.profile.address || "",
         },
       }));
@@ -128,6 +143,42 @@ export default function AuthModal({
     }
   };
 
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password || loading) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await signInCustomerWithPassword(email, password);
+      if (!res.ok) {
+        setError(res.error || "Sign in failed. Please check your credentials.");
+        setLoading(false);
+        return;
+      }
+
+      store.set((s) => ({
+        loggedIn: true,
+        profile: {
+          ...s.profile,
+          id: res.user?.id || res.profile?.id || s.profile.id,
+          role: res.profile?.role || s.profile.role || "customer",
+          phone: res.profile?.phone || s.profile.phone || "",
+          name: res.profile?.full_name || s.profile.name || "",
+          email: res.profile?.email || res.user?.email || email.trim(),
+          address: res.profile?.address || s.profile.address || "",
+        },
+      }));
+
+      store.notify("Welcome back to IT HUB!");
+      onOpenChange(false);
+    } catch (err: any) {
+      setError(err?.message || "Sign in failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const type = (index: number, value: string) => {
     const digit = value.replace(/\D/g, "").slice(-1);
     const next = [...otp];
@@ -136,19 +187,29 @@ export default function AuthModal({
     if (digit && index < 5) inputs.current[index + 1]?.focus();
   };
 
+  const modalTitle =
+    step === "phone"
+      ? "Login or sign up"
+      : step === "otp"
+        ? "Verify your number"
+        : "Sign in with Email";
+
+  const modalDescription =
+    step === "phone"
+      ? "Use your mobile number to continue. New here? We'll create your account."
+      : step === "otp"
+        ? `Enter the 6-digit code sent via ${channel} to +91 ${phone}.`
+        : "Enter your customer account email and password.";
+
   return (
     <Modal
       size="max-w-md"
       open={open}
       onOpenChange={onOpenChange}
-      title={step === "phone" ? "Login or sign up" : "Verify your number"}
-      description={
-        step === "phone"
-          ? "Use your mobile number to continue. New here? We'll create your account."
-          : `Enter the 6-digit code sent via ${channel} to +91 ${phone}.`
-      }
+      title={modalTitle}
+      description={modalDescription}
     >
-      {step === "phone" ? (
+      {step === "phone" && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -175,6 +236,7 @@ export default function AuthModal({
           {phone.length === 10 && !valid && (
             <p className="mt-2 text-xs text-destructive">Enter a valid Indian mobile number.</p>
           )}
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           <Button type="submit" disabled={!valid || loading} className="mt-6 w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -186,11 +248,89 @@ export default function AuthModal({
               </span>
             )}
           </Button>
+          <div className="mt-5 border-t border-border pt-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setStep("email");
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Mail size={14} /> Or sign in with email and password
+            </button>
+          </div>
           <p className="mt-4 text-center text-[11px] text-muted-foreground">
             By continuing you agree to IT HUB's terms and privacy policy.
           </p>
         </form>
-      ) : (
+      )}
+
+      {step === "email" && (
+        <form onSubmit={handleEmailSignIn}>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-xs font-semibold">Email address</label>
+              <div className="flex items-center overflow-hidden rounded-xl border border-border bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+                <Mail size={18} className="mr-3 shrink-0 text-muted-foreground" />
+                <input
+                  type="email"
+                  autoFocus
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="customer@example.com"
+                  className="w-full bg-transparent py-3.5 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-semibold">Password</label>
+              <div className="flex items-center overflow-hidden rounded-xl border border-border bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+                <LockKeyhole size={18} className="mr-3 shrink-0 text-muted-foreground" />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-transparent py-3.5 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+          {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+          <Button
+            type="submit"
+            disabled={!email.trim() || !password || loading}
+            className="mt-6 w-full"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw size={16} className="animate-spin" /> Signing in...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                Sign In <ArrowRight size={16} />
+              </span>
+            )}
+          </Button>
+          <div className="mt-5 border-t border-border pt-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setStep("phone");
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Smartphone size={14} /> Back to Mobile OTP Login
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === "otp" && (
         <form
           onSubmit={(e) => {
             e.preventDefault();

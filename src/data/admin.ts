@@ -30,13 +30,6 @@ export const resourceDefinitions: Record<
       },
     ],
   },
-  reviews: {
-    title: "Customer feedback",
-    description: "Moderation workspace. No individual customer reviews have been fabricated.",
-    labels: ["Feedback reference", "Feedback text", "Product / service"],
-    statuses: ["Pending", "Published", "Hidden"],
-    initial: [],
-  },
   compatibility: {
     title: "Compatibility rules",
     description:

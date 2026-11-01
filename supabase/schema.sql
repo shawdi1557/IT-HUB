@@ -433,6 +433,7 @@ alter view live_offers set (security_invoker = on, security_barrier = true);
 
 create table addresses (
   id uuid primary key default gen_random_uuid(),
+  ticket_reference text unique,
   user_id uuid not null references profiles (id) on delete cascade,
   label text,
   line1 text not null,
@@ -650,12 +651,12 @@ create table service_requests (
   user_id uuid not null references profiles (id),
   device text not null,
   model text,
-  problem text not null,
+  problem text not null check (length(trim(problem)) > 0 and lower(trim(problem)) != 'other'),
   method text not null check (method in ('Visit IT HUB', 'Courier to IT HUB', 'On-site service')),
   address_id uuid references addresses (id) on delete set null,
   preferred_date date,
   preferred_slot text,
-  status text not null default 'Booked' check (status in ('Booked', 'In Progress', 'Diagnosis Done', 'Awaiting Approval', 'Completed', 'Cancelled', 'Delivered', 'Returned')),
+  status text not null default 'Booked' check (status in ('Booked', 'Device Received', 'Under Diagnosis', 'In Progress', 'Diagnosis Done', 'Awaiting Approval', 'Completed', 'Cancelled', 'Delivered', 'Returned')),
   quote numeric(12, 2) check (quote is null or quote >= 0),
   quote_state text check (quote_state is null or quote_state in ('pending', 'approved', 'rejected')),
   technician_name text,               -- Internal info only; technicians are not app users
@@ -670,6 +671,7 @@ create table service_requests (
   decision_at timestamptz,
   decision_actor uuid references profiles (id),
   quotation_history jsonb not null default '[]'::jsonb,
+  guest_tracking_token text not null default encode(gen_random_bytes(16), 'hex'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -2376,6 +2378,7 @@ create index if not exists reviews_product_status_idx on reviews (product_id, st
 create index if not exists reviews_user_idx on reviews (user_id);
 create index if not exists service_requests_user_idx on service_requests (user_id, created_at desc);
 create index if not exists service_requests_status_idx on service_requests (status);
+create index if not exists idx_service_requests_guest_token on service_requests (guest_tracking_token);
 create index if not exists warranty_checks_user_idx on warranty_checks (user_id);
 create index if not exists pc_builds_user_idx on pc_builds (user_id);
 create index if not exists brand_support_brand_idx on brand_support (brand_id);
@@ -2755,3 +2758,1226 @@ end $$;
 
 alter table public.inventory replica identity default;
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 17. STAFF PORTAL ROLES, FINE-GRAINED PERMISSIONS & AUDIT TRAIL
+-- ────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.staff_members (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  role text not null check (role in ('portal_admin', 'quotation_staff', 'service_staff')),
+  full_name text not null,
+  email text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists staff_members_user_idx on public.staff_members (user_id);
+create index if not exists staff_members_role_idx on public.staff_members (role);
+create index if not exists staff_members_active_idx on public.staff_members (is_active);
+
+alter table public.staff_members enable row level security;
+
+create or replace function public.get_current_staff_role() returns text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(
+    case
+      when coalesce(current_user in ('postgres', 'supabase_admin'), false)
+        or coalesce(nullif(current_setting('request.jwt.claim.role', true), '') = 'service_role', false)
+        or exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+      then 'portal_admin'
+      else (
+        select role from public.staff_members
+        where user_id = auth.uid() and is_active = true
+        limit 1
+      )
+    end,
+    null
+  );
+$$;
+
+create or replace function public.is_staff() returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select public.get_current_staff_role() is not null;
+$$;
+
+create or replace function public.can_manage_quotations() returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select public.get_current_staff_role() in ('portal_admin', 'quotation_staff');
+$$;
+
+create or replace function public.can_manage_services() returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select public.get_current_staff_role() in ('portal_admin', 'service_staff');
+$$;
+
+create or replace function public.can_manage_staff() returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select public.get_current_staff_role() = 'portal_admin';
+$$;
+
+create or replace function public.protect_staff_member() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not public.can_manage_staff() then
+    raise exception 'Unauthorized: Only Portal Administrators can create, modify, or deactivate staff accounts.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists staff_members_protect on public.staff_members;
+create trigger staff_members_protect
+  before insert or update or delete on public.staff_members
+  for each row execute function public.protect_staff_member();
+
+drop policy if exists staff_members_select on public.staff_members;
+create policy staff_members_select on public.staff_members
+  for select to authenticated
+  using (public.is_staff());
+
+drop policy if exists staff_members_insert on public.staff_members;
+create policy staff_members_insert on public.staff_members
+  for insert to authenticated
+  with check (public.can_manage_staff());
+
+drop policy if exists staff_members_update on public.staff_members;
+create policy staff_members_update on public.staff_members
+  for update to authenticated
+  using (public.can_manage_staff())
+  with check (public.can_manage_staff());
+
+drop policy if exists staff_members_delete on public.staff_members;
+create policy staff_members_delete on public.staff_members
+  for delete to authenticated
+  using (public.can_manage_staff());
+
+create table if not exists public.staff_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  staff_user_id uuid not null references auth.users(id),
+  action_type text not null,
+  entity_type text not null check (entity_type in ('pc_quotation', 'service_request', 'staff_membership', 'store_settings', 'announcement', 'sell_request', 'review', 'partner_certificate', 'website_showcase')),
+  entity_id text not null,
+  previous_status text,
+  new_status text,
+  metadata jsonb not null default '{}'::jsonb,
+  ip_address text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists staff_audit_logs_entity_idx on public.staff_audit_logs (entity_type, entity_id);
+create index if not exists staff_audit_logs_staff_idx on public.staff_audit_logs (staff_user_id, created_at desc);
+
+alter table public.staff_audit_logs enable row level security;
+
+drop policy if exists staff_audit_logs_select on public.staff_audit_logs;
+create policy staff_audit_logs_select on public.staff_audit_logs
+  for select to authenticated
+  using (public.is_staff());
+
+drop policy if exists staff_audit_logs_insert on public.staff_audit_logs;
+create policy staff_audit_logs_insert on public.staff_audit_logs
+  for insert to authenticated
+  with check (public.is_staff() and (auth.uid() = staff_user_id or public.can_manage_staff()));
+
+create or replace function public.staff_update_pc_quotation_status(
+  p_quotation_id uuid,
+  p_new_status text,
+  p_staff_notes text default null,
+  p_assigned_staff_id uuid default null
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_status text;
+  v_staff_id uuid := auth.uid();
+  v_build record;
+begin
+  if not public.can_manage_quotations() then
+    raise exception 'Unauthorized: Staff quotation management permissions required.';
+  end if;
+
+  if p_new_status not in ('Draft', 'New', 'Contacted', 'Quoted', 'Closed') then
+    raise exception 'Invalid status: %', p_new_status;
+  end if;
+
+  select * into v_build from public.pc_builds where id = p_quotation_id for update;
+  if not found then
+    raise exception 'PC Quotation record % not found.', p_quotation_id;
+  end if;
+
+  v_old_status := v_build.enquiry_status;
+
+  update public.pc_builds
+  set
+    enquiry_status = p_new_status,
+    staff_notes = coalesce(p_staff_notes, staff_notes),
+    assigned_staff_id = coalesce(p_assigned_staff_id, assigned_staff_id),
+    updated_at = now()
+  where id = p_quotation_id;
+
+  insert into public.staff_audit_logs (
+    staff_user_id,
+    action_type,
+    entity_type,
+    entity_id,
+    previous_status,
+    new_status,
+    metadata
+  ) values (
+    v_staff_id,
+    'pc_quotation_status_update',
+    'pc_quotation',
+    p_quotation_id::text,
+    v_old_status,
+    p_new_status,
+    jsonb_build_object(
+      'notes_appended', p_staff_notes is not null,
+      'assigned_staff_id', p_assigned_staff_id
+    )
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'quotation_id', p_quotation_id,
+    'previous_status', v_old_status,
+    'new_status', p_new_status
+  );
+end;
+$$;
+
+create or replace function public.staff_update_service_status(
+  p_service_id uuid,
+  p_new_status text,
+  p_technician_name text default null,
+  p_internal_notes text default null,
+  p_findings jsonb default null
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_status text;
+  v_staff_id uuid := auth.uid();
+  v_req record;
+begin
+  if not public.can_manage_services() then
+    raise exception 'Unauthorized: Staff service management permissions required.';
+  end if;
+
+  if p_new_status not in (
+    'Booked', 'Device Received', 'Under Diagnosis', 'In Progress', 'Diagnosis Done',
+    'Awaiting Approval', 'Completed', 'Cancelled', 'Delivered', 'Returned',
+    'Technician Assigned', 'Technician has Left IT HUB', 'Technician on the Way',
+    'Technician Arrived at Your Location', 'Technician Arrived', 'Customer Arrived',
+    'Service in Progress', 'Ready for Pickup', 'Reschedule Requested', 'Rescheduled'
+  ) then
+    raise exception 'Invalid status: %', p_new_status;
+  end if;
+
+  select * into v_req from public.service_requests where id = p_service_id for update;
+  if not found then
+    raise exception 'Service request record % not found.', p_service_id;
+  end if;
+
+  v_old_status := v_req.status;
+
+  update public.service_requests
+  set
+    status = p_new_status,
+    technician_name = coalesce(p_technician_name, technician_name),
+    notes = coalesce(p_internal_notes, notes),
+    findings = coalesce(p_findings, findings),
+    updated_at = now()
+  where id = p_service_id;
+
+  insert into public.staff_audit_logs (
+    staff_user_id,
+    action_type,
+    entity_type,
+    entity_id,
+    previous_status,
+    new_status,
+    metadata
+  ) values (
+    v_staff_id,
+    'service_status_update',
+    'service_request',
+    p_service_id::text,
+    v_old_status,
+    p_new_status,
+    jsonb_build_object(
+      'technician_name', p_technician_name,
+      'notes_updated', p_internal_notes is not null,
+      'findings_updated', p_findings is not null
+    )
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'service_id', p_service_id,
+    'previous_status', v_old_status,
+    'new_status', p_new_status
+  );
+end;
+$$;
+
+create or replace function public.get_staff_portal_profile() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_role text;
+  v_member record;
+  v_profile record;
+begin
+  if v_user_id is null then
+    return jsonb_build_object('is_staff', false, 'error', 'Unauthenticated');
+  end if;
+
+  v_role := public.get_current_staff_role();
+  if v_role is null then
+    return jsonb_build_object('is_staff', false, 'error', 'Unauthorized');
+  end if;
+
+  select * into v_member from public.staff_members where user_id = v_user_id and is_active = true limit 1;
+  select * into v_profile from public.profiles where id = v_user_id limit 1;
+
+  return jsonb_build_object(
+    'is_staff', true,
+    'user_id', v_user_id,
+    'role', v_role,
+    'full_name', coalesce(v_member.full_name, v_profile.full_name, 'IT HUB Staff'),
+    'email', coalesce(v_member.email, v_profile.email, ''),
+    'permissions', jsonb_build_object(
+      'can_manage_quotations', public.can_manage_quotations(),
+      'can_manage_services', public.can_manage_services(),
+      'can_manage_staff', public.can_manage_staff()
+    )
+  );
+end;
+$$;
+
+grant execute on function public.get_current_staff_role() to authenticated;
+grant execute on function public.is_staff() to authenticated;
+grant execute on function public.can_manage_quotations() to authenticated;
+grant execute on function public.can_manage_services() to authenticated;
+grant execute on function public.can_manage_staff() to authenticated;
+grant execute on function public.get_staff_portal_profile() to authenticated;
+grant execute on function public.staff_update_pc_quotation_status(uuid, text, text, uuid) to authenticated;
+grant execute on function public.staff_update_service_status(uuid, text, text, text, jsonb) to authenticated;
+
+-- Staff review moderation RPC
+create or replace function public.staff_update_review_status(
+  p_review_id uuid,
+  p_status text
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_status text;
+  v_staff_id uuid := auth.uid();
+begin
+  if not public.is_staff() then
+    raise exception 'Unauthorized: Staff permissions required to moderate reviews.';
+  end if;
+
+  if p_status not in ('Pending', 'Published', 'Hidden') then
+    raise exception 'Invalid review status. Allowed values: Pending, Published, Hidden.';
+  end if;
+
+  if v_staff_id is null then
+    select user_id into v_staff_id
+    from public.staff_members
+    where role = 'portal_admin' and is_active = true
+    order by created_at asc
+    limit 1;
+  end if;
+
+  select status into v_old_status
+  from public.reviews
+  where id = p_review_id;
+
+  if not found then
+    raise exception 'Review not found.';
+  end if;
+
+  update public.reviews
+  set
+    status = p_status,
+    updated_at = now()
+  where id = p_review_id;
+
+  insert into public.staff_audit_logs (
+    staff_user_id,
+    action_type,
+    entity_type,
+    entity_id,
+    previous_status,
+    new_status,
+    metadata
+  ) values (
+    v_staff_id,
+    'MODERATE_REVIEW',
+    'review',
+    p_review_id::text,
+    v_old_status,
+    p_status,
+    jsonb_build_object(
+      'moderated_by', v_staff_id,
+      'timestamp', now()
+    )
+  );
+
+  return jsonb_build_object('success', true, 'status', p_status);
+end;
+$$;
+
+-- Staff review deletion RPC
+create or replace function public.staff_delete_review(
+  p_review_id uuid
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_status text;
+  v_staff_id uuid := auth.uid();
+begin
+  if not (public.is_admin() or public.can_manage_staff()) then
+    raise exception 'Unauthorized: Only Portal Administrators can delete reviews.';
+  end if;
+
+  if v_staff_id is null then
+    select user_id into v_staff_id
+    from public.staff_members
+    where role = 'portal_admin' and is_active = true
+    order by created_at asc
+    limit 1;
+  end if;
+
+  select status into v_old_status
+  from public.reviews
+  where id = p_review_id;
+
+  if not found then
+    raise exception 'Review not found.';
+  end if;
+
+  delete from public.reviews
+  where id = p_review_id;
+
+  insert into public.staff_audit_logs (
+    staff_user_id,
+    action_type,
+    entity_type,
+    entity_id,
+    previous_status,
+    new_status,
+    metadata
+  ) values (
+    v_staff_id,
+    'DELETE_REVIEW',
+    'review',
+    p_review_id::text,
+    v_old_status,
+    'Deleted',
+    jsonb_build_object(
+      'deleted_by', v_staff_id,
+      'timestamp', now()
+    )
+  );
+
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- Staff sell request moderation & valuation RPC
+create or replace function public.staff_update_sell_request(
+  p_request_id uuid,
+  p_status text,
+  p_admin_notes text default null,
+  p_offered_price numeric default null
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_status text;
+  v_staff_id uuid := auth.uid();
+begin
+  if not public.is_staff() then
+    raise exception 'Unauthorized: Staff permissions required to process sell requests.';
+  end if;
+
+  if p_status not in ('Pending', 'Under Review', 'Contacted', 'Approved', 'Rejected', 'Completed') then
+    raise exception 'Invalid sell request status.';
+  end if;
+
+  if v_staff_id is null then
+    select user_id into v_staff_id
+    from public.staff_members
+    where role = 'portal_admin' and is_active = true
+    order by created_at asc
+    limit 1;
+  end if;
+
+  select status into v_old_status
+  from public.sell_requests
+  where id = p_request_id;
+
+  if not found then
+    raise exception 'Sell request not found.';
+  end if;
+
+  update public.sell_requests
+  set
+    status = p_status,
+    admin_notes = coalesce(p_admin_notes, admin_notes),
+    offered_price = coalesce(p_offered_price, offered_price),
+    updated_at = now()
+  where id = p_request_id;
+
+  insert into public.staff_audit_logs (
+    staff_user_id,
+    action_type,
+    entity_type,
+    entity_id,
+    previous_status,
+    new_status,
+    metadata
+  ) values (
+    v_staff_id,
+    'UPDATE_SELL_REQUEST',
+    'sell_request',
+    p_request_id::text,
+    v_old_status,
+    p_status,
+    jsonb_build_object(
+      'offered_price', p_offered_price,
+      'has_admin_notes', p_admin_notes is not null,
+      'processed_by', v_staff_id,
+      'timestamp', now()
+    )
+  );
+
+  return jsonb_build_object('success', true, 'status', p_status);
+end;
+$$;
+
+grant execute on function public.staff_update_review_status(uuid, text) to authenticated;
+grant execute on function public.staff_delete_review(uuid) to authenticated;
+grant execute on function public.staff_update_sell_request(uuid, text, text, numeric) to authenticated;
+
+grant select, insert, update, delete on public.staff_members to authenticated;
+grant select, insert on public.staff_audit_logs to authenticated;
+
+
+
+-- -----------------------------------------------------------------------------
+-- Secure Service Request Tracking RPC (audited for tenant isolation & masking)
+-- -----------------------------------------------------------------------------
+create or replace function public.get_service_request_tracking(
+  p_tracking_id text,
+  p_guest_token text default null
+)
+returns jsonb
+language plpgsql security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_clean text;
+  v_rec record;
+  v_auth_uid uuid := auth.uid();
+  v_is_staff boolean := false;
+  v_match_count integer := 0;
+  v_safe_findings jsonb := '[]'::jsonb;
+  v_safe_quotation_items jsonb := '[]'::jsonb;
+  v_safe_decision_notes text := null;
+begin
+  if p_tracking_id is null or trim(p_tracking_id) = '' then
+    return null;
+  end if;
+
+  -- Clean input: remove '#' prefix and trim whitespace
+  v_clean := lower(trim(regexp_replace(p_tracking_id, '^[#\s]+', '')));
+
+  -- Canonical Staff Authorization / RBAC check:
+  -- Only portal_admin and service_staff (with is_active = true) can view all service requests.
+  -- Deactivated staff or quotation_staff are strictly excluded.
+  begin
+    v_is_staff := coalesce(public.can_manage_services(), false);
+  exception when undefined_function then
+    v_is_staff := (v_auth_uid is not null) and (
+      exists (
+        select 1 from public.staff_members
+        where user_id = v_auth_uid and is_active = true and role in ('portal_admin', 'service_staff')
+      ) or exists (
+        select 1 from public.profiles
+        where id = v_auth_uid and role = 'admin'
+      )
+    );
+  end;
+
+  -- 1. EXACT FULL-UUID LOOKUP (36 characters)
+  if v_clean ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    select * into v_rec
+    from public.service_requests
+    where id = v_clean::uuid;
+
+    if not found then
+      return null;
+    end if;
+
+  -- 2. EXACT EIGHT-CHARACTER HEX PREFIX LOOKUP
+  elsif v_clean ~ '^[0-9a-f]{8}$' then
+    -- PRIORITY 1: High-entropy guest tracking token provided.
+    -- Resolves prefix collisions safely by binding directly to the token secret,
+    -- allowing a user authenticated as another customer to track with a shared guest token.
+    if p_guest_token is not null and trim(p_guest_token) <> '' then
+      select * into v_rec
+      from public.service_requests
+      where id::text ilike v_clean || '%'
+        and guest_tracking_token = trim(p_guest_token);
+
+      if not found then
+        return null;
+      end if;
+
+    -- PRIORITY 2: Authorized staff member (portal_admin or active service_staff)
+    elsif v_is_staff then
+      select count(*) into v_match_count
+      from public.service_requests
+      where id::text ilike v_clean || '%';
+
+      if v_match_count = 1 then
+        select * into v_rec
+        from public.service_requests
+        where id::text ilike v_clean || '%';
+      else
+        -- 0 matches or ambiguous collision among multiple tickets (staff must use full UUID)
+        return null;
+      end if;
+
+    -- PRIORITY 3: Authenticated customer looking up their own ticket
+    elsif v_auth_uid is not null then
+      select count(*) into v_match_count
+      from public.service_requests
+      where id::text ilike v_clean || '%'
+        and user_id = v_auth_uid;
+
+      if v_match_count = 1 then
+        select * into v_rec
+        from public.service_requests
+        where id::text ilike v_clean || '%'
+          and user_id = v_auth_uid;
+      else
+        -- 0 matches or multiple colliding tickets owned by same user
+        return null;
+      end if;
+
+    -- PRIORITY 4: Anonymous caller without guest token
+    else
+      -- Anonymous prefix scraping without a valid guest token is strictly rejected
+      return null;
+    end if;
+
+  else
+    -- Reject all other formats (e.g. arbitrary length, invalid hex, short strings < 8 chars)
+    return null;
+  end if;
+
+  -- AUTHORIZATION POLICY:
+  -- Case A: Authorized staff member (portal_admin or service_staff)
+  -- Case B: Authenticated ticket owner (user_id matches auth.uid())
+  -- Case C: Guest caller providing exact cryptographic guest_tracking_token
+  -- If none of the above match, reject access (returns null to block enumeration)
+  if not (
+    v_is_staff
+    or (v_auth_uid is not null and v_rec.user_id = v_auth_uid)
+    or (p_guest_token is not null and trim(p_guest_token) <> '' and v_rec.guest_tracking_token = trim(p_guest_token))
+  ) then
+    return null;
+  end if;
+
+  -- CUSTOMER-SAFE PROJECTION FOR DIAGNOSIS FINDINGS:
+  -- Internal technician notes, staff UUIDs, supplier costs, and raw private metadata
+  -- are strictly excluded.
+  -- Preserves stable IDs (or deterministic ordinal IDs) without generating random UUIDs on each read.
+  -- Safe boolean parsing ensures malformed legacy values never trigger runtime exceptions.
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', coalesce(
+          nullif(trim(elem->>'id'), ''),
+          nullif(trim(elem->>'findingId'), ''),
+          nullif(trim(elem->>'finding_id'), ''),
+          'finding-' || ord::text
+        ),
+        'title', coalesce(nullif(trim(elem->>'title'), ''), 'Diagnostic Observation'),
+        'description', coalesce(elem->>'description', ''),
+        'customerExplanation', coalesce(nullif(trim(elem->>'customerExplanation'), ''), nullif(trim(elem->>'customer_explanation'), ''), elem->>'description', ''),
+        'recommendedRepair', coalesce(elem->>'recommendedRepair', elem->>'recommended_repair', ''),
+        'source', case
+          when lower(trim(coalesce(elem->>'source', ''))) in ('customer', 'technician') then lower(trim(elem->>'source'))
+          else 'technician'
+        end,
+        'safety', case
+          when lower(trim(coalesce(elem->>'safety', ''))) in ('required', 'recommended', 'optional') then lower(trim(elem->>'safety'))
+          else 'optional'
+        end,
+        'classification', case
+          when lower(trim(coalesce(elem->>'classification', ''))) in ('confirmed', 'suspected', 'customer_reported', 'prevention') then lower(trim(elem->>'classification'))
+          else 'confirmed'
+        end,
+        'isEligibleForRepair', coalesce(
+          case
+            when lower(trim(coalesce(elem->>'isEligibleForRepair', elem->>'is_eligible_for_repair', ''))) in ('true', 't', '1', 'yes') then true
+            when lower(trim(coalesce(elem->>'isEligibleForRepair', elem->>'is_eligible_for_repair', ''))) in ('false', 'f', '0', 'no') then false
+            else null
+          end,
+          true
+        ),
+        'createdAt', coalesce(nullif(trim(elem->>'createdAt'), ''), nullif(trim(elem->>'created_at'), ''), to_char(v_rec.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+      )
+      order by ord
+    ),
+    '[]'::jsonb
+  ) into v_safe_findings
+  from jsonb_array_elements(
+    case
+      when jsonb_typeof(v_rec.findings) = 'array' then v_rec.findings
+      else '[]'::jsonb
+    end
+  ) with ordinality as f(elem, ord);
+
+  -- CUSTOMER-SAFE PROJECTION FOR ITEMIZE QUOTATION ITEMS:
+  -- Strips internal markup, wholesale distributor rates, and staff notes.
+  -- Validates numeric and boolean types defensively without crashing on legacy malformed fields.
+  -- Distinguishes genuine zero prices (₹0) from missing/unpriced items (null), never inventing totals.
+  -- Guarantees stable deterministic IDs if item id was omitted in database.
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', parsed.id,
+        'findingId', parsed.finding_id,
+        'title', parsed.title,
+        'description', parsed.description,
+        'partCost', parsed.part_cost,
+        'labourCost', parsed.labour_cost,
+        'quantity', parsed.quantity,
+        'discount', parsed.discount,
+        'lineTotal', coalesce(
+          parsed.explicit_line_total,
+          case
+            when parsed.part_cost is not null and parsed.labour_cost is not null
+            then (parsed.part_cost + parsed.labour_cost) * parsed.quantity - coalesce(parsed.discount, 0)
+            else null
+          end
+        ),
+        'isRequired', parsed.is_required,
+        'canDefer', parsed.can_defer,
+        'dependsOn', parsed.depends_on,
+        'approvalState', parsed.approval_state,
+        'requirementLevel', parsed.requirement_level
+      )
+      order by parsed.ord
+    ),
+    '[]'::jsonb
+  ) into v_safe_quotation_items
+  from (
+    select
+      ord,
+      coalesce(
+        nullif(trim(elem->>'id'), ''),
+        nullif(trim(elem->>'findingId'), ''),
+        nullif(trim(elem->>'itemId'), ''),
+        nullif(trim(elem->>'item_id'), ''),
+        'item-' || ord::text
+      ) as id,
+      coalesce(nullif(trim(elem->>'findingId'), ''), nullif(trim(elem->>'finding_id'), '')) as finding_id,
+      coalesce(nullif(trim(elem->>'title'), ''), 'Service Item') as title,
+      coalesce(elem->>'description', '') as description,
+      case
+        when trim(coalesce(elem->>'partCost', elem->>'part_cost', '')) ~ '^-?[0-9]+(\.[0-9]+)?$'
+        then (trim(coalesce(elem->>'partCost', elem->>'part_cost')))::numeric
+        else null
+      end as part_cost,
+      case
+        when trim(coalesce(elem->>'labourCost', elem->>'labour_cost', '')) ~ '^-?[0-9]+(\.[0-9]+)?$'
+        then (trim(coalesce(elem->>'labourCost', elem->>'labour_cost')))::numeric
+        else null
+      end as labour_cost,
+      case
+        when trim(coalesce(elem->>'quantity', '')) ~ '^[0-9]+(\.[0-9]+)?$'
+          and (trim(elem->>'quantity'))::numeric > 0
+        then (trim(elem->>'quantity'))::numeric
+        else 1
+      end as quantity,
+      case
+        when trim(coalesce(elem->>'discount', '')) ~ '^-?[0-9]+(\.[0-9]+)?$'
+        then (trim(elem->>'discount'))::numeric
+        else 0
+      end as discount,
+      case
+        when trim(coalesce(elem->>'lineTotal', elem->>'line_total', '')) ~ '^-?[0-9]+(\.[0-9]+)?$'
+        then (trim(coalesce(elem->>'lineTotal', elem->>'line_total')))::numeric
+        else null
+      end as explicit_line_total,
+      coalesce(
+        case
+          when lower(trim(coalesce(elem->>'requirementLevel', elem->>'requirement_level', ''))) = 'required' then true
+          when lower(trim(coalesce(elem->>'isRequired', elem->>'is_required', ''))) in ('true', 't', '1', 'yes') then true
+          when lower(trim(coalesce(elem->>'isRequired', elem->>'is_required', ''))) in ('false', 'f', '0', 'no') then false
+          else null
+        end,
+        false
+      ) as is_required,
+      coalesce(
+        case
+          when lower(trim(coalesce(elem->>'requirementLevel', elem->>'requirement_level', ''))) = 'required' then false
+          when lower(trim(coalesce(elem->>'isRequired', elem->>'is_required', ''))) in ('true', 't', '1', 'yes') then false
+          when lower(trim(coalesce(elem->>'canDefer', elem->>'can_defer', ''))) in ('false', 'f', '0', 'no') then false
+          when lower(trim(coalesce(elem->>'canDefer', elem->>'can_defer', ''))) in ('true', 't', '1', 'yes') then true
+          else null
+        end,
+        true
+      ) as can_defer,
+      case
+        when jsonb_typeof(coalesce(elem->'dependsOn', elem->'depends_on')) = 'array'
+        then coalesce(elem->'dependsOn', elem->'depends_on')
+        else '[]'::jsonb
+      end as depends_on,
+      case
+        when lower(trim(coalesce(elem->>'approvalState', elem->>'approval_state', ''))) in ('pending', 'approved', 'declined', 'deferred', 'rejected')
+        then lower(trim(coalesce(elem->>'approvalState', elem->>'approval_state')))
+        else 'pending'
+      end as approval_state,
+      coalesce(
+        nullif(trim(elem->>'requirementLevel'), ''),
+        nullif(trim(elem->>'requirement_level'), ''),
+        case
+          when lower(trim(coalesce(elem->>'isRequired', elem->>'is_required', ''))) in ('true', 't', '1', 'yes') then 'required'
+          else 'optional'
+        end
+      ) as requirement_level
+    from jsonb_array_elements(
+      case
+        when jsonb_typeof(v_rec.quotation_items) = 'array' then v_rec.quotation_items
+        else '[]'::jsonb
+      end
+    ) with ordinality as t(elem, ord)
+  ) as parsed;
+
+  -- Bounded and sanitized decision notes
+  if v_rec.decision_notes is not null and trim(v_rec.decision_notes) <> '' then
+    v_safe_decision_notes := substring(trim(v_rec.decision_notes) from 1 for 1000);
+  end if;
+
+  -- NARROW, PUBLIC-SAFE PROJECTION:
+  -- user_id is completely eliminated from the response; replaced with computed is_owner boolean.
+  -- Internal workshop notes ('notes'), customer contact details (name, email, phone, address),
+  -- and guest tracking tokens are strictly redacted.
+  return jsonb_build_object(
+    'id', v_rec.id,
+    'is_owner', (v_auth_uid is not null and v_rec.user_id = v_auth_uid),
+    'device', v_rec.device,
+    'model', v_rec.model,
+    'problem', v_rec.problem,
+    'method', v_rec.method,
+    'status', v_rec.status,
+    'quote', v_rec.quote,
+    'quote_state', v_rec.quote_state,
+    'quote_version', coalesce(v_rec.quote_version, 1),
+    'technician_name', v_rec.technician_name,
+    'courier_charge_return_delivery', v_rec.courier_charge_return_delivery,
+    'findings', v_safe_findings,
+    'quotation_items', v_safe_quotation_items,
+    'approved_items', coalesce(v_rec.approved_items, '{}'::text[]),
+    'declined_items', coalesce(v_rec.declined_items, '{}'::text[]),
+    'decision_notes', v_safe_decision_notes,
+    'decision_at', v_rec.decision_at,
+    'created_at', v_rec.created_at,
+    'updated_at', v_rec.updated_at
+  );
+end;
+$$;
+
+-- 4. Access controls: revoke broad public execute, grant strictly to authenticated and anon
+revoke all on function public.get_service_request_tracking(text, text) from public;
+grant execute on function public.get_service_request_tracking(text, text) to anon, authenticated;
+
+
+-- ============================================================================
+-- IT HUB — Staff Portal to Customer Storefront Integration
+-- Migration: 20261031000002_staff_portal_storefront_integration.sql
+-- ============================================================================
+
+create table if not exists public.partner_certificates (
+  id text primary key,
+  text text not null,
+  brand text not null,
+  category text not null,
+  status text not null default 'Active Member',
+  validity text not null default '2026 Certified',
+  description text not null default '',
+  image text not null,
+  alt text not null default '',
+  shop_url text,
+  display_order int not null default 0,
+  is_published boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists partner_certificates_published_idx
+  on public.partner_certificates (is_published, display_order);
+
+alter table public.partner_certificates enable row level security;
+
+drop policy if exists public_read_certificates on public.partner_certificates;
+create policy public_read_certificates on public.partner_certificates
+  for select using (is_published = true or public.is_staff());
+
+drop policy if exists staff_manage_certificates on public.partner_certificates;
+create policy staff_manage_certificates on public.partner_certificates
+  for all using (public.is_staff());
+
+grant select on public.partner_certificates to anon, authenticated;
+grant insert, update, delete on public.partner_certificates to authenticated;
+
+create table if not exists public.website_showcase (
+  id text primary key,
+  src text not null,
+  caption text not null,
+  display_order int not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists website_showcase_active_idx
+  on public.website_showcase (is_active, display_order);
+
+alter table public.website_showcase enable row level security;
+
+drop policy if exists public_read_showcase on public.website_showcase;
+create policy public_read_showcase on public.website_showcase
+  for select using (is_active = true or public.is_staff());
+
+drop policy if exists staff_manage_showcase on public.website_showcase;
+create policy staff_manage_showcase on public.website_showcase
+  for all using (public.is_staff());
+
+grant select on public.website_showcase to anon, authenticated;
+grant insert, update, delete on public.website_showcase to authenticated;
+
+alter table public.store_settings
+  add column if not exists hours text default 'Mon - Sat: 9:30 AM - 7:30 PM',
+  add column if not exists tagline text default 'Computers, Laptops, Sales & Repair Services',
+  add column if not exists whatsapp_default_msg text default 'Hi IT HUB, I would like to inquire about a service or PC quotation.',
+  add column if not exists city text default 'Kothamangalam, Kerala',
+  add column if not exists pincode text default '686691',
+  add column if not exists service_radius_km numeric(5,1) default 30.0,
+  add column if not exists analytics_enabled boolean default true,
+  add column if not exists mask_visitor_ip boolean default true;
+
+drop policy if exists staff_update_store_settings on public.store_settings;
+create policy staff_update_store_settings on public.store_settings
+  for update using (public.is_staff());
+
+grant update on public.store_settings to authenticated;
+
+drop policy if exists staff_update_it_hub_locations on public.it_hub_locations;
+create policy staff_update_it_hub_locations on public.it_hub_locations
+  for update using (public.is_staff());
+
+grant update on public.it_hub_locations to authenticated;
+
+-- Realtime Content Sync Publication & Replica Identity
+alter table public.announcements
+  alter column headline drop not null,
+  add column if not exists message text,
+  add column if not exists cta_url text,
+  add column if not exists starts_at timestamptz,
+  add column if not exists ends_at timestamptz;
+
+alter table public.announcements
+  alter column headline set default '';
+
+drop policy if exists announcements_staff_all on public.announcements;
+create policy announcements_staff_all on public.announcements
+  for all using (public.is_staff());
+
+drop policy if exists announcements_public_read on public.announcements;
+create policy announcements_public_read on public.announcements
+  for select using (
+    is_active = true
+    and (is_draft is not true)
+    and (start_date is null or start_date <= now())
+    and (end_date is null or end_date >= now())
+    and (starts_at is null or starts_at <= now())
+    and (ends_at is null or ends_at >= now())
+  );
+
+grant select on public.announcements to anon, authenticated;
+grant insert, update, delete on public.announcements to authenticated;
+
+alter table public.partner_certificates replica identity full;
+alter table public.website_showcase replica identity full;
+alter table public.announcements replica identity full;
+alter table public.store_settings replica identity full;
+alter table public.it_hub_locations replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'partner_certificates'
+  ) then
+    alter publication supabase_realtime add table public.partner_certificates;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'website_showcase'
+  ) then
+    alter publication supabase_realtime add table public.website_showcase;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'announcements'
+  ) then
+    alter publication supabase_realtime add table public.announcements;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'store_settings'
+  ) then
+    alter publication supabase_realtime add table public.store_settings;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'it_hub_locations'
+  ) then
+    alter publication supabase_realtime add table public.it_hub_locations;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'promotional_campaigns'
+  ) then
+    alter publication supabase_realtime add table public.promotional_campaigns;
+  end if;
+end;
+$$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PROMOTIONAL CAMPAIGNS & HOMEPAGE HERO CAROUSEL
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.promotional_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  badge text,
+  image_url text not null,
+  mobile_image_url text,
+  destination_type text not null default 'product' check (destination_type in ('product', 'category', 'service', 'url')),
+  destination_ref text,
+  destination_url text not null default '/products',
+  cta_label text default 'Explore Now',
+  starts_at timestamptz default now(),
+  ends_at timestamptz,
+  show_countdown boolean not null default false,
+  countdown_heading text default 'ENDS IN',
+  status text not null default 'draft' check (status in ('draft', 'scheduled', 'published', 'paused', 'expired', 'archived')),
+  display_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null
+);
+
+create index if not exists promotional_campaigns_status_idx
+  on public.promotional_campaigns (status);
+
+create index if not exists promotional_campaigns_display_order_idx
+  on public.promotional_campaigns (display_order asc, created_at desc);
+
+create index if not exists promotional_campaigns_schedule_idx
+  on public.promotional_campaigns (starts_at, ends_at);
+
+alter table public.promotional_campaigns enable row level security;
+
+drop policy if exists promotional_campaigns_public_read on public.promotional_campaigns;
+create policy promotional_campaigns_public_read on public.promotional_campaigns
+  for select using (
+    (
+      status = 'published'
+      and (starts_at is null or starts_at <= now())
+      and (ends_at is null or ends_at >= now())
+    )
+    or public.is_staff()
+  );
+
+drop policy if exists promotional_campaigns_staff_manage on public.promotional_campaigns;
+create policy promotional_campaigns_staff_manage on public.promotional_campaigns
+  for all using (public.is_staff())
+  with check (public.is_staff());
+
+grant select on public.promotional_campaigns to anon, authenticated;
+grant insert, update, delete on public.promotional_campaigns to authenticated;
+
+alter table public.promotional_campaigns replica identity full;
+
+-- Storage Bucket for Promotional Banners
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('promotional-banners', 'promotional-banners', true, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+on conflict (id) do update set
+  public = true,
+  file_size_limit = 5242880,
+  allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+
+drop policy if exists "Promotional Banners Public Select" on storage.objects;
+create policy "Promotional Banners Public Select" on storage.objects
+  for select using (bucket_id = 'promotional-banners');
+
+drop policy if exists "Promotional Banners Staff Insert" on storage.objects;
+create policy "Promotional Banners Staff Insert" on storage.objects
+  for insert with check (bucket_id = 'promotional-banners' and public.is_staff());
+
+drop policy if exists "Promotional Banners Staff Update" on storage.objects;
+create policy "Promotional Banners Staff Update" on storage.objects
+  for update using (bucket_id = 'promotional-banners' and public.is_staff());
+
+drop policy if exists "Promotional Banners Staff Delete" on storage.objects;
+create policy "Promotional Banners Staff Delete" on storage.objects
+  for delete using (bucket_id = 'promotional-banners' and public.is_staff());
+
+
+
+
+-- =============================================================================
+-- Shopify Customer Product Orders & Opaque Association Tokens
+-- =============================================================================
+
+create table if not exists public.shopify_order_associations (
+  id uuid primary key default gen_random_uuid(),
+  token text not null unique,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  shopify_order_id text,
+  expires_at timestamptz not null default (now() + interval '2 hours'),
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_shopify_order_associations_token on public.shopify_order_associations(token);
+create index if not exists idx_shopify_order_associations_user on public.shopify_order_associations(user_id);
+
+alter table public.shopify_order_associations enable row level security;
+
+create policy shopify_order_associations_select on public.shopify_order_associations
+  for select to authenticated
+  using (user_id = (select auth.uid()) or is_staff());
+
+create policy shopify_order_associations_service on public.shopify_order_associations
+  for all to service_role
+  using (true)
+  with check (true);
+
+create table if not exists public.shopify_customer_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  shopify_order_id text not null unique,
+  order_number text not null,
+  created_at timestamptz not null,
+  financial_status text,
+  fulfillment_status text,
+  currency_code text not null default 'INR',
+  total_price numeric(12, 2) not null default 0,
+  subtotal_price numeric(12, 2) not null default 0,
+  total_shipping numeric(12, 2) not null default 0,
+  total_tax numeric(12, 2) not null default 0,
+  total_discount numeric(12, 2) not null default 0,
+  tracking_company text,
+  tracking_number text,
+  tracking_url text,
+  line_items jsonb not null default '[]'::jsonb,
+  shipping_address jsonb,
+  synced_at timestamptz not null default now()
+);
+
+create index if not exists idx_shopify_customer_orders_user on public.shopify_customer_orders(user_id, created_at desc);
+create index if not exists idx_shopify_customer_orders_shopify_id on public.shopify_customer_orders(shopify_order_id);
+
+alter table public.shopify_customer_orders enable row level security;
+
+create policy shopify_customer_orders_select on public.shopify_customer_orders
+  for select to authenticated
+  using (user_id = (select auth.uid()) or is_staff());
+
+create policy shopify_customer_orders_service on public.shopify_customer_orders
+  for all to service_role
+  using (true)
+  with check (true);
+
+create or replace function public.create_checkout_association()
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_uid uuid;
+  v_token text;
+begin
+  v_uid := auth.uid();
+  if v_uid is null then
+    raise exception 'Authentication required to create checkout association';
+  end if;
+
+  v_token := 'hub_assoc_' || encode(gen_random_bytes(24), 'hex');
+
+  insert into public.shopify_order_associations (token, user_id, expires_at)
+  values (v_token, v_uid, now() + interval '2 hours');
+
+  return v_token;
+end;
+$$;
+
+revoke all on function public.create_checkout_association() from public;
+grant execute on function public.create_checkout_association() to authenticated, service_role;
+
+create or replace function public.validate_and_consume_association_token(
+  p_token text,
+  p_shopify_order_id text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_assoc record;
+begin
+  if p_token is null or trim(p_token) = '' then
+    return null;
+  end if;
+
+  select * into v_assoc
+  from public.shopify_order_associations
+  where token = trim(p_token)
+    and used_at is null
+    and expires_at > now()
+  for update;
+
+  if not found then
+    return null;
+  end if;
+
+  update public.shopify_order_associations
+  set used_at = now(),
+      shopify_order_id = p_shopify_order_id
+  where id = v_assoc.id;
+
+  return v_assoc.user_id;
+end;
+$$;
+
+revoke all on function public.validate_and_consume_association_token(text, text) from public;
+grant execute on function public.validate_and_consume_association_token(text, text) to authenticated, service_role;

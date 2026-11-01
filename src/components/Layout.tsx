@@ -33,6 +33,9 @@ import { useStore } from "../app/store";
 import { Logo, Modal, fieldClass, containerClass } from "./ui";
 import { signOutUser } from "../lib/auth";
 import GooeyNav, { type GooeyNavItem } from "./GooeyNav";
+import MobileHeader from "./MobileHeader";
+import MobileBottomNav from "./MobileBottomNav";
+import MobileNavDrawer from "./MobileNavDrawer";
 
 const nav = [
   { name: "Products", to: "/products" },
@@ -55,6 +58,7 @@ const navItems: GooeyNavItem[] = [
 export default function Layout() {
   const store = useStore();
   const [mobile, setMobile] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState(false);
   const [menu, setMenu] = useState(false);
   const [query, setQuery] = useState("");
@@ -104,9 +108,9 @@ export default function Layout() {
     };
   }, []);
   useEffect(() => {
-    if (mobile || search) lenis.current?.stop();
+    if (mobile || search || drawerOpen || store.authOpen) lenis.current?.stop();
     else lenis.current?.start();
-  }, [mobile, search]);
+  }, [mobile, search, drawerOpen, store.authOpen]);
   useEffect(() => {
     lenis.current?.scrollTo(0, { immediate: true });
     setMobile(false);
@@ -114,17 +118,26 @@ export default function Layout() {
     setMenu(false);
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
-  const matches = store.products.filter((product) =>
-    `${product.name} ${product.brand} ${product.category} ${Object.values(product.specs).join(" ")}`
+  const matches = store.products.filter((product) => {
+    const specText =
+      product.specs && typeof product.specs === "object"
+        ? Object.values(product.specs).join(" ")
+        : "";
+    return `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${specText}`
       .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+      .includes(query.toLowerCase());
+  });
   const activeNavIndex = (() => {
     const p = location.pathname;
     if (p === "/") return 0;
     if (p.startsWith("/products")) return 1;
     if (p.startsWith("/pc-builder")) return 2;
-    if (p.startsWith("/services")) return 3;
+    if (
+      p.startsWith("/services") ||
+      p.startsWith("/track-service") ||
+      p.startsWith("/service-success")
+    )
+      return 3;
     if (p.startsWith("/blog")) return 4;
     if (p.startsWith("/support")) return 5;
     if (p.startsWith("/about")) return 6;
@@ -138,7 +151,11 @@ export default function Layout() {
       >
         Skip to content
       </a>
-      <div className="bg-[#0c2f8a] text-white">
+      {/* Mobile-specific compact sticky header (Row 1: Nav/Logo/Actions, Row 2: Search) */}
+      <MobileHeader onOpenMenu={() => setDrawerOpen(true)} />
+
+      {/* Desktop / Tablet Top Info Bar */}
+      <div className="hidden md:block bg-[#0c2f8a] text-white">
         <div
           className={`${containerClass} flex h-8 items-center justify-between text-[10px] font-medium tracking-wide`}
         >
@@ -158,8 +175,9 @@ export default function Layout() {
           </div>
         </div>
       </div>
+      {/* Desktop / Tablet Header */}
       <header
-        className={`sticky top-0 z-40 transition-all duration-500 ${
+        className={`hidden md:block sticky top-0 z-40 transition-all duration-500 ${
           scrolled
             ? "border-b border-border/70 bg-background/75 shadow-[0_10px_40px_-20px_rgba(11,18,32,.25)] backdrop-blur"
             : "border-b border-transparent bg-background"
@@ -181,7 +199,7 @@ export default function Layout() {
           <div className="hidden items-center lg:flex">
             <GooeyNav
               items={navItems}
-              activeIndex={activeNavIndex >= 0 ? activeNavIndex : undefined}
+              activeIndex={activeNavIndex}
               onChange={(_index, item) => {
                 if (item.href && item.href !== "#" && location.pathname !== item.href) {
                   navigate(item.href);
@@ -390,7 +408,7 @@ export default function Layout() {
           </span>
         </div>
       )}
-      <main id="main-content" tabIndex={-1} className="min-h-[60vh] overflow-x-clip">
+      <main id="main-content" tabIndex={-1} className="min-h-[60vh] overflow-x-clip pb-24 md:pb-0">
         <Outlet />
       </main>
       <footer className="relative mt-10 overflow-hidden rounded-t-[2.5rem] border-t border-border bg-muted">
@@ -453,7 +471,6 @@ export default function Layout() {
                 "Offers",
                 "Help & Support",
                 "Warranty",
-                "Admin prototype",
               ],
               links: [
                 "/about",
@@ -462,7 +479,6 @@ export default function Layout() {
                 "/offers",
                 "/support",
                 "/support?view=warranty",
-                "/admin",
               ],
             },
             {
@@ -503,13 +519,10 @@ export default function Layout() {
           ))}
         </div>
         <div
-          className={`${containerClass} flex flex-wrap items-center justify-between gap-3 border-t border-border py-5 text-[10px] text-muted-foreground`}
+          className={`${containerClass} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 border-t border-border py-5 text-[10px] text-muted-foreground`}
         >
           <p>© 2026 IT HUB. All rights reserved.</p>
-          <p>Serving customers since 2011</p>
-          <p className="flex items-center gap-1.5">
-            <ShieldCheck size={12} /> Interactive frontend prototype · No real payments
-          </p>
+          <p className="sm:text-right">Serving customers since 2011</p>
         </div>
       </footer>
       <AuthModal open={store.authOpen} onOpenChange={store.setAuthOpen} />
@@ -598,6 +611,10 @@ export default function Layout() {
           {store.toast}
         </div>
       )}
+      {/* Fixed 5-destination bottom navigation for mobile */}
+      <MobileBottomNav />
+      {/* Mobile navigation slide-over drawer */}
+      <MobileNavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </>
   );
 }

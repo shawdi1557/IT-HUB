@@ -29,6 +29,12 @@ import {
 import { submitSellRequest } from "../lib/sellRequests";
 import { Button, Badge, fieldClass } from "./ui";
 import { LoginGate } from "./AuthModal";
+import StatusMark from "./StatusMark";
+
+// Active categories for customer selection (excludes discontinued 'Other Electronics' while preserving historical records)
+export const activeSellCategories = sellCategories.filter(
+  (cat) => (cat as string) !== "Other Electronics",
+);
 
 const categoryIcons: Record<SellCategory, typeof Smartphone> = {
   Phone: Smartphone,
@@ -688,12 +694,14 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
       name: string;
       url: string;
       size: number;
+      file?: File;
     }[]
   >([]);
   const [invoice, setInvoice] = useState<{
     name: string;
     url: string;
     size: number;
+    file?: File;
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
@@ -714,6 +722,7 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
       name: string;
       url: string;
       size: number;
+      file: File;
     };
     const newImages: ProcessedImageFile[] = [];
 
@@ -733,6 +742,7 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
         name: file.name,
         url: URL.createObjectURL(file),
         size: file.size,
+        file,
       });
     }
 
@@ -764,6 +774,7 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
       name: file.name,
       url: URL.createObjectURL(file),
       size: file.size,
+      file,
     });
     if (invoiceInputRef.current) invoiceInputRef.current.value = "";
   };
@@ -776,6 +787,12 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
     setError("");
     if (!customerName || !customerPhone) {
       setError("Please provide your name and phone number so IT HUB can contact you.");
+      return;
+    }
+    if ((category as string) === "Other Electronics") {
+      setError(
+        "The category 'Other Electronics' is no longer accepted for new submissions. Please choose an active device category.",
+      );
       return;
     }
     if (!effectiveBrand) {
@@ -814,8 +831,8 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
         warrantyRemaining: hasWarranty ? warrantyRemaining : undefined,
         warrantyDetails: hasWarranty ? warrantyDetails : undefined,
         expectedPrice: expectedPrice ? Number(expectedPrice) : undefined,
-        images: images.map((img) => ({ name: img.name, dataUrl: img.url })),
-        invoice: invoice ? { name: invoice.name, dataUrl: invoice.url } : null,
+        images: images.map((img) => ({ name: img.name, file: img.file, dataUrl: img.url })),
+        invoice: invoice ? { name: invoice.name, file: invoice.file, dataUrl: invoice.url } : null,
       });
 
       const finalId = res.id || `SELL-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
@@ -864,7 +881,7 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
     return (
       <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-white p-8 text-center shadow-sm md:p-12">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-          <CheckCircle2 size={44} />
+          <StatusMark status="done" size={48} strike={false} />
         </div>
         <div className="mt-4">
           <Badge tone="green">REQUEST SUBMITTED</Badge>
@@ -1006,7 +1023,7 @@ export default function SellYourItem({ onBackToFresh }: { onBackToFresh?: () => 
             What device do you want to sell?
           </h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {sellCategories.map((cat) => {
+            {activeSellCategories.map((cat) => {
               const Icon = categoryIcons[cat];
               const isSelected = category === cat;
               return (

@@ -98,6 +98,12 @@ Deno.test("H5. Configuration validation rejects invalid URL protocol", () => {
   assertMatch(result.error ?? "", /valid HTTP or HTTPS/);
 });
 
+Deno.test("H6. Missing configuration fails closed and does not fallback to remote production URL", () => {
+  const result = validateConfigHelper("", "");
+  assertEquals(result.isConfigured, false);
+  assertMatch(result.error ?? "", /Both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are missing/);
+});
+
 // ────────────────────────────────────────────────────────────────────────────
 // 2. QUERY HEALTH CHECK SIMULATION TESTS
 // ────────────────────────────────────────────────────────────────────────────

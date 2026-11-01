@@ -5,6 +5,23 @@
 
 begin;
 
+-- 0. Ensure pc_builds table exists
+create table if not exists public.pc_builds (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users (id) on delete cascade,
+  reference_id text unique,
+  name text,
+  customer_name text,
+  customer_phone text,
+  customer_email text,
+  parts jsonb not null default '[]'::jsonb,
+  estimated_price numeric(12, 2) not null default 0 check (estimated_price >= 0),
+  compatibility jsonb not null default '{}'::jsonb,
+  enquiry_status text not null default 'Draft' check (enquiry_status in ('Draft', 'New', 'Contacted', 'Quoted', 'Closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- 1. Extend pc_builds table with quotation reference, customer info & compatibility details
 alter table public.pc_builds
   add column if not exists reference_id text unique,

@@ -12,11 +12,21 @@
 }
 
 .gooey-nav--sm {
-  --gn-pad: 5px;
+  --gn-pad: 4px;
   --gn-gap: 2px;
-  --gn-font: 13px;
-  --gn-x: 13px;
-  --gn-y: 7px;
+  --gn-font: 12.5px;
+  --gn-x: 9.5px;
+  --gn-y: 6px;
+}
+
+@media (min-width: 1280px) {
+  .gooey-nav--sm {
+    --gn-pad: 5px;
+    --gn-gap: 3px;
+    --gn-font: 13px;
+    --gn-x: 13px;
+    --gn-y: 7px;
+  }
 }
 
 .gooey-nav--lg {
@@ -61,7 +71,7 @@
 .gooey-nav__list {
   position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--gn-gap);
   margin: 0;
   padding: 0;

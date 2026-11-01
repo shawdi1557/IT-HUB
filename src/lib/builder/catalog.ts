@@ -578,7 +578,7 @@ export function matchShopifyProductToComponent(
       productId: product.id,
       variantId,
       title: product.name,
-      brand: dbProd.brand || product.brand || "IT HUB",
+      brand: dbProd.brand || product.brand || "",
       model: dbProd.model_family || cleanedTitle,
       price: Math.round(product.price),
       currency: "INR",
@@ -632,7 +632,7 @@ export function matchShopifyProductToComponent(
       productId: product.id,
       variantId,
       title: product.name, // Authoritative Shopify title
-      brand: product.brand || "IT HUB",
+      brand: product.brand || "",
       model: cleanedTitle,
       price: Math.round(product.price), // Authoritative Shopify selling price (e.g. 9000)
       currency: "INR",
@@ -712,7 +712,7 @@ export function matchShopifyProductToComponent(
     productId: product.id,
     variantId,
     title: product.name,
-    brand: product.brand || "IT HUB",
+    brand: product.brand || "",
     model: cleanedTitle,
     price: Math.round(product.price),
     currency: "INR",
@@ -821,7 +821,7 @@ export function syncBuilderCatalogWithShopify(
   return { componentCatalog, canonicalCatalog };
 }
 
-const CATALOG_CACHE_TTL_MS = 60_000;
+const CATALOG_CACHE_TTL_MS = 15_000;
 let cachedBuilderCatalog: Record<ComponentSlotId, CanonicalBuildComponent[]> | null = null;
 let lastCatalogFetchTime = 0;
 

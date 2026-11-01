@@ -220,11 +220,44 @@ export interface PendingQuotation {
   timestamp: string;
 }
 
-function getStorage(): Storage | null {
-  if (typeof window !== "undefined" && window.localStorage) return window.localStorage;
-  if (typeof globalThis !== "undefined" && (globalThis as any).localStorage)
-    return (globalThis as any).localStorage;
-  return null;
+const memoryStore = new Map<string, string>();
+const fallbackMemoryStorage: Storage = {
+  getItem: (key: string) => memoryStore.get(key) ?? null,
+  setItem: (key: string, value: string) => {
+    memoryStore.set(key, String(value));
+  },
+  removeItem: (key: string) => {
+    memoryStore.delete(key);
+  },
+  clear: () => {
+    memoryStore.clear();
+  },
+  key: (index: number) => Array.from(memoryStore.keys())[index] ?? null,
+  get length() {
+    return memoryStore.size;
+  },
+};
+
+function getStorage(): Storage {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("__storage_test__", "1");
+      window.localStorage.removeItem("__storage_test__");
+      return window.localStorage;
+    }
+  } catch {
+    // Browser storage disabled or throwing
+  }
+  try {
+    if (typeof globalThis !== "undefined" && (globalThis as any).localStorage) {
+      (globalThis as any).localStorage.setItem("__storage_test__", "1");
+      (globalThis as any).localStorage.removeItem("__storage_test__");
+      return (globalThis as any).localStorage;
+    }
+  } catch {
+    // Deno/headless disk I/O error fallback
+  }
+  return fallbackMemoryStorage;
 }
 
 /**

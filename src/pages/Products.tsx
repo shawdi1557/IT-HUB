@@ -17,14 +17,19 @@ import {
   BadgeIndianRupee,
   AlertTriangle,
   LoaderCircle,
-  Star,
-  CheckCircle2,
-  MessageSquare,
-  PenLine,
+  PackageX,
 } from "lucide-react";
 import { useStore } from "../app/store";
 import { track } from "../lib/analytics";
-import { fetchProductGallery, fetchProductById, DEFAULT_IMAGE_FALLBACK } from "../lib/catalog";
+import {
+  fetchProductGallery,
+  fetchProductById,
+  DEFAULT_IMAGE_FALLBACK,
+  getRelatedProducts,
+  matchesCategoryFilter,
+  calculateCategoryCounts,
+  WEBSITE_CATEGORIES,
+} from "../lib/catalog";
 import { bestOffer, categories, money, offerHeadline, type Product } from "../data/catalog";
 import {
   fetchShopifyProduct,
@@ -32,6 +37,7 @@ import {
   createShopifyCart,
   checkShopifyAvailability,
   toVariantGid,
+  toProductGid,
 } from "../lib/shopify";
 import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize";
 import ProductCard, { ProductImage } from "../components/ProductCard";
@@ -45,7 +51,6 @@ import {
   Page,
   PageHeading,
   fieldClass,
-  Stars,
   Select,
 } from "../components/ui";
 
@@ -95,13 +100,7 @@ export function Products() {
   );
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const p of sectionProducts) {
-      if (p.category) {
-        counts[p.category] = (counts[p.category] || 0) + 1;
-      }
-    }
-    return counts;
+    return calculateCategoryCounts(sectionProducts);
   }, [sectionProducts]);
 
   const brandCounts = useMemo(() => {
@@ -119,17 +118,7 @@ export function Products() {
       sectionProducts
         .filter((product) => {
           return (
-            (!category ||
-              product.category === category ||
-              (category === "PC Components" &&
-                [
-                  "Processors",
-                  "Graphics Cards",
-                  "RAM",
-                  "Motherboards",
-                  "Storage",
-                  "PC Components",
-                ].includes(product.category))) &&
+            (!category || matchesCategoryFilter(product, category)) &&
             (!brand || product.brand === brand) &&
             product.price <= max &&
             (!available ||
@@ -137,10 +126,16 @@ export function Products() {
                 ? product.availableForSale
                 : product.stock > 0)) &&
             product.rating >= rating &&
-            `${product.name} ${product.brand} ${product.category} ${Object.values(product.specs).join(" ")}`
+            `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${
+              product.specs && typeof product.specs === "object"
+                ? Object.values(product.specs).join(" ")
+                : ""
+            }`
               .toLowerCase()
               .includes(query.toLowerCase()) &&
-            Object.entries(specs).every(([key, value]) => !value || product.specs[key] === value)
+            Object.entries(specs).every(
+              ([key, value]) => !value || (product.specs && product.specs[key] === value),
+            )
           );
         })
         .sort((first, second) =>
@@ -293,37 +288,39 @@ export function Products() {
               </button>
             </div>
           )}
-          <div className="mb-7 flex flex-wrap gap-3">
-            <div className="relative min-w-48 flex-1">
+          <div className="mb-6 sm:mb-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative w-full flex-1 min-w-0">
               <Search size={17} className="absolute left-3 top-3.5 text-muted-foreground" />
               <input
                 aria-label="Search products"
                 value={query}
                 onChange={(event) => update("q", event.target.value)}
-                className={`${fieldClass} pl-10`}
+                className={`${fieldClass} pl-10 w-full`}
                 placeholder="Search products, brands, specifications…"
               />
             </div>
-            <button
-              className="flex items-center gap-2 rounded-md border border-border px-4 lg:hidden"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <SlidersHorizontal size={16} /> Filters
-            </button>
-            <Select
-              label="Sort products"
-              align="right"
-              className="w-52 shrink-0"
-              value={sort}
-              onChange={setSort}
-              options={[
-                "Relevance",
-                "Price: Low to High",
-                "Price: High to Low",
-                "Newest",
-                "Rating",
-              ].map((value) => ({ value, label: value }))}
-            />
+            <div className="flex items-center gap-2.5 sm:shrink-0">
+              <button
+                className="flex flex-1 sm:flex-initial h-[46px] items-center justify-center gap-2 rounded-xl border border-border px-4 text-xs font-semibold lg:hidden transition hover:border-primary active:bg-slate-50"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <SlidersHorizontal size={15} /> Filters
+              </button>
+              <Select
+                label="Sort products"
+                align="right"
+                className="flex-1 sm:flex-initial sm:w-52 min-w-0"
+                value={sort}
+                onChange={setSort}
+                options={[
+                  "Relevance",
+                  "Price: Low to High",
+                  "Price: High to Low",
+                  "Newest",
+                  "Rating",
+                ].map((value) => ({ value, label: value }))}
+              />
+            </div>
           </div>
           <div className="grid gap-8 lg:grid-cols-[210px_1fr]">
             <aside
@@ -360,12 +357,12 @@ export function Products() {
                       value: "",
                       label: `All categories (${sectionProducts.length})`,
                     },
-                    ...store.catalogCategories
-                      .filter((val) => val !== "All")
-                      .map((value) => ({
-                        value,
-                        label: `${value} (${categoryCounts[value] || 0})`,
-                      })),
+                    ...WEBSITE_CATEGORIES.map((cat) => ({
+                      value: cat,
+                      label: `${cat} (${categoryCounts[cat] || 0})`,
+                    })).filter(
+                      (opt) => (categoryCounts[opt.value] || 0) > 0 || opt.value === category,
+                    ),
                   ]}
                 />
               </Field>
@@ -432,7 +429,11 @@ export function Products() {
                     ...new Set(
                       store.products
                         .filter((product) => product.category === category)
-                        .map((product) => product.specs[key])
+                        .map((product) =>
+                          product.specs && typeof product.specs === "object"
+                            ? product.specs[key]
+                            : undefined,
+                        )
                         .filter(Boolean),
                     ),
                   ];
@@ -480,7 +481,7 @@ export function Products() {
                   </p>
                   <Button
                     variant="primary"
-                    onClick={() => store.refreshCatalog()}
+                    onClick={() => store.refreshCatalog({ force: true })}
                     className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold"
                   >
                     <RefreshCw size={14} />
@@ -489,8 +490,24 @@ export function Products() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <p>
+                  {store.catalogError && store.products.length > 0 && (
+                    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs text-destructive">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle size={16} className="shrink-0" />
+                        <span>Live catalog sync error: {store.catalogError}</span>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={() => store.refreshCatalog({ force: true })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold"
+                      >
+                        <RefreshCw size={12} />
+                        Retry Sync
+                      </Button>
+                    </div>
+                  )}
+                  <div className="mb-5 flex flex-col min-[420px]:flex-row min-[420px]:items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <p className="min-w-0">
                       Showing{" "}
                       <strong className="text-foreground">
                         {filtered.length === 0
@@ -511,14 +528,14 @@ export function Products() {
                       ) : null}
                     </p>
                     {totalPages > 1 && (
-                      <p className="font-medium">
+                      <p className="font-medium shrink-0">
                         Page {safePage} of {totalPages}
                       </p>
                     )}
                   </div>
                   {filtered.length ? (
                     <>
-                      <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-3">
+                      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:gap-5 xl:grid-cols-3">
                         {paginatedProducts.map((product) => (
                           <ProductCard key={product.id} product={product} />
                         ))}
@@ -526,7 +543,7 @@ export function Products() {
 
                       {/* Accessible Pagination Navigation */}
                       {totalPages > 1 && (
-                        <div className="mt-10 flex items-center justify-center gap-2 border-t border-border pt-6">
+                        <div className="mt-10 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 border-t border-border pt-6">
                           <Button
                             variant="secondary"
                             disabled={safePage === 1}
@@ -539,7 +556,7 @@ export function Products() {
                             <ChevronLeft size={14} /> Previous
                           </Button>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center justify-center gap-1">
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                               <button
                                 key={pageNum}
@@ -600,17 +617,6 @@ export function Products() {
     </Page>
   );
 }
-export interface CustomerReview {
-  id: string;
-  productId: string;
-  author: string;
-  rating: number;
-  title?: string;
-  comment: string;
-  date: string;
-  verified: boolean;
-}
-
 export function ProductDetail() {
   const { id } = useParams();
   const store = useStore();
@@ -618,14 +624,6 @@ export function ProductDetail() {
   const [directProduct, setDirectProduct] = useState<Product | null>(null);
   const [fetchingDirect, setFetchingDirect] = useState(false);
 
-  const [reviews, setReviews] = useState<CustomerReview[]>([]);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [formRating, setFormRating] = useState(5);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [formAuthor, setFormAuthor] = useState("");
-  const [formTitle, setFormTitle] = useState("");
-  const [formComment, setFormComment] = useState("");
-  const [formSubmitting, setFormSubmitting] = useState(false);
   const [buyingNow, setBuyingNow] = useState(false);
   const [buyNowError, setBuyNowError] = useState<string | null>(null);
 
@@ -648,6 +646,10 @@ export function ProductDetail() {
       }) || directProduct
     );
   }, [store.products, directProduct, id]);
+
+  const relatedProducts = useMemo(() => {
+    return getRelatedProducts(product, store.products, { limit: 4 });
+  }, [product, store.products]);
 
   useEffect(() => {
     if (!product && id) {
@@ -680,6 +682,30 @@ export function ProductDetail() {
       };
     }
   }, [product, id]);
+
+  // Fresh real-time availability sync when opening product details
+  useEffect(() => {
+    if (!id || !shopifyConfig.isConfigured) return;
+    let isMounted = true;
+    const gid = toProductGid(id);
+    checkShopifyAvailability([gid]).then((res) => {
+      if (!isMounted || !res || !res.availability) return;
+      store.patchAvailability(res.availability);
+      const targetInfo = res.availability[gid] || res.availability[id];
+      if (
+        targetInfo &&
+        directProduct &&
+        directProduct.availableForSale !== targetInfo.availableForSale
+      ) {
+        setDirectProduct((prev) =>
+          prev ? { ...prev, availableForSale: targetInfo.availableForSale } : prev,
+        );
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -722,120 +748,16 @@ export function ProductDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
   const [quantity, setQuantity] = useState(1);
-  const [tab, setTab] = useState("Description");
 
-  useEffect(() => {
-    if (!product?.id) return;
-    try {
-      const saved = localStorage.getItem(`ithub_product_reviews_${product.id}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setReviews(parsed);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to load reviews from localStorage", err);
-    }
-    setReviews([]);
-  }, [product?.id]);
-
-  useEffect(() => {
-    if (store.profile?.name && !formAuthor) {
-      setFormAuthor(store.profile.name);
-    }
-  }, [store.profile?.name, formAuthor]);
-
-  const handleReviewSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formAuthor.trim() || !formComment.trim() || !product) return;
-    setFormSubmitting(true);
-
-    const newReview: CustomerReview = {
-      id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      productId: String(product.id),
-      author: formAuthor.trim(),
-      rating: formRating,
-      title: formTitle.trim() || undefined,
-      comment: formComment.trim(),
-      date: new Date().toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }),
-      verified: true,
-    };
-
-    const updated = [newReview, ...reviews];
-    setReviews(updated);
-
-    try {
-      localStorage.setItem(`ithub_product_reviews_${product.id}`, JSON.stringify(updated));
-    } catch (err) {
-      console.warn("Could not save review to localStorage", err);
-    }
-
-    if (store.loggedIn && store.profile?.id) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        product.id,
-      );
-      if (isUuid) {
-        import("../lib/supabase").then(async ({ supabase }) => {
-          if (!supabase) return;
-          try {
-            await supabase.from("reviews").insert({
-              user_id: store.profile.id,
-              product_id: product.id,
-              rating: formRating,
-              body: formComment.trim(),
-              status: "Pending",
-            });
-          } catch {
-            // Handled gracefully
-          }
-        });
-      }
-    }
-
-    store.notify("Review submitted successfully! Thank you for your feedback.");
-    setFormTitle("");
-    setFormComment("");
-    setFormRating(5);
-    setShowReviewForm(false);
-    setFormSubmitting(false);
-  };
-
-  if (!product && (store.catalogLoading || fetchingDirect)) {
-    return (
-      <Page>
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-primary" />
-          <h3 className="text-base font-semibold text-foreground">Loading product details...</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Retrieving live data from IT HUB catalog
-          </p>
-        </div>
-      </Page>
-    );
-  }
-
-  if (!product)
-    return (
-      <Page>
-        <Empty
-          title="Product not found"
-          description="This product may have been removed or does not exist in the IT HUB catalog."
-          to="/products"
-        />
-      </Page>
-    );
-  // Multi-variant state & resolution
+  // Multi-variant state & resolution (declared unconditionally to preserve Hook ordering)
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   // Initialize selectedOptions when product changes
   useEffect(() => {
-    if (!product) return;
+    if (!product) {
+      setSelectedOptions({});
+      return;
+    }
     if (product.variants && product.variants.length > 0) {
       const preferredVariant =
         product.variants.find((v) => v.availableForSale) || product.variants[0];
@@ -878,6 +800,32 @@ export function ProductDetail() {
       }
     }
   }, [activeVariant?.image, allImages]);
+
+  if (!product && (store.catalogLoading || fetchingDirect)) {
+    return (
+      <Page>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-primary" />
+          <h3 className="text-base font-semibold text-foreground">Loading product details...</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Retrieving live data from IT HUB catalog
+          </p>
+        </div>
+      </Page>
+    );
+  }
+
+  if (!product)
+    return (
+      <Page>
+        <Empty
+          title="Product not found"
+          description="This product may have been removed or does not exist in the IT HUB catalog."
+          to="/products"
+          label="Back to Products"
+        />
+      </Page>
+    );
 
   const activePrice = activeVariant ? activeVariant.price : product.price;
   const activeOriginal = activeVariant
@@ -1074,7 +1022,17 @@ export function ProductDetail() {
       <div className="mb-8 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Link to="/">Home</Link>
         <ChevronRight size={12} />
-        <Link to={`/products?category=${encodeURIComponent(product.category)}`}>
+        <Link to={product.secondHand ? "/products?section=secondhand" : "/products"}>
+          {product.secondHand ? "Pre-Owned" : "Fresh Items"}
+        </Link>
+        <ChevronRight size={12} />
+        <Link
+          to={
+            product.secondHand
+              ? `/products?section=secondhand&category=${encodeURIComponent(product.category)}`
+              : `/products?category=${encodeURIComponent(product.category)}`
+          }
+        >
           {product.category}
         </Link>
         <ChevronRight size={12} />
@@ -1141,28 +1099,12 @@ export function ProductDetail() {
           </p>
         </div>
         <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[.14em] text-primary">
-            {product.brand}
-          </p>
+          {product.brand ? (
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[.14em] text-primary">
+              {product.brand}
+            </p>
+          ) : null}
           <h1 className="text-3xl font-bold leading-tight lg:text-4xl">{product.name}</h1>
-          <button
-            type="button"
-            onClick={() => setTab("Reviews")}
-            className="mt-4 flex items-center text-sm text-amber-500 hover:opacity-85 transition cursor-pointer"
-          >
-            <Stars size={15} />{" "}
-            <span className="ml-2 text-foreground font-semibold">
-              {reviews.length > 0
-                ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-                : product.rating}
-              /5
-            </span>
-            <span className="ml-2 text-xs text-muted-foreground hover:underline">
-              {reviews.length > 0
-                ? `(${reviews.length} customer ${reviews.length === 1 ? "review" : "reviews"})`
-                : "Customer reviews"}
-            </span>
-          </button>
           {(() => {
             const deal = bestOffer(store.offers, product);
             const shown = deal ? deal.price : activePrice;
@@ -1230,6 +1172,22 @@ export function ProductDetail() {
                     ? `Only ${product.stock} left in stock!`
                     : "Out of stock"}
           </Badge>
+          {isSoldOut && (
+            <div className="my-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs text-amber-900 shadow-xs flex items-center gap-2">
+              <PackageX size={16} className="text-amber-600 shrink-0" />
+              <p>
+                This item or selected option is currently out of stock or archived from our catalog.
+                You can still view specifications, or explore related items in{" "}
+                <Link
+                  to={`/products?category=${encodeURIComponent(product.category)}`}
+                  className="underline font-semibold hover:text-amber-950"
+                >
+                  {product.category}
+                </Link>
+                .
+              </p>
+            </div>
+          )}
           {product.secondHand && (
             <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
               <div className="flex items-center gap-2 font-bold text-amber-800">
@@ -1240,7 +1198,8 @@ export function ProductDetail() {
                 Condition:{" "}
                 <strong className="text-amber-950">{product.condition || "Inspected"}</strong> ·
                 Multi-point diagnostics passed · Serviced & tested · Covered by{" "}
-                {product.specs.Warranty || "IT HUB Warranty"}.
+                {(product.specs && product.specs.Warranty) || product.warranty || "IT HUB Warranty"}
+                .
               </p>
             </div>
           )}
@@ -1389,322 +1348,90 @@ export function ProductDetail() {
             </p>
             <p className="flex gap-2">
               <ShieldCheck size={15} className="text-primary" /> Warranty:{" "}
-              {product.specs.Warranty || "Contact IT HUB for details"}
-              <Link
-                to={`/support?view=warranty&brand=${encodeURIComponent(product.brand)}&category=${encodeURIComponent(product.category)}`}
-                className="ml-1 font-semibold text-primary"
-              >
-                Warranty help →
-              </Link>
+              {(product.specs && product.specs.Warranty) ||
+                product.warranty ||
+                "Contact IT HUB for details"}
             </p>
-            <p>Prices, availability and discounts are illustrative prototype data.</p>
           </div>
         </div>
       </div>
-      <div className="mt-14">
-        <div className="flex overflow-x-auto border-b border-border">
-          {["Description", "Reviews"].map((value) => (
-            <button
-              key={value}
-              onClick={() => setTab(value)}
-              className={`shrink-0 border-b-2 px-5 py-4 text-sm font-medium transition-colors ${
-                tab === value || (value === "Description" && tab === "Overview")
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {value}
-              {value === "Reviews" && reviews.length > 0 && (
-                <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-foreground">
-                  {reviews.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        <div className="min-h-44 py-7 text-sm leading-7">
-          {(tab === "Description" || tab === "Overview") &&
-            (() => {
-              const desc = resolveProductDescription(product);
-              return (
-                <section
-                  aria-labelledby="product-description-heading"
-                  className="max-w-3xl space-y-4"
-                >
-                  <h3
-                    id="product-description-heading"
-                    className="text-lg font-bold text-foreground"
-                  >
-                    Product Description
-                  </h3>
-                  {desc.type === "html" ? (
-                    <div
-                      className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80"
-                      dangerouslySetInnerHTML={{
-                        __html: desc.content,
-                      }}
-                    />
-                  ) : desc.type === "text" ? (
-                    <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
-                      {desc.content}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground italic">{desc.content}</p>
-                  )}
-                </section>
-              );
-            })()}
-          {tab === "Reviews" && (
-            <div className="max-w-3xl space-y-6">
-              {/* Header & Rating Overview */}
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card/60 p-6 shadow-xs">
-                <div>
-                  <h3 className="text-lg font-bold text-foreground">Customer Reviews</h3>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="flex items-center text-amber-400">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const avg =
-                          reviews.length > 0
-                            ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-                            : product.rating;
-                        return (
-                          <Star
-                            key={star}
-                            size={18}
-                            className={
-                              star <= Math.round(avg)
-                                ? "fill-amber-400 text-amber-400"
-                                : "text-muted-foreground/30"
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                    <span className="text-base font-bold text-foreground">
-                      {reviews.length > 0
-                        ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-                        : product.rating}
-                      <span className="text-sm font-normal text-muted-foreground"> / 5</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      ·{" "}
-                      {reviews.length > 0
-                        ? `${reviews.length} verified ${
-                            reviews.length === 1 ? "review" : "reviews"
-                          }`
-                        : "Catalog rating"}
-                    </span>
+      <div className="mt-14 border-t border-border pt-10">
+        <div className="min-h-44 text-sm leading-7">
+          {(() => {
+            const desc = resolveProductDescription(product);
+            return (
+              <section
+                aria-labelledby="product-description-heading"
+                className="max-w-3xl space-y-4"
+              >
+                <h3 id="product-description-heading" className="text-lg font-bold text-foreground">
+                  Product Description
+                </h3>
+                {desc.type === "html" ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 space-y-3 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_p]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80"
+                    dangerouslySetInnerHTML={{
+                      __html: desc.content,
+                    }}
+                  />
+                ) : desc.type === "text" ? (
+                  <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
+                    {desc.content}
                   </div>
-                </div>
-                <Button
-                  onClick={() => setShowReviewForm((prev) => !prev)}
-                  className="flex items-center gap-2"
-                >
-                  <PenLine size={15} />
-                  {showReviewForm ? "Close Form" : "Write a Review"}
-                </Button>
-              </div>
-
-              {/* Review Posting Form */}
-              {showReviewForm && (
-                <form
-                  onSubmit={handleReviewSubmit}
-                  className="rounded-2xl border border-primary/30 bg-card p-6 shadow-sm space-y-4 transition-all"
-                >
-                  <div className="flex items-center justify-between border-b border-border pb-3">
-                    <h4 className="text-base font-bold text-foreground">Write a Customer Review</h4>
-                    <span className="text-xs text-muted-foreground truncate max-w-xs">
-                      For {product.name}
-                    </span>
-                  </div>
-
-                  {/* Rating Selector */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Your Rating *
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          type="button"
-                          key={star}
-                          onClick={() => setFormRating(star)}
-                          onMouseEnter={() => setHoverRating(star)}
-                          onMouseLeave={() => setHoverRating(0)}
-                          className="p-1 transition-transform hover:scale-125 focus:outline-none"
-                          aria-label={`Select ${star} stars`}
-                        >
-                          <Star
-                            size={24}
-                            className={
-                              (hoverRating || formRating) >= star
-                                ? "fill-amber-400 text-amber-400"
-                                : "text-muted-foreground/30"
-                            }
-                          />
-                        </button>
-                      ))}
-                      <span className="ml-2 text-xs font-medium text-muted-foreground">
-                        {formRating === 5 && "5 / 5 · Excellent"}
-                        {formRating === 4 && "4 / 5 · Very Good"}
-                        {formRating === 3 && "3 / 5 · Good"}
-                        {formRating === 2 && "2 / 5 · Fair"}
-                        {formRating === 1 && "1 / 5 · Poor"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Author Name */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Your Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formAuthor}
-                      onChange={(e) => setFormAuthor(e.target.value)}
-                      placeholder="e.g. Anand R."
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Review Title */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Review Headline (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      placeholder="e.g. Crisp 2K display, excellent gaming performance"
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Review Body */}
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      Your Review *
-                    </label>
-                    <textarea
-                      required
-                      rows={4}
-                      value={formComment}
-                      onChange={(e) => setFormComment(e.target.value)}
-                      placeholder="What did you like or dislike? How was the display clarity, build quality, or gaming experience?"
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none leading-relaxed"
-                    />
-                  </div>
-
-                  {/* Form Actions */}
-                  <div className="flex items-center justify-end gap-3 pt-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setShowReviewForm(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={formSubmitting || !formAuthor.trim() || !formComment.trim()}
-                    >
-                      {formSubmitting ? "Submitting…" : "Post Review"}
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              {/* Reviews List */}
-              {reviews.length > 0 ? (
-                <div className="space-y-4">
-                  {reviews.map((rev) => (
-                    <article
-                      key={rev.id}
-                      className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-xs"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                            {rev.author.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground leading-tight">
-                              {rev.author}
-                            </p>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                              <CheckCircle2 size={12} /> Verified Customer
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-xs text-muted-foreground">{rev.date}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-amber-400">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={14}
-                            className={
-                              star <= rev.rating
-                                ? "fill-amber-400 text-amber-400"
-                                : "text-muted-foreground/30"
-                            }
-                          />
-                        ))}
-                      </div>
-
-                      {rev.title && (
-                        <h4 className="text-sm font-bold text-foreground">{rev.title}</h4>
-                      )}
-
-                      <p className="text-sm text-foreground/90 whitespace-pre-line leading-relaxed">
-                        {rev.comment}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-                  <MessageSquare className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
-                  <h4 className="text-base font-semibold text-foreground">
-                    No customer reviews yet
-                  </h4>
-                  <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-                    Be the first customer to share your hands-on experience, performance feedback,
-                    and rating for this product.
-                  </p>
-                  {!showReviewForm && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowReviewForm(true)}
-                      className="mt-4"
-                    >
-                      Write the First Review
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                ) : (
+                  <p className="text-muted-foreground italic">{desc.content}</p>
+                )}
+              </section>
+            );
+          })()}
         </div>
       </div>
-      <div className="mt-6">
-        <h2 className="mb-6 text-2xl font-bold">Related Products</h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[...store.products]
-            .filter((item) => item.id !== product.id)
-            .sort(
-              (a, b) =>
-                Number(b.category === product.category) - Number(a.category === product.category),
-            )
-            .slice(0, 4)
-            .map((item) => (
+      <div className="mt-8 border-t border-border pt-8">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-2xl font-bold">Related Products</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {product.secondHand
+                ? "Verified IT HUB pre-owned & refurbished devices in this category."
+                : "Genuine brand-new hardware and components in this category."}
+            </p>
+          </div>
+          {product.category && (
+            <Link
+              to={
+                product.secondHand
+                  ? `/products?section=secondhand&category=${encodeURIComponent(product.category)}`
+                  : `/products?category=${encodeURIComponent(product.category)}`
+              }
+              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              View all {product.secondHand ? "pre-owned" : "fresh"} {product.category}
+              <ArrowRight size={12} />
+            </Link>
+          )}
+        </div>
+
+        {relatedProducts.length > 0 ? (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {relatedProducts.map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center">
+            <PackageX size={32} className="mx-auto text-muted-foreground/60 mb-2" />
+            <p className="text-sm font-semibold text-foreground">
+              {product.secondHand
+                ? "No other pre-owned products available in this category."
+                : "No other fresh products currently in stock for this category."}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+              {product.secondHand
+                ? "Check back soon or explore our brand-new items in this section."
+                : "Our live catalog synchronizes in real-time with IT HUB Kothamangalam."}
+            </p>
+          </div>
+        )}
       </div>
       <div className="mt-12">
         <h2 className="mb-2 text-2xl font-bold">Related Services</h2>

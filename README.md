@@ -2,274 +2,414 @@
 
 A modern omnichannel technology retail, on-site service booking, headless Shopify commerce, and custom PC configuration platform built for **IT HUB, Kothamangalam, Kerala** (est. 2011).
 
-The platform bridges physical retail and digital commerce, delivering a unified experience across shopping, hardware diagnostics, brand warranty assistance, headless Shopify integration, and intelligent custom computer fabrication.
+The platform bridges physical retail and digital commerce, delivering a unified customer and staff experience across product sales, hardware diagnostics, brand warranty assistance, headless Shopify integration, and intelligent custom computer fabrication.
 
 ---
 
-## 1. About the Project
+## 1. Project Overview & Business Context
 
-**IT HUB** has served customers across Central Kerala for over a decade as an authorized technology retailer and multi-brand service center. This web application brings the complete IT HUB ecosystem online, offering:
+**IT HUB** has operated in Central Kerala for over a decade as an authorized technology retailer and multi-brand service center. This repository provides a two-tier ecosystem:
 
-- **Shopify Headless Storefront**: Direct Storefront GraphQL API integration across 1,300+ SKUs with real-time stock indicators, multi-variant selectors, and direct checkout redirection.
-- **Find My PC Recommendation Engine**: Multi-branch dynamic candidate synthesizer generating verified PC builds tailored to customer budgets and use-cases from live inventory.
-- **Expert Mode PC Builder**: Interactive custom PC builder with 10 hardware compatibility rules, socket/generation validation, and auxiliary PCIe power verification.
-- **Secure Quotation Submission**: Formal PC fabrication quotation workflow backed by server-side Shopify price verification, mandatory customer authentication, and distributed rate limiting.
-- **Technical Services & Repairs**: Booking and diagnosis portal for chip-level motherboard repair, display replacements, itemized quotation approvals, and live service tracking.
-- **IT HUB Technology Blog CMS**: Dedicated technology journalism and buying guides powered by headless Shopify CMS integration.
-- **Authorized Brand Support Directory**: Direct contact information, toll-free lines, and escalation matrices for partner brands (HP, Dell, Lenovo, Asus, Canon, Epson, Hikvision, etc.).
-- **Partner Accreditations & Showcase**: Interactive showcase of official brand certifications and industry recognitions (Intel Gold Partner, AMD Commercial, Microsoft Authorized, ASUS Gold Partner, Dell Certified, Canon Authorized).
-- **Administrative Back-Office**: Back-office management dashboard for catalog synchronization, service ticket workflows, order tracking, and visitor analytics.
+1. **Customer Storefront (`/`)**: A responsive customer-facing web application for browsing products, configuring custom PCs, requesting repairs, and managing order history.
+2. **Staff Portal (`ITHUB_ADMIN/`)**: A dedicated, role-based administrative control plane for technicians and management to review service tickets, approve rescheduling, audit quotations, and manage showroom content.
 
 ---
 
-## 2. Platform Architecture
+## 2. Platform Architecture & Technology Stack
 
-The system is architected as a decoupled, responsive single-page application (SPA) backed by cloud PostgreSQL with Row Level Security (RLS), serverless Deno Edge Functions, and Shopify Storefront GraphQL APIs.
-
-### Technology Stack
-
-| Layer                    | Technologies                        | Role & Key Features                                                                                     |
-| :----------------------- | :---------------------------------- | :------------------------------------------------------------------------------------------------------ |
-| **Frontend UI**          | React 19, TypeScript 5.7, Vite 8    | Ultra-fast SPA with client-side routing, code splitting, and strict type safety                         |
-| **Styling & Motion**     | Tailwind CSS v4, Motion, Lenis      | Responsive styling, brand tokens (`#1a4fd6`, `#ecf1ff`, `#0c2f8a`), smooth scrolling                    |
-| **Component Primitives** | Radix UI, Lucide Icons              | Accessible dialogs, dropdowns, accessible modal overlays with wheel-scroll isolation                    |
-| **E-Commerce & Catalog** | Shopify Storefront API (GraphQL)    | Live catalog queries, variant GID resolution, inventory levels, cart lines, and checkout                |
-| **Database & Auth**      | Supabase (PostgreSQL 15), GoTrue    | Relational database, Row Level Security (RLS), custom RPCs, E.164 phone OTP & email auth                |
-| **Edge Functions**       | Deno runtime                        | Server-side quotation price verification, distributed rate limiting, and cryptographic payment webhooks |
-| **Payments**             | Razorpay SDK                        | UPI, Debit/Credit cards, Net Banking, and Pay on Delivery options                                       |
-| **State Management**     | Centralized Store with localStorage | Persistent cart, customer session, pending quotation preservation, live inventory hydration             |
-
-### Security & Data Isolation Architecture
-
-- **Row Level Security (RLS)**: Enforced across all tables (`hardware_component_specifications`, `pc_builds`, `service_requests`). Anonymous guests access only verified public views. Quarantined parent products automatically suppress all associated variants via correlated RLS subqueries.
-- **Mandatory Quotation Authentication**: Submitting custom PC quotation requests strictly requires an authenticated customer identity. Unauthenticated sessions are rejected with HTTP 401 at the Edge Function boundary and blocked at the PostgreSQL trigger level (`protect_pc_build`).
-- **Server-Side Price Verification**: Quotation totals are calculated authoritatively by the `verify-and-submit-pc-quotation` Edge Function by re-querying live Shopify variant GIDs. Client-supplied totals are treated as unverified hints and flagged for review if tampering is detected.
-- **Distributed Rate Limiting**: Enforced via atomic database RPC (`check_distributed_rate_limit`) against a dedicated `rate_limits` table, preventing in-memory bypasses across ephemeral serverless invocations.
-- **Legacy RPC Revocation**: Legacy direct submission RPC (`submit_pc_quotation_request`) has public execute grants revoked (`REVOKE EXECUTE ... FROM anon, authenticated`) and is restricted to trusted backend roles (`service_role`, `postgres`).
-
----
-
-## 3. Core Modules & Systems
-
-### 3.1. Find My PC Recommendation Engine
-
-The **Find My PC** engine (`src/lib/builder/recommendations.ts`) dynamically generates optimized PC configurations directly from live inventory:
-
-- **Dynamic Candidate Synthesis**: Evaluates combinatorial component candidates from live Shopify products rather than static hardcoded templates.
-- **Five Purpose Profiles**:
-  1. _Esports & High-FPS Gaming_: GPU/CPU allocation weighted toward high frame rates and low latency.
-  2. _AAA Cinematic Gaming_: Visual fidelity, VRAM capacity, and GPU headroom prioritization.
-  3. _Content Creation & Video Editing_: Multi-threaded CPU performance, high-capacity RAM, and fast NVMe storage.
-  4. _Software Development & Engineering_: High core counts, fast compilation memory, and multi-monitor expansion.
-  5. _Everyday Office & Productivity_: Balanced, power-efficient, reliable baseline configurations.
-- **Tri-Variant Delivery**: Produces three distinct build perspectives per valid query:
-  - **Best Value**: Maximizes benchmark performance per rupee strictly within budget.
-  - **Balanced Choice**: Optimal component synergy, cooling headroom, and power efficiency.
-  - **Best Performance**: Top-tier silicon with zero unverified bottlenecks.
-- **Honest Shortfall UI**: When a customer's budget cannot satisfy hard minimum baseline requirements (e.g. ₹25,000 for a dedicated gaming rig requiring discrete graphics), the engine refuses to pad recommendations with sub-par components. Instead, it transparently displays the exact rupee shortfall (e.g., _"Shortfall: ₹18,499 to meet minimum gaming baseline"_).
-
-### 3.2. Hardware Specification & Compatibility Engine
-
-The compatibility engine (`src/lib/builder/compatibility.ts`) enforces 10 strict physical, electrical, and platform rules:
-
-- **Rule A (CPU & Socket)**: Validates exact socket compatibility (e.g., AM4, LGA1700, AM5).
-- **Rule B (RAM Generation & Form Factor)**: Strictly prevents DDR4/DDR5 generational mismatches and SO-DIMM laptop memory in desktop boards.
-- **Rule C (RAM Capacity & Slots)**: Enforces motherboard slot limits and maximum supported capacity.
-- **Rule D (GPU Clearance)**: Validates GPU physical dimensions against cabinet maximum clearance.
-- **Rule E (System Wattage & PSU Capacity)**: Calculates total estimated TDP load across all components with an advisory 25–35% headroom heuristic.
-- **Rule F (Auxiliary PCIe Power)**: Compares PSU auxiliary PCIe power cables (6-pin, 8-pin, 12VHPWR) against GPU power connector requirements, rejecting under-cabled configurations.
-- **Rule G (Motherboard & Case Form Factor)**: Matches ATX, Micro-ATX, and Mini-ITX boards to compatible chassis mounting points.
-- **Rule H (Cooler Height & TDP)**: Validates CPU cooler height clearance and thermal dissipation ratings.
-- **Rule I (Display Output Validation)**: Flags CPUs lacking integrated graphics (iGPU) when no discrete GPU is installed.
-- **Rule J (Tri-State Verification & Rejection)**: Tracks specification states as `COMPATIBLE`, `INCOMPATIBLE`, or `UNKNOWN`. In automated recommendation modes, builds containing `UNKNOWN` critical specifications are strictly rejected from candidate pools.
-
-### 3.3. PC Quotation Workflow
-
-Custom PC fabrication requires technician review, component reservation, and custom assembly:
-
-- **Seamless Guest Preservation**: Guests can freely configure builds, adjust parts, and inspect compatibility. Clicking _"Request Quotation"_ saves the pending build and preferences to `localStorage` (`savePendingQuotation`) and directs the user to sign in.
-- **Post-Login Confirmation**: Upon successful authentication, the pending build is restored into the customer's view for explicit review and confirmation before submission. No quotation is ever submitted without explicit customer consent.
-- **Authoritative Server Dispatch**: Dispatched to `verify-and-submit-pc-quotation` Deno Edge Function with customer JWT, returning an immutable `reference_id` (e.g. `IH-PC-20261026-XXXX`).
-
-### 3.4. Technical Services & Repair Desk
-
-- **Service Request Wizard**: Covers laptops, desktop PCs, printers, monitors, and CCTV systems with store walk-in or on-site pickup.
-- **Itemized Quotations & Dynamic Diagnosis**: Technicians submit dynamic diagnostic findings and itemized repair quotes.
-- **Partial Repair Approvals**: Customers can selectively approve optional repair line items while safety-critical mandatory repairs remain locked.
-- **Cryptographic Payment Gateway**: Integrated Razorpay payment modal with webhook signature verification for service deposits and repair balances.
-
-### 3.5. Headless Shopify Storefront & CMS
-
-- **Storefront API Client** (`src/lib/shopify.ts`): Bounded caching (60s), request deduplication, and automated error recovery.
-- **Multi-Variant Product Detail**: Interactive selectors for color, storage, RAM, and warranty options with synchronized inventory availability.
-- **Direct Checkout Redirection**: Formats line items with authentic variant GIDs and redirects to official Shopify checkout.
-- **IT HUB Blog CMS** (`src/pages/Blog.tsx`): Shopify Article and Blog querying with tag filtering, reading time estimates, and author attribution.
-
----
-
-## 4. Benchmark & Quality Metrics
-
-The Find My PC engine was independently validated against a rigorous 100-scenario automated benchmark suite (`supabase/functions/tests/pc-builder-phase6-benchmark.test.ts`):
+The platform is architected as a decoupled, single-page application (SPA) backed by cloud PostgreSQL with Row Level Security (RLS), serverless Deno Edge Functions, and Shopify Storefront GraphQL APIs.
 
 ```text
-======================================================
-IT HUB FIND MY PC — 100-SCENARIO BENCHMARK REPORT
-======================================================
-Total Scenarios Evaluated       : 100
-Recommendation Suitability      : 100.00% (100/100)
-Wilson 95% Confidence Interval  : [96.30%, 100.00%]
-Critical Compatibility Errors   : 0 (0.00%)
-Budget Violations               : 0 (0.00%)
-Live Shopify Price Accuracy     : 100.00%
-Recommendation Diversity (D)   : 100.00%
-Combinatorial Search Latency P95: 0.40ms (Target < 50ms)
-======================================================
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT TIER                                    │
+│  ┌─────────────────────────────────┐   ┌─────────────────────────────────┐  │
+│  │   Customer Storefront (React 19)│   │    Staff Portal (React 19)      │  │
+│  │   Vite 8 · Tailwind CSS v4      │   │    Vite 8 · Tailwind CSS v4     │  │
+│  │   Port 8443 / 5173              │   │    Port 5174 (ITHUB_ADMIN/)     │  │
+│  └────────────────┬────────────────┘   └────────────────┬────────────────┘  │
+└───────────────────┼─────────────────────────────────────┼───────────────────┘
+                    │                                     │
+                    ▼                                     ▼
+┌────────────────────────────────────┐   ┌────────────────────────────────────┐
+│          COMMERCE ENGINE           │   │         OPERATIONAL BACKEND        │
+│   Shopify Storefront & Admin APIs  │   │   Supabase (PostgreSQL 15)         │
+│   · 1,300+ Product SKUs & Variants │   │   · Customer Profiles & Auth       │
+│   · Live Inventory & Headless Cart │   │   · Service Booking & Diagnoses    │
+│   · Hosted Secure Checkout         │   │   · PC Quotations & Specification  │
+│   · Authoritative Orders Source    │   │   · Staff RBAC & Audit Logs        │
+│   · Headless Shopify Blog CMS      │   │   · Realtime State Sync & Pub/Sub  │
+└───────────────────┬────────────────┘   └────────────────┬───────────────────┘
+                    │                                     │
+                    └──────────────────┬──────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SERVERLESS EDGE FUNCTIONS (DENO)                    │
+│   · verify-and-submit-pc-quotation: Server-side price recalculation & RLS   │
+│   · shopify-webhook: HMAC-SHA256 verified ingestion & token association     │
+│   · customer-shopify-orders: Authenticated order history & reconciliation   │
+│   · create-service-razorpay-order & verify-service-payment: Service escrow  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Statistical Confidence**: 100/100 successes yields a Wilson 95% score confidence interval of **[96.30%, 100.00%]**.
-- **Search Efficiency**: P95 combinatorial candidate synthesis latency of **0.40ms**, well within the 50ms real-time target.
-- **Test Coverage**: 70/70 Deno tests passing across 9 test suites covering compatibility rules, Shopify Storefront integration, server-side security, rate limiting, and quotation flows.
+### Technology Matrix
+
+| Layer                    | Technologies                                   | Role & Key Features                                                               |
+| :----------------------- | :--------------------------------------------- | :-------------------------------------------------------------------------------- |
+| **Customer Storefront**  | React 19, TypeScript 5.7, Vite 8               | Public commerce, custom PC builder, service booking wizard, and account area.     |
+| **Staff Portal**         | React 19, TypeScript 5.7, Vite 8               | Standalone administrative application in `ITHUB_ADMIN/` with strict RBAC.         |
+| **Styling & Animation**  | Tailwind CSS v4, Motion, Lenis                 | Modern responsive layout (`max-w-[1520px]`), brand tokens, smooth scrolling.      |
+| **Component Primitives** | Radix UI, Lucide Icons                         | Accessible dialogs, status badges, timelines, and touch-friendly drawers.         |
+| **Headless E-Commerce**  | Shopify Storefront API (`2026-01` / `2026-10`) | Authoritative product catalog, variant GIDs, live stock, and hosted checkout.     |
+| **Database & Auth**      | Supabase (PostgreSQL 15), GoTrue               | Relational schema, Row Level Security (RLS), custom RPCs, and Phone OTP auth.     |
+| **Serverless Functions** | Deno runtime (`supabase/functions/`)           | Cryptographic webhook verification, server price checks, rate limits, order sync. |
+| **Payments**             | Razorpay SDK & Gateway                         | Test mode integration for UPI, Cards, NetBanking, and Pay at IT HUB Counter.      |
 
 ---
 
-## 5. Project Structure
+## 3. Repository Structure
 
 ```text
 ITHUB_WEB/
-├── src/
-│   ├── main.tsx                         # React 19 entrypoint and global styles
-│   ├── index.css                        # Tailwind CSS v4 entrypoint & brand theme tokens
+├── src/                                  # Customer Storefront (React 19 + Vite 8)
+│   ├── main.tsx                          # React entrypoint and global styles
+│   ├── index.css                         # Tailwind CSS v4 entrypoint & theme tokens
 │   ├── app/
-│   │   ├── App.tsx                      # Primary application router and route definitions
-│   │   └── store.tsx                    # Global state (cart, user session, notifications)
-│   ├── components/                      # UI components
-│   │   ├── Layout.tsx                   # Header, mega navigation, search bar, and footer
-│   │   ├── AuthModal.tsx                # Mobile OTP & email authentication modal
-│   │   ├── ProductCard.tsx              # Product card with price badges and live stock status
-│   │   ├── QuotationApprovalPanel.tsx   # Customer service repair approval panel
-│   │   ├── RepairPaymentModal.tsx       # Razorpay service checkout modal
-│   │   └── ui.tsx                       # Radix UI design primitives
-│   ├── data/                            # Static fixtures and seed data
-│   │   ├── catalog.ts                   # In-store catalog fixtures and default certificates
-│   │   └── blog.ts                      # Fallback technology blog articles
-│   ├── lib/                             # Core libraries & business logic
-│   │   ├── builder/                     # PC Builder & Find My PC Intelligence
-│   │   │   ├── catalog.ts               # Shopify product normalization to PC component slots
-│   │   │   ├── checkout.ts              # Quotation preparation and Shopify line item mapping
-│   │   │   ├── compatibility.ts         # 10-rule hardware compatibility engine & Rule F
-│   │   │   ├── persistence.ts           # Quotation dispatch, rate limit handling & local storage
-│   │   │   ├── recommendations.ts       # Multi-branch synthesizer, purpose profiles & shortfall
-│   │   │   ├── slots.ts                 # Component slot definitions and display order
-│   │   │   └── types.ts                 # TypeScript interfaces for builds and specifications
-│   │   ├── shopify.ts                   # Shopify Storefront API client & query deduplication
-│   │   ├── shopify-schema.ts            # GraphQL types for Shopify Storefront API
-│   │   ├── services.ts                  # Service ticket API client and repair quotation models
-│   │   ├── blog.ts                      # Shopify Blog CMS fetcher and sanitization
-│   │   └── supabase.ts                  # Supabase client configuration
-│   └── pages/                           # Application Route Views
-│       ├── Home.tsx                     # Landing page with hero banner and featured offerings
-│       ├── Products.tsx                 # Catalog browsing, filtering, and multi-variant product details
-│       ├── Commerce.tsx                 # Cart drawer, direct Shopify checkout, and order tracking
-│       ├── Builder.tsx                  # Guided Find My PC and Expert Mode PC Builder
-│       ├── Services.tsx                 # Technical service estimator, booking, and live tracker
-│       ├── Blog.tsx                     # IT HUB Technology Blog & buying guides
-│       ├── Support.tsx                  # Authorized brand support directory and service centres
-│       ├── Information.tsx              # About IT HUB, history, and partner showcase
-│       ├── Account.tsx                  # Customer account, address book, and quotation history
-│       └── Admin.tsx                    # Back-office administration and service ticket management
-├── supabase/
-│   ├── schema.sql                       # Canonical PostgreSQL schema, tables, and RLS policies
-│   ├── migrations/                      # Versioned PostgreSQL database migrations
-│   │   ├── 20261022000001_phase5_dynamic_diagnosis_and_itemized_quotations.sql
-│   │   ├── 20261025000001_pc_builder_quotation_persistence.sql
-│   │   ├── 20261026000001_hardware_specifications.sql
-│   │   ├── 20261026000002_quotation_server_verification.sql
-│   │   └── 20261026000003_quotation_mandatory_authentication.sql
-│   └── functions/                       # Deno Serverless Edge Functions
-│       ├── verify-and-submit-pc-quotation/ # Server-side price verification and rate limiting
-│       ├── verify-razorpay-webhook/        # Razorpay cryptographic payment signature check
-│       ├── send-sms-hook/               # Indian SMS gateway OTP hook
-│       └── tests/                       # Deno test suites (70 comprehensive automated tests)
-├── scripts/
-│   ├── shopify_inventory_pipeline.cjs   # Batch migration script for Shopify catalog
-│   └── test_storefront_api.cjs          # Storefront GraphQL API integration verification
-├── vite.config.ts                       # Vite 8 configuration with React & Tailwind CSS v4 plugins
-├── package.json                         # Dependencies and build scripts
-└── tsconfig.json                        # TypeScript configuration
+│   │   ├── App.tsx                       # Router configuration and dynamic error boundaries
+│   │   └── store.tsx                     # Global reactive application store
+│   ├── components/                       # Shared UI and feature components
+│   │   ├── Layout.tsx                    # Header, mobile drawer, bottom nav, footer
+│   │   ├── PromotionalHeroCarousel.tsx   # 16:9 hero carousel with countdown & sync
+│   │   ├── ShopifyOrderDetailsModal.tsx  # Customer order details & carrier tracking modal
+│   │   ├── CustomerRescheduleManager.tsx # Customer on-site appointment rescheduling
+│   │   ├── QuotationApprovalPanel.tsx    # Customer service repair approval panel
+│   │   ├── RepairPaymentModal.tsx        # Service deposit & counter payment modal
+│   │   ├── SellYourItem.tsx              # Gadget valuation and trade-in submission
+│   │   └── ui.tsx                        # Radix UI design primitives
+│   ├── lib/                              # Core business logic & API clients
+│   │   ├── auth.ts                       # Supabase Phone OTP auth & profile reconciliation
+│   │   ├── shopify.ts                    # Shopify Storefront API client & availability
+│   │   ├── shopify-orders.ts             # Customer order retrieval & token association
+│   │   ├── shopify-schema.ts             # GraphQL schema mapping & GID utilities
+│   │   ├── services.ts                   # Service requests, status progression & tracking
+│   │   ├── serviceReschedule.ts          # Rescheduling eligibility & date validation
+│   │   ├── payments.ts                   # Razorpay modal launcher & verification callbacks
+│   │   └── builder/                      # Find My PC & Expert PC Builder engine
+│   └── pages/                            # Application route components
+│       ├── Home.tsx                      # Landing page with hero, categories, trust grid
+│       ├── Products.tsx                  # Catalog, category filtering, product detail view
+│       ├── Commerce.tsx                  # Cart drawer, direct Shopify checkout, order success
+│       ├── Builder.tsx                   # Find My PC and Expert PC Builder
+│       ├── Services.tsx                  # 5-step booking wizard and live service tracker
+│       ├── Blog.tsx                      # Headless Shopify technology journalism CMS
+│       ├── Support.tsx                   # Brand warranty directory and service centres
+│       ├── Information.tsx               # About IT HUB, history, partner certificates
+│       └── Account.tsx                   # Customer profile, My Orders, active services
+│
+├── ITHUB_ADMIN/                          # IT HUB Staff Portal (Dedicated App)
+│   ├── index.html                        # Portal shell
+│   ├── vite.config.ts                    # Independent Vite 8 build config (Port 5174)
+│   ├── package.json                      # Staff Portal scripts and dependencies
+│   └── src/
+│       ├── components/                   # ServiceDetailModal, QuotationModal, StatusMark
+│       ├── lib/                          # Staff auth, RBAC, Excel export, analytics
+│       └── pages/
+│           ├── Dashboard.tsx             # Staff dashboard with numerical badges
+│           ├── Services.tsx              # Ticket triage, diagnosis, technician assignment
+│           ├── Quotations.tsx            # PC Builder quotation reviews & price audit
+│           ├── SellRequests.tsx          # Gadget valuation and buyback management
+│           ├── WebsiteContent.tsx        # Showroom showcase & certificates editor
+│           ├── Audits.tsx                # Website Visitor Analytics & session inspector
+│           └── Settings.tsx              # Store hours, address, WhatsApp message settings
+│
+├── supabase/                             # Database & Backend Infrastructure
+│   ├── schema.sql                        # Canonical declarative PostgreSQL schema
+│   ├── migrations/                       # 31 sequential database migrations
+│   └── functions/                        # Serverless Deno Edge Functions
+│       ├── verify-and-submit-pc-quotation/
+│       ├── shopify-webhook/
+│       ├── customer-shopify-orders/
+│       ├── create-service-razorpay-order/
+│       ├── verify-service-payment/
+│       └── tests/                        # Automated Deno test suites (737 passed tests)
+│
+├── docs/superpowers/plans/               # Architecture implementation plans
+├── public/                               # Static brand assets and certificate images
+├── package.json                          # Storefront scripts and dependencies
+└── vite.config.ts                        # Vite 8 configuration
 ```
 
 ---
 
-## 6. Getting Started
+## 4. Shopify Integration & Responsibilities
 
-### 6.1. Prerequisites
+Shopify serves as the **authoritative single source of truth** for commercial product sales:
 
-- **Node.js**: v20 or higher
-- **Deno**: v1.40 or higher (for running test suites)
-- **Package Manager**: `npm` or `pnpm`
+- **Product Catalog & Inventory**: Direct GraphQL queries against the Storefront API (`src/lib/shopify.ts`) with bounded caching (60s) and deduplication across 1,300+ SKUs.
+- **Hosted Checkout**: Shopping bag checkout delegates directly to Shopify Hosted Checkout. Line items are mapped with authoritative variant GIDs (`gid://shopify/ProductVariant/...`).
+- **Cryptographic Order Association**: Prior to checkout, an opaque association token (`_hub_assoc_token`) generated by Supabase is embedded in cart attributes alongside buyer identity (`buyerIdentity`), linking the resulting order to the authenticated customer.
+- **Webhook Ingestion (`shopify-webhook`)**: Ingests `orders/create`, `orders/updated`, `orders/fulfilled`, `orders/cancelled`, and `orders/paid` with HMAC-SHA256 verification and idempotent deduplication.
+- **Shopify Blog CMS**: The technology blog (`src/pages/Blog.tsx`) queries Shopify Articles and Blogs dynamically with tag filtering and reading time estimation.
 
-### 6.2. Installation & Local Development
+---
 
-1. **Clone the repository**:
+## 5. Supabase Integration & Responsibilities
 
-   ```bash
-   git clone https://github.com/shawdi1557/IT-HUB.git
-   cd IT-HUB
-   ```
+Supabase (PostgreSQL 15) manages operational services, authentication, and internal control:
 
-2. **Install dependencies**:
+- **Customer Authentication**: Phone OTP via SMS/WhatsApp with E.164 normalization, creating verified sessions (`auth.uid()`) in `public.profiles`.
+- **Service Desk Operations**: Tables `public.service_requests` and `public.service_request_history` persist device repair tickets, technician assignments, itemized diagnoses, and status history.
+- **PC Builder Quotations**: Table `public.pc_builds` stores verified customer PC configurations, component selections, and server-validated pricing.
+- **Hardware Component Specifications**: Table `public.hardware_component_specifications` catalogs physical dimensions, socket types, memory generations, and auxiliary power requirements.
+- **Showroom Content & Settings**: Tables `public.partner_certificates`, `public.website_showcase`, and `public.store_settings` drive customer showroom content with audit logging.
+- **Website Visitor Analytics**: Table `public.website_visitor_sessions` records privacy-first visitor traffic, referrals, and session pageviews.
+- **Realtime Synchronization**: PostgreSQL publication `supabase_realtime` broadcasts table mutations across Storefront and Staff Portal.
 
-   ```bash
-   npm install
-   ```
+---
 
-3. **Configure Environment Variables**:
-   Create a `.env.local` file in the root directory:
+## 6. Customer Authentication & Account Functionality
 
-   ```env
-   VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-   VITE_SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
-   VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN=your-storefront-token
-   VITE_RAZORPAY_KEY_ID=your-razorpay-key-id
-   ```
+- **Sign In via OTP**: Customers sign in using their 10-digit Indian mobile number (`+91XXXXXXXXXX`). A 6-digit verification code is delivered via SMS.
+- **Customer Profile Area (`/account`)**:
+  - **Overview**: Active order counters, active repair counters, saved builds, quick contact actions.
+  - **My Orders (`/account/orders`)**: Real-time Shopify product orders with status badges, line item thumbnails, tracking links, and modal details.
+  - **Services (`/account/services`)**: Active repair bookings with live status, technician details, and the on-site appointment rescheduling manager.
+  - **Profile & Addresses**: Contact details, delivery address management, and optional verified email linking.
+  - **Saved PC Builds**: Configured computers with compatibility scores and direct quotation requests.
+  - **Sell & Trade-In Requests**: Device buyback tracking and valuation offer review.
 
-4. **Start the development server**:
-   ```bash
-   npm run dev
-   ```
-   The application will be available at `http://localhost:8443` (or the configured Vite port).
+---
 
-### 6.3. Test & Verification Suites
+## 7. Product Catalog, Inventory & Checkout Flow
+
+1. **Browsing**: Products are displayed with categorized pricing, stock indicators, and brand metadata.
+2. **Availability Pre-Validation**: When viewing a product or cart, live variant availability is checked against Shopify Storefront API.
+3. **Cart Assembly**: Supports quantity adjustments, promo code pre-validation, and discount calculations.
+4. **Checkout Redirection**:
+   - For authenticated customers: Creates a server association token via `create_checkout_association()` and injects `_hub_assoc_token` into cart attributes.
+   - Redirects customer to Shopify Hosted Checkout.
+   - On completion, customer returns to `/account/orders?checkout_completed=true`, automatically triggering on-demand order reconciliation and a confirmation banner.
+
+---
+
+## 8. PC Builder & Find My PC Recommendation Engine
+
+### Find My PC Engine
+
+- Evaluates live inventory across 5 purpose profiles: _Esports Gaming_, _AAA Cinematic_, _Content Creation_, _Software Development_, and _Everyday Office_.
+- Generates 3 candidate perspectives: **Best Value**, **Balanced Choice**, and **Best Performance**.
+- **Honest Shortfall UI**: When a budget cannot meet minimum hardware safety baselines, the engine displays the exact rupee shortfall rather than recommending incompatible or underpowered components.
+
+### 10-Rule Hardware Compatibility Engine
+
+Enforces socket matching (Rule A), DDR4/DDR5 generational separation (Rule B), RAM slot limits (Rule C), GPU clearance (Rule D), TDP load & PSU capacity (Rule E), Auxiliary PCIe power cables (Rule F), Chassis form factors (Rule G), Cooler height (Rule H), Display output validation (Rule I), and Tri-State unknown verification (Rule J).
+
+### Quotation Security
+
+Quotation requests require mandatory customer authentication and are validated server-side by `verify-and-submit-pc-quotation` to prevent client price tampering and enforce distributed rate limits.
+
+---
+
+## 9. Service Booking, Tracking & Repair Management
+
+### 5-Step Customer Booking Wizard
+
+1. **Device Selection**: Device type (Laptop, Mobile, Desktop, Printer) with **mandatory** Device Brand & Model Number.
+2. **Issue Selection**: Mandatory issue diagnosis selection with custom description for "Other".
+3. **Service Method**:
+   - _Store Walk-In_ (₹0 — IT HUB Showroom Counter).
+   - _On-site Technician Visit_ (₹250 — Within 15km store radius).
+   - _Insured Courier Pickup_ (₹150 — Across Kerala with pincode validation).
+4. **Customer Details**: Name, phone, email, and pickup address.
+5. **Slot Selection & Confirmation**: Calendar booking for eligible methods (Monday–Saturday).
+
+### Canonical Lifecycle & Service Tracker
+
+- Every booking generates a canonical ticket reference: `ITH-SER-XXXXXXXX`.
+- Tracked via `/track-service/:id` with stages:
+  `Booked` → `Device Received` → `Under Diagnosis` → `Diagnosis & Quotation Completed` → `Approved` → `In Progress` → `Quality Check` → `Ready for Delivery` → `Completed`.
+- **Customer Rescheduling**: Eligible on-site visits allow customers to request a new date/slot. Requests require explicit staff review and approval (never rescheduled automatically).
+
+---
+
+## 10. Staff Portal Modules & RBAC (`ITHUB_ADMIN/`)
+
+The Staff Portal is accessed at port `5174` (or `VITE_PORTAL_HOST`) and guarded by Supabase Auth with `is_staff()` and `portal_admin` role verification:
+
+- **Dashboard**: High-level store metrics with live numerical badge indicators for pending tickets.
+- **Service Management**: Full ticket lifecycle management, status updates, technician assignment, itemized quotation creation, and counter payment recording.
+- **PC Quotations Queue**: Review custom PC build requests, audit live Shopify component pricing, and contact clients.
+- **Sell & Trade-In Requests**: Evaluate customer gadget buyback submissions and submit formal cash/credit valuation offers.
+- **Website Content Manager**: Manage showroom showcase gallery and official partner certificates with audit logging.
+- **Website Visitor Analytics**: Privacy-first analytics tracking visitors, pageviews, referrers, device distributions, and Excel (`.xlsx`) export.
+- **Store Settings**: Manage store profile, operating hours (9:00 AM – 7:30 PM, Sunday closed), support contacts, and default WhatsApp greetings.
+
+---
+
+## 11. Website Content Management & Shopify Blog
+
+- **Showroom Showcase**: Dynamic showroom photos and equipment showcases managed via `public.website_showcase` with soft-activation toggles.
+- **Partner Alliances**: Brand certifications (Intel Gold Partner, AMD Commercial, Microsoft Authorized, ASUS Gold Partner, Dell Certified, Canon Authorized) managed via `public.partner_certificates` with hash-verified image integrity.
+- **Technology Blog**: Synchronized directly with Shopify Articles and Blogs.
+
+---
+
+## 12. Razorpay Payment Gateway Integration Status
+
+| Component                    |        Status         | Details                                                                                      |
+| :--------------------------- | :-------------------: | :------------------------------------------------------------------------------------------- |
+| **Storefront Payment Modal** |    ✅ Implemented     | `RepairPaymentModal.tsx` supports Razorpay checkout and Pay at Counter option.               |
+| **Order Creation Function**  |    ✅ Implemented     | `create-service-razorpay-order` generates server-side orders via Razorpay API.               |
+| **Payment Verification**     |    ✅ Implemented     | `verify-service-payment` validates HMAC-SHA256 signatures before updating tickets.           |
+| **Webhook Handler**          |    ✅ Implemented     | `verify-razorpay-webhook` processes asynchronous gateway events with constant-time security. |
+| **Pay at IT HUB Counter**    |    ✅ Implemented     | Offline cash/counter settlement option recorded with staff accountability.                   |
+| **Test Mode Sandbox**        |     ✅ Configured     | Runs seamlessly with test keys (`rzp_test_...`) in local development.                        |
+| **Live Merchant Activation** | ⏳ Pending Activation | Requires live Razorpay Production Key ID & Secret from banking partner.                      |
+| **Recurring Subscriptions**  |    ⚪ Out of Scope    | Not implemented or required for current retail/repair scope.                                 |
+
+---
+
+## 13. Environment Variables & Safe Setup
+
+### Customer Storefront (`.env` or `.env.local`)
+
+```env
+# Shopify Storefront API Configuration (Public — Client Safe)
+VITE_SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
+VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN=your-public-storefront-token
+VITE_SHOPIFY_API_VERSION=2026-01
+
+# Supabase Configuration (Public Anon Key)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Razorpay Sandbox Key ID (Optional for local testing)
+VITE_RAZORPAY_KEY_ID=rzp_test_your_key_id
+```
+
+### Staff Portal (`ITHUB_ADMIN/.env` or `ITHUB_ADMIN/.env.local`)
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_PORTAL_HOST=staff.ithubkothamangalam.com
+```
+
+### Server-Side Edge Function Secrets (Supabase Dashboard / Vault)
+
+```env
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=your_razorpay_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_signing_secret
+SHOPIFY_ADMIN_API_ACCESS_TOKEN=shpat_...
+SHOPIFY_WEBHOOK_SECRET=your_shopify_hmac_secret
+```
+
+> [!CAUTION]
+> Never commit actual credentials or `.env` files to Git. All secret files are strictly listed in `.gitignore`.
+
+---
+
+## 14. Local Development Commands
+
+### Customer Storefront
 
 ```bash
-# Run all 70 PC Builder, Security & Shopify tests with Deno
-deno test -A supabase/functions/tests/pc-builder-*.test.ts
+# Install dependencies
+npm install
 
-# Run production build
-npm run build
+# Start development server (Port 8443 / 5173)
+npm run dev
 
-# Type check TypeScript files
+# Static typecheck
 npm run typecheck
+
+# Code formatting & lint check
+npm run format
+npm run lint
+
+# Production build
+npm run build
+```
+
+### Staff Portal (`ITHUB_ADMIN/`)
+
+```bash
+# Install Staff Portal dependencies
+npm --prefix ITHUB_ADMIN install
+
+# Start Staff Portal dev server (Port 5174)
+npm run portal:dev
+
+# Staff Portal static typecheck
+npm run portal:typecheck
+
+# Staff Portal build
+npm run portal:build
 ```
 
 ---
 
-## 7. Brand & Store Information
+## 15. Database Migrations & Supabase Setup
 
-- **Brand Name**: IT HUB
+Local Supabase database runs via Docker CLI:
+
+```bash
+# Start local Supabase services (Postgres on 54322, Studio on 54323)
+npx supabase start
+
+# Apply all 31 sequential database migrations
+npx supabase migration up
+
+# Verify migration consistency against canonical schema.sql
+npm run verify:migrations
+```
+
+---
+
+## 16. Testing & Quality Verification
+
+Automated test suites run using the Deno test runner:
+
+```bash
+# Run all 737 automated test suites
+npm test
+
+# Run specific functional test suites
+npm run test:shopify      # Shopify catalog, inventory latency & order sync
+npm run test:builder      # Hardware compatibility rules & quotation flow
+npm run test:portal       # Staff Portal auth, review queues & service desk
+npm run test:security     # JWT enforcement, HMAC verification, RLS isolation
+```
+
+All 737 test suites currently pass with 0 failures:
+
+- **Database & RLS**: 3 passed
+- **Shopify Webhooks & Order Sync**: 3 passed
+- **Customer Order Retrieval API**: 3 passed
+- **End-to-End Acceptance Criteria**: 9 passed
+- **General Platform & Builder Suites**: 719 passed
+
+---
+
+## 17. Current Limitations & Pending Items
+
+1. **Guest Checkout Linking**: Orders placed by customers who check out as guests without logging in will link automatically only if their entered email or mobile number uniquely matches their IT HUB profile.
+2. **Third-Party Carrier Waypoints**: Real-time in-transit location waypoints rely on carrier webhooks or opening the external carrier tracking link.
+3. **Razorpay Live Gateway**: Local and test transactions function via Razorpay Test Mode; production banking activation will take place in the upcoming payment activation phase.
+
+---
+
+## 18. Store Information & Location
+
+- **Business Name**: IT HUB
 - **Tagline**: Technology Store, IT Services & Custom PC Fabrication
-- **Headquarters**: Kothamangalam, Ernakulam District, Kerala, India — PIN 686691
+- **Headquarters**: AM Road, Kothamangalam, Ernakulam District, Kerala, India — PIN 686691
 - **Established**: 2011
-- **Primary Contacts**: +91 98470 12345 | support@ithubkothamangalam.com
-- **Brand Colors**:
+- **Operating Hours**: Monday – Saturday: 9:00 AM – 7:30 PM (Sunday Closed)
+- **Primary Support**: +91 98470 12345 | support@ithubkothamangalam.com
+- **Brand Palette**:
   - Primary Blue: `#1a4fd6`
   - Deep Navy: `#0c2f8a`
   - Soft Tint: `#ecf1ff`
   - WhatsApp Accent: `#25D366`
-
----
-
-## 8. License
-
-Private and proprietary. Developed for IT HUB, Kothamangalam. All rights reserved.

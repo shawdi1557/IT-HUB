@@ -34,6 +34,7 @@ import {
 } from "../lib/payments";
 import WarrantyCheck from "../components/WarrantyCheck";
 import { shopifyConfig, createShopifyCart, revalidateCartAvailability } from "../lib/shopify";
+import { requestCheckoutAssociationToken } from "../lib/shopify-orders";
 import {
   ActionLink,
   Badge,
@@ -112,6 +113,7 @@ export function Cart() {
         if (!reval.valid) {
           const flagged = reval.unavailableItems.map((u) => u.cartItemId);
           setUnavailableIds(flagged);
+          store.syncAvailability?.();
           const names = reval.unavailableItems.map((u) => `"${u.name}"`).join(", ");
           setCheckoutError(
             `Sorry, ${names} ${
@@ -128,7 +130,19 @@ export function Cart() {
       }
 
       // 2. Build lines with validated merchandiseId (variantId) and quantity
-      const returnUrl = `${window.location.origin}/cart`;
+      let assocToken: string | null = null;
+      if (store.loggedIn) {
+        try {
+          assocToken = await requestCheckoutAssociationToken();
+        } catch {
+          // Non-blocking fallback
+        }
+      }
+
+      const returnUrl = store.loggedIn
+        ? `${window.location.origin}/account/orders?checkout_completed=true`
+        : `${window.location.origin}/cart?checkout_completed=true`;
+
       const lines = store.cart.map((item) => {
         const resolvedVariantId =
           item.variantId ||
@@ -142,14 +156,32 @@ export function Cart() {
         };
       });
 
+      const cartAttributes = [
+        {
+          key: "return_to_store",
+          value: returnUrl,
+        },
+      ];
+
+      if (assocToken) {
+        cartAttributes.push({
+          key: "_hub_assoc_token",
+          value: assocToken,
+        });
+      }
+
+      const buyerIdentity =
+        store.loggedIn && (store.profile.email || store.profile.phone)
+          ? {
+              email: store.profile.email || undefined,
+              phone: store.profile.phone || undefined,
+            }
+          : undefined;
+
       const res = await createShopifyCart(lines, {
-        attributes: [
-          {
-            key: "return_to_store",
-            value: returnUrl,
-          },
-        ],
+        attributes: cartAttributes,
         discountCodes: appliedPromo ? [appliedPromo] : undefined,
+        buyerIdentity,
       });
 
       if (res.cart?.checkoutUrl) {
@@ -180,6 +212,7 @@ export function Cart() {
 
         if (newlyUnavailable.length > 0) {
           setUnavailableIds((prev) => Array.from(new Set([...prev, ...newlyUnavailable])));
+          store.syncAvailability?.();
         }
 
         const rawMsg = res.error || "Unable to proceed to checkout.";

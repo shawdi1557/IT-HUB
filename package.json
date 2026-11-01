@@ -15,7 +15,11 @@
     "test:edge": "deno test -A supabase/functions/tests/ || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/",
     "test:builder": "deno test -A supabase/functions/tests/pc-builder-*.test.ts || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/pc-builder-*.test.ts",
     "test:shopify": "deno test -A supabase/functions/tests/shopify-*.test.ts || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/shopify-*.test.ts",
-    "test:security": "deno test -A supabase/functions/tests/*security*.test.ts supabase/functions/tests/*auth*.test.ts supabase/functions/tests/*webhook*.test.ts || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/*security*.test.ts"
+    "test:security": "deno test -A supabase/functions/tests/*security*.test.ts supabase/functions/tests/*auth*.test.ts supabase/functions/tests/*webhook*.test.ts || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/*security*.test.ts",
+    "portal:dev": "npm --prefix ITHUB_ADMIN run dev",
+    "portal:build": "npm --prefix ITHUB_ADMIN run build",
+    "portal:typecheck": "npm --prefix ITHUB_ADMIN run typecheck",
+    "test:portal": "deno test -A supabase/functions/tests/staff-portal-*.test.ts || \"%USERPROFILE%\\.deno\\bin\\deno.exe\" test -A supabase/functions/tests/staff-portal-*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

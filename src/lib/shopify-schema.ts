@@ -284,6 +284,258 @@ export function resolveShopifyCategory(node: ShopifyProductNode): {
 }
 
 /**
+ * Detects whether a vendor or brand string represents the store/retailer identity (IT HUB)
+ * rather than a genuine hardware manufacturer.
+ */
+export function isRetailerIdentity(val: string | null | undefined): boolean {
+  if (!val) return false;
+  const norm = val
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_]+/g, "");
+  return (
+    norm === "ithub" ||
+    norm === "ithubkerala" ||
+    norm === "ithubkmgm" ||
+    norm === "ithubkothamangalam" ||
+    norm.startsWith("ithub")
+  );
+}
+
+/**
+ * Normalizes manufacturer brand capitalization to canonical industry standards.
+ */
+const CANONICAL_BRAND_CASING: Record<string, string> = {
+  apple: "Apple",
+  samsung: "Samsung",
+  oneplus: "OnePlus",
+  iqoo: "iQOO",
+  poco: "Poco",
+  oppo: "Oppo",
+  vivo: "Vivo",
+  redmi: "Redmi",
+  realme: "Realme",
+  motorola: "Motorola",
+  google: "Google",
+  nothing: "Nothing",
+  lenovo: "Lenovo",
+  amd: "AMD",
+  nvidia: "NVIDIA",
+  intel: "Intel",
+  mivi: "Mivi",
+  hp: "HP",
+  dell: "Dell",
+  asus: "ASUS",
+  msi: "MSI",
+  gigabyte: "Gigabyte",
+  corsair: "Corsair",
+  crucial: "Crucial",
+  kingston: "Kingston",
+  seagate: "Seagate",
+  "western digital": "Western Digital",
+  wd: "WD",
+  logitech: "Logitech",
+  boat: "boAt",
+  canon: "Canon",
+  epson: "Epson",
+  acer: "Acer",
+  lg: "LG",
+  sony: "Sony",
+  "tp-link": "TP-Link",
+  tplink: "TP-Link",
+};
+
+export function normalizeBrandName(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  if (CANONICAL_BRAND_CASING[lower]) {
+    return CANONICAL_BRAND_CASING[lower];
+  }
+  // Title-case single lowercase words
+  if (/^[a-z0-9]+$/.test(trimmed)) {
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+  return trimmed;
+}
+
+export interface BrandResolutionResult {
+  brand: string;
+  brandSource: "vendor" | "metafield" | "tag" | "provenance" | "unspecified";
+  isRetailerVendor: boolean;
+  requiresReview: boolean;
+}
+
+/**
+ * Resolves the genuine manufacturer brand for a Shopify product.
+ * - Prioritizes manufacturer brand metafields and brand tags.
+ * - Uses Shopify `vendor` when it represents a real manufacturer.
+ * - Strictly avoids using store/retailer identity (IT-HUB) as a manufacturer brand.
+ * - Accurately derives manufacturer brand for genuine trademarked hardware lines (iPhone, iPad, Legion, Ryzen, RTX, etc.)
+ *   when vendor is mistakenly set to the retailer.
+ * - Flags unbranded or uncertain products for manual review and leaves brand blank/unspecified instead of guessing.
+ */
+export function resolveManufacturerBrand(node: ShopifyProductNode): BrandResolutionResult {
+  // 1. Explicit manufacturer brand metafield
+  const brandMeta =
+    getMetafield(node.metafields, "custom", "brand") ||
+    getMetafield(node.metafields, "custom", "manufacturer") ||
+    getMetafield(node.metafields, "shopify", "brand");
+
+  if (brandMeta && brandMeta.trim()) {
+    const clean = brandMeta.trim();
+    if (!isRetailerIdentity(clean)) {
+      return {
+        brand: normalizeBrandName(clean),
+        brandSource: "metafield",
+        isRetailerVendor: false,
+        requiresReview: false,
+      };
+    }
+  }
+
+  // 2. Explicit Brand tag (e.g. "brand:Apple" or tag matching known manufacturer)
+  if (node.tags && Array.isArray(node.tags)) {
+    for (const tag of node.tags) {
+      if (/^brand[:=]/i.test(tag)) {
+        const val = tag.replace(/^brand[:=]\s*/i, "").trim();
+        if (val && !isRetailerIdentity(val)) {
+          return {
+            brand: normalizeBrandName(val),
+            brandSource: "tag",
+            isRetailerVendor: false,
+            requiresReview: false,
+          };
+        }
+      }
+    }
+  }
+
+  // 3. Shopify Vendor (when NOT the retailer/store identity)
+  const rawVendor = (node.vendor || "").trim();
+  const isRetailer = isRetailerIdentity(rawVendor);
+
+  if (rawVendor && !isRetailer) {
+    return {
+      brand: normalizeBrandName(rawVendor),
+      brandSource: "vendor",
+      isRetailerVendor: false,
+      requiresReview: false,
+    };
+  }
+
+  // 4. Authoritative Manufacturer Provenance Detection
+  // Used only when vendor is missing or set to the retailer identity (e.g. IT-HUB)
+  const fullText = `${node.title || ""} ${node.handle || ""} ${node.description || ""} ${(node.tags || []).join(" ")}`;
+
+  // Apple: iPhone, iPad, MacBook, iMac, Mac mini, Mac Studio, Apple Watch, AirPods, MagSafe
+  if (
+    /\b(iphone|ipad|macbook|imac|mac\s*mini|mac\s*studio|airpods|apple\s*watch)\b/i.test(
+      node.title,
+    ) ||
+    /\bapple\s*magsafe\b/i.test(fullText) ||
+    /\b(a\d{2}\s*bionic|apple\s*silicon)\b/i.test(fullText)
+  ) {
+    return {
+      brand: "Apple",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // Lenovo: Lenovo, ThinkPad, IdeaPad, Legion
+  if (/\blenovo\b/i.test(node.title) || /\blegion\b/i.test(node.title)) {
+    return {
+      brand: "Lenovo",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // AMD: Ryzen, Radeon, Threadripper, EPYC
+  if (/\b(amd\s*ryzen|ryzen\s*\d|radeon|threadripper|epyc)\b/i.test(node.title)) {
+    return {
+      brand: "AMD",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // NVIDIA: GeForce, RTX, GTX
+  if (/\b(nvidia|geforce|rtx\s*\d{4}|gtx\s*\d{4}|rtx\s*5050)\b/i.test(node.title)) {
+    return {
+      brand: "NVIDIA",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // Intel: Core i3/i5/i7/i9, Core Ultra, Xeon
+  if (/\b(intel|core\s*i[3579]|core\s*ultra|xeon)\b/i.test(node.title)) {
+    return {
+      brand: "Intel",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // Samsung: Galaxy, Samsung
+  if (/\b(samsung|galaxy)\b/i.test(node.title)) {
+    return {
+      brand: "Samsung",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // Google: Pixel
+  if (/\bpixel\b/i.test(node.title)) {
+    return {
+      brand: "Google",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // OnePlus: OnePlus, Nord
+  if (/\b(oneplus|nord)\b/i.test(node.title)) {
+    return {
+      brand: "OnePlus",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // Nothing: Nothing Phone, Nothing CMF
+  if (/\bnothing\b/i.test(node.title)) {
+    return {
+      brand: "Nothing",
+      brandSource: "provenance",
+      isRetailerVendor: isRetailer,
+      requiresReview: false,
+    };
+  }
+
+  // 5. Unspecified / Uncertain Brand:
+  // Must remain unknown or blank until verified in Shopify; never default to IT HUB.
+  return {
+    brand: "",
+    brandSource: "unspecified",
+    isRetailerVendor: isRetailer,
+    requiresReview: true,
+  };
+}
+
+/**
  * Maps a Shopify Product + Variant node into IT HUB's frontend Product interface.
  * Preserves MRP (original), condition, genuine warranty badges, and category classifications.
  */
@@ -368,11 +620,14 @@ export function mapShopifyProductToCatalog(
   });
 
   const categoryInfo = resolveShopifyCategory(node);
+  const brandInfo = resolveManufacturerBrand(node);
 
   return {
     id: parseShopifyGid(node.id),
     name: node.title,
-    brand: (node.vendor || "").trim() || "IT HUB",
+    brand: brandInfo.brand,
+    brandSource: brandInfo.brandSource,
+    brandFlaggedForReview: brandInfo.requiresReview,
     category: categoryInfo.category,
     categorySource: categoryInfo.categorySource,
     taxonomyCategory: categoryInfo.taxonomyCategory,

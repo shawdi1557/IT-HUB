@@ -29,6 +29,7 @@ import {
   adminPublishQuotation,
   adminUpdateServiceRequest,
   calculateQuotationTotals,
+  formatTicketReference,
 } from "../lib/services";
 import { ActionLink, Badge, Button, Field, fieldClass } from "./ui";
 
@@ -830,7 +831,11 @@ export default function AdminServiceRequestEditor({
         </Button>
 
         <div className="flex items-center gap-3">
-          <ActionLink secondary to={`/track-service/${request.id}`} className="text-xs">
+          <ActionLink
+            secondary
+            to={`/track-service/${encodeURIComponent(request.ticketReference || formatTicketReference(request.id))}`}
+            className="text-xs"
+          >
             Customer View <ArrowRight size={13} className="inline ml-1" />
           </ActionLink>
           <Button variant="secondary" onClick={onClose} className="text-xs">

@@ -4,6 +4,21 @@
 
 import { supabase, supabaseConfig, SUPABASE_URL } from "./supabase";
 
+export {
+  ALLOWED_SERVICE_PAYMENT_METHODS,
+  isValidServicePaymentMethod,
+  canInitiateServicePayment,
+  buildOfflinePayAtStoreRecord,
+  buildStaffPaymentReceivedRecord,
+  getRazorpayUpiCheckoutConfig,
+} from "./servicePayments";
+export type {
+  ServicePaymentMethod,
+  ServiceRecordForPayment,
+  OfflinePayAtStoreRecord,
+  StaffPaymentReceivedRecord,
+} from "./servicePayments";
+
 export const RAZORPAY_KEY_ID = (
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_RAZORPAY_KEY_ID) ||
   ""
@@ -283,5 +298,164 @@ export async function launchRazorpayModal(options: LaunchRazorpayOptions): Promi
     console.error("[Razorpay] Error initializing modal:", err);
     options.onError?.("Failed to launch payment checkout window.");
     return false;
+  }
+}
+
+/**
+ * Creates an authoritative Razorpay Order for an approved service quotation via Edge Function.
+ * Note: Amount is bound strictly on the server from the database quotation.
+ */
+export async function createServiceRazorpayOrder(serviceRequestId: string): Promise<{
+  ok: boolean;
+  razorpay_order_id?: string;
+  amount?: number;
+  currency?: string;
+  key_id?: string;
+  ticket_reference?: string;
+  error?: string;
+}> {
+  if (!supabase || !supabaseConfig.isConfigured || !SUPABASE_URL) {
+    return {
+      ok: false,
+      error: "Supabase connection is not available to create payment order.",
+    };
+  }
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      return { ok: false, error: "Active session required to initiate quotation payment." };
+    }
+
+    const endpoint = `${SUPABASE_URL}/functions/v1/create-service-razorpay-order`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ service_request_id: serviceRequestId }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: body?.error || `Order creation failed with status ${res.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      razorpay_order_id: body.razorpay_order_id,
+      amount: body.amount,
+      currency: body.currency,
+      key_id: body.key_id,
+      ticket_reference: body.ticket_reference,
+    };
+  } catch (err: any) {
+    console.error("[createServiceRazorpayOrder] Fetch exception:", err);
+    return {
+      ok: false,
+      error: "Network error contacting payment service. Please try again.",
+    };
+  }
+}
+
+/**
+ * Verifies Razorpay service quotation payment server-side via Edge Function.
+ * Performs constant-time HMAC-SHA256 signature verification and idempotency check.
+ */
+export async function verifyServicePaymentCallback(payload: {
+  service_request_id: string;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}): Promise<{
+  ok: boolean;
+  service_request_id?: string;
+  ticket_reference?: string;
+  payment_status?: string;
+  status?: string;
+  idempotent?: boolean;
+  error?: string;
+}> {
+  if (!supabase || !supabaseConfig.isConfigured || !SUPABASE_URL) {
+    return {
+      ok: false,
+      error: "Payment verification service is not reachable (Supabase not configured).",
+    };
+  }
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      return { ok: false, error: "Active session required to verify payment." };
+    }
+
+    const endpoint = `${SUPABASE_URL}/functions/v1/verify-service-payment`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.warn("[verify-service-payment] Verification rejected:", body);
+      return {
+        ok: false,
+        error: body?.error || `Payment verification failed with status ${res.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      service_request_id: body.service_request_id,
+      ticket_reference: body.ticket_reference,
+      payment_status: body.payment_status,
+      status: body.status,
+      idempotent: body.idempotent,
+    };
+  } catch (err: any) {
+    console.error("[verifyServicePaymentCallback] Fetch exception:", err);
+    return {
+      ok: false,
+      error: "Network error contacting payment verification endpoint.",
+    };
+  }
+}
+
+/**
+ * Records offline "Pay at IT HUB" selection.
+ * Crucial: Leaves ticket unpaid (is_paid === false) until physical collection by staff.
+ */
+export async function recordServicePayAtStore(
+  serviceRequestId: string,
+  notes?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { ok: true }; // Local demo mode fallback
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("record_service_pay_at_store_selection", {
+      p_service_request_id: serviceRequestId,
+      p_notes: notes || null,
+    });
+
+    if (error) {
+      console.warn("[recordServicePayAtStore] RPC error (falling back):", error.message);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to record store settlement." };
   }
 }

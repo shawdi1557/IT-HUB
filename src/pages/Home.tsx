@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import {
   ArrowRight,
@@ -25,15 +25,24 @@ import {
   Wifi,
   Gamepad2,
   Code2,
+  X,
+  BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import heroBanner from "../imports/Futuristic Blue Tech Showroom Banner.png";
+import mobileHeroBanner from "../imports/Mobile_Banner.png";
 import ShinyText from "../components/ShinyText";
+import PromotionalHeroCarousel from "../components/PromotionalHeroCarousel";
 import { useStore } from "../app/store";
+import { supabase } from "../lib/supabase";
 import { images } from "../data/catalog";
 import OurServices from "../components/OurServices";
 import WarrantyCheck from "../components/WarrantyCheck";
 import ProductCard from "../components/ProductCard";
+import { filterFeaturedFreshProducts, calculateCategoryCounts } from "../lib/catalog";
+import { fetchBlogArticles } from "../lib/blog";
+import { type BlogArticle } from "../data/blog";
 import { ActionLink, SectionHeading, containerClass, Logo, Modal, Stars } from "../components/ui";
 import {
   CountUp,
@@ -56,8 +65,8 @@ const homeCategories: HomeCategoryEntry[] = [
   { name: "Printers", Icon: Printer },
   { name: "Monitors", Icon: Monitor },
   { name: "Storage", Icon: HardDrive },
-  { name: "Accessories", label: "Computer Accessories", Icon: Keyboard },
-  { name: "Audio", label: "Headphones & Audio", Icon: Headphones },
+  { name: "Computer Accessories", label: "Computer Accessories", Icon: Keyboard },
+  { name: "Headphones & Audio", label: "Headphones & Audio", Icon: Headphones },
   { name: "Networking", Icon: Wifi },
   { name: "Gaming", Icon: Gamepad2 },
 ];
@@ -95,9 +104,21 @@ const homeServices = [
 ];
 export default function Home() {
   const store = useStore();
+  const categoryCounts = useMemo(() => calculateCategoryCounts(store.products), [store.products]);
   const reduce = useReducedMotion();
   const [viewer, setViewer] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const announcement = store.announcement;
+  const promotionalCampaigns = store.promotionalCampaigns || [];
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [blogArticles, setBlogArticles] = useState<BlogArticle[]>([]);
+
+  useEffect(() => {
+    fetchBlogArticles().then((data) => {
+      if (data && data.length > 0) setBlogArticles(data);
+    });
+  }, []);
+
   const SHOWCASE_LIMIT = 4;
   const enter = (delay: number) =>
     reduce
@@ -113,84 +134,158 @@ export default function Home() {
         };
   return (
     <>
-      <div className={`${containerClass} pt-7 md:pt-9`}>
-        <div className="relative isolate -mt-7 ml-[calc(50%-50vw)] flex min-h-[min(680px,90svh)] w-screen flex-col justify-center overflow-hidden bg-[#e8f1fd] md:-mt-9">
-          <img
-            src={heroBanner}
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 size-full object-cover object-center"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-radial-[ellipse_at_center] from-white/70 via-white/20 to-transparent"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background via-background/40 to-transparent"
-          />
-          <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-6 py-20 text-center">
-            <div className="flex max-w-3xl flex-col items-center">
-              <motion.p
-                {...enter(0)}
-                className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-xs backdrop-blur"
-              >
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 animate-pulse rounded-full bg-primary"
+      {announcement && !bannerDismissed && (
+        <div className={`${containerClass} pt-3 pb-1 relative isolate z-30`}>
+          <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4 overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 p-4 text-white shadow-lg">
+            <div className="flex items-center gap-4">
+              {announcement.image_url && (
+                <img
+                  src={announcement.image_url}
+                  alt=""
+                  className="hidden sm:block h-14 w-14 rounded-xl object-cover border border-white/20 shrink-0"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
                 />
-                <ShinyText
-                  text="Your Trusted Tech Hub · Since 2011"
-                  color="var(--muted-foreground)"
-                  shineColor="var(--primary)"
-                  speed={2.5}
-                  delay={0.6}
-                />
-              </motion.p>
-              <motion.h1
-                {...enter(0.08)}
-                className="text-balance font-display text-5xl font-bold tracking-[-.04em] text-foreground sm:text-6xl md:text-7xl"
+              )}
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <span className="rounded-full bg-blue-500/30 border border-blue-400/40 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-200">
+                    {announcement.cta_label || "ANNOUNCEMENT"}
+                  </span>
+                  <span className="font-bold text-sm tracking-tight">{announcement.title}</span>
+                </div>
+                <p className="text-xs text-blue-100 max-w-2xl leading-relaxed">
+                  {announcement.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <Link
+                to={announcement.cta_url || "/services"}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-blue-900 shadow-sm transition hover:bg-blue-50"
               >
-                Everything Tech. <GradientText>Sales, Service & Support.</GradientText>
-              </motion.h1>
-              <motion.p
-                {...enter(0.16)}
-                className="mt-6 max-w-xl text-pretty text-base font-normal text-muted-foreground sm:text-lg"
+                Explore Now <ArrowRight size={14} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setBannerDismissed(true)}
+                className="rounded-lg p-1.5 text-blue-300 hover:text-white transition"
+                aria-label="Dismiss announcement"
               >
-                Shop laptops, computers, mobiles, printers, accessories and components — backed by
-                professional IT services and after-sales support from IT HUB.
-              </motion.p>
-              <motion.div
-                {...enter(0.24)}
-                className="mt-9 flex flex-wrap items-center justify-center gap-3"
-              >
-                <ActionLink to="/products" className="group h-11">
-                  Shop Products
-                  <ArrowRight
-                    size={16}
-                    className="transition-transform group-hover:translate-x-0.5"
-                  />
-                </ActionLink>
-                <ActionLink
-                  secondary
-                  to="/pc-builder"
-                  className="h-11 bg-white/80 backdrop-blur hover:bg-white"
-                >
-                  <Cpu size={16} /> PC Builder
-                </ActionLink>
-                <ActionLink
-                  secondary
-                  to="/services"
-                  className="h-11 bg-white/80 backdrop-blur hover:bg-white"
-                >
-                  <Wrench size={16} /> Explore Services
-                </ActionLink>
-              </motion.div>
+                <X size={16} />
+              </button>
             </div>
           </div>
         </div>
+      )}
+      {/* 1. Full-Width Hero Section */}
+      <section className="relative isolate w-full max-w-[100vw] overflow-hidden flex min-h-[780px] min-[360px]:min-h-[820px] min-[390px]:min-h-[860px] sm:min-h-[860px] md:min-h-[min(680px,90svh)] flex-col justify-start pt-5 min-[360px]:pt-7 sm:pt-12 md:justify-center md:pt-0 bg-[#e8f1fd]">
+        {/* Mobile Hero Banner: 941x1672 portrait asset, visible on < 768px (md:hidden) */}
+        <img
+          src={mobileHeroBanner}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          fetchPriority="high"
+          className="md:hidden pointer-events-none absolute inset-0 size-full object-cover object-[center_bottom]"
+        />
+        {/* Desktop Hero Banner: 1780x883 landscape asset, visible on >= 768px (hidden md:block) */}
+        <img
+          src={heroBanner}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          fetchPriority="high"
+          className="hidden md:block pointer-events-none absolute inset-0 size-full object-cover object-center"
+        />
+        {/* Desktop central radial overlay */}
+        <div
+          aria-hidden="true"
+          className="hidden md:block pointer-events-none absolute inset-0 bg-radial-[ellipse_at_center] from-white/70 via-white/20 to-transparent"
+        />
+        {/* Mobile top subtle contrast vignette for crisp text read without washing out bottom products */}
+        <div
+          aria-hidden="true"
+          className="md:hidden pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/60 via-white/25 to-transparent"
+        />
+        {/* Bottom seamless transition gradient */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-16 md:h-24 bg-gradient-to-t from-background via-background/40 to-transparent"
+        />
+        <div className="relative z-10 mx-auto flex w-full max-w-lg sm:max-w-6xl flex-1 flex-col items-center justify-start pt-2 sm:pt-6 md:justify-center md:pt-0 px-4 sm:px-6 py-6 sm:py-12 md:py-20 text-center">
+          <div className="flex w-full max-w-full sm:max-w-3xl flex-col items-center text-center pt-7 min-[360px]:pt-8 min-[375px]:pt-9 min-[390px]:pt-10 min-[430px]:pt-11 sm:pt-0">
+            <motion.p
+              {...enter(0)}
+              className="mb-3.5 sm:mb-6 inline-flex max-w-[calc(100vw-24px)] items-center gap-2 rounded-full border border-blue-200/80 bg-white/95 px-3.5 sm:px-4 py-1.5 text-[13px] min-[390px]:text-[14px] sm:text-xs font-semibold text-slate-800 md:text-muted-foreground shadow-xs backdrop-blur mx-auto"
+            >
+              <span
+                aria-hidden="true"
+                className="size-1.5 shrink-0 animate-pulse rounded-full bg-primary"
+              />
+              <ShinyText
+                text="Your Trusted Tech Hub · Since 2011"
+                color="var(--muted-foreground)"
+                shineColor="var(--primary)"
+                speed={2.5}
+                delay={0.6}
+              />
+            </motion.p>
+            <motion.h1
+              {...enter(0.08)}
+              className="w-full text-balance font-display text-2xl min-[360px]:text-[34px] min-[375px]:text-[38px] min-[390px]:text-[42px] sm:text-5xl md:text-6xl lg:text-7xl font-[800] tracking-tight text-[#0a1e4a] md:text-foreground text-center leading-[1.14] sm:leading-[1.12]"
+            >
+              Everything Tech.{" "}
+              <span className="block">
+                <GradientText>
+                  Sales, Service
+                  <br className="sm:hidden" /> & Support.
+                </GradientText>
+              </span>
+            </motion.h1>
+            <motion.p
+              {...enter(0.16)}
+              className="mt-3.5 sm:mt-5 md:mt-6 w-full max-w-[95%] sm:max-w-xl mx-auto text-pretty text-[14px] min-[360px]:text-[15px] min-[375px]:text-[17px] min-[390px]:text-[18px] sm:text-base md:text-lg font-medium text-slate-800 md:text-muted-foreground leading-[1.5] text-center"
+            >
+              <span className="md:hidden">
+                Shop laptops, computers, mobiles, printers & IT services backed by IT HUB support.
+              </span>
+              <span className="hidden md:inline">
+                Shop laptops, computers, mobiles, printers, accessories and components — backed by
+                professional IT services and after-sales support from IT HUB.
+              </span>
+            </motion.p>
+            <motion.div
+              {...enter(0.24)}
+              className="mt-5 sm:mt-8 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none mx-auto"
+            >
+              <ActionLink
+                to="/products"
+                className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none group h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold shadow-sm justify-center whitespace-nowrap"
+              >
+                Shop Products
+                <ArrowRight
+                  size={17}
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
+              </ActionLink>
+              <ActionLink
+                secondary
+                to="/services"
+                className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold bg-white/95 backdrop-blur hover:bg-white text-slate-900 border border-blue-200/80 shadow-xs justify-center whitespace-nowrap"
+              >
+                <Wrench size={17} /> Explore Services
+              </ActionLink>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. Original Animated Text Loop / Scrolling Marquee & Trust Features */}
+      <div className={`${containerClass} pt-4 md:pt-6`}>
         <ScrollVelocity
-          className="ml-[calc(50%-50vw)] mt-6 w-screen py-4 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)] font-display text-2xl font-extrabold tracking-[-.03em] text-[#0c2f8a]/80 md:text-4xl"
+          className="-mx-5 md:mx-0 md:ml-[calc(50%-50vw)] md:w-screen mt-6 py-4 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)] font-display text-2xl font-extrabold tracking-[-.03em] text-[#0c2f8a]/80 md:text-4xl"
           items={[
             "Laptops",
             "Mobiles",
@@ -204,9 +299,15 @@ export default function Home() {
             "Warranty Support",
           ]}
         />
-        <div className="grid grid-cols-2 gap-5 border-b border-border py-7 md:grid-cols-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-md bg-amber-50 p-2.5">
+        <div className="grid grid-cols-2 gap-5 border-b border-border py-7 md:grid-cols-4 lg:gap-8">
+          <a
+            href="https://maps.app.goo.gl/EGCik7Q3VUkBWmWq8"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 transition hover:opacity-90"
+            title="View IT HUB customer rating on Google Maps"
+          >
+            <div className="rounded-md bg-amber-50 p-2.5 transition group-hover:bg-amber-100">
               <Star size={20} className="fill-amber-400 text-amber-400" />
             </div>
             <div>
@@ -215,11 +316,15 @@ export default function Home() {
                 <span className="text-[11px] font-normal text-muted-foreground">/ 5</span>{" "}
                 <Stars size={11} className="text-amber-500" />
               </p>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Customer rating · static value
+              <p className="mt-1 text-[10px] font-medium text-muted-foreground group-hover:text-primary transition flex items-center gap-1">
+                <span>Customer rating on Google Maps</span>
+                <ArrowUpRight
+                  size={10}
+                  className="opacity-70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                />
               </p>
             </div>
-          </div>
+          </a>
           {[
             {
               Icon: ShieldCheck,
@@ -247,7 +352,14 @@ export default function Home() {
           ))}
         </div>
       </div>
-      <section className={`${containerClass} py-14`}>
+
+      {/* 3. Large Promotional Campaign Carousel */}
+      <section aria-label="Promotional Showcase" className="w-full">
+        <PromotionalHeroCarousel campaigns={promotionalCampaigns} />
+      </section>
+
+      {/* 4. Shop by Category */}
+      <section id="categories" className={`${containerClass} py-10 md:py-14`}>
         <SectionHeading
           eyebrow="WHAT CAN I BUY FROM IT HUB?"
           title="Shop by Category"
@@ -255,14 +367,54 @@ export default function Home() {
           to="/products"
           link="All products"
         />
-        <ul className="grid border-t border-border md:grid-cols-2 md:gap-x-10">
+
+        {/* Mobile: Horizontally Scrollable Category Cards with clear carousel cue */}
+        <div className="relative md:hidden">
+          <div className="mb-2.5 flex items-center justify-between text-xs text-muted-foreground px-0.5">
+            <span className="font-semibold text-slate-700">Explore by Department</span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+              Swipe to explore <ArrowRight size={13} />
+            </span>
+          </div>
+
+          <div
+            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none gap-3 pb-3 -mx-4 px-4 touch-pan-y overscroll-x-contain"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {homeCategories.map(({ name, label, Icon }) => {
+              const count = categoryCounts[name] || 0;
+              return (
+                <Link
+                  key={name}
+                  to={`/products?category=${encodeURIComponent(name)}`}
+                  className="w-[140px] shrink-0 snap-start flex flex-col justify-between p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs transition active:scale-95 hover:border-primary/50"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-primary">
+                    <Icon size={20} />
+                  </div>
+                  <div className="mt-3">
+                    <span className="block truncate text-xs font-bold text-slate-900">
+                      {label || name}
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500">
+                      {count} {count === 1 ? "item" : "items"}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Desktop / Tablet: 2-Column Responsive List */}
+        <ul className="hidden md:grid border-t border-border md:grid-cols-2 md:gap-x-12 lg:gap-x-16 xl:gap-x-20">
           {homeCategories.map(({ name, label, Icon }, index) => {
-            const count = store.products.filter((product) => product.category === name).length;
+            const count = categoryCounts[name] || 0;
             return (
               <li key={name} className="border-b border-border">
                 <Link
                   to={`/products?category=${encodeURIComponent(name)}`}
-                  className="group flex items-center gap-4 py-4 transition"
+                  className="group flex items-center gap-4 sm:gap-5 py-4 sm:py-4.5 transition"
                 >
                   <span className="w-6 text-[11px] font-semibold tabular-nums text-muted-foreground">
                     {String(index + 1).padStart(2, "0")}
@@ -288,7 +440,7 @@ export default function Home() {
           })}
         </ul>
       </section>
-      <section className={`${containerClass} pb-16`}>
+      <section className={`${containerClass} pb-12 md:pb-16`}>
         <SectionHeading
           eyebrow="POPULAR AT IT HUB"
           title="Featured Products"
@@ -296,12 +448,71 @@ export default function Home() {
           link="Shop all products"
           to="/products"
         />
-        <FadeContent className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
-          {store.products.slice(0, 8).map((product) => (
+
+        {/* Mobile: Horizontal Product Carousel */}
+        <div
+          className="flex md:hidden overflow-x-auto snap-x snap-mandatory scrollbar-none gap-3.5 pb-3 -mx-4 px-4 touch-pan-y overscroll-x-contain"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          {filterFeaturedFreshProducts(store.products, 8).map((product) => (
+            <div key={product.id} className="w-[190px] sm:w-[200px] shrink-0 snap-start">
+              <ProductCard product={product} />
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop / Tablet Grid */}
+        <FadeContent className="hidden md:grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
+          {filterFeaturedFreshProducts(store.products, 8).map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </FadeContent>
       </section>
+
+      {/* ── BUILD YOUR PERFECT PC & FIND MY PC ── */}
+      <section className={`${containerClass} pb-12 md:pb-14`}>
+        <div className="flex flex-col gap-6 rounded-3xl border border-primary/20 bg-gradient-to-br from-blue-50/60 via-card to-card p-6 sm:p-8 md:flex-row md:items-center shadow-xs">
+          <img
+            src={images.pc}
+            alt="Custom desktop PC assembled at IT HUB"
+            className="h-36 w-full rounded-2xl object-cover sm:h-32 sm:w-44 border border-border/80 shadow-xs"
+            loading="lazy"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
+                Interactive Configurator
+              </span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Live Compatibility Check
+              </span>
+            </div>
+            <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+              Build Your Perfect PC
+            </h2>
+            <p className="mt-1.5 max-w-xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
+              Find compatible components or discover a PC configuration that matches your needs. Our
+              team in Kothamangalam helps verify compatibility, finalize parts, and assemble your
+              dream rig.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                to="/pc-builder?mode=smart"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 active:scale-95"
+              >
+                <Sparkles size={14} /> Find My PC
+              </Link>
+              <Link
+                to="/pc-builder"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-5 py-2.5 text-xs font-semibold text-foreground shadow-xs transition hover:border-primary hover:text-primary active:scale-95"
+              >
+                <Cpu size={14} className="text-primary" /> Custom PC Builder
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className={`${containerClass}`}>
         <OurServices compact />
       </section>
@@ -459,35 +670,94 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className={`${containerClass} pb-14`}>
-        <div className="flex flex-col gap-5 rounded-2xl border border-primary/25 bg-gradient-to-r from-card via-card to-primary/5 p-6 sm:flex-row sm:items-center shadow-xs">
-          <img
-            src={images.pc}
-            alt="Custom desktop PC assembled at IT HUB"
-            className="h-24 w-full rounded-xl object-cover sm:w-32 border border-border/80"
-            loading="lazy"
+      {/* ── LATEST FROM IT HUB BLOG ── */}
+      {blogArticles.length > 0 && (
+        <section className={`${containerClass} pb-14`}>
+          <SectionHeading
+            eyebrow="TECHNOLOGY INSIGHTS"
+            title="Latest from IT HUB Blog"
+            subtitle="Hardware reviews, maintenance guides, and technology analysis from our engineers."
+            link="Read all articles"
+            to="/blog"
           />
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
-                Interactive Tool
-              </span>
-              <span className="text-[10px] font-medium text-muted-foreground">
-                Live Compatibility Check
-              </span>
-            </div>
-            <h2 className="mt-1.5 text-lg font-bold">Build Your Custom PC With IT HUB</h2>
-            <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
-              Choose your components and get an estimated configuration price. Our team in
-              Kothamangalam helps verify compatibility, finalize parts, and assemble your dream rig.
-            </p>
+
+          {/* Mobile: Horizontally Scrollable Article Cards */}
+          <div className="flex md:hidden overflow-x-auto snap-x scrollbar-none gap-4 pb-3 -mx-4 px-4">
+            {blogArticles.slice(0, 4).map((article) => (
+              <Link
+                key={article.id}
+                to={`/blog/${article.slug}`}
+                className="w-[260px] shrink-0 snap-start group flex flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition hover:border-primary/40 active:scale-95"
+              >
+                <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={article.image}
+                    alt={article.imageAlt || article.title}
+                    className="size-full object-cover transition duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2.5 py-0.5 text-[10px] font-bold text-primary shadow-xs backdrop-blur">
+                    {article.category}
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col p-4">
+                  <span className="text-[10px] font-medium text-slate-500">
+                    {article.publishedAt} · {article.readTimeMinutes} min read
+                  </span>
+                  <h3 className="mt-1 line-clamp-2 text-xs font-bold text-slate-900 group-hover:text-primary">
+                    {article.title}
+                  </h3>
+                  <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500 flex-1">
+                    {article.excerpt}
+                  </p>
+                  <div className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-primary">
+                    Read article{" "}
+                    <ArrowRight size={12} className="transition group-hover:translate-x-0.5" />
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
-          <ActionLink to="/pc-builder" className="shrink-0 group">
-            Start PC Builder{" "}
-            <Cpu size={15} className="transition-transform group-hover:scale-110" />
-          </ActionLink>
-        </div>
-      </section>
+
+          {/* Desktop / Tablet Grid */}
+          <div className="hidden md:grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {blogArticles.slice(0, 3).map((article) => (
+              <Link
+                key={article.id}
+                to={`/blog/${article.slug}`}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-primary/40 hover:shadow-sm"
+              >
+                <div className="relative aspect-[16/10] w-full overflow-hidden bg-muted">
+                  <img
+                    src={article.image}
+                    alt={article.imageAlt || article.title}
+                    className="size-full object-cover transition duration-500 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-0.5 text-[10px] font-bold text-primary shadow-xs backdrop-blur">
+                    {article.category}
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  <span className="text-[11px] text-muted-foreground">
+                    {article.publishedAt} · {article.readTimeMinutes} min read
+                  </span>
+                  <h3 className="mt-1.5 line-clamp-2 text-sm font-bold text-foreground group-hover:text-primary">
+                    {article.title}
+                  </h3>
+                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground flex-1">
+                    {article.excerpt}
+                  </p>
+                  <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-primary">
+                    Read article{" "}
+                    <ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       <section className={`${containerClass} pb-14`}>
         <SectionHeading
           eyebrow="IT HUB EXPERIENCE"

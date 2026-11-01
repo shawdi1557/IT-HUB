@@ -8,6 +8,11 @@ export {
   mapShopifyVariantToPcComponent,
   toVariantGid,
   toProductGid,
+  parseShopifyGid,
+  isRetailerIdentity,
+  normalizeBrandName,
+  resolveManufacturerBrand,
+  type BrandResolutionResult,
   type ShopifyProductNode,
 } from "./shopify-schema.ts";
 import {
@@ -15,6 +20,11 @@ import {
   mapShopifyVariantToPcComponent,
   toVariantGid,
   toProductGid,
+  parseShopifyGid,
+  isRetailerIdentity,
+  normalizeBrandName,
+  resolveManufacturerBrand,
+  type BrandResolutionResult,
   type ShopifyProductNode,
 } from "./shopify-schema.ts";
 
@@ -62,17 +72,26 @@ export interface ShopifyStorefrontConfig {
 // Read public environment variables safely
 const rawDomain = (
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SHOPIFY_STORE_DOMAIN) ||
+  (typeof (globalThis as any).Deno !== "undefined" &&
+    (globalThis as any).Deno.env?.get?.("VITE_SHOPIFY_STORE_DOMAIN")) ||
+  (typeof process !== "undefined" && (process as any).env?.VITE_SHOPIFY_STORE_DOMAIN) ||
   ""
 ).trim();
 
 const rawToken = (
   (typeof import.meta !== "undefined" &&
     (import.meta as any).env?.VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN) ||
+  (typeof (globalThis as any).Deno !== "undefined" &&
+    (globalThis as any).Deno.env?.get?.("VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN")) ||
+  (typeof process !== "undefined" && (process as any).env?.VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN) ||
   ""
 ).trim();
 
 const rawVersion = (
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SHOPIFY_API_VERSION) ||
+  (typeof (globalThis as any).Deno !== "undefined" &&
+    (globalThis as any).Deno.env?.get?.("VITE_SHOPIFY_API_VERSION")) ||
+  (typeof process !== "undefined" && (process as any).env?.VITE_SHOPIFY_API_VERSION) ||
   "2026-01"
 ).trim();
 
@@ -144,6 +163,7 @@ export async function storefrontFetch<T = any>(
         "X-Shopify-Storefront-Access-Token": token,
         Accept: "application/json",
       },
+      cache: "no-store",
       body: JSON.stringify({ query, variables }),
       signal: controller ? controller.signal : undefined,
     });
@@ -410,8 +430,8 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const CATALOG_CACHE_TTL_MS = 60_000; // 60s bounded TTL
-const PRODUCT_CACHE_TTL_MS = 60_000; // 60s bounded TTL
+const CATALOG_CACHE_TTL_MS = 15_000; // 15s bounded TTL (reduced for real-time freshness)
+const PRODUCT_CACHE_TTL_MS = 5_000; // 5s bounded TTL for individual products
 
 const catalogCache = new Map<string, CacheEntry<ShopifyCatalogResult>>();
 const inFlightCatalogRequests = new Map<string, Promise<ShopifyCatalogResult>>();
@@ -862,6 +882,11 @@ export interface CreateShopifyCartOptions {
   attributes?: Array<{ key: string; value: string }>;
   note?: string;
   discountCodes?: string[];
+  buyerIdentity?: {
+    email?: string;
+    phone?: string;
+    customerAccessToken?: string;
+  };
 }
 
 export interface CreateShopifyCartResult {
@@ -975,6 +1000,10 @@ export async function createShopifyCart(
     cartInput.discountCodes = options.discountCodes;
   }
 
+  if (options?.buyerIdentity) {
+    cartInput.buyerIdentity = options.buyerIdentity;
+  }
+
   const result = await storefrontFetch<{
     cartCreate: {
       cart: {
@@ -1017,12 +1046,16 @@ export async function createShopifyCart(
   }
 
   if (cart.totalQuantity === 0) {
+    invalidateShopifyCatalogCache();
     return {
       cart: null,
       error: "Sorry, this item is currently unavailable for online checkout.",
       userErrors: [{ message: "Item unavailable for online checkout.", field: ["lines"] }],
     };
   }
+
+  // Invalidate in-memory caches upon checkout creation so subsequent visits reflect inventory changes
+  invalidateShopifyCatalogCache();
 
   return {
     cart: {
@@ -1152,6 +1185,67 @@ export interface AvailabilityCheckResult {
   allAvailable: boolean;
   unavailableIds: string[];
   error?: string;
+  t2?: number;
+  t3?: number;
+  durationMs?: number;
+}
+
+export interface InventorySyncMeasurement {
+  id: string;
+  trigger: "poll" | "focus" | "visibility" | "broadcast" | "manual";
+  t1_adminSaved?: number;
+  t2_requestStarted: number;
+  t3_responseReceived: number;
+  t4_statePatched?: number;
+  t5_uiRendered?: number;
+  requestDurationMs: number;
+  processingDurationMs?: number;
+  renderDurationMs?: number;
+  totalObservedLatencyMs?: number;
+  upstreamVisibilityDelayMs?: number;
+  hasChanges: boolean;
+  nodeCount: number;
+  status: "success" | "unchanged" | "error";
+  error?: string;
+}
+
+const MAX_DIAGNOSTIC_RECORDS = 50;
+const diagnosticHistory: InventorySyncMeasurement[] = [];
+
+/**
+ * Records an inventory synchronization measurement for observability and latency profiling.
+ * Safe for production: never logs secrets or customer PII.
+ */
+export function recordInventoryMeasurement(measurement: InventorySyncMeasurement): void {
+  diagnosticHistory.unshift(measurement);
+  if (diagnosticHistory.length > MAX_DIAGNOSTIC_RECORDS) {
+    diagnosticHistory.pop();
+  }
+  if (typeof window !== "undefined") {
+    (window as any).__ithub_inventory_diagnostics = diagnosticHistory;
+  }
+  if (measurement.hasChanges || measurement.error) {
+    console.info(
+      `[inventory-sync-diagnostic] trigger=${measurement.trigger} duration=${measurement.requestDurationMs.toFixed(1)}ms changes=${measurement.hasChanges} nodes=${measurement.nodeCount}`,
+    );
+  }
+}
+
+/**
+ * Retrieves the recorded inventory sync diagnostics history.
+ */
+export function getInventoryDiagnostics(): InventorySyncMeasurement[] {
+  return [...diagnosticHistory];
+}
+
+/**
+ * Clears recorded diagnostic measurements (used in tests/benchmarks).
+ */
+export function clearInventoryDiagnostics(): void {
+  diagnosticHistory.length = 0;
+  if (typeof window !== "undefined") {
+    (window as any).__ithub_inventory_diagnostics = [];
+  }
 }
 
 const CHECK_AVAILABILITY_QUERY = `
@@ -1190,6 +1284,123 @@ const CHECK_AVAILABILITY_QUERY = `
 /**
  * Checks real-time availability of one or more variants or products via Storefront API.
  * Uses public availableForSale field requiring zero privileged tokens.
+ * Indexes results by both Shopify GID and numerical ID for fast O(1) lookups.
+ */
+async function fetchAvailabilityBatch(gids: string[]): Promise<AvailabilityCheckResult> {
+  const t2 = performance.now();
+  const result = await storefrontFetch<{ nodes: Array<any | null> }>(CHECK_AVAILABILITY_QUERY, {
+    ids: gids,
+  });
+  const t3 = performance.now();
+  const durationMs = t3 - t2;
+
+  if (!result.ok || !result.data?.nodes) {
+    return {
+      availability: {},
+      allAvailable: true,
+      unavailableIds: [],
+      error: result.error || "Failed to check inventory availability.",
+      t2,
+      t3,
+      durationMs,
+    };
+  }
+
+  const availabilityMap: Record<string, VariantAvailabilityInfo> = {};
+  const unavailable: string[] = [];
+
+  result.data.nodes.forEach((node, index) => {
+    if (!node) {
+      const queriedId = gids[index];
+      const queriedNumeric = parseShopifyGid(queriedId);
+      const unavailInfo = {
+        id: queriedId,
+        availableForSale: false,
+      };
+      availabilityMap[queriedId] = unavailInfo;
+      if (queriedNumeric) availabilityMap[queriedNumeric] = unavailInfo;
+      unavailable.push(queriedId);
+      return;
+    }
+
+    const numericId = parseShopifyGid(node.id);
+
+    if (node.product !== undefined || node.variants === undefined) {
+      // ProductVariant node
+      const isAvailable = Boolean(
+        node.availableForSale && node.product?.availableForSale !== false,
+      );
+      const varInfo: VariantAvailabilityInfo = {
+        id: node.id,
+        availableForSale: isAvailable,
+        title: node.title,
+        productTitle: node.product?.title,
+        productHandle: node.product?.handle,
+      };
+      availabilityMap[node.id] = varInfo;
+      if (numericId) availabilityMap[numericId] = varInfo;
+      if (!isAvailable) {
+        unavailable.push(node.id);
+        if (numericId) unavailable.push(numericId);
+      }
+    } else {
+      // Product node
+      const isAvailable = Boolean(node.availableForSale);
+      const prodInfo: VariantAvailabilityInfo = {
+        id: node.id,
+        availableForSale: isAvailable,
+        title: node.title,
+        productTitle: node.title,
+        productHandle: node.handle,
+      };
+      availabilityMap[node.id] = prodInfo;
+      if (numericId) availabilityMap[numericId] = prodInfo;
+      if (!isAvailable) {
+        unavailable.push(node.id);
+        if (numericId) unavailable.push(numericId);
+      }
+
+      // Also index all variant edges attached to this product
+      if (node.variants?.edges && Array.isArray(node.variants.edges)) {
+        node.variants.edges.forEach((edge: any) => {
+          const vNode = edge?.node;
+          if (vNode?.id) {
+            const vAvailable = Boolean(vNode.availableForSale && isAvailable);
+            const vNumeric = parseShopifyGid(vNode.id);
+            const vInfo: VariantAvailabilityInfo = {
+              id: vNode.id,
+              availableForSale: vAvailable,
+              title: vNode.title,
+              productTitle: node.title,
+              productHandle: node.handle,
+            };
+            availabilityMap[vNode.id] = vInfo;
+            if (vNumeric) availabilityMap[vNumeric] = vInfo;
+            if (!vAvailable) {
+              unavailable.push(vNode.id);
+              if (vNumeric) unavailable.push(vNumeric);
+            }
+          }
+        });
+      }
+    }
+  });
+
+  return {
+    availability: availabilityMap,
+    allAvailable: unavailable.length === 0,
+    unavailableIds: Array.from(new Set(unavailable)),
+    t2,
+    t3,
+    durationMs,
+  };
+}
+
+/**
+ * Checks real-time availability of one or more variants or products via Storefront API.
+ * Uses public availableForSale field requiring zero privileged tokens.
+ * Indexes results by both Shopify GID and numerical ID for fast O(1) lookups.
+ * Automatically chunks large queries into batches of <= 250 to respect Shopify GraphQL limits.
  */
 export async function checkShopifyAvailability(ids: string[]): Promise<AvailabilityCheckResult> {
   if (!shopifyConfig.isConfigured || !ids || ids.length === 0) {
@@ -1202,72 +1413,150 @@ export async function checkShopifyAvailability(ids: string[]): Promise<Availabil
   }
 
   const gids = Array.from(
-    new Set(ids.map((id) => (id.startsWith("gid://shopify/") ? id : toVariantGid(id)))),
+    new Set(ids.map((id) => (id.startsWith("gid://shopify/") ? id : toProductGid(id)))),
   );
 
-  const result = await storefrontFetch<{ nodes: Array<any | null> }>(CHECK_AVAILABILITY_QUERY, {
-    ids: gids,
-  });
-
-  if (!result.ok || !result.data?.nodes) {
-    return {
-      availability: {},
-      allAvailable: true,
-      unavailableIds: [],
-      error: result.error || "Failed to check inventory availability.",
-    };
+  const BATCH_SIZE = 250;
+  if (gids.length <= BATCH_SIZE) {
+    return fetchAvailabilityBatch(gids);
   }
 
-  const availabilityMap: Record<string, VariantAvailabilityInfo> = {};
-  const unavailable: string[] = [];
+  // Chunk queries into slices of <= 250
+  const batches: string[][] = [];
+  for (let i = 0; i < gids.length; i += BATCH_SIZE) {
+    batches.push(gids.slice(i, i + BATCH_SIZE));
+  }
 
-  result.data.nodes.forEach((node, index) => {
-    if (!node) {
-      const queriedId = gids[index];
-      availabilityMap[queriedId] = {
-        id: queriedId,
-        availableForSale: false,
-      };
-      unavailable.push(queriedId);
-      return;
-    }
+  const batchResults = await Promise.all(batches.map((b) => fetchAvailabilityBatch(b)));
+  const mergedMap: Record<string, VariantAvailabilityInfo> = {};
+  const mergedUnavailable: string[] = [];
+  let mergedError: string | undefined;
 
-    if (node.product !== undefined || node.variants === undefined) {
-      // ProductVariant node
-      const isAvailable = Boolean(
-        node.availableForSale && node.product?.availableForSale !== false,
-      );
-      availabilityMap[node.id] = {
-        id: node.id,
-        availableForSale: isAvailable,
-        title: node.title,
-        productTitle: node.product?.title,
-        productHandle: node.product?.handle,
-      };
-      if (!isAvailable) {
-        unavailable.push(node.id);
-      }
-    } else {
-      // Product node
-      const isAvailable = Boolean(node.availableForSale);
-      availabilityMap[node.id] = {
-        id: node.id,
-        availableForSale: isAvailable,
-        title: node.title,
-        productTitle: node.title,
-        productHandle: node.handle,
-      };
-      if (!isAvailable) {
-        unavailable.push(node.id);
-      }
-    }
-  });
+  for (const br of batchResults) {
+    Object.assign(mergedMap, br.availability);
+    mergedUnavailable.push(...br.unavailableIds);
+    if (!mergedError && br.error) mergedError = br.error;
+  }
 
   return {
-    availability: availabilityMap,
-    allAvailable: unavailable.length === 0,
-    unavailableIds: unavailable,
+    availability: mergedMap,
+    allAvailable: mergedUnavailable.length === 0,
+    unavailableIds: Array.from(new Set(mergedUnavailable)),
+    error: mergedError,
+    durationMs: Math.max(...batchResults.map((r) => r.durationMs || 0)),
   };
+}
+
+/**
+ * Pure in-memory patcher for Shopify availability updates.
+ * Selectively patches availableForSale, stock, and variant availability on matching products
+ * while strictly preserving all other immutable attributes (name, images, price, description, etc.).
+ */
+export function patchShopifyAvailability(
+  products: Product[],
+  availabilityMap: Record<string, VariantAvailabilityInfo>,
+): { updatedProducts: Product[]; hasChanges: boolean } {
+  if (!products || products.length === 0 || !availabilityMap) {
+    return { updatedProducts: products, hasChanges: false };
+  }
+
+  let hasChanges = false;
+  const updatedProducts = products.map((product) => {
+    const prodGid = toProductGid(product.id);
+    const varGid = product.variantId ? toVariantGid(product.variantId) : undefined;
+    const info =
+      availabilityMap[prodGid] ||
+      availabilityMap[product.id] ||
+      (varGid ? availabilityMap[varGid] : undefined) ||
+      (product.variantId ? availabilityMap[product.variantId] : undefined);
+
+    if (!info) return product;
+
+    const newAvailable = Boolean(info.availableForSale);
+    const availabilityChanged = product.availableForSale !== newAvailable;
+
+    let variantsChanged = false;
+    let updatedVariants = product.variants;
+    if (product.variants && product.variants.length > 0) {
+      updatedVariants = product.variants.map((v) => {
+        const vGid = toVariantGid(v.id);
+        const vInfo = availabilityMap[vGid] || availabilityMap[v.id];
+        if (vInfo && v.availableForSale !== vInfo.availableForSale) {
+          variantsChanged = true;
+          return { ...v, availableForSale: vInfo.availableForSale };
+        }
+        return v;
+      });
+    }
+
+    if (!availabilityChanged && !variantsChanged) {
+      return product;
+    }
+
+    hasChanges = true;
+    return {
+      ...product,
+      availableForSale: newAvailable,
+      stock: newAvailable ? (product.stock > 0 ? product.stock : 10) : 0,
+      variants: updatedVariants,
+    };
+  });
+
+  return { updatedProducts: hasChanges ? updatedProducts : products, hasChanges };
+}
+
+/**
+ * High-performance background availability synchronizer.
+ * Queries Shopify Storefront API using a lightweight nodes query and patches active products.
+ * Returns { updatedProducts, hasChanges, t2, t3, durationMs, error }.
+ */
+export async function syncShopifyAvailability(products: Product[]): Promise<{
+  updatedProducts: Product[];
+  hasChanges: boolean;
+  availability?: Record<string, VariantAvailabilityInfo>;
+  error?: string;
+  t2?: number;
+  t3?: number;
+  durationMs?: number;
+}> {
+  if (!shopifyConfig.isConfigured || !products || products.length === 0) {
+    return { updatedProducts: products, hasChanges: false, availability: {} };
+  }
+
+  try {
+    const gids = products.map((p) => toProductGid(p.id));
+    const result = await checkShopifyAvailability(gids);
+    if (result.error && Object.keys(result.availability).length === 0) {
+      return {
+        updatedProducts: products,
+        hasChanges: false,
+        availability: result.availability,
+        error: result.error,
+        t2: result.t2,
+        t3: result.t3,
+        durationMs: result.durationMs,
+      };
+    }
+
+    const patchResult = patchShopifyAvailability(products, result.availability);
+    return {
+      ...patchResult,
+      availability: result.availability,
+      t2: result.t2,
+      t3: result.t3,
+      durationMs: result.durationMs,
+    };
+  } catch (err: any) {
+    return { updatedProducts: products, hasChanges: false, error: err?.message };
+  }
+}
+
+/**
+ * Universal cache invalidator for all Shopify Storefront memory caches.
+ */
+export function invalidateShopifyCaches(): void {
+  catalogCache.clear();
+  productCache.clear();
 }
 
 export interface CartAvailabilityRevalidation {
@@ -1402,12 +1691,16 @@ export async function addShopifyCartLines(
   }
 
   if (cart.totalQuantity === 0) {
+    invalidateShopifyCatalogCache();
     return {
       cart: null,
       error: "Sorry, this item is currently unavailable for online checkout.",
       userErrors: [{ message: "Item unavailable for online checkout.", field: ["lines"] }],
     };
   }
+
+  // Invalidate in-memory caches upon checkout creation so subsequent visits reflect inventory changes
+  invalidateShopifyCatalogCache();
 
   return {
     cart: {
@@ -1418,5 +1711,179 @@ export async function addShopifyCartLines(
       total: parseFloat(cart.cost.totalAmount.amount),
       currency: cart.cost.totalAmount.currencyCode,
     },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-Tab Synchronization & Catalog Change Detection (Phase 2 & Phase 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CatalogDiffResult {
+  hasChanges: boolean;
+  hasStructuralChanges: boolean;
+  hasAvailabilityChanges: boolean;
+  addedCount: number;
+  removedCount: number;
+  updatedCount: number;
+}
+
+/**
+ * Pure diffing engine that determines if a newly fetched catalog differs from
+ * current application state across title, price, images, brand, category,
+ * variants, description, or availability.
+ */
+export function diffCatalogProducts(current: Product[], incoming: Product[]): CatalogDiffResult {
+  if (!current || !incoming) {
+    return {
+      hasChanges: current !== incoming,
+      hasStructuralChanges: current !== incoming,
+      hasAvailabilityChanges: false,
+      addedCount: 0,
+      removedCount: 0,
+      updatedCount: 0,
+    };
+  }
+
+  if (current.length !== incoming.length) {
+    return {
+      hasChanges: true,
+      hasStructuralChanges: true,
+      hasAvailabilityChanges: false,
+      addedCount: Math.max(0, incoming.length - current.length),
+      removedCount: Math.max(0, current.length - incoming.length),
+      updatedCount: 0,
+    };
+  }
+
+  const currentMap = new Map(current.map((p) => [p.id, p]));
+  let hasStructural = false;
+  let hasAvailability = false;
+  let updatedCount = 0;
+
+  for (const next of incoming) {
+    const prev = currentMap.get(next.id);
+    if (!prev) {
+      hasStructural = true;
+      updatedCount++;
+      continue;
+    }
+
+    if (
+      prev.name !== next.name ||
+      prev.price !== next.price ||
+      prev.original !== next.original ||
+      prev.image !== next.image ||
+      prev.category !== next.category ||
+      prev.brand !== next.brand ||
+      prev.description !== next.description ||
+      (prev.variants?.length ?? 0) !== (next.variants?.length ?? 0)
+    ) {
+      hasStructural = true;
+      updatedCount++;
+    } else if (prev.variants && next.variants) {
+      // Compare individual variant attributes when counts are identical
+      for (let i = 0; i < prev.variants.length; i++) {
+        const pv = prev.variants[i];
+        const nv = next.variants[i];
+        if (
+          pv.price !== nv.price ||
+          pv.compareAtPrice !== nv.compareAtPrice ||
+          pv.title !== nv.title
+        ) {
+          hasStructural = true;
+          updatedCount++;
+          break;
+        }
+        if (pv.availableForSale !== nv.availableForSale) {
+          hasAvailability = true;
+        }
+      }
+    }
+
+    if (prev.availableForSale !== next.availableForSale || prev.stock !== next.stock) {
+      hasAvailability = true;
+    }
+  }
+
+  return {
+    hasChanges: hasStructural || hasAvailability,
+    hasStructuralChanges: hasStructural,
+    hasAvailabilityChanges: hasAvailability,
+    addedCount: 0,
+    removedCount: 0,
+    updatedCount,
+  };
+}
+
+export interface ShopifySyncMessage {
+  type: "AVAILABILITY_SYNC" | "CATALOG_SYNC" | "PRODUCT_INVALIDATE";
+  timestamp: number;
+  payload?: any;
+}
+
+let syncChannel: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+  try {
+    syncChannel = new BroadcastChannel("ithub_shopify_sync");
+  } catch {
+    syncChannel = null;
+  }
+}
+
+/**
+ * Broadcasts an inventory or catalog sync event to all other open storefront tabs.
+ */
+export function broadcastShopifySync(message: ShopifySyncMessage): void {
+  try {
+    if (syncChannel) {
+      syncChannel.postMessage(message);
+    }
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(
+        "ithub:shopify:sync_event",
+        JSON.stringify({ ...message, _ts: Date.now() }),
+      );
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+/**
+ * Subscribes to cross-tab synchronization broadcasts.
+ * Returns unsubscribe cleanup function.
+ */
+export function subscribeToShopifySync(
+  callback: (message: ShopifySyncMessage) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const handleBroadcast = (event: MessageEvent<ShopifySyncMessage>) => {
+    if (event?.data) callback(event.data);
+  };
+
+  const handleStorage = (event: any) => {
+    if (event.key === "ithub:shopify:sync_event" && event.newValue) {
+      try {
+        const parsed = JSON.parse(event.newValue);
+        callback(parsed);
+      } catch {
+        // Ignore parse error
+      }
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener("message", handleBroadcast);
+  } else {
+    window.addEventListener("storage", handleStorage);
+  }
+
+  return () => {
+    if (syncChannel) {
+      syncChannel.removeEventListener("message", handleBroadcast);
+    } else {
+      window.removeEventListener("storage", handleStorage);
+    }
   };
 }

@@ -48,13 +48,17 @@ jobs:
           echo "Security scan passed: no tracked secrets or hardcoded private tokens."
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix ITHUB_ADMIN ci
 
       - name: Verify code formatting (oxfmt)
         run: npm run lint
 
       - name: Run TypeScript static analysis
-        run: npm run typecheck
+        run: |
+          npm run typecheck
+          npm run portal:typecheck
 
       - name: Verify database migration ordering and schema integrity
         run: npm run verify:migrations
@@ -62,17 +66,22 @@ jobs:
       - name: Run automated security, auth & webhook test suite
         run: npm run test:security
 
+      - name: Run staff portal authorization & workflow test suite
+        run: npm run test:portal
+
       - name: Run Shopify Storefront catalog & inventory pipeline test suite
         run: npm run test:shopify
 
       - name: Run Find My PC intelligence & 100-scenario quality benchmark
         run: npm run test:builder
 
-      - name: Run full automated edge regression test suite (318 tests)
+      - name: Run full automated edge regression test suite
         run: npm run test:edge
 
-      - name: Run Vite production build
-        run: npm run build
+      - name: Run Vite production build (Public Storefront & Staff Portal)
+        run: |
+          npm run build
+          npm run portal:build
 
       - name: Verify production build distribution artifacts
         run: |
@@ -80,4 +89,8 @@ jobs:
             echo "::error::dist/index.html is missing or empty after production build."
             exit 1
           fi
-          echo "Production build verified: dist/index.html exists and is non-empty."
+          if [ ! -s "ITHUB_ADMIN/dist/index.html" ]; then
+            echo "::error::ITHUB_ADMIN/dist/index.html is missing or empty after production build."
+            exit 1
+          fi
+          echo "Production build verified: Storefront and Staff Portal artifacts exist and are non-empty."

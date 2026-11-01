@@ -12,6 +12,26 @@ import type {
   ProductCondition,
 } from "../data/catalog";
 import { initialOffers, initialCoupons } from "../data/catalog";
+import { normalizeBrandName, isRetailerIdentity } from "./shopify-schema";
+export {
+  isFreshProduct,
+  isPreOwnedProduct,
+  getDetailedProductClassification,
+  getProductConditionClassification,
+  isProductAvailable,
+  getRelatedProducts,
+  filterFeaturedFreshProducts,
+} from "./relatedProducts";
+export type { RelatedProductsOptions, DetailedProductClassification } from "./relatedProducts";
+
+export {
+  WEBSITE_CATEGORIES,
+  mapToWebsiteCategory,
+  matchesCategoryFilter,
+  calculateCategoryCounts,
+  normalizeCategoryName,
+} from "./categoryMapping";
+export type { WebsiteCategory } from "./categoryMapping";
 
 /**
  * Raw PostgreSQL row shape from public.products_public view.
@@ -151,7 +171,7 @@ export function mapDatabaseProduct(row: DatabaseProductRow): Product {
     id: row.id,
     sku: row.sku,
     name: row.name,
-    brand: row.brand || "IT HUB",
+    brand: row.brand ? (isRetailerIdentity(row.brand) ? "" : normalizeBrandName(row.brand)) : "",
     category: row.category || "Hardware",
     subcategory: row.subcategory || undefined,
     description: row.description || undefined,
