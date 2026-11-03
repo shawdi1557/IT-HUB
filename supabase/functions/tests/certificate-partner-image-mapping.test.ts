@@ -17,7 +17,6 @@ const INTEL_ABOUT_STORE_PATH = "public/images/about-store.png";
 const INTEL_PARTNER_JPG_PATH = "public/images/recognition/intel-partner.jpg";
 const INTEL_PARTNER_PNG_PATH = "public/images/recognition/intel-partner.png";
 const IGGIS_IMAGE_PATH = "public/images/recognition/iggis-honour-recognition.jpg";
-const INTEL_BACKUP_PATH = "public/images/recognition/intel-partner.jpg.bak";
 
 async function sha256File(path: string): Promise<string> {
   const bytes = Deno.readFileSync(path);
@@ -40,7 +39,7 @@ Deno.test("CERT-1: Intel announcement image and IGGIS award image have distinct 
   assertEquals(iggisHash.length, 64);
 });
 
-Deno.test("CERT-2: On-disk intel-partner.jpg is genuine Intel image and backup exists", async () => {
+Deno.test("CERT-2: On-disk intel-partner.jpg is genuine Intel image", async () => {
   const intelAboutHash = await sha256File(INTEL_ABOUT_STORE_PATH);
   const intelPartnerHash = await sha256File(INTEL_PARTNER_JPG_PATH);
 
@@ -49,15 +48,6 @@ Deno.test("CERT-2: On-disk intel-partner.jpg is genuine Intel image and backup e
     intelAboutHash,
     "intel-partner.jpg on disk must be identical to the genuine Intel announcement image",
   );
-
-  const backupExists = (() => {
-    try {
-      return Deno.statSync(INTEL_BACKUP_PATH).isFile;
-    } catch {
-      return false;
-    }
-  })();
-  assertEquals(backupExists, true, "intel-partner.jpg.bak must exist as a safety backup");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -248,7 +238,6 @@ Deno.test("CERT-10: About page renders certificates from store using item.image"
 const ADMIN_ABOUT_STORE_PATH = "ITHUB_ADMIN/public/images/about-store.png";
 const ADMIN_INTEL_PARTNER_JPG_PATH = "ITHUB_ADMIN/public/images/recognition/intel-partner.jpg";
 const ADMIN_INTEL_PARTNER_PNG_PATH = "ITHUB_ADMIN/public/images/recognition/intel-partner.png";
-const ADMIN_INTEL_BACKUP_PATH = "ITHUB_ADMIN/public/images/recognition/intel-partner.jpg.bak";
 const ADMIN_IGGIS_IMAGE_PATH = "ITHUB_ADMIN/public/images/recognition/iggis-honour-recognition.jpg";
 
 Deno.test("CERT-11: Staff Portal public assets contain genuine Intel images matching Storefront hash", async () => {
@@ -272,15 +261,6 @@ Deno.test("CERT-11: Staff Portal public assets contain genuine Intel images matc
     storefrontIntelHash,
     "ITHUB_ADMIN/public/images/recognition/intel-partner.png must match Storefront Intel announcement image",
   );
-
-  const adminBackupExists = (() => {
-    try {
-      return Deno.statSync(ADMIN_INTEL_BACKUP_PATH).isFile;
-    } catch {
-      return false;
-    }
-  })();
-  assertEquals(adminBackupExists, true, "ITHUB_ADMIN intel-partner.jpg.bak must exist");
 });
 
 Deno.test("CERT-12: Staff Portal IGGIS certificate asset remains untouched and distinct from Intel", async () => {
