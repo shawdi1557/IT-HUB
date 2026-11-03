@@ -336,6 +336,7 @@ export async function submitQuotationRequest(
 
   // Map parts into structured format containing names, Shopify product/variant IDs, and prices
   const partsPayload: Record<string, any> = {};
+  const ownedSlots = new Set<string>(build.ownedSlots || []);
   for (const [slot, comp] of Object.entries(build.components)) {
     if (comp) {
       partsPayload[slot] = {
@@ -347,6 +348,7 @@ export async function submitQuotationRequest(
         price: comp.price,
         isShopifyLive: comp.isShopifyLive ?? Boolean(comp.variantId),
         specs: comp.specs || {},
+        ...(ownedSlots.has(slot) ? { owned: true } : {}),
       };
     }
   }

@@ -30,6 +30,7 @@ import {
   calculateCategoryCounts,
   WEBSITE_CATEGORIES,
 } from "../lib/catalog";
+import { priceFilterCeiling } from "../lib/categoryMapping";
 import { bestOffer, categories, money, offerHeadline, type Product } from "../data/catalog";
 import {
   fetchShopifyProduct,
@@ -62,10 +63,11 @@ export function Products() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [brand, setBrand] = useState(params.get("brand") || "");
-  const [max, setMax] = useState(150000);
+  const [budgetChoice, setBudgetChoice] = useState<number | null>(null);
+  const priceCeiling = useMemo(() => priceFilterCeiling(store.products), [store.products]);
+  const max = budgetChoice ?? priceCeiling;
   const [available, setAvailable] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [sort, setSort] = useState("Relevance");
+  const [sort, setSort] = useState("Newest");
   const [showFilters, setShowFilters] = useState(false);
   const [specs, setSpecs] = useState<Record<string, string>>({});
   const category = params.get("category") || "";
@@ -127,7 +129,6 @@ export function Products() {
               (product.availableForSale !== undefined
                 ? product.availableForSale
                 : product.stock > 0)) &&
-            product.rating >= rating &&
             `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${
               product.specs && typeof product.specs === "object"
                 ? Object.values(product.specs).join(" ")
@@ -140,18 +141,15 @@ export function Products() {
             )
           );
         })
-        .sort((first, second) =>
-          sort === "Price: Low to High"
-            ? first.price - second.price
-            : sort === "Price: High to Low"
-              ? second.price - first.price
-              : sort === "Rating"
-                ? second.rating - first.rating
-                : sort === "Newest"
-                  ? second.id.localeCompare(first.id)
-                  : 0,
+        .sort(
+          (first, second) =>
+            sort === "Price: Low to High"
+              ? first.price - second.price
+              : sort === "Price: High to Low"
+                ? second.price - first.price
+                : 0, // "Newest" keeps the catalog's order, which Shopify returns newest first
         ),
-    [store.products, section, category, brand, max, available, rating, query, specs, sort],
+    [store.products, section, category, brand, max, available, query, specs, sort],
   );
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -160,7 +158,7 @@ export function Products() {
   // Reset to page 1 whenever any filter, search query, or category changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [category, brand, max, available, rating, query, section, sort, specs]);
+  }, [category, brand, max, available, query, section, sort, specs]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
@@ -187,7 +185,7 @@ export function Products() {
           section === "sell"
             ? "Submit your device for fair evaluation and immediate payout by IT HUB."
             : section === "secondhand"
-              ? "100% inspected, tested & certified pre-owned gadgets with IT HUB warranty."
+              ? "Pre-owned devices from IT HUB. See each listing for its condition."
               : "Technology for work, play and everything in between. Explore the brand-new IT HUB collection."
         }
       />
@@ -212,9 +210,7 @@ export function Products() {
           </div>
           <div className="mt-4">
             <h3 className="text-base font-bold text-foreground">FRESH ITEMS</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              New IT HUB Products · Sealed with full manufacturer warranty
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">New IT HUB Products</p>
           </div>
         </button>
 
@@ -236,9 +232,7 @@ export function Products() {
           </div>
           <div className="mt-4">
             <h3 className="text-base font-bold text-foreground">SECOND-HAND</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Pre-owned Products · Tested & certified by IT HUB technicians
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Pre-owned Products</p>
           </div>
         </button>
 
@@ -277,8 +271,8 @@ export function Products() {
               <div className="flex items-center gap-2">
                 <RefreshCw size={15} className="text-amber-800 shrink-0" />
                 <span>
-                  <strong>IT HUB Verified Pre-Owned Collection:</strong> Every second-hand device
-                  undergoes multi-point hardware diagnostics and includes testing certification.
+                  <strong>Pre-Owned Collection:</strong> See each listing for the device's condition
+                  and warranty details.
                 </span>
               </div>
               <button
@@ -314,13 +308,10 @@ export function Products() {
                 className="flex-1 sm:flex-initial sm:w-52 min-w-0"
                 value={sort}
                 onChange={setSort}
-                options={[
-                  "Relevance",
-                  "Price: Low to High",
-                  "Price: High to Low",
-                  "Newest",
-                  "Rating",
-                ].map((value) => ({ value, label: value }))}
+                options={["Newest", "Price: Low to High", "Price: High to Low"].map((value) => ({
+                  value,
+                  label: value,
+                }))}
               />
             </div>
           </div>
@@ -336,9 +327,8 @@ export function Products() {
                   onClick={() => {
                     setParams({});
                     setBrand("");
-                    setMax(150000);
+                    setBudgetChoice(null);
                     setAvailable(false);
-                    setRating(0);
                     setSpecs({});
                   }}
                   className="text-[11px] text-primary"
@@ -392,15 +382,15 @@ export function Products() {
                   aria-label="Maximum price"
                   type="range"
                   min={1000}
-                  max={150000}
+                  max={priceCeiling}
                   step={500}
                   value={max}
-                  onChange={(event) => setMax(Number(event.target.value))}
+                  onChange={(event) => setBudgetChoice(Number(event.target.value))}
                   className="w-full accent-primary"
                 />
                 <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
                   <span>₹1,000</span>
-                  <span>₹1,50,000</span>
+                  <span>{money(priceCeiling)}</span>
                 </div>
               </Field>
               <label className="flex items-center gap-2 text-xs">
@@ -412,19 +402,6 @@ export function Products() {
                 />{" "}
                 In stock only
               </label>
-              <Field label="Customer rating (demo)">
-                <Select
-                  label="Customer rating"
-                  value={String(rating)}
-                  onChange={(value) => setRating(Number(value))}
-                  options={[
-                    { value: "0", label: "All ratings" },
-                    { value: "4", label: "4 stars & above" },
-                    { value: "4.8", label: "4.8 & above" },
-                    { value: "5", label: "5 stars" },
-                  ]}
-                />
-              </Field>
               {category &&
                 specificKeys.map((key) => {
                   const values = [
@@ -1084,7 +1061,7 @@ export function ProductDetail() {
                   <Badge tone="amber">
                     <RefreshCw size={10} className="mr-1 inline text-amber-700" />
                     PRE-OWNED
-                    {product.condition ? ` · ${product.condition}` : ""}
+                    {product.conditionStated ? ` · ${product.condition}` : ""}
                   </Badge>
                 )}
                 {product.tag && !product.secondHand && <Badge>{product.tag}</Badge>}
@@ -1123,11 +1100,6 @@ export function ProductDetail() {
               ))}
             </div>
           )}
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            {product.secondHand
-              ? "Verified physical condition photos taken and uploaded by IT HUB technicians."
-              : "Official manufacturer / verified catalog imagery."}
-          </p>
         </div>
         <div>
           {product.brand ? (
@@ -1223,13 +1195,15 @@ export function ProductDetail() {
             <div className="my-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 shadow-sm">
               <div className="flex items-center gap-2 font-bold text-amber-800">
                 <RefreshCw size={15} />
-                <span>IT HUB Certified Pre-Owned Assurance</span>
+                <span>Pre-Owned Device</span>
               </div>
               <p className="mt-1.5 leading-5 text-amber-950/80">
                 Condition:{" "}
-                <strong className="text-amber-950">{product.condition || "Inspected"}</strong> ·
-                Multi-point diagnostics passed · Serviced & tested · Covered by{" "}
-                {(product.specs && product.specs.Warranty) || product.warranty || "IT HUB Warranty"}
+                <strong className="text-amber-950">
+                  {product.conditionStated ? product.condition : "Not stated"}
+                </strong>
+                {((product.specs && product.specs.Warranty) || product.warranty) &&
+                  ` · Covered by ${(product.specs && product.specs.Warranty) || product.warranty}`}
                 .
               </p>
             </div>
@@ -1381,7 +1355,7 @@ export function ProductDetail() {
               <ShieldCheck size={15} className="text-primary" /> Warranty:{" "}
               {(product.specs && product.specs.Warranty) ||
                 product.warranty ||
-                "Contact IT HUB for details"}
+                "Warranty information not provided"}
             </p>
           </div>
         </div>
@@ -1423,8 +1397,8 @@ export function ProductDetail() {
             <h2 className="text-2xl font-bold">Related Products</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {product.secondHand
-                ? "Verified IT HUB pre-owned & refurbished devices in this category."
-                : "Genuine brand-new hardware and components in this category."}
+                ? "More pre-owned devices in this category."
+                : "More new products in this category."}
             </p>
           </div>
           {product.category && (

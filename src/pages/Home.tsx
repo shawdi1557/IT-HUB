@@ -553,22 +553,20 @@ export default function Home() {
       <section className={`${containerClass}`}>
         <OurServices compact />
       </section>
-      {/* ── CERTIFIED PRE-OWNED & HARDWARE BUYBACK ── */}
+      {/* ── PRE-OWNED & HARDWARE BUYBACK ── */}
       <section className={`${containerClass} py-8`}>
         <div className="rounded-[2.5rem] border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-orange-50/20 to-background p-7 md:p-12 shadow-sm">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100/80 px-3.5 py-1 text-[11px] font-bold text-amber-900">
                 <RefreshCw size={12} className="text-amber-800" />
-                VERIFIED SECOND-HAND & TRADE-IN
+                SECOND-HAND & TRADE-IN
               </div>
               <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-                Certified Pre-Owned & Gadget Buyback
+                Pre-Owned & Gadget Buyback
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Save up to 50% on thoroughly inspected, stress-tested pre-owned laptops, MacBooks,
-                GPUs, and smartphones — or trade in your old devices for an instant evaluation and
-                fair cash payout.
+                Browse pre-owned devices from IT HUB, or trade in your old device for an evaluation.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">

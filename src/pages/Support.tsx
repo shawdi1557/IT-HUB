@@ -263,7 +263,9 @@ export default function Support() {
               name={orderItem.name}
               brand={product?.brand || ""}
               categoryName={category?.name || product?.category || ""}
-              warranty={product?.specs?.Warranty || product?.warranty || "1 Year Manufacturer"}
+              warranty={
+                product?.specs?.Warranty || product?.warranty || "Warranty information not provided"
+              }
             />
           )}
 

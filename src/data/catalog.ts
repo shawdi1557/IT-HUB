@@ -78,6 +78,9 @@ export type Product = {
 
   condition?: ProductCondition;
 
+  /** True only when Shopify states the grade, rather than just that it's pre-owned */
+  conditionStated?: boolean;
+
   handle?: string;
 
   variantId?: string;
@@ -1431,6 +1434,12 @@ export type ComponentOption = {
 
   /** True if CPU includes integrated display graphics */
   hasIntegratedGraphics?: boolean;
+
+  /** Every specification known for this product, read by the compatibility rules */
+  specs?: import("../lib/builder/types").TechnicalSpecs;
+
+  /** Shopify product image */
+  image?: string;
 };
 
 export const componentOptions: Record<string, ComponentOption[]> = {

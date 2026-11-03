@@ -241,13 +241,10 @@ export default function ShopifyOrderDetailsModal({
             </div>
           )}
 
-          {/* Authenticity Guarantee */}
+          {/* Order source */}
           <div className="flex items-center gap-3 rounded-2xl bg-secondary/50 p-4 text-[11px] text-muted-foreground">
             <ShieldCheck size={18} className="text-primary shrink-0" />
-            <span>
-              Authoritative order synchronized with Shopify. IT HUB warranty applies to all eligible
-              brand-new hardware.
-            </span>
+            <span>Order details synchronized with Shopify.</span>
           </div>
         </div>
 

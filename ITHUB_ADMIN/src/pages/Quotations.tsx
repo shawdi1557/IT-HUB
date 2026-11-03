@@ -421,7 +421,7 @@ export function Quotations() {
                           ) : (
                             <CheckCircle2 size={11} className="shrink-0 text-emerald-600" />
                           )}
-                          <span>{flagged ? "Price Review Flagged" : "Pricing Verified"}</span>
+                          <span>{flagged ? "Review Flagged" : "Pricing Verified"}</span>
                         </span>
                       );
                     })()}

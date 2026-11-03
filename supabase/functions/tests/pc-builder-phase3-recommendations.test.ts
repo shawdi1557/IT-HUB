@@ -5,12 +5,8 @@
 
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-const {
-  generateDynamicCatalogRecommendations,
-  getBudgetShortfallInfo,
-  getComponentBenchmarkScores,
-  getPurposeWeights,
-} = await import("../../../src/lib/builder/recommendations.ts");
+const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
+  await import("../../../src/lib/builder/recommendations.ts");
 
 const { syncBuilderCatalogWithShopify } = await import("../../../src/lib/builder/catalog.ts");
 
@@ -99,6 +95,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 15,
     specs: {
       ramGeneration: "DDR4",
+      ram_generation: "DDR4",
       isLaptopSoDimm: false,
       capacityGb: 16,
       provenance: "verified_technician",
@@ -115,6 +112,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 8,
     specs: {
       ramGeneration: "DDR5",
+      ram_generation: "DDR5",
       isLaptopSoDimm: false,
       capacityGb: 32,
       provenance: "verified_manufacturer",
@@ -132,6 +130,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 7,
     specs: {
       powerWatts: 115,
+      watts: "115",
       lengthMm: 242,
       recommendedPsuWatts: 450,
       provenance: "verified_technician",
@@ -148,6 +147,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 3,
     specs: {
       powerWatts: 140,
+      watts: "140",
       lengthMm: 260,
       recommendedPsuWatts: 550,
       provenance: "verified_technician",
@@ -177,6 +177,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 10,
     specs: {
       ratedWattage: 650,
+      capacity_watts: "650",
       pciePowerConnectors: ["8-pin", "8-pin"],
       provenance: "verified_manufacturer",
     },
@@ -244,7 +245,7 @@ Deno.test("PHASE3-1: Multi-branch synthesizer returns distinct builds with 100% 
   }
 });
 
-Deno.test("PHASE3-2: Label assignments adhere to Best Value and Balanced/Performance rules", () => {
+Deno.test("PHASE3-2: Labels come only from evidence, and Best Value is never the dearer build", () => {
   const { componentCatalog } = syncBuilderCatalogWithShopify(multiTierShopifyProducts);
 
   const answers = {
@@ -261,7 +262,17 @@ Deno.test("PHASE3-2: Label assignments adhere to Best Value and Balanced/Perform
   assertEquals(recs.length >= 2, true);
 
   // Best Value must have lowest total price
-  const bestValue = recs.find((r) => r.tradeoff === "Value" || r.tradeoffLabel === "Best Value");
+  const allowed = [
+    "Best Value",
+    "Best Balanced",
+    "Highest Verified Performance",
+    "Insufficient information",
+  ];
+  for (const r of recs) {
+    assertEquals(allowed.includes(r.tradeoffLabel), true);
+    assertEquals(r.rankingReasons.length > 0, true);
+  }
+  const bestValue = recs.find((r) => r.tradeoffLabel === "Best Value");
   if (bestValue) {
     const minPrice = Math.min(...recs.map((r) => r.price));
     assertEquals(bestValue.price, minPrice);
@@ -294,7 +305,7 @@ Deno.test("PHASE3-3: Combinatorial search latency budget P95 < 50ms", () => {
 Deno.test("PHASE3-4: Honest Shortfall correctly identifies closest build when budget is under minimum", () => {
   const { componentCatalog } = syncBuilderCatalogWithShopify(multiTierShopifyProducts);
 
-  // Budget ₹40,000 - ₹60,000 (below cheapest valid complete build of ₹62,000)
+  // Budget ₹40,000 - ₹60,000 (below cheapest valid complete build of ₹60,500)
   const answers = {
     purpose: "gaming",
     budgetId: "40-60",
@@ -312,8 +323,8 @@ Deno.test("PHASE3-4: Honest Shortfall correctly identifies closest build when bu
   // getBudgetShortfallInfo MUST detect the shortfall
   const shortfall = getBudgetShortfallInfo(componentCatalog, answers, { min: 40000, max: 60000 });
   assertNotEquals(shortfall, null);
-  assertEquals(shortfall?.closestBuild.price, 62000);
-  assertEquals(shortfall?.shortfallAmount, 2000); // ₹62,000 - ₹60,000
+  assertEquals(shortfall?.closestBuild.price, 60500);
+  assertEquals(shortfall?.shortfallAmount, 500); // ₹60,500 - ₹60,000
   assertEquals(shortfall?.closestBuild.name.includes("Ryzen 5 5600"), true);
 });
 

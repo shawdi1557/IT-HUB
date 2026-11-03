@@ -259,6 +259,20 @@ export function matchesCategoryFilter(
   return false;
 }
 
+const DEFAULT_PRICE_CEILING = 150000;
+
+/**
+ * The top of the listing page's budget slider. It rises with the catalog, so a product priced above
+ * the usual range is still listed and can still be reached.
+ */
+export function priceFilterCeiling(products: Pick<Product, "price">[]): number {
+  const highest = products.reduce(
+    (top, product) => (Number.isFinite(product.price) ? Math.max(top, product.price) : top),
+    0,
+  );
+  return Math.max(DEFAULT_PRICE_CEILING, Math.ceil(highest / 1000) * 1000);
+}
+
 /**
  * Accurately calculates product counts for each canonical website category from the catalog.
  * Follows consistent deduplication and visibility rules.

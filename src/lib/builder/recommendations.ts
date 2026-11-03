@@ -8,9 +8,108 @@ import type {
   CanonicalBuildComponent,
   ComponentSlotId,
   GuidedAnswers,
+  PublishedPerformanceFigures,
   RecommendationCandidate,
 } from "./types";
-import { checkCompatibility } from "./compatibility";
+import {
+  calculateSystemPower,
+  checkCompatibility,
+  inferredCriticalSpecs,
+  labelCompatibilityGaps,
+  toCanonicalComponent,
+} from "./compatibility";
+import { assessFit, prefersForPriority, priorityNote, purposeProfile } from "./purpose";
+import {
+  comparePartPerformance,
+  describeSpecSource,
+  INSUFFICIENT_INFORMATION,
+  performanceEvidence,
+  rankBuilds,
+  type ComparedSlot,
+  type RankingLabel,
+} from "./ranking";
+
+const MAX_RECOMMENDATIONS = 3;
+
+/** How many products per slot the search tries. Each is spread across the price range. */
+const SEARCH_LIMIT = { CPU: 5, Motherboard: 3, RAM: 3, GPU: 5 };
+
+/**
+ * Up to `limit` products, cheapest to dearest, evenly spaced across the price range. Taking only the
+ * cheapest would mean a large budget could never reach the better parts.
+ */
+function spreadByPrice<T extends { price: number }>(items: T[], limit: number): T[] {
+  const sorted = items.slice().sort((a, b) => a.price - b.price);
+  if (limit <= 0) return [];
+  if (sorted.length <= limit) return sorted;
+  if (limit === 1) return [sorted[0]];
+  return Array.from(
+    { length: limit },
+    (_, i) => sorted[Math.round((i * (sorted.length - 1)) / (limit - 1))],
+  );
+}
+
+/**
+ * The products to try for a slot that labels compare. Parts with checked figures go first, because only
+ * they can earn a label, but others still get a place so that a customer can be offered them.
+ */
+function sampleForSearch(slot: ComparedSlot, items: NormalizedItem[], limit: number) {
+  if (limit <= 0) return [];
+  const checked = items.filter(
+    (item) => performanceEvidence(slot, item) === "manufacturer_verified",
+  );
+  const rest = items.filter((item) => !checked.includes(item));
+  const picked = spreadByPrice(checked, rest.length > 0 ? Math.max(1, limit - 2) : limit);
+  return [...picked, ...spreadByPrice(rest, limit - picked.length)];
+}
+
+/** Parts with checked figures the search left out, and that no part it tried beats. */
+function countUntriedCheckedParts(
+  slot: ComparedSlot,
+  items: NormalizedItem[],
+  tried: NormalizedItem[],
+): number {
+  return items.filter(
+    (item) =>
+      !tried.includes(item) &&
+      performanceEvidence(slot, item) === "manufacturer_verified" &&
+      !tried.some((part) => comparePartPerformance(slot, part, item) === "higher"),
+  ).length;
+}
+
+/** Stated for this product, or on the specification registry. Not merely read from its title. */
+function hasConfirmedSpecs(item: NormalizedItem): boolean {
+  const status = item.verificationStatus || "";
+  if (status === "manufacturer_verified" || status === "verified_manufacturer") return true;
+  return (
+    status === "supplier_spec" && inferredCriticalSpecs(item.slot, item.raw?.specs).length === 0
+  );
+}
+
+/** A kit's total memory. Used only to tell builds apart, so a title is good enough where nothing states it. */
+function memoryGb(item?: NormalizedItem): number | undefined {
+  if (!item) return undefined;
+  if (item.capacityGb) return item.capacityGb;
+  const size = item.name.match(/(\d{1,3})\s*gb/i)?.[1];
+  return size ? Number(size) : undefined;
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+/** Specification sources that mean someone checked this exact model. */
+const MANUFACTURER_CHECKED = new Set([
+  "manufacturer_verified",
+  "verified_manufacturer",
+  "verified_technician",
+  "internal_verified",
+]);
 
 export function getMissingCatalogCategories(
   catalog: Record<ComponentSlotId, CanonicalBuildComponent[]> | Record<string, any[]>,
@@ -43,6 +142,7 @@ interface NormalizedItem {
   requiredPcieConnectors?: string[];
   isVerified?: boolean;
   verificationStatus?: string;
+  performance?: PublishedPerformanceFigures;
   availability: "available" | "unavailable";
   isShopifyLive?: boolean;
   raw: any;
@@ -53,90 +153,28 @@ function normalizeItem(raw: any, slot: ComponentSlotId): NormalizedItem {
   const title = (isCanonical ? raw.title : raw.name) || "";
   const normTitle = title.toLowerCase();
 
-  let socket = isCanonical ? raw.specs.socket : raw.socket;
-  if (!socket) {
-    if (
-      normTitle.includes("am5") ||
-      normTitle.includes("7600") ||
-      normTitle.includes("7700") ||
-      normTitle.includes("7800") ||
-      normTitle.includes("9600") ||
-      normTitle.includes("9700") ||
-      normTitle.includes("b650") ||
-      normTitle.includes("x670")
-    ) {
-      socket = "AM5";
-    } else if (
-      normTitle.includes("am4") ||
-      normTitle.includes("5600") ||
-      normTitle.includes("5700") ||
-      normTitle.includes("5800") ||
-      normTitle.includes("3600") ||
-      normTitle.includes("5500") ||
-      normTitle.includes("b550") ||
-      normTitle.includes("a520") ||
-      normTitle.includes("x570")
-    ) {
-      socket = "AM4";
-    } else if (
-      normTitle.includes("1700") ||
-      normTitle.includes("12400") ||
-      normTitle.includes("13400") ||
-      normTitle.includes("13600") ||
-      normTitle.includes("14400") ||
-      normTitle.includes("14600") ||
-      normTitle.includes("b760") ||
-      normTitle.includes("z790")
-    ) {
-      socket = "LGA1700";
-    }
-  }
-
-  let ramGen = isCanonical ? raw.specs.supportedRamGeneration || raw.specs.ramGeneration : raw.ram;
-  if (!ramGen) {
-    if (normTitle.includes("ddr5") || socket === "AM5") {
-      ramGen = "DDR5";
-    } else if (normTitle.includes("ddr4") || socket === "AM4") {
-      ramGen = "DDR4";
-    }
-  }
-
-  let tdpWatts = isCanonical ? raw.specs.tdpWatts || raw.specs.powerWatts : raw.watts;
-  if (!tdpWatts) {
-    if (slot === "CPU") tdpWatts = 65;
-    else if (slot === "GPU") tdpWatts = 160;
-  }
-
-  let ratedWattage = isCanonical ? raw.specs.ratedWattage : raw.capacity;
-  if (!ratedWattage && slot === "PSU") {
-    const match = normTitle.match(/(\d{3,4})\s*w/i);
-    if (match) ratedWattage = Number(match[1]);
-  }
+  // Only what the catalogue states. Nothing is guessed from a title here: the catalogue already read
+  // whatever a title can safely say, for the correct kind of part.
+  const socket = isCanonical ? raw.specs.socket : raw.socket;
+  const ramGen = isCanonical
+    ? raw.specs.supportedRamGeneration || raw.specs.ramGeneration
+    : raw.ram;
+  const tdpWatts = isCanonical ? raw.specs.tdpWatts || raw.specs.powerWatts : raw.watts;
+  const ratedWattage = isCanonical ? raw.specs.ratedWattage : raw.capacity;
 
   const hasWifi = isCanonical
     ? Boolean(raw.specs.hasWifi)
     : Boolean(raw.wifi || /wifi|wi-fi/i.test(normTitle));
 
-  let hasIntegratedGraphics = isCanonical
+  const hasIntegratedGraphics = isCanonical
     ? raw.specs.hasIntegratedGraphics
     : raw.hasIntegratedGraphics;
-  if (hasIntegratedGraphics === undefined && slot === "CPU") {
-    hasIntegratedGraphics =
-      normTitle.includes("g") ||
-      socket === "AM5" ||
-      (!normTitle.endsWith("f") && !normTitle.includes(" f ") && socket === "LGA1700");
-  }
-
-  let includesCooler = isCanonical ? raw.specs.includesCooler : raw.includesCooler;
-  if (includesCooler === undefined && slot === "CPU") {
-    includesCooler =
-      normTitle.includes("5600") || normTitle.includes("12400") || normTitle.includes("7600");
-  }
+  const includesCooler = isCanonical ? raw.specs.includesCooler : raw.includesCooler;
 
   const isLaptopSoDimm = isCanonical ? raw.specs.isLaptopSoDimm : raw.isLaptopSoDimm;
   const lengthMm = isCanonical ? raw.specs.lengthMm : raw.length;
   const maxGpuLengthMm = isCanonical ? raw.specs.maxGpuLengthMm : raw.clearance;
-  const capacityGb = isCanonical ? raw.specs.capacityGb : raw.capacityGb;
+  const capacityGb = isCanonical ? raw.specs.capacityGb : (raw.capacityGb ?? raw.specs?.capacityGb);
   const pciePowerConnectors = isCanonical ? raw.specs.pciePowerConnectors : undefined;
   const requiredPcieConnectors = isCanonical ? raw.specs.requiredPcieConnectors : undefined;
   const isVerified = isCanonical ? raw.isVerified : Boolean(raw.isVerified);
@@ -165,6 +203,7 @@ function normalizeItem(raw: any, slot: ComponentSlotId): NormalizedItem {
     requiredPcieConnectors,
     isVerified,
     verificationStatus,
+    performance: raw.specs?.performance,
     availability:
       raw.availability === "unavailable" || raw.stock === 0 ? "unavailable" : "available",
     isShopifyLive: Boolean(raw.isShopifyLive || raw.variantId),
@@ -172,91 +211,83 @@ function normalizeItem(raw: any, slot: ComponentSlotId): NormalizedItem {
   };
 }
 
-// Industry benchmark registry normalized to 0 - 100
-export const HARDWARE_BENCHMARK_REGISTRY: Record<
-  string,
-  { singleCore: number; multiCore: number; gpuRaster: number; gpuCompute: number }
-> = {
-  "ryzen 5 5600": { singleCore: 54.0, multiCore: 32.5, gpuRaster: 0, gpuCompute: 0 },
-  "ryzen 5 7600": { singleCore: 68.0, multiCore: 48.0, gpuRaster: 5.0, gpuCompute: 3.0 },
-  "core i5-12400": { singleCore: 52.0, multiCore: 34.0, gpuRaster: 0, gpuCompute: 0 },
-  "rtx 4060": { singleCore: 0, multiCore: 0, gpuRaster: 29.5, gpuCompute: 24.0 },
-  "rtx 5050": { singleCore: 0, multiCore: 0, gpuRaster: 38.0, gpuCompute: 32.0 },
-  "rtx 4070": { singleCore: 0, multiCore: 0, gpuRaster: 52.0, gpuCompute: 45.0 },
-  "gtx 1650": { singleCore: 0, multiCore: 0, gpuRaster: 10.0, gpuCompute: 7.0 },
-};
-
-export function getComponentBenchmarkScores(name: string, slot: ComponentSlotId) {
-  const norm = name.toLowerCase();
-  for (const [key, scores] of Object.entries(HARDWARE_BENCHMARK_REGISTRY)) {
-    if (norm.includes(key)) {
-      return scores;
-    }
-  }
-  if (slot === "CPU") {
-    return { singleCore: 45.0, multiCore: 25.0, gpuRaster: 0, gpuCompute: 0 };
-  }
-  if (slot === "GPU") {
-    return { singleCore: 0, multiCore: 0, gpuRaster: 20.0, gpuCompute: 15.0 };
-  }
-  return { singleCore: 0, multiCore: 0, gpuRaster: 0, gpuCompute: 0 };
-}
-
-export interface PurposeWeights {
-  workload: number;
-  budget: number;
-  platform: number;
-  thermal: number;
-}
-
-export function getPurposeWeights(purpose: string): PurposeWeights {
-  if (purpose === "gaming") {
-    return { workload: 0.5, budget: 0.25, platform: 0.15, thermal: 0.1 };
-  }
-  if (purpose === "creation") {
-    return { workload: 0.45, budget: 0.2, platform: 0.2, thermal: 0.15 };
-  }
-  if (purpose === "work" || purpose === "programming" || purpose === "office") {
-    return { workload: 0.25, budget: 0.5, platform: 0.15, thermal: 0.1 };
-  }
-  if (purpose === "professional") {
-    return { workload: 0.45, budget: 0.15, platform: 0.25, thermal: 0.15 };
-  }
-  return { workload: 0.25, budget: 0.45, platform: 0.15, thermal: 0.15 };
+/** The engine's model of a candidate part, so the search and the rules read the same data. */
+function toEnginePart(slot: string, item: NormalizedItem): CanonicalBuildComponent {
+  if ("productId" in item.raw && typeof item.raw.specs === "object") return item.raw;
+  if (item.raw.specs) return toCanonicalComponent(slot, item.raw);
+  return {
+    slot: slot as ComponentSlotId,
+    productId: item.id,
+    variantId: item.variantId || `gid://shopify/ProductVariant/mock-${item.id}`,
+    title: item.name,
+    price: item.price,
+    currency: "INR",
+    specs: {
+      socket: item.socket,
+      supportedRamGeneration: slot === "Motherboard" ? item.ramGeneration : undefined,
+      ramGeneration: slot === "RAM" ? item.ramGeneration : undefined,
+      tdpWatts: item.tdpWatts,
+      powerWatts: item.tdpWatts,
+      ratedWattage: item.ratedWattage,
+      lengthMm: item.lengthMm,
+      maxGpuLengthMm: item.maxGpuLengthMm,
+      hasWifi: item.hasWifi,
+      hasIntegratedGraphics: item.hasIntegratedGraphics,
+      includesCooler: item.includesCooler,
+      isLaptopSoDimm: item.isLaptopSoDimm,
+      pciePowerConnectors: item.pciePowerConnectors,
+      requiredPcieConnectors: item.requiredPcieConnectors,
+      provenance: (item.verificationStatus || "ambiguous_unverified") as any,
+    },
+    availability: item.availability,
+    quantity: 1,
+    retrievedAt: new Date().toISOString(),
+    isShopifyLive: item.isShopifyLive,
+    isVerified: item.isVerified,
+  };
 }
 
 export interface SynthesizedConfiguration {
   parts: Partial<Record<ComponentSlotId, NormalizedItem>>;
   price: number;
-  score: number;
-  workloadScore: number;
   title: string;
-  tradeoff: "best-fit" | "balanced" | "upgrade-friendly";
-  tradeoffLabel: "Best Value" | "Balanced Choice" | "Best Performance";
+  /** Set only when the evidence supports it. See rankBuilds. */
+  label: RankingLabel;
+  /** Why this label, or what's missing, for the customer to read. */
+  rankingReasons: string[];
+  /** How this build relates to what the customer said they need. */
+  purposeNotes: string[];
+  /** What stops this compatible build earning a label. */
+  labelGaps: string[];
+  /** Where the compared parts' specifications came from. */
+  specSources: Partial<Record<ComparedSlot, string>>;
   highlights: string[];
   designedFor: string;
   confidenceBadge: "certified" | "high" | "review";
   confidenceLabel: string;
+  /** Some compatibility can't be confirmed from the catalogue, so IT HUB must check it. */
+  requiresReview: boolean;
+  /** What the check couldn't confirm, for the customer to read. */
+  reviewItems: string[];
 }
 
 /**
  * Dynamically synthesizes hardware build configurations from available products.
  * Uses multi-branch combinatorial exploration, strict budget ceiling enforcement,
- * multi-objective mathematical scoring, and near-duplicate filtering.
+ * near-duplicate filtering, and labels backed by published specifications only.
  */
 function synthesizeBuildConfigurations(
   itemsBySlot: Record<ComponentSlotId, NormalizedItem[]>,
   options: {
     purpose: string;
-    targetBudget: number;
-    minBudget?: number;
     maxBudget?: number;
     ownedSlots: Set<string>;
     preferredBrands?: string[];
     requireWifi?: boolean;
-    resolution?: string;
-    genre?: string;
-    software?: string;
+    /** What the customer told us about their use. */
+    details?: Record<string, string>;
+    /** Also offer builds whose compatibility can't be confirmed. They're always marked for review. */
+    allowUnverified?: boolean;
   },
 ): {
   recommendations: SynthesizedConfiguration[];
@@ -264,14 +295,12 @@ function synthesizeBuildConfigurations(
 } {
   const {
     purpose,
-    targetBudget,
     maxBudget,
     ownedSlots,
     preferredBrands = [],
     requireWifi = false,
-    resolution,
-    genre,
-    software,
+    details = {},
+    allowUnverified = false,
   } = options;
 
   // Enforce catalog completeness
@@ -291,34 +320,75 @@ function synthesizeBuildConfigurations(
   const isGaming = purpose === "gaming";
   const isCreation = purpose === "creation";
   const isWork = purpose === "work" || purpose === "programming" || purpose === "office";
-  const isProfessional = purpose === "professional";
-
-  const weights = getPurposeWeights(purpose);
+  const profile = purposeProfile(purpose, details, requireWifi);
+  const wantedMemoryGb = profile.requirement?.memoryGb;
 
   // Candidate pool
   const candidatePool: SynthesizedConfiguration[] = [];
 
   // Filter CPUs: prefer in-stock & live products
-  const allCpus = (itemsBySlot.CPU || []).filter((c) => c.availability !== "unavailable");
-  const cpus = allCpus.length > 0 ? allCpus : itemsBySlot.CPU || [];
+  for (const slot of Object.keys(itemsBySlot) as ComponentSlotId[]) {
+    itemsBySlot[slot] = (itemsBySlot[slot] || []).filter((c) => c.availability !== "unavailable");
+  }
+  const cpus = itemsBySlot.CPU || [];
   if (cpus.length === 0) return { recommendations: [], allValidCandidates: [] };
 
-  // Sort CPUs: brand preference, then budget fit
-  cpus.sort((a, b) => {
-    const aBrandMatch = preferredBrands.some((br) =>
-      a.name.toLowerCase().includes(br.toLowerCase()),
-    );
-    const bBrandMatch = preferredBrands.some((br) =>
-      b.name.toLowerCase().includes(br.toLowerCase()),
-    );
-    if (aBrandMatch && !bBrandMatch) return -1;
-    if (!aBrandMatch && bBrandMatch) return 1;
-    return a.price - b.price;
-  });
+  // A part dearer than the whole budget can't be in a build within it.
+  const affordable = <T extends { price: number }>(items: T[]) =>
+    maxBudget ? items.filter((item) => item.price <= maxBudget) : items;
 
-  // Branch CPUs (up to top 3)
-  for (const cpu of cpus.slice(0, 3)) {
-    const cpuSocket = cpu.socket || "AM4";
+  // Branch CPUs across the price range, preferred brands first.
+  const isPreferredBrand = (cpu: NormalizedItem) =>
+    preferredBrands.some((brand) => cpu.name.toLowerCase().includes(brand.toLowerCase()));
+  const preferredCpus = sampleForSearch(
+    "CPU",
+    affordable(cpus).filter(isPreferredBrand),
+    SEARCH_LIMIT.CPU,
+  );
+  const otherCpus = sampleForSearch(
+    "CPU",
+    affordable(cpus).filter((cpu) => !isPreferredBrand(cpu)),
+    SEARCH_LIMIT.CPU - preferredCpus.length,
+  );
+  const triedCpus = [...preferredCpus, ...otherCpus];
+
+  // One of each model, across the price range. Titles are compared whole, because cards from one maker
+  // often share their opening words.
+  const seenModels = new Set<string>();
+  const distinctGpus = (itemsBySlot.GPU || [])
+    .slice()
+    .sort((a, b) => a.price - b.price)
+    .filter((g) => {
+      const model = g.name
+        .replace(/^\[TEST\]\s*/i, "")
+        .trim()
+        .toLowerCase();
+      if (seenModels.has(model)) return false;
+      seenModels.add(model);
+      return true;
+    });
+  const triedGpus = sampleForSearch("GPU", affordable(distinctGpus), SEARCH_LIMIT.GPU);
+  const untriedCheckedParts =
+    countUntriedCheckedParts("CPU", affordable(cpus), triedCpus) +
+    (ownedSlots.has("GPU")
+      ? 0
+      : countUntriedCheckedParts("GPU", affordable(distinctGpus), triedGpus));
+
+  // Cheapest parts first. Where only some accessories have confirmed specifications, a second pass
+  // tries those first, so one cheap part read from its title can't stop a build being confirmed.
+  const accessories = [
+    ...(itemsBySlot.Storage || []),
+    ...(itemsBySlot.PSU || []),
+    ...(itemsBySlot.Cabinet || []),
+    ...(itemsBySlot.Cooler || []),
+  ];
+  const passes =
+    accessories.some(hasConfirmedSpecs) && !accessories.every(hasConfirmedSpecs)
+      ? [false, true]
+      : [false];
+
+  for (const cpu of triedCpus) {
+    const cpuSocket = cpu.socket;
 
     // 1. Branch Motherboards (up to 2: e.g. lowest price and WiFi/alternative)
     const allMobos = (itemsBySlot.Motherboard || []).filter(
@@ -335,16 +405,16 @@ function synthesizeBuildConfigurations(
       return a.price - b.price;
     });
 
-    const moboBranches = [allMobos[0]];
-    if (allMobos.length > 1) {
-      const wifiMobo = allMobos.find((m) => m.hasWifi && m.id !== allMobos[0].id);
-      if (wifiMobo) moboBranches.push(wifiMobo);
-      else if (allMobos[1].id !== allMobos[0].id) moboBranches.push(allMobos[1]);
-    }
+    const wifiMobo = allMobos.find((m) => m.hasWifi && m.id !== allMobos[0].id);
+    const moboBranches = uniqueById([
+      allMobos[0],
+      ...(wifiMobo ? [wifiMobo] : []),
+      ...spreadByPrice(affordable(allMobos), SEARCH_LIMIT.Motherboard),
+    ]);
 
     for (const mobo of moboBranches) {
       // 2. Branch RAM (up to 2: e.g. 16GB vs 32GB)
-      const targetRamGen = mobo.ramGeneration || (cpuSocket === "AM5" ? "DDR5" : "DDR4");
+      const targetRamGen = mobo.ramGeneration;
       const allRams = (itemsBySlot.RAM || []).filter(
         (r) =>
           !r.isLaptopSoDimm &&
@@ -354,350 +424,284 @@ function synthesizeBuildConfigurations(
       );
       if (allRams.length === 0 && !ownedSlots.has("RAM")) continue;
 
+      // Memory meeting the published recommendation comes first when there is one.
       allRams.sort((a, b) => {
-        if (isCreation || isProfessional) {
-          const a32 = a.name.includes("32GB") || a.name.includes("32gb");
-          const b32 = b.name.includes("32GB") || b.name.includes("32gb");
-          if (a32 && !b32) return -1;
-          if (!a32 && b32) return 1;
+        if (wantedMemoryGb) {
+          const aMeets = (memoryGb(a) || 0) >= wantedMemoryGb;
+          const bMeets = (memoryGb(b) || 0) >= wantedMemoryGb;
+          if (aMeets !== bMeets) return aMeets ? -1 : 1;
         }
         return a.price - b.price;
       });
 
       const ramBranches: Array<NormalizedItem | undefined> = ownedSlots.has("RAM")
         ? [undefined]
-        : [allRams[0]];
-      if (!ownedSlots.has("RAM") && allRams.length > 1) {
-        const higherRam = allRams.find((r) => r.id !== allRams[0].id);
-        if (higherRam) ramBranches.push(higherRam);
-      }
+        : uniqueById([allRams[0], ...spreadByPrice(affordable(allRams), SEARCH_LIMIT.RAM)]);
 
       for (const ram of ramBranches) {
         // 3. Storage
         const allStorage = (itemsBySlot.Storage || []).slice().sort((a, b) => a.price - b.price);
         if (allStorage.length === 0 && !ownedSlots.has("Storage")) continue;
         const storage1tb = allStorage.find((s) => s.name.includes("1TB") || s.name.includes("1tb"));
-        const storage = ownedSlots.has("Storage") ? undefined : storage1tb || allStorage[0];
+        const storageOptions = storage1tb
+          ? [storage1tb, ...allStorage.filter((s) => s.id !== storage1tb.id)]
+          : allStorage;
 
         // 4. Cabinet
         const allCabinets = (itemsBySlot.Cabinet || []).slice().sort((a, b) => a.price - b.price);
         if (allCabinets.length === 0 && !ownedSlots.has("Cabinet")) continue;
-        const cabinet = ownedSlots.has("Cabinet") ? undefined : allCabinets[0];
 
-        // 5. Branch GPUs (up to 3 tiers)
-        const allGpus = (itemsBySlot.GPU || []).slice();
-        allGpus.sort((a, b) => a.price - b.price);
-
+        // 5. Branch GPUs
         const gpuBranches: Array<NormalizedItem | undefined> = [];
         if (ownedSlots.has("GPU")) {
           gpuBranches.push(undefined);
-        } else if (isGaming || isCreation || isProfessional || !cpu.hasIntegratedGraphics) {
-          if (allGpus.length === 0) {
+        } else if (profile.requiresDedicatedGpu || !cpu.hasIntegratedGraphics) {
+          if (distinctGpus.length === 0) {
             if (!cpu.hasIntegratedGraphics) continue;
             gpuBranches.push(undefined);
           } else {
-            // Take up to 3 distinct GPU tiers
-            const distinctGpuModels: NormalizedItem[] = [];
-            for (const g of allGpus) {
-              const cleanG = g.name
-                .replace(/^\[TEST\]\s*/i, "")
-                .trim()
-                .toLowerCase();
-              if (
-                !distinctGpuModels.some((dg) => dg.name.toLowerCase().includes(cleanG.slice(0, 10)))
-              ) {
-                distinctGpuModels.push(g);
-              }
-              if (distinctGpuModels.length >= 3) break;
-            }
-            gpuBranches.push(
-              ...(distinctGpuModels.length > 0 ? distinctGpuModels : allGpus.slice(0, 2)),
-            );
+            gpuBranches.push(...(triedGpus.length > 0 ? triedGpus : [distinctGpus[0]]));
           }
         } else {
           // Work / General
           if (cpu.hasIntegratedGraphics) {
             gpuBranches.push(undefined);
           }
-          if (allGpus.length > 0) {
-            gpuBranches.push(allGpus[0]);
+          if (distinctGpus.length > 0) {
+            gpuBranches.push(distinctGpus[0]);
           }
         }
 
-        for (const gpu of gpuBranches) {
-          // 6. Cooler
-          let cooler: NormalizedItem | undefined = undefined;
-          const allCoolers = (itemsBySlot.Cooler || []).slice().sort((a, b) => a.price - b.price);
-          if (!cpu.includesCooler) {
-            if (allCoolers.length === 0 && !ownedSlots.has("Cooler")) continue;
-            cooler = ownedSlots.has("Cooler") ? undefined : allCoolers[0];
-          } else if (allCoolers.length > 0 && !ownedSlots.has("Cooler")) {
-            cooler = allCoolers[0];
-          }
+        for (const gpu of gpuBranches)
+          for (const preferConfirmed of passes) {
+            const ordered = (items: NormalizedItem[]) =>
+              preferConfirmed
+                ? [
+                    ...items.filter(hasConfirmedSpecs),
+                    ...items.filter((item) => !hasConfirmedSpecs(item)),
+                  ]
+                : items;
+            // Each remaining slot takes the first option that fits the parts already chosen, so one
+            // unsuitable cheap product can't rule a build out while a suitable one is on sale.
+            const chosen: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {
+              CPU: toEnginePart("CPU", cpu),
+              Motherboard: toEnginePart("Motherboard", mobo),
+            };
+            if (ram) chosen.RAM = toEnginePart("RAM", ram);
+            if (gpu) chosen.GPU = toEnginePart("GPU", gpu);
+            const fits = (slot: ComponentSlotId, item: NormalizedItem) =>
+              !checkCompatibility({ ...chosen, [slot]: toEnginePart(slot, item) }).items.some(
+                (check) => check.severity === "error" && check.affectedSlots.includes(slot),
+              );
 
-          // 7. PSU
-          const cpuWatts = cpu.tdpWatts || 65;
-          const gpuWatts = gpu ? gpu.tdpWatts || 160 : 0;
-          const loadWatts = cpuWatts + gpuWatts + 80;
-          const recWatts = Math.max(450, Math.ceil((loadWatts * 1.35) / 50) * 50);
-
-          const allPsus = (itemsBySlot.PSU || []).slice();
-          if (allPsus.length === 0 && !ownedSlots.has("PSU")) continue;
-
-          const matchingPsus = allPsus.filter((p) => (p.ratedWattage || 550) >= recWatts);
-          matchingPsus.sort((a, b) => (a.ratedWattage || 550) - (b.ratedWattage || 550));
-          const psu = ownedSlots.has("PSU")
-            ? undefined
-            : matchingPsus[0] ||
-              allPsus.sort((a, b) => (b.ratedWattage || 550) - (a.ratedWattage || 550))[0];
-
-          // Form parts map
-          const candidateParts: Partial<Record<ComponentSlotId, NormalizedItem>> = {
-            CPU: cpu,
-            Motherboard: mobo,
-          };
-          if (cabinet && !ownedSlots.has("Cabinet")) candidateParts.Cabinet = cabinet;
-          if (ram && !ownedSlots.has("RAM")) candidateParts.RAM = ram;
-          if (storage && !ownedSlots.has("Storage")) candidateParts.Storage = storage;
-          if (psu && !ownedSlots.has("PSU")) candidateParts.PSU = psu;
-          if (gpu && !ownedSlots.has("GPU")) candidateParts.GPU = gpu;
-          if (cooler && !ownedSlots.has("Cooler")) candidateParts.Cooler = cooler;
-
-          // Compatibility validation using Automated Mode (Rule A-J, UNKNOWN blocking)
-          const canonicalPartsForCompat: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> =
-            {};
-          for (const [s, item] of Object.entries(candidateParts)) {
-            if (item) {
-              const isCanonical = "specs" in item.raw && typeof item.raw.specs === "object";
-              canonicalPartsForCompat[s as ComponentSlotId] = isCanonical
-                ? item.raw
-                : {
-                    slot: s as ComponentSlotId,
-                    productId: item.id,
-                    variantId: item.variantId || `gid://shopify/ProductVariant/mock-${item.id}`,
-                    title: item.name,
-                    price: item.price,
-                    currency: "INR",
-                    specs: {
-                      socket: item.socket,
-                      supportedRamGeneration: s === "Motherboard" ? item.ramGeneration : undefined,
-                      ramGeneration: s === "RAM" ? item.ramGeneration : undefined,
-                      tdpWatts: item.tdpWatts,
-                      powerWatts: item.tdpWatts,
-                      ratedWattage: item.ratedWattage,
-                      lengthMm: item.lengthMm,
-                      maxGpuLengthMm: item.maxGpuLengthMm,
-                      hasWifi: item.hasWifi,
-                      hasIntegratedGraphics: item.hasIntegratedGraphics,
-                      includesCooler: item.includesCooler,
-                      isLaptopSoDimm: item.isLaptopSoDimm,
-                      pciePowerConnectors: item.pciePowerConnectors,
-                      requiredPcieConnectors: item.requiredPcieConnectors,
-                      provenance: (item.verificationStatus ||
-                        (item.isVerified
-                          ? "verified_manufacturer"
-                          : "ambiguous_unverified")) as any,
-                    },
-                    availability: item.availability,
-                    quantity: 1,
-                    retrievedAt: new Date().toISOString(),
-                    isShopifyLive: item.isShopifyLive,
-                    isVerified: item.isVerified,
-                  };
-            }
-          }
-          const compatSummary = checkCompatibility(canonicalPartsForCompat, {
-            workload: isGaming ? "gaming" : isCreation ? "creation" : isWork ? "work" : "general",
-            mode: "automated",
-          });
-
-          if (!compatSummary.validForAutomatedRecommendation) {
-            continue;
-          }
-
-          // Calculate unowned total price
-          let price = 0;
-          for (const [slot, item] of Object.entries(candidateParts)) {
-            if (item && !ownedSlots.has(slot)) {
-              price += item.price;
-            }
-          }
-
-          // ── Benchmark & Sub-score Calculations ─────────────────────────
-          const cpuScores = getComponentBenchmarkScores(cpu.name, "CPU");
-          const gpuScores = gpu
-            ? getComponentBenchmarkScores(gpu.name, "GPU")
-            : { singleCore: 0, multiCore: 0, gpuRaster: 5.0, gpuCompute: 3.0 };
-
-          // RAM capacity score
-          const ramCapacity = ram?.name.includes("32GB") || ram?.name.includes("32gb") ? 32 : 16;
-          const ramScore = ramCapacity >= 32 ? 95 : 65;
-
-          // Workload Sub-score S_workload
-          let sWorkload = 50;
-          if (isGaming) {
-            let gpuWeight = 0.65;
-            let cpuSingleWeight = 0.2;
-            let ramWeight = 0.15;
-
-            if (resolution === "1440p") {
-              gpuWeight = 0.7;
-              cpuSingleWeight = 0.15;
-            } else if (resolution === "4K") {
-              gpuWeight = 0.85;
-              cpuSingleWeight = 0.1;
-            } else if (resolution === "1080p") {
-              gpuWeight = 0.55;
-              cpuSingleWeight = 0.3;
+            // 6. Storage
+            const storage = ordered(storageOptions).find((option) => fits("Storage", option));
+            if (!storage && !ownedSlots.has("Storage")) continue;
+            if (storage && ownedSlots.has("Storage")) {
+              // Already owned, so nothing is added to the build.
+            } else if (storage) {
+              chosen.Storage = toEnginePart("Storage", storage);
             }
 
+            // 7. Cabinet and cooler. A processor that comes with a cooler doesn't have another added.
+            const allCoolers = ordered(
+              (itemsBySlot.Cooler || []).slice().sort((a, b) => a.price - b.price),
+            );
+            const needsCooler = !cpu.includesCooler && !ownedSlots.has("Cooler");
+            // Needed but not sold: only a processor whose cooler is merely unstated can go ahead, and
+            // only as a build marked for review.
             if (
-              genre?.toLowerCase().includes("competitive") ||
-              genre?.toLowerCase().includes("esports")
+              needsCooler &&
+              allCoolers.length === 0 &&
+              (cpu.includesCooler === false || !allowUnverified)
             ) {
-              cpuSingleWeight += 0.15;
-              gpuWeight -= 0.15;
-            } else if (genre?.toLowerCase().includes("aaa")) {
-              gpuWeight += 0.15;
+              continue;
             }
 
-            sWorkload =
-              gpuWeight * gpuScores.gpuRaster +
-              cpuSingleWeight * cpuScores.singleCore +
-              ramWeight * ramScore;
-          } else if (isCreation) {
-            let cpuMultiWeight = 0.4;
-            let ramW = 0.3;
-            let gpuCompW = 0.2;
-            let storageW = 0.1;
+            let cabinet: NormalizedItem | undefined = undefined;
+            let cooler: NormalizedItem | undefined = undefined;
+            if (ownedSlots.has("Cabinet")) {
+              cooler = needsCooler
+                ? allCoolers.find((option) => fits("Cooler", option))
+                : undefined;
+              if (needsCooler && allCoolers.length > 0 && !cooler) continue;
+            } else {
+              let placed = false;
+              for (const option of ordered(allCabinets)) {
+                if (!fits("Cabinet", option)) continue;
+                chosen.Cabinet = toEnginePart("Cabinet", option);
+                const fittingCooler = needsCooler
+                  ? allCoolers.find((candidate) => fits("Cooler", candidate))
+                  : undefined;
+                if (needsCooler && allCoolers.length > 0 && !fittingCooler) {
+                  delete chosen.Cabinet;
+                  continue;
+                }
+                cabinet = option;
+                cooler = fittingCooler;
+                placed = true;
+                break;
+              }
+              if (!placed) continue;
+            }
+            if (cooler) chosen.Cooler = toEnginePart("Cooler", cooler);
 
+            // 8. Power supply, using the same calculation as the compatibility rules.
+            const power = calculateSystemPower({
+              CPU: chosen.CPU,
+              ...(chosen.GPU ? { GPU: chosen.GPU } : {}),
+            });
+            const recWatts = power.recommendedPsuWatts;
+
+            const allPsus = (itemsBySlot.PSU || []).slice();
+            if (allPsus.length === 0 && !ownedSlots.has("PSU")) continue;
+
+            // A power supply with no stated wattage never counts as meeting the requirement.
+            const matchingPsus = allPsus
+              .filter((p) => (p.ratedWattage || 0) >= recWatts)
+              .sort((a, b) => (a.ratedWattage || 0) - (b.ratedWattage || 0));
+            const unstatedPsus = allowUnverified ? allPsus.filter((p) => !p.ratedWattage) : [];
+            const otherPsus = allPsus
+              .filter((p) => (p.ratedWattage || 0) < recWatts && p.ratedWattage)
+              .sort((a, b) => (b.ratedWattage || 0) - (a.ratedWattage || 0));
+            const lastResort = allowUnverified ? [] : allPsus.filter((p) => !p.ratedWattage);
+            const psu = ownedSlots.has("PSU")
+              ? undefined
+              : [...ordered(matchingPsus), ...unstatedPsus, ...otherPsus, ...lastResort].find(
+                  (option) => fits("PSU", option),
+                );
+            if (!psu && !ownedSlots.has("PSU")) continue;
+
+            // Form parts map
+            const candidateParts: Partial<Record<ComponentSlotId, NormalizedItem>> = {
+              CPU: cpu,
+              Motherboard: mobo,
+            };
+            if (cabinet && !ownedSlots.has("Cabinet")) candidateParts.Cabinet = cabinet;
+            if (ram && !ownedSlots.has("RAM")) candidateParts.RAM = ram;
+            if (storage && !ownedSlots.has("Storage")) candidateParts.Storage = storage;
+            if (psu && !ownedSlots.has("PSU")) candidateParts.PSU = psu;
+            if (gpu && !ownedSlots.has("GPU")) candidateParts.GPU = gpu;
+            if (cooler && !ownedSlots.has("Cooler")) candidateParts.Cooler = cooler;
+
+            // Compatibility validation using Automated Mode (Rule A-J, UNKNOWN blocking)
+            const canonicalPartsForCompat: Partial<
+              Record<ComponentSlotId, CanonicalBuildComponent>
+            > = {};
+            for (const [s, item] of Object.entries(candidateParts)) {
+              if (item) {
+                canonicalPartsForCompat[s as ComponentSlotId] = toEnginePart(s, item);
+              }
+            }
+            const compatSummary = checkCompatibility(canonicalPartsForCompat, {
+              workload: isGaming ? "gaming" : isCreation ? "creation" : isWork ? "work" : "general",
+              mode: "automated",
+              ownsGpu: ownedSlots.has("GPU"),
+            });
+
+            // Errors always rule a build out. Unknowns do too, unless the caller asked for builds that
+            // IT HUB must check, and those are marked as such.
             if (
-              software?.toLowerCase().includes("premiere") ||
-              software?.toLowerCase().includes("resolve")
+              !compatSummary.validForAutomatedRecommendation &&
+              !(allowUnverified && !compatSummary.items.some((i) => i.severity === "error"))
             ) {
-              ramW = 0.35;
-            } else if (
-              software?.toLowerCase().includes("blender") ||
-              software?.toLowerCase().includes("unreal")
-            ) {
-              cpuMultiWeight = 0.4;
-              gpuCompW = 0.35;
+              continue;
             }
-
-            sWorkload =
-              cpuMultiWeight * cpuScores.multiCore +
-              ramW * ramScore +
-              gpuCompW * gpuScores.gpuCompute +
-              storageW * 80;
-          } else if (isWork) {
-            sWorkload =
-              0.5 * cpuScores.singleCore + 0.3 * ramScore + 0.2 * (mobo.hasWifi ? 100 : 40);
-          } else if (isProfessional) {
-            sWorkload = 0.35 * cpuScores.multiCore + 0.35 * ramScore + 0.3 * gpuScores.gpuCompute;
-          } else {
-            sWorkload =
-              0.5 * cpuScores.singleCore +
-              0.35 * (cpu.hasIntegratedGraphics ? 70 : gpu ? 80 : 20) +
-              0.15 * ramScore;
-          }
-
-          // Budget fit score S_budget
-          const deltaPrice = Math.abs(price - targetBudget);
-          const sBudget = Math.max(0, 100 - (deltaPrice / (targetBudget || 1)) * 100);
-
-          // Platform upgradeability score S_platform
-          const socketScore = cpuSocket === "AM5" ? 100 : cpuSocket === "LGA1700" ? 75 : 50;
-          const ramGenScore = targetRamGen === "DDR5" ? 100 : 60;
-          const sPlatform = (socketScore + ramGenScore + 85) / 3;
-
-          // Thermal score S_thermal
-          const psuCapacity = psu?.ratedWattage || 550;
-          const bufferPct = (psuCapacity - loadWatts) / psuCapacity;
-          const sThermal = Math.min(100, Math.max(0, Math.round(bufferPct * 150)));
-
-          // Penalties
-          let penalties = 0;
-          if (bufferPct < 0.35) penalties += 5;
-
-          // Composite score
-          const compositeScore = Math.round(
-            weights.workload * sWorkload +
-              weights.budget * sBudget +
-              weights.platform * sPlatform +
-              weights.thermal * sThermal -
-              penalties,
-          );
-
-          // Titles & Badges
-          const cleanCpu = cpu.name.replace(/^\[TEST\]\s*/i, "").trim();
-          const cleanGpu = gpu ? gpu.name.replace(/^\[TEST\]\s*/i, "").trim() : "";
-          const gpuShort = cleanGpu ? cleanGpu.split(" ").slice(0, 3).join(" ") : "";
-
-          const title = cleanGpu ? `${cleanCpu} · ${gpuShort} Build` : `${cleanCpu} Custom System`;
-          const designedFor = isGaming
-            ? `${resolution || "1080p"} Gaming & Daily Performance`
-            : isCreation
-              ? "Content Creation & Rendering"
-              : "Productivity & Multitasking";
-
-          const highlights: string[] = [
-            `${cleanCpu} processor delivering smooth responsiveness`,
-            gpu
-              ? `${cleanGpu} dedicated graphics card`
-              : "Integrated graphics keeping power consumption minimal",
-            storage
-              ? `${storage.name.replace(/^\[TEST\]\s*/i, "")} NVMe SSD`
-              : "High-speed solid state storage",
-          ];
-          if (mobo.hasWifi) highlights.push("Integrated Wi-Fi connectivity built into motherboard");
-
-          // Specification confidence
-          const partsList = Object.values(candidateParts).filter(Boolean) as NormalizedItem[];
-          const allVerified = partsList.every(
-            (p) =>
-              p.isVerified ||
-              p.verificationStatus === "verified_manufacturer" ||
-              p.verificationStatus === "verified_technician",
-          );
-          const coreVerified = [cpu, mobo, ram, psu, gpu]
-            .filter(Boolean)
-            .every(
-              (p: any) =>
-                p.isVerified ||
-                p.verificationStatus === "verified_manufacturer" ||
-                p.verificationStatus === "verified_technician",
+            const reviewItems = compatSummary.items
+              .filter((i) => i.status === "unknown")
+              .map((i) => i.label);
+            const requiresReview = !compatSummary.validForAutomatedRecommendation;
+            const labelGaps = labelCompatibilityGaps(
+              canonicalPartsForCompat,
+              compatSummary.items,
+              ownedSlots,
             );
 
-          const confidenceBadge: "certified" | "high" | "review" = allVerified
-            ? "certified"
-            : coreVerified
-              ? "high"
-              : "review";
-          const confidenceLabel = allVerified
-            ? "IT HUB Certified (100% Verified)"
-            : coreVerified
-              ? "High Confidence (Provisional)"
-              : "Review Required";
+            // Calculate unowned total price
+            let price = 0;
+            for (const [slot, item] of Object.entries(candidateParts)) {
+              if (item && !ownedSlots.has(slot)) {
+                price += item.price;
+              }
+            }
 
-          let tradeoff: "best-fit" | "balanced" | "upgrade-friendly" = "balanced";
-          if (price <= targetBudget * 0.95) tradeoff = "best-fit";
-          else if (price >= targetBudget * 1.1 || cpuSocket === "AM5")
-            tradeoff = "upgrade-friendly";
+            // Titles & Badges
+            const cleanCpu = cpu.name.replace(/^\[TEST\]\s*/i, "").trim();
+            const cleanGpu = gpu ? gpu.name.replace(/^\[TEST\]\s*/i, "").trim() : "";
+            const gpuShort = cleanGpu ? cleanGpu.split(" ").slice(0, 3).join(" ") : "";
 
-          candidatePool.push({
-            parts: candidateParts,
-            price,
-            score: compositeScore,
-            workloadScore: Math.round(sWorkload),
-            title,
-            tradeoff,
-            tradeoffLabel: "Balanced Choice",
-            highlights,
-            designedFor,
-            confidenceBadge,
-            confidenceLabel,
-          });
-        }
+            const title = cleanGpu
+              ? `${cleanCpu} · ${gpuShort} Build`
+              : `${cleanCpu} Custom System`;
+            // A build with no graphics card isn't sold as gaming. A requested resolution isn't promised here.
+            const designedFor = isGaming
+              ? gpu || ownedSlots.has("GPU")
+                ? "Gaming & Everyday Use"
+                : "Everyday use, with integrated graphics"
+              : isCreation
+                ? "Content Creation & Rendering"
+                : "Productivity & Multitasking";
+
+            const highlights: string[] = [
+              `${cleanCpu} processor`,
+              gpu
+                ? `${cleanGpu} dedicated graphics card`
+                : ownedSlots.has("GPU")
+                  ? "Your existing graphics card"
+                  : "The processor's integrated graphics",
+              storage ? storage.name.replace(/^\[TEST\]\s*/i, "") : "Your existing storage",
+            ];
+            if (mobo.hasWifi)
+              highlights.push("Integrated Wi-Fi connectivity built into motherboard");
+
+            // Specification confidence
+            const partsList = Object.values(candidateParts).filter(Boolean) as NormalizedItem[];
+            const allVerified =
+              reviewItems.length === 0 &&
+              partsList.every((p) => MANUFACTURER_CHECKED.has(p.verificationStatus || ""));
+            const coreVerified = [cpu, mobo, ram, psu, gpu]
+              .filter(Boolean)
+              .every(
+                (p: any) =>
+                  p.isVerified ||
+                  p.verificationStatus === "verified_manufacturer" ||
+                  p.verificationStatus === "verified_technician",
+              );
+
+            const confidenceBadge: "certified" | "high" | "review" = requiresReview
+              ? "review"
+              : allVerified
+                ? "certified"
+                : coreVerified
+                  ? "high"
+                  : "review";
+            const confidenceLabel =
+              confidenceBadge === "certified"
+                ? "Specifications confirmed"
+                : confidenceBadge === "high"
+                  ? "Some specifications unconfirmed"
+                  : "Review Required";
+
+            candidatePool.push({
+              parts: candidateParts,
+              price,
+              title,
+              label: INSUFFICIENT_INFORMATION,
+              rankingReasons: [],
+              purposeNotes: [],
+              labelGaps,
+              specSources: {
+                CPU: describeSpecSource("CPU", cpu),
+                ...(gpu ? { GPU: describeSpecSource("GPU", gpu) } : {}),
+              },
+              highlights,
+              designedFor,
+              confidenceBadge,
+              confidenceLabel,
+              requiresReview,
+              reviewItems,
+            });
+          }
       }
     }
   }
@@ -708,30 +712,30 @@ function synthesizeBuildConfigurations(
   for (const c of candidatePool) {
     const cpuName = c.parts.CPU?.name.replace(/^\[TEST\]\s*/i, "").trim() || "";
     const gpuName = c.parts.GPU?.name.replace(/^\[TEST\]\s*/i, "").trim() || "iGPU";
-    const ramCap = c.parts.RAM?.name.includes("32GB") ? "32GB" : "16GB";
+    const ramCap = memoryGb(c.parts.RAM) ?? "unstated";
     const key = `${cpuName}|${gpuName}|${ramCap}`;
 
     if (!groupMap.has(key)) {
       groupMap.set(key, c);
     } else {
       const existing = groupMap.get(key)!;
-      // Tie-breaking: Higher score, then lower price
-      if (
-        c.score > existing.score ||
-        (Math.abs(c.score - existing.score) < 0.5 && c.price < existing.price)
-      ) {
-        groupMap.set(key, c);
-      }
+      // The same processor, graphics card and memory: keep what fits the budget, then the requested
+      // Wi-Fi, then a build that needs no review, then one that's fully confirmed, then the lower price.
+      const hasWifi = (config: SynthesizedConfiguration) =>
+        Boolean(config.parts.Motherboard?.hasWifi);
+      const inBudget = (config: SynthesizedConfiguration) =>
+        !maxBudget || config.price <= maxBudget;
+      const confirmed = (config: SynthesizedConfiguration) => config.labelGaps.length === 0;
+      let better = c.price < existing.price;
+      if (inBudget(c) !== inBudget(existing)) better = inBudget(c);
+      else if (requireWifi && hasWifi(c) !== hasWifi(existing)) better = hasWifi(c);
+      else if (c.requiresReview !== existing.requiresReview) better = !c.requiresReview;
+      else if (confirmed(c) !== confirmed(existing)) better = confirmed(c);
+      if (better) groupMap.set(key, c);
     }
   }
 
-  const allDistinctCandidates = Array.from(groupMap.values());
-
-  // Sort all distinct candidates by score descending
-  allDistinctCandidates.sort((a, b) => {
-    if (Math.abs(b.score - a.score) >= 0.5) return b.score - a.score;
-    return a.price - b.price; // Tie breaker 1: lower price
-  });
+  const allDistinctCandidates = Array.from(groupMap.values()).sort((a, b) => a.price - b.price);
 
   // ── Strict Budget Ceiling Filter ──────────────────────────────────────────
   const withinBudget = maxBudget
@@ -745,79 +749,103 @@ function synthesizeBuildConfigurations(
     };
   }
 
-  // ── Distinct Label Assignment ─────────────────────────────────────────────
-  // 1. Best Value = lowest price meeting workload baseline
-  const sortedByPrice = withinBudget.slice().sort((a, b) => a.price - b.price);
-  const bestValueCandidate = sortedByPrice[0];
+  // ── What the Customer Asked For ─────────────────────────────────────────────
+  const fitChecks = withinBudget.map((build) => assessFit(build, profile, ownedSlots));
+  const shortfalls = fitChecks.map(
+    (checks) => checks.filter((check) => check.status === "below").length,
+  );
+  // Where no build meets everything, the builds that come closest count as meeting the request.
+  const fewestShortfalls = Math.min(...shortfalls);
+  const fallsShort = (index: number) => shortfalls[index] > fewestShortfalls;
 
-  // 2. Best Performance = highest workload score under budget
-  const sortedByPerf = withinBudget
-    .slice()
-    .sort((a, b) => b.workloadScore - a.workloadScore || b.score - a.score);
-  const bestPerfCandidate = sortedByPerf[0];
+  // ── Evidence-Based Labels ───────────────────────────────────────────────────
+  // Labels compare the builds that come closest to the published recommendation.
+  const rankings = rankBuilds(
+    withinBudget.map((build, index) => ({
+      price: build.price,
+      requiresReview: build.requiresReview,
+      parts: { CPU: build.parts.CPU, GPU: build.parts.GPU },
+      memoryGb: memoryGb(build.parts.RAM),
+      labelGaps: [
+        ...build.labelGaps,
+        ...(fallsShort(index)
+          ? ["It falls further short of what you asked for than other builds."]
+          : []),
+      ],
+    })),
+    {
+      ownedSlots,
+      needsDedicatedGpu: profile.requiresDedicatedGpu,
+      untriedCheckedParts,
+    },
+  );
+  const ranked = withinBudget.map((build, index) => ({
+    ...build,
+    label: rankings[index].label,
+    rankingReasons: rankings[index].reasons,
+    outclassed: rankings[index].outclassed,
+    fallsShort: fallsShort(index),
+    purposeNotes: fitChecks[index].map((check) => check.note),
+  }));
 
-  // 3. Balanced Choice = highest composite score
-  const sortedByScore = withinBudget.slice().sort((a, b) => b.score - a.score);
-  let balancedCandidate = sortedByScore[0];
-
-  const finalRecommendations: SynthesizedConfiguration[] = [];
-
-  if (withinBudget.length === 1) {
-    finalRecommendations.push({
-      ...withinBudget[0],
-      tradeoff: "balanced",
-      tradeoffLabel: "Balanced Choice",
-    });
-  } else if (withinBudget.length === 2) {
-    finalRecommendations.push({
-      ...bestValueCandidate,
-      tradeoff: "best-fit",
-      tradeoffLabel: "Best Value",
-    });
-    const other = withinBudget.find((c) => c !== bestValueCandidate) || withinBudget[1];
-    finalRecommendations.push({
-      ...other,
-      tradeoff: other === bestPerfCandidate ? "upgrade-friendly" : "balanced",
-      tradeoffLabel: other === bestPerfCandidate ? "Best Performance" : "Balanced Choice",
-    });
-  } else {
-    // 3 or more distinct builds
-    finalRecommendations.push({
-      ...bestValueCandidate,
-      tradeoff: "best-fit",
-      tradeoffLabel: "Best Value",
-    });
-
-    if (bestPerfCandidate !== bestValueCandidate) {
-      finalRecommendations.push({
-        ...bestPerfCandidate,
-        tradeoff: "upgrade-friendly",
-        tradeoffLabel: "Best Performance",
-      });
-    }
-
-    // Find distinct balanced choice
-    const remaining = withinBudget.filter(
-      (c) => c !== bestValueCandidate && c !== bestPerfCandidate,
-    );
-    if (remaining.length > 0) {
-      remaining.sort((a, b) => b.score - a.score);
-      finalRecommendations.push({
-        ...remaining[0],
-        tradeoff: "balanced",
-        tradeoffLabel: "Balanced Choice",
-      });
-    }
+  // Every labelled build is shown. So is the build that best suits what the customer's use leans on.
+  // The remaining places go across the price range, builds meeting the request first, and never to one
+  // that a build at the same price or less verifiably beats.
+  const eligible = ranked.filter((build) => !build.outclassed);
+  const meeting = eligible.filter((build) => !build.fallsShort);
+  const prioritySlot = profile.priority;
+  const priorityPool = meeting.length > 0 ? meeting : eligible;
+  const priorityPick =
+    prioritySlot && priorityPool.length > 1
+      ? priorityPool.reduce((best, build) =>
+          prefersForPriority(build, best, prioritySlot) ? build : best,
+        )
+      : undefined;
+  const shown = ranked.filter((build) => build.label !== INSUFFICIENT_INFORMATION);
+  if (priorityPick && !shown.includes(priorityPick) && shown.length < MAX_RECOMMENDATIONS) {
+    shown.push(priorityPick);
+  }
+  for (const pool of [meeting, eligible]) {
+    const left = pool.filter((build) => !shown.includes(build));
+    shown.push(...spreadByPrice(left, MAX_RECOMMENDATIONS - shown.length));
   }
 
-  // Ensure recommendations are ordered: Best Value, Balanced Choice, Best Performance
-  finalRecommendations.sort((a, b) => a.price - b.price);
+  const resolutionNote = profile.requestedResolution
+    ? `You asked for ${profile.requestedResolution}. Frame rates aren't measured here, so please ask IT HUB to confirm it for your games.`
+    : undefined;
+
+  const toRecommendation = (build: (typeof ranked)[number]): SynthesizedConfiguration => {
+    const { outclassed: _outclassed, fallsShort: _fallsShort, ...config } = build;
+    const pickNote =
+      build === priorityPick
+        ? priorityNote(
+            build,
+            shown.filter((other) => other !== build),
+            profile,
+          )
+        : undefined;
+    return {
+      ...config,
+      purposeNotes: [
+        ...(resolutionNote ? [resolutionNote] : []),
+        ...(pickNote ? [pickNote] : []),
+        ...config.purposeNotes,
+      ],
+    };
+  };
 
   return {
-    recommendations: finalRecommendations.slice(0, 3),
+    recommendations: shown.map(toRecommendation).sort((a, b) => a.price - b.price),
     allValidCandidates: allDistinctCandidates,
   };
 }
+
+const RECOMMENDATION_STYLE: Record<RankingLabel, RecommendationCandidate["style"]> = {
+  "Best Value": "best-fit",
+  "Best Balanced": "balanced",
+  "Highest Verified Performance": "upgrade-friendly",
+  "Insufficient information": "not-ranked",
+};
 
 /**
  * Guided PC Recommendation Engine (CanonicalBuild format).
@@ -856,11 +884,11 @@ export function generateRecommendations(
 
   const { recommendations } = synthesizeBuildConfigurations(itemsBySlot, {
     purpose: answers.purpose,
-    targetBudget: budget,
     maxBudget: Math.round(budget * 1.15),
     ownedSlots: owned,
     preferredBrands: answers.preferredBrands,
     requireWifi: answers.requireWifi,
+    details: answers.details,
   });
 
   return recommendations
@@ -876,9 +904,8 @@ export function generateRecommendations(
 
       return {
         build,
-        style: config.tradeoff,
+        style: RECOMMENDATION_STYLE[config.label],
         title: config.title,
-        matchScore: config.score,
         rationale: config.highlights.join(". ") + ".",
         highlights: config.highlights,
       };
@@ -904,6 +931,7 @@ export function generateDynamicCatalogRecommendations(
     owned?: string[];
   },
   budgetOrTemplates?: any,
+  options: { allowUnverified?: boolean } = {},
 ): any[] {
   const owned = new Set(answers.owned || []);
 
@@ -924,7 +952,6 @@ export function generateDynamicCatalogRecommendations(
   // Resolve budget range
   let minBudget = 40000;
   let maxBudget = 150000;
-  let targetBudget = 65000;
 
   // 1. Explicit budget object passed from Builder.tsx: { min, max, label }
   if (
@@ -935,11 +962,9 @@ export function generateDynamicCatalogRecommendations(
   ) {
     minBudget = budgetOrTemplates.min || 0;
     maxBudget = budgetOrTemplates.max;
-    targetBudget = Math.round((minBudget + maxBudget) / 2);
   } else if (answers.budgetId === "custom") {
     const num = Number((answers.customBudget || "").replace(/[^0-9]/g, ""));
     if (num > 0) {
-      targetBudget = num;
       minBudget = Math.round(num * 0.85);
       maxBudget = num;
     }
@@ -959,7 +984,6 @@ export function generateDynamicCatalogRecommendations(
     if (band) {
       minBudget = band[0];
       maxBudget = band[1];
-      targetBudget = Math.round((band[0] + band[1]) / 2);
     }
   }
 
@@ -987,15 +1011,12 @@ export function generateDynamicCatalogRecommendations(
 
   const { recommendations } = synthesizeBuildConfigurations(itemsBySlot, {
     purpose: answers.purpose,
-    targetBudget,
-    minBudget,
     maxBudget,
     ownedSlots: owned,
     preferredBrands: answers.brands,
     requireWifi: answers.wifi === "Yes",
-    resolution: answers.details?.resolution,
-    genre: answers.details?.genre,
-    software: answers.details?.software,
+    details: answers.details,
+    allowUnverified: options.allowUnverified,
   });
 
   return recommendations.map((config, index) => {
@@ -1015,13 +1036,11 @@ export function generateDynamicCatalogRecommendations(
     return {
       templateId: `dyn-build-${index + 1}-${Date.now().toString(36)}`,
       name: config.title,
-      tradeoff:
-        config.tradeoffLabel === "Best Value"
-          ? "Value"
-          : config.tradeoffLabel === "Best Performance"
-            ? "Higher-performance"
-            : "Balanced",
-      tradeoffLabel: config.tradeoffLabel,
+      tradeoff: config.label,
+      tradeoffLabel: config.label,
+      rankingReasons: config.rankingReasons,
+      purposeNotes: config.purposeNotes,
+      specSources: config.specSources,
       designedFor: config.designedFor,
       highlights: config.highlights,
       parts,
@@ -1029,10 +1048,10 @@ export function generateDynamicCatalogRecommendations(
       note,
       inBudget,
       price: config.price,
-      score: config.score,
-      workloadScore: config.workloadScore,
       confidenceBadge: config.confidenceBadge,
       confidenceLabel: config.confidenceLabel,
+      requiresReview: config.requiresReview,
+      reviewItems: config.reviewItems,
     };
   });
 }
@@ -1061,6 +1080,7 @@ export function getBudgetShortfallInfo(
     owned?: string[];
   },
   budgetOrTemplates?: any,
+  options: { allowUnverified?: boolean } = {},
 ): BudgetShortfallInfo | null {
   const owned = new Set(answers.owned || []);
 
@@ -1080,7 +1100,6 @@ export function getBudgetShortfallInfo(
 
   let minBudget = 40000;
   let maxBudget = 150000;
-  let targetBudget = 65000;
 
   if (
     budgetOrTemplates &&
@@ -1090,11 +1109,9 @@ export function getBudgetShortfallInfo(
   ) {
     minBudget = budgetOrTemplates.min || 0;
     maxBudget = budgetOrTemplates.max;
-    targetBudget = Math.round((minBudget + maxBudget) / 2);
   } else if (answers.budgetId === "custom") {
     const num = Number((answers.customBudget || "").replace(/[^0-9]/g, ""));
     if (num > 0) {
-      targetBudget = num;
       minBudget = Math.round(num * 0.85);
       maxBudget = num;
     }
@@ -1114,7 +1131,6 @@ export function getBudgetShortfallInfo(
     if (band) {
       minBudget = band[0];
       maxBudget = band[1];
-      targetBudget = Math.round((band[0] + band[1]) / 2);
     }
   }
 
@@ -1143,15 +1159,13 @@ export function getBudgetShortfallInfo(
   // Generate without budget ceiling to identify the closest valid configuration
   const { allValidCandidates } = synthesizeBuildConfigurations(itemsBySlot, {
     purpose: answers.purpose,
-    targetBudget,
-    minBudget,
     maxBudget: undefined, // unbound search for closest
     ownedSlots: owned,
     preferredBrands: answers.brands,
-    requireWifi: answers.wifi === "Yes",
-    resolution: answers.details?.resolution,
-    genre: answers.details?.genre,
-    software: answers.details?.software,
+    // The closest complete build, whatever its board: a dearer Wi-Fi board mustn't create a shortfall.
+    requireWifi: false,
+    details: answers.details,
+    allowUnverified: options.allowUnverified,
   });
 
   if (allValidCandidates.length === 0) return null;
@@ -1175,8 +1189,11 @@ export function getBudgetShortfallInfo(
   const closestBuildResult = {
     templateId: `closest-build-${Date.now().toString(36)}`,
     name: closest.title,
-    tradeoff: "Balanced",
-    tradeoffLabel: "Closest Valid Configuration",
+    tradeoff: "Closest available build",
+    tradeoffLabel: "Closest available build",
+    rankingReasons: [],
+    purposeNotes: [],
+    specSources: closest.specSources,
     designedFor: closest.designedFor,
     highlights: closest.highlights,
     parts,
@@ -1184,10 +1201,10 @@ export function getBudgetShortfallInfo(
     note: "Above your selected range — closest complete compatible configuration available in store.",
     inBudget: false,
     price: closest.price,
-    score: closest.score,
-    workloadScore: closest.workloadScore,
     confidenceBadge: closest.confidenceBadge,
     confidenceLabel: closest.confidenceLabel,
+    requiresReview: closest.requiresReview,
+    reviewItems: closest.reviewItems,
   };
 
   return {

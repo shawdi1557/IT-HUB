@@ -1262,7 +1262,7 @@ export default function Account() {
               <h2 className="mb-6 text-2xl font-bold">Peace of mind, organised.</h2>
               <WarrantyCheck source="Account warranty" className="mb-6" />
               <p className="mb-6 text-xs leading-6 text-muted-foreground">
-                Warranty coverage is based on demo product data. Manufacturer terms apply; confirm
+                Warranty details come from the product's listing. Manufacturer terms apply; confirm
                 coverage with IT HUB.
               </p>
               {warranties.length ? (
@@ -1271,7 +1271,7 @@ export default function Account() {
                     <div key={item.id} className="rounded-lg border border-border p-6">
                       <div className="flex flex-wrap justify-between gap-3">
                         <h3 className="font-bold">{item.name}</h3>
-                        <Badge tone="green">ACTIVE · DEMO</Badge>
+                        <Badge tone="gray">ON RECORD</Badge>
                       </div>
                       <p className="mt-3 text-xs text-muted-foreground">
                         Purchase: {item.date} · Warranty: {item.term} · Expiry: {item.expiry}
@@ -1288,7 +1288,7 @@ export default function Account() {
               ) : (
                 <Empty
                   title="No warranty items yet"
-                  description="Products from your demo orders will appear here."
+                  description="Products from your orders will appear here."
                   to="/products"
                 />
               )}
@@ -1485,7 +1485,8 @@ export default function Account() {
                 </Field>
                 <Button type="submit">Save settings</Button>
                 <p className="text-xs text-muted-foreground">
-                  Demo profile only. There are no passwords or real authentication.
+                  You sign in with your mobile number. These details are used for orders and service
+                  updates.
                 </p>
               </form>
             </>
@@ -1648,11 +1649,11 @@ export default function Account() {
                 <h3 className="text-xl font-bold">{item.name}</h3>
                 <p className="mt-4 text-sm">Purchase date: {item.date}</p>
                 <p className="mt-2 text-sm">Warranty: {item.term}</p>
-                <p className="mt-2 text-sm">Expiry (demo): {item.expiry}</p>
+                <p className="mt-2 text-sm">Expiry: {item.expiry}</p>
                 <p className="mt-2 text-sm">Order: {item.order}</p>
                 <p className="mt-4 rounded-md bg-muted p-4 text-xs leading-6 text-muted-foreground">
-                  This is a prototype warranty record. Contact IT HUB for expiry dates, terms, proof
-                  of purchase and actual claim eligibility.
+                  This summary isn't a warranty certificate. Contact IT HUB for expiry dates, terms,
+                  proof of purchase and claim eligibility.
                 </p>
                 <ActionLink to="/services/book" className="mt-5">
                   Request service
@@ -1672,9 +1673,7 @@ export default function Account() {
 
 const buildPartOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const buildPartName = (build: Build, type: string) =>
-  build.owned?.includes(type)
-    ? "Already owned"
-    : build.parts[type]?.name || (type === "GPU" ? "Integrated graphics" : "—");
+  build.owned?.includes(type) ? "Already owned" : build.parts[type]?.name || "—";
 function PcBuilds() {
   const store = useStore();
   const [renaming, setRenaming] = useState("");

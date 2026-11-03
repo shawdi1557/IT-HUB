@@ -573,7 +573,7 @@ export function ArticleDetail() {
                     <div>
                       <p className="font-semibold text-foreground">Featured In-Store Hardware</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Official manufacturer stock available for order in Kerala.
+                        See its price and availability at IT HUB.
                       </p>
                     </div>
                   </div>
@@ -591,7 +591,7 @@ export function ArticleDetail() {
                   <div className="flex items-center gap-2.5">
                     <Wrench size={16} className="text-emerald-700 shrink-0" />
                     <div>
-                      <p className="font-semibold text-foreground">IT HUB Certified Service</p>
+                      <p className="font-semibold text-foreground">IT HUB Service</p>
                       <p className="text-[11px] text-muted-foreground">
                         {article.relatedServiceLabel ||
                           "Hardware diagnostics and professional repairs."}

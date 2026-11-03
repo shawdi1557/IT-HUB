@@ -210,7 +210,8 @@ Deno.test("FIND-MY-PC-2: Recommends a valid build from the 8 live Shopify test p
   assertEquals(recs.length, 1); // Exactly 1 authentic build, no fake filler builds
 
   const build = recs[0];
-  assertEquals(build.tradeoff, "Balanced");
+  // One build has nothing to be compared with, so it earns no label.
+  assertEquals(build.tradeoff, "Insufficient information");
   assertEquals(build.parts.CPU.name, "[TEST] AMD Ryzen 5 5600");
   assertEquals(build.parts.Motherboard.name, "[TEST] ASUS Prime B550M-A WiFi II");
   assertEquals(build.parts.RAM.name, "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz");
@@ -218,10 +219,11 @@ Deno.test("FIND-MY-PC-2: Recommends a valid build from the 8 live Shopify test p
   assertEquals(build.parts.Storage.name, "[TEST] Kingston NV2 1TB M.2 2280 NVMe PCIe 4.0 SSD");
   assertEquals(build.parts.PSU.name, "[TEST] Deepcool PK550D 550W 80 Plus Bronze Power Supply");
   assertEquals(build.parts.Cabinet.name, "[TEST] Ant Esports ICE-100 Mid-Tower Gaming Cabinet");
-  assertEquals(build.parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
+  // This processor comes with a cooler, so another isn't added to the price.
+  assertEquals(build.parts.Cooler, undefined);
 
-  // Total price must be exact sum of Shopify prices: 9000 + 8999 + 3499 + 28499 + 4999 + 3699 + 2999 + 1899 = 63593
-  assertEquals(build.price, 63593);
+  // Total price must be exact sum of Shopify prices: 9000 + 8999 + 3499 + 28499 + 4999 + 3699 + 2999
+  assertEquals(build.price, 61694);
 
   // Hard compatibility check must pass
   const check = compatibility(build.parts);
@@ -271,8 +273,8 @@ Deno.test("FIND-MY-PC-4: User-owned category is not required in catalog", () => 
 
   const build = recs[0];
   assertEquals(build.owned.includes("Storage"), true);
-  // Total price should exclude Storage (63593 - 4999 = 58594)
-  assertEquals(build.price, 58594);
+  // Total price should exclude Storage (61694 - 4999 = 56695)
+  assertEquals(build.price, 56695);
 });
 
 Deno.test("FIND-MY-PC-5: Incompatible combinations are strictly rejected", () => {
@@ -398,7 +400,7 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
   const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
   // 1. Budget is ₹40,000 – ₹60,000 (id: "40-60"):
-  // The only available build costs ₹63,593, which exceeds ₹60,000. It must NOT be fetched!
+  // The only available build costs ₹61,694, which exceeds ₹60,000. It must NOT be fetched!
   const budget4060Answers = {
     purpose: "gaming",
     budgetId: "40-60",
@@ -415,7 +417,7 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
   assertEquals(recs4060.length, 0); // Zero over-budget builds returned!
 
   // 2. Custom budget below it: Around ₹10,000 (customBudget: "10000"):
-  // A ₹63,593 build must NOT be fetched for a ₹10,000 budget!
+  // A ₹61,694 build must NOT be fetched for a ₹10,000 budget!
   const custom10000Answers = {
     purpose: "gaming",
     budgetId: "custom",
@@ -432,7 +434,7 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
   );
   assertEquals(recs10000.length, 0); // Zero over-budget builds returned!
 
-  // 3. Custom budget: Around ₹50,000 (still below ₹63,593):
+  // 3. Custom budget: Around ₹50,000 (still below ₹61,694):
   const custom50000Answers = {
     purpose: "gaming",
     budgetId: "custom",
@@ -453,7 +455,7 @@ Deno.test("FIND-MY-PC-8: Build is strictly NOT fetched when budget is ₹40,000�
 Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between different budget queries", () => {
   const { componentCatalog } = syncBuilderCatalogWithShopify(eightLiveShopifyProducts);
 
-  // Query 1: Budget ₹60,000 – ₹80,000 (covers ₹63,593)
+  // Query 1: Budget ₹60,000 – ₹80,000 (covers ₹61,694)
   const answers1 = {
     purpose: "gaming",
     budgetId: "60-80",
@@ -465,9 +467,9 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
   const recs1 = generateDynamicCatalogRecommendations(componentCatalog, answers1, override1);
   assertEquals(recs1.length, 1);
   const price1 = recs1[0].price;
-  assertEquals(price1, 63593);
+  assertEquals(price1, 61694);
 
-  // Query 2: Custom budget Around ₹70,000 (covers ₹63,593)
+  // Query 2: Custom budget Around ₹70,000 (covers ₹61,694)
   const answers2 = {
     purpose: "gaming",
     budgetId: "custom",
@@ -480,9 +482,9 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
   const recs2 = generateDynamicCatalogRecommendations(componentCatalog, answers2, override2);
   assertEquals(recs2.length, 1);
   const price2 = recs2[0].price;
-  assertEquals(price2, 63593);
+  assertEquals(price2, 61694);
 
-  // Query 3: Custom budget Around ₹1,00,000 (covers ₹63,593)
+  // Query 3: Custom budget Around ₹1,00,000 (covers ₹61,694)
   const answers3 = {
     purpose: "gaming",
     budgetId: "custom",
@@ -495,14 +497,14 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
   const recs3 = generateDynamicCatalogRecommendations(componentCatalog, answers3, override3);
   assertEquals(recs3.length, 1);
   const price3 = recs3[0].price;
-  assertEquals(price3, 63593);
+  assertEquals(price3, 61694);
 
   // The estimated price must be 100% identical and never change across queries
   assertEquals(price1, price2);
   assertEquals(price2, price3);
 
-  // Cooler must be consistently included across all queries
-  assertEquals(recs1[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
-  assertEquals(recs2[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
-  assertEquals(recs3[0].parts.Cooler.name, "[TEST] Deepcool AG400 Single Tower 120mm CPU Cooler");
+  // No extra cooler in any query, because this processor comes with one
+  assertEquals(recs1[0].parts.Cooler, undefined);
+  assertEquals(recs2[0].parts.Cooler, undefined);
+  assertEquals(recs3[0].parts.Cooler, undefined);
 });

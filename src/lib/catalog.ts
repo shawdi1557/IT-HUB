@@ -156,7 +156,7 @@ export function mapDatabaseProduct(row: DatabaseProductRow): Product {
 
   let tag: string | undefined;
   if (row.second_hand) {
-    tag = "Certified Pre-Owned";
+    tag = "Pre-Owned";
   } else if (
     row.sale_price !== null &&
     row.sale_price !== undefined &&

@@ -31,6 +31,17 @@ export type SocketType = "AM4" | "AM5" | "LGA1700" | "LGA1851" | "LGA1200" | str
 export type RamGeneration = "DDR4" | "DDR5" | string;
 export type FormFactor = "ATX" | "Micro-ATX" | "Mini-ITX" | "E-ATX" | string;
 
+/**
+ * A manufacturer's published figures for one model. Compared only with the same architecture, and only
+ * on the figures named in ranking.ts. These are specifications, not benchmark results.
+ */
+export interface PublishedPerformanceFigures {
+  architecture: string;
+  figures: Record<string, number>;
+  sourceUrl: string;
+  checkedOn: string;
+}
+
 export interface TechnicalSpecs {
   // Processor
   socket?: SocketType;
@@ -87,11 +98,18 @@ export interface TechnicalSpecs {
   supportedSockets?: SocketType[];
   maxTdpRatingWatts?: number;
 
+  // Published figures used to compare parts. Only the specification registry sets these.
+  performance?: PublishedPerformanceFigures;
+
+  // Values read from the product title, tags or chip name, so nobody has stated them for this product.
+  inferredFromTitle?: (keyof TechnicalSpecs)[];
+
   // Metadata & Provenance
   provenance?:
     | SpecVerificationStatus
     | "manufacturer_verified"
     | "supplier_spec"
+    | "title_derived"
     | "internal_verified"
     | "unverified";
   lastVerifiedAt?: string;
@@ -181,9 +199,8 @@ export interface GuidedAnswers {
 
 export interface RecommendationCandidate {
   build: CanonicalBuild;
-  style: "best-fit" | "balanced" | "upgrade-friendly";
+  style: "best-fit" | "balanced" | "upgrade-friendly" | "not-ranked";
   title: string;
-  matchScore: number;
   rationale: string;
   highlights: string[];
   tradeOffs?: string;
@@ -247,10 +264,6 @@ export interface HardwareProductRecord {
   has_wifi?: boolean;
   has_bluetooth?: boolean;
   bios_version_required?: string;
-  benchmark_single_core?: number;
-  benchmark_multi_core?: number;
-  benchmark_gpu_raster?: number;
-  benchmark_gpu_compute?: number;
   verification_status: SpecVerificationStatus;
   source_reference_url?: string;
   verified_by?: string;

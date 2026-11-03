@@ -5,7 +5,7 @@ import { track } from "../lib/analytics";
 import { supabase } from "../lib/supabase";
 import {
   shopifyConfig,
-  fetchShopifyCatalog,
+  fetchAllShopifyProducts,
   checkShopifyAvailability,
   patchShopifyAvailability,
   syncShopifyAvailability,
@@ -69,8 +69,6 @@ import {
   isPublicCertificate,
 } from "../data/catalog";
 
-import { initialBuildTemplates, type BuildTemplate } from "../data/buildTemplates";
-
 import { resourceDefinitions, type AdminRecord } from "../data/admin";
 
 type Profile = {
@@ -115,8 +113,6 @@ type State = {
   requests: ServiceRequest[];
 
   builds: Build[];
-
-  buildTemplates: BuildTemplate[];
 
   /** Assembly charge added to build estimates; 0 = free assembly. */
 
@@ -247,8 +243,6 @@ const initial: State = {
   requests: [],
 
   builds: [],
-
-  buildTemplates: initialBuildTemplates,
 
   assemblyCharge: 0,
 
@@ -406,10 +400,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
           workingHours: "10:00 AM - 8:30 PM (Sunday Holiday)",
         },
-
-        buildTemplates: parsed.buildTemplates?.length
-          ? parsed.buildTemplates
-          : initial.buildTemplates,
 
         certificates: (() => {
           if (!Array.isArray(parsed.certificates) || parsed.certificates.length === 0) {
@@ -648,7 +638,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (shopifyConfig.isConfigured) {
         // Shopify is the authoritative source for commerce products
         const [shopifyRes, offersRes, couponsRes] = await Promise.allSettled([
-          fetchShopifyCatalog({ first: 100, force: options.force }),
+          fetchAllShopifyProducts({ force: options.force }),
           fetchActiveOffersDetailed(),
           fetchActiveCouponsDetailed(),
         ]);
@@ -676,6 +666,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               );
             } else {
               const diff = diffCatalogProducts(prev.products, shopifyProducts);
+              // Always rebuilt: a browser can hold a catalogue saved by older code, with the same
+              // products but older specifications.
+              if (shopifyProducts.length > 0) {
+                updates.componentCatalog =
+                  syncBuilderCatalogWithShopify(shopifyProducts).componentCatalog;
+              }
               if (diff.hasChanges || prev.products.length === 0) {
                 updates.products = shopifyProducts;
                 updates.catalogLive = isLive;

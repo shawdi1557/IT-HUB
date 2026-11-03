@@ -369,7 +369,6 @@ export default function Layout() {
               { name: "About", to: "/about" },
               { name: "Contact", to: "/contact" },
               { name: "Track an order", to: "/track-order" },
-              { name: "Admin prototype", to: "/admin" },
             ].map((item) => (
               <NavLink
                 key={item.to}

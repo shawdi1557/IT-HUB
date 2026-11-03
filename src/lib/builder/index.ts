@@ -6,5 +6,7 @@ export * from "./slots";
 export * from "./compatibility";
 export * from "./catalog";
 export * from "./recommendations";
+export * from "./ranking";
+export * from "./purpose";
 export * from "./persistence";
 export * from "./checkout";

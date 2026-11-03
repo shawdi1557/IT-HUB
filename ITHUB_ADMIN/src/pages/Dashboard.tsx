@@ -439,14 +439,16 @@ export function Dashboard({ profile }: DashboardProps) {
               className="rounded-2xl border border-amber-200/90 bg-linear-to-b from-amber-50/80 to-amber-50/30 p-4 col-span-2 sm:col-span-1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-300 block"
             >
               <div className="flex items-center justify-between text-amber-700">
-                <span className="text-xs font-bold uppercase tracking-wider">Price Review</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  Technician Review
+                </span>
                 <AlertTriangle size={16} className="text-amber-600" />
               </div>
               <p className="mt-2 text-2xl font-extrabold text-amber-900">
                 {quotationStats.totalFlaggedReview}
               </p>
               <p className="mt-0.5 text-[11px] font-medium text-amber-700">
-                Price divergence flagged
+                Price or compatibility flagged
               </p>
             </Link>
           </div>

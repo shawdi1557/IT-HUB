@@ -63,7 +63,7 @@ export default function ProductCard({ product }: { product: Product }) {
                 <Badge tone="amber">
                   <RefreshCw size={10} className="mr-1 inline text-amber-700 shrink-0" />
                   <span className="truncate">
-                    PRE-OWNED{product.condition ? ` · ${product.condition}` : ""}
+                    PRE-OWNED{product.conditionStated ? ` · ${product.condition}` : ""}
                   </span>
                 </Badge>
               )}
@@ -170,10 +170,12 @@ export default function ProductCard({ product }: { product: Product }) {
                 <span className="text-muted-foreground">● Out of stock</span>
               )}
             </div>
-            <span className="inline-flex items-center gap-1 text-muted-foreground truncate min-w-0">
-              <ShieldCheck size={11} className="text-primary shrink-0" />
-              <span className="truncate">{product.warranty || "Brand warranty"}</span>
-            </span>
+            {(product.specs?.Warranty || product.warranty) && (
+              <span className="inline-flex items-center gap-1 text-muted-foreground truncate min-w-0">
+                <ShieldCheck size={11} className="text-primary shrink-0" />
+                <span className="truncate">{product.specs?.Warranty || product.warranty}</span>
+              </span>
+            )}
           </div>
         </div>
       </article>

@@ -164,12 +164,13 @@ export function generateWhatsAppQuotation(
     ``,
     `*Estimated Total: ${money(total)}*`,
     `Power Estimate: ~${build.compatibility.estimatedSystemLoadWatts}W (Rec. ${build.compatibility.recommendedPsuWatts}W PSU)`,
-    `Compatibility Status: ${build.compatibility.valid ? "Verified Compatible" : "Requires Review"}`,
+    `Compatibility Status: ${build.compatibility.status === "compatible" ? "No issues found in the stated specifications" : build.compatibility.valid ? "Needs checking by IT HUB" : "Requires Review"}`,
     ``,
     `Hello IT HUB, please confirm component stock availability and provide your best quotation including assembly and testing at your Kothamangalam store.`,
   ].join("\n");
 
-  const cleanPhone = (whatsappPhone || "919074000000").replace(/[^0-9]/g, "");
+  // With no number configured, WhatsApp lets the customer choose who to send it to.
+  const cleanPhone = (whatsappPhone || "").replace(/[^0-9]/g, "");
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 
   return {

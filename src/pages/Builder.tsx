@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   Cpu,
@@ -18,7 +18,6 @@ import {
   Briefcase,
   DraftingCompass,
   House,
-  PenLine,
   Check,
   ChevronDown,
   SlidersHorizontal,
@@ -31,11 +30,6 @@ import { useStore } from "../app/store";
 import { track } from "../lib/analytics";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import { images, money, type ComponentOption } from "../data/catalog";
-import {
-  initialBuildTemplates,
-  type BuildPurpose,
-  type BuildTemplate,
-} from "../data/buildTemplates";
 import { Badge, Button, Modal, Page, PageHeading } from "../components/ui";
 
 import {
@@ -52,6 +46,9 @@ import {
   generateWhatsAppQuotation,
   generateDynamicCatalogRecommendations,
   getBudgetShortfallInfo,
+  RANKING_BASIS,
+  reconcileBuildParts,
+  toCanonicalComponent,
   type CanonicalBuild,
   type CanonicalBuildComponent,
   type ComponentSlotId,
@@ -65,46 +62,146 @@ function toCanonicalRecord(
 ): Partial<Record<ComponentSlotId, CanonicalBuildComponent>> {
   const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {};
   for (const [key, part] of Object.entries(parts)) {
-    if (!part) continue;
-    const slot = key as ComponentSlotId;
-    canonicalParts[slot] = {
-      slot,
-      productId: part.id || `part-${key}`,
-      variantId: part.variantId || "",
-      title: part.name || `${key} component`,
-      price: part.price || 0,
-      currency: "INR",
-      specs: {
-        socket: part.socket,
-        supportedRamGeneration: part.ram,
-        ramGeneration: part.ram,
-        tdpWatts: part.watts,
-        powerWatts: part.watts,
-        ratedWattage: part.capacity,
-        lengthMm: part.length,
-        maxGpuLengthMm: part.clearance,
-        maxCoolerHeightMm: part.clearance,
-        coolerHeightMm: (part as any).height,
-        hasWifi: part.wifi,
-        requiresBiosUpdateForRyzen5000: part.bios,
-        includesCooler: (part as any).includesCooler,
-        hasIntegratedGraphics:
-          (part as any).hasIntegratedGraphics ??
-          (key === "CPU" ? part.name?.includes("G") || part.socket === "AM5" : undefined),
-        provenance:
-          (part.provenance as any) ||
-          (part.isVerified === false ? "unverified" : "manufacturer_verified"),
-      },
-      availability: part.stock === 0 ? "unavailable" : "available",
-      quantity: 1,
-      retrievedAt: new Date().toISOString(),
-      isShopifyLive: Boolean(part.variantId),
-      isVerified: part.isVerified !== false,
-      matchedModelKey: part.matchedModelKey,
-    };
+    if (part) canonicalParts[key as ComponentSlotId] = toCanonicalComponent(key, part);
   }
   return canonicalParts;
 }
+
+/** Why a build has its label, and what the figures behind it rest on. */
+function RankingEvidence({ build, compact = false }: { build: DetailBuild; compact?: boolean }) {
+  if (!build.rankingReasons?.length && !build.specSources && !build.purposeNotes?.length) {
+    return null;
+  }
+  // A card has room for the main reasons. The build's own page lists every one.
+  const reasons = compact ? build.rankingReasons?.slice(0, 2) : build.rankingReasons;
+  return (
+    <div className="mt-3 space-y-1.5 text-xs leading-5 text-muted-foreground">
+      {build.purposeNotes?.map((note) => (
+        <p key={note} className="text-foreground">
+          {note}
+        </p>
+      ))}
+      {reasons?.map((reason) => (
+        <p key={reason}>{reason}</p>
+      ))}
+      {build.specSources?.CPU && (
+        <p>
+          <strong className="text-foreground">Processor specs:</strong> {build.specSources.CPU}
+        </p>
+      )}
+      {build.specSources?.GPU && (
+        <p>
+          <strong className="text-foreground">Graphics card specs:</strong> {build.specSources.GPU}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const UNVERIFIED_NOTICE =
+  "Compatibility cannot be verified because required specifications are unavailable.";
+
+/** CPU, GPU, RAM and PSU stay in capitals in a sentence. */
+const inSentence = (type: string) => (/^[A-Z]{2,}$/.test(type) ? type : type.toLowerCase());
+
+const isUnavailable = (part?: ComponentOption) => part?.stock === 0;
+
+/**
+ * Parts that clash. A processor needing a graphics card that hasn't been picked yet is an unfinished
+ * build, not a clash, so it blocks the quotation without calling the parts incompatible.
+ */
+const findConflict = (items: CompatibilitySummary["items"]) =>
+  items.find((item) => item.severity === "error" && item.ruleId !== "RULE_I_GPU_MANDATORY_NO_IGPU");
+
+/** A selection that's kept up to date with the live catalogue's prices and availability. */
+function useLiveParts(initial: Record<string, ComponentOption>) {
+  const store = useStore();
+  const [parts, setParts] = useState<Record<string, ComponentOption>>(
+    () => reconcileBuildParts(initial, store.componentCatalog).parts,
+  );
+  useEffect(() => {
+    const next = reconcileBuildParts(parts, store.componentCatalog);
+    if (JSON.stringify(next.parts) === JSON.stringify(parts)) return;
+    setParts(next.parts);
+    if (next.priceChanged.length > 0) {
+      store.notify(`Updated to the current price: ${next.priceChanged.join(", ")}`);
+    }
+  }, [store.componentCatalog, parts]);
+  return [parts, setParts] as const;
+}
+
+/** What still has to be chosen before a quotation can be requested. */
+function missingForQuotation(parts: Record<string, ComponentOption>) {
+  const missing = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"].filter(
+    (type) => !parts[type],
+  );
+  if (parts.CPU?.includesCooler === false && !parts.Cooler) missing.push("Cooler");
+  if (parts.CPU?.hasIntegratedGraphics === false && !parts.GPU) missing.push("GPU");
+  return missing;
+}
+
+function PartThumb({ part }: { part?: ComponentOption }) {
+  const image = part?.image && !part.image.includes("placeholder") ? part.image : "";
+  return (
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+      {image ? (
+        <img src={image} alt="" className="h-full w-full object-contain" />
+      ) : (
+        <Cpu size={23} className="text-primary" strokeWidth={1.5} />
+      )}
+    </div>
+  );
+}
+
+/** Shown in a component picker when there's nothing to list, saying which of three cases it is. */
+function EmptyCatalog() {
+  const store = useStore();
+  if (store.catalogLoading) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-6 text-center">
+        <p className="text-sm font-medium text-muted-foreground">Loading live products…</p>
+      </div>
+    );
+  }
+  if (store.catalogError) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-6 text-center">
+        <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+        <p className="text-sm font-medium text-foreground">
+          We couldn't load the live product list.
+        </p>
+        <Button
+          variant="secondary"
+          className="mt-3 px-3 py-2 text-xs"
+          onClick={() => store.refreshCatalog({ force: true })}
+        >
+          <RotateCcw size={13} /> Try again
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-dashed border-border p-6 text-center">
+      <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+      <p className="text-sm font-medium text-foreground">
+        No matching products are currently available. Please contact IT HUB for assistance.
+      </p>
+    </div>
+  );
+}
+
+/** Says so when the prices on screen may be older than the store's. */
+function CatalogWarning() {
+  const store = useStore();
+  if (!store.catalogError) return null;
+  return (
+    <p className="mb-5 flex gap-2 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800">
+      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+      The live product list couldn't be refreshed, so prices and availability may be out of date.
+    </p>
+  );
+}
+
 const EXPERT_BUILDER_SLOTS = [
   "CPU",
   "Motherboard",
@@ -129,7 +226,8 @@ function ExpertBuilder({
 }) {
   const store = useStore();
   const navigate = useNavigate();
-  const [parts, setParts] = useState<Record<string, ComponentOption>>(initialParts);
+  const [parts, setParts] = useLiveParts(initialParts);
+  const [currentId, setCurrentId] = useState(savedId);
   const [selection, setSelection] = useState("");
   const [name, setName] = useState(initialName);
   const [filter, setFilter] = useState("");
@@ -142,8 +240,15 @@ function ExpertBuilder({
     parts: Array<{ type: string; name: string; price: number }>;
     buildName: string;
   } | null>(null);
-  const total = Object.values(parts).reduce((sum, item) => sum + item.price, 0);
-  const { result, watts, recommended, valid, complete } = compatibility(parts);
+  const total = Object.values(parts).reduce(
+    (sum, item) => sum + (isUnavailable(item) ? 0 : item.price),
+    0,
+  );
+  const { result, watts, recommended, valid, complete, summary } = compatibility(parts);
+  const unavailable = Object.keys(parts).filter((type) => isUnavailable(parts[type]));
+  const canRequest = complete && valid && unavailable.length === 0;
+  const hasConflict = Boolean(findConflict(summary.items));
+  const missing = missingForQuotation(parts);
 
   // Restore any pending quotation saved before guest login
   useEffect(() => {
@@ -162,8 +267,9 @@ function ExpertBuilder({
   }, [store.loggedIn]);
 
   const createCanonical = (): CanonicalBuild => ({
-    id: savedId || crypto.randomUUID(),
-    userId: store.profile?.id,
+    id: currentId || crypto.randomUUID(),
+    // Only a build that's already saved has a row to update.
+    userId: currentId ? store.profile?.id : undefined,
     name: name.trim() || "My custom PC",
     mode: "expert",
     currency: "INR",
@@ -191,10 +297,11 @@ function ExpertBuilder({
         parts: { ...parts },
         price: total,
       };
-      if (savedId && store.builds.some((item) => item.id === savedId)) {
+      setCurrentId(res.id);
+      if (currentId && store.builds.some((item) => item.id === currentId)) {
         store.set((previous) => ({
           builds: previous.builds.map((item) =>
-            item.id === savedId ? { ...item, ...build, id: savedId } : item,
+            item.id === currentId ? { ...item, ...build, id: currentId } : item,
           ),
         }));
       } else {
@@ -213,8 +320,13 @@ function ExpertBuilder({
     .map((type) => ({ type, name: parts[type].name, price: parts[type].price }));
 
   const handleRequestQuotation = async () => {
-    if (!complete || !valid) {
-      store.notify("Please select all essential components and resolve any compatibility issues.");
+    if (submittingQuote) return;
+    if (!canRequest) {
+      store.notify(
+        unavailable.length > 0
+          ? `Please replace what's no longer available: ${unavailable.join(", ")}.`
+          : "Please select all essential components and resolve any compatibility issues.",
+      );
       return;
     }
 
@@ -295,6 +407,7 @@ function ExpertBuilder({
         title="Advanced Component Builder"
         description="Choose each component yourself. We check compatibility and calculate the estimated price in real time."
       />
+      <CatalogWarning />
       <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-md bg-secondary px-5 py-4">
         <p className="text-xs text-primary">{Object.keys(parts).length} of 8 components selected</p>
         <div className="h-1.5 w-36 overflow-hidden rounded-full bg-primary/10">
@@ -321,19 +434,22 @@ function ExpertBuilder({
                 parts[type] ? "border-primary/20 bg-secondary/20" : "border-border bg-white"
               }`}
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-md bg-muted">
-                <Cpu size={23} className="text-primary" strokeWidth={1.5} />
-              </div>
+              <PartThumb part={parts[type]} />
               <div className="min-w-32 flex-1">
                 <p className="text-[10px] text-muted-foreground">
                   0{index + 1} · {type.toUpperCase()}
                 </p>
                 <h2 className="mt-1 text-sm font-semibold">
-                  {parts[type]?.name || `Select a ${type.toLowerCase()}`}
+                  {parts[type]?.name || `Select a ${inSentence(type)}`}
                 </h2>
-                {parts[type] && (
-                  <p className="mt-1 text-xs text-primary">{money(parts[type].price)}</p>
-                )}
+                {parts[type] &&
+                  (isUnavailable(parts[type]) ? (
+                    <p className="mt-1 text-xs font-medium text-red-600">
+                      No longer available. Please replace it.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-primary">{money(parts[type].price)}</p>
+                  ))}
               </div>
               {parts[type] && (
                 <button
@@ -417,7 +533,7 @@ function ExpertBuilder({
                 <div className="mt-2.5 flex items-center gap-2">
                   <Button
                     size="sm"
-                    disabled={!complete || !valid || submittingQuote}
+                    disabled={!canRequest || submittingQuote}
                     onClick={async () => {
                       setPendingRestored(false);
                       clearPendingQuotation();
@@ -440,36 +556,52 @@ function ExpertBuilder({
               </div>
             )}
             <div className="mt-6 grid gap-3">
-              <Button
-                disabled={!complete || !valid || submittingQuote}
-                onClick={handleRequestQuotation}
-              >
+              <Button disabled={!canRequest || submittingQuote} onClick={handleRequestQuotation}>
                 {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"}{" "}
                 <CheckCircle2 size={15} />
               </Button>
-              <Button
-                disabled={!complete || !valid || savingBuild}
-                variant="secondary"
-                onClick={save}
-              >
+              <Button disabled={!canRequest || savingBuild} variant="secondary" onClick={save}>
                 {savingBuild ? "Saving to Account…" : "Save build"} <Save size={15} />
               </Button>
             </div>
-            {(!complete || !valid) && (
+            {!canRequest && (
               <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
-                {!complete
-                  ? "Select essential components (CPU, Motherboard, RAM, Storage, PSU, Cabinet) to complete your build."
-                  : "Resolve compatibility errors before requesting a quotation."}
+                {unavailable.length > 0
+                  ? `Replace what's no longer available: ${unavailable.join(", ")}.`
+                  : !complete
+                    ? `Still to choose: ${missing.join(", ")}.`
+                    : "Resolve compatibility errors before requesting a quotation."}
               </p>
             )}
           </div>
           <div className="rounded-lg bg-muted p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold">Compatibility</h3>
-              <Badge tone={!valid ? "red" : complete ? "green" : "gray"}>
-                {!valid ? "Incompatible" : complete ? "Compatible" : "In progress"}
+              <Badge
+                tone={
+                  hasConflict
+                    ? "red"
+                    : !complete
+                      ? "gray"
+                      : summary.status === "compatible"
+                        ? "green"
+                        : "amber"
+                }
+              >
+                {hasConflict
+                  ? "Incompatible"
+                  : !complete
+                    ? "In progress"
+                    : summary.status === "compatible"
+                      ? "Compatible"
+                      : "Needs checking"}
               </Badge>
             </div>
+            {summary.items.some((item) => item.status === "unknown") && (
+              <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                {UNVERIFIED_NOTICE}
+              </p>
+            )}
             <div className="space-y-3">
               {result.map((check, index) => {
                 const Icon =
@@ -597,8 +729,8 @@ function ExpertBuilder({
         onOpenChange={(open) => {
           if (!open) setSelection("");
         }}
-        title={`Choose your ${selection.toLowerCase()}`}
-        description="Authoritative Shopify products and verified technical specifications."
+        title={`Choose your ${inSentence(selection)}`}
+        description="Live products from the IT HUB store. Each is checked against what you've chosen so far."
       >
         <input
           value={filter}
@@ -610,17 +742,7 @@ function ExpertBuilder({
         <div className="space-y-3">
           {(() => {
             const slotItems = store.componentCatalog[selection] || [];
-            if (slotItems.length === 0) {
-              return (
-                <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm font-medium text-foreground">
-                    No matching products are currently available. Please contact IT HUB for
-                    assistance.
-                  </p>
-                </div>
-              );
-            }
+            if (slotItems.length === 0) return <EmptyCatalog />;
             const filtered = slotItems.filter((item) =>
               item.name.toLowerCase().includes(filter.toLowerCase()),
             );
@@ -633,57 +755,63 @@ function ExpertBuilder({
                 </div>
               );
             }
-            return filtered.map((item) => (
-              <button
-                key={item.id}
-                className={`flex w-full items-center justify-between gap-4 rounded-lg border p-4 text-left hover:bg-secondary ${
-                  parts[selection]?.id === item.id ? "border-primary" : "border-border"
-                }`}
-                onClick={() => {
-                  setParts({ ...parts, [selection]: item });
-                  setSelection("");
-                  store.notify("PC component added");
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
-                    {item.isShopifyLive ? (
-                      <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                        Shopify Live
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
-                        In-Store Quote
-                      </span>
-                    )}
-                    {item.isVerified === false && (
-                      <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                        Unverified Specs
-                      </span>
-                    )}
-                    {item.stock === 0 && (
-                      <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
-                        Out of Stock
-                      </span>
-                    )}
+            return filtered.map((item) => {
+              const conflict = findConflict(
+                compatibility({ ...parts, [selection]: item }).summary.items,
+              );
+              return (
+                <button
+                  key={item.id}
+                  className={`flex w-full items-center justify-between gap-4 rounded-lg border p-4 text-left hover:bg-secondary ${
+                    parts[selection]?.id === item.id ? "border-primary" : "border-border"
+                  }`}
+                  onClick={() => {
+                    setParts({ ...parts, [selection]: item });
+                    setSelection("");
+                    store.notify("PC component added");
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
+                      {item.isShopifyLive ? (
+                        <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                          Shopify Live
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                          In-Store Quote
+                        </span>
+                      )}
+                      {item.isVerified === false && (
+                        <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          Unverified Specs
+                        </span>
+                      )}
+                      {item.stock === 0 && (
+                        <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                          Out of Stock
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {[
+                        item.socket,
+                        item.ram,
+                        item.watts ? `${item.watts}W consumption` : "",
+                        item.capacity ? `${item.capacity}W capacity` : "",
+                        item.length ? `${item.length}mm length` : "",
+                        item.clearance ? `${item.clearance}mm GPU clearance` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    {conflict && <p className="mt-1 text-xs text-red-600">{conflict.label}</p>}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {[
-                      item.socket,
-                      item.ram,
-                      item.watts ? `${item.watts}W consumption` : "",
-                      item.capacity ? `${item.capacity}W capacity` : "",
-                      item.length ? `${item.length}mm length` : "",
-                      item.clearance ? `${item.clearance}mm GPU clearance` : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <div className="shrink-0 text-sm font-bold text-primary">{money(item.price)}</div>
-              </button>
-            ));
+                  <div className="shrink-0 text-sm font-bold text-primary">{money(item.price)}</div>
+                </button>
+              );
+            });
           })()}
         </div>
       </Modal>
@@ -693,7 +821,7 @@ function ExpertBuilder({
 
 // ───────────────────────── Smart PC Builder ─────────────────────────
 
-type PurposeId = BuildPurpose | "custom";
+type PurposeId = "gaming" | "creation" | "work" | "professional" | "general";
 const purposes: {
   id: PurposeId;
   title: string;
@@ -729,12 +857,6 @@ const purposes: {
     title: "General Use",
     text: "Browsing, media, education and home use",
     Icon: House,
-  },
-  {
-    id: "custom",
-    title: "Something Else",
-    text: "Describe your use case in your own words",
-    Icon: PenLine,
   },
 ];
 const followUps: Record<
@@ -785,34 +907,10 @@ const followUps: Record<
       options: ["Browsing", "Media", "Education", "Home use"],
     },
   ],
-  custom: [],
-};
-const keywordFor: Record<string, string[]> = {
-  Video: ["video"],
-  "Motion Graphics": ["motion"],
-  "3D": ["3d", "render", "blender"],
-  Photography: ["photo"],
-  Streaming: ["stream"],
-  Office: ["office"],
-  Programming: ["programming", "software"],
-  Business: ["business"],
-  "Professional Software": ["cad", "engineering", "professional"],
-  "Software Development": ["software", "programming"],
-  Architecture: ["architecture", "cad"],
-  CAD: ["cad"],
-  Engineering: ["engineering", "cad"],
-  "Data / AI": ["ai", "data"],
-  Browsing: ["browsing"],
-  Media: ["media"],
-  Education: ["education"],
-  "Home use": ["home"],
-  "Competitive / Esports": ["esports", "competitive", "high-refresh"],
-  "AAA Games": ["aaa"],
 };
 export interface Budget {
   id: string;
   label: string;
-  tier: string;
   min: number;
   max: number;
 }
@@ -820,42 +918,36 @@ const budgets: Budget[] = [
   {
     id: "40-60",
     label: "₹40,000 – ₹60,000",
-    tier: "Entry Level",
     min: 40000,
     max: 60000,
   },
   {
     id: "60-80",
     label: "₹60,000 – ₹80,000",
-    tier: "Balanced",
     min: 60000,
     max: 80000,
   },
   {
     id: "80-100",
     label: "₹80,000 – ₹1,00,000",
-    tier: "Performance",
     min: 80000,
     max: 100000,
   },
   {
     id: "100-150",
     label: "₹1,00,000 – ₹1,50,000",
-    tier: "High Performance",
     min: 100000,
     max: 150000,
   },
   {
     id: "150+",
     label: "₹1,50,000+",
-    tier: "Enthusiast",
     min: 150000,
     max: 300000,
   },
 ];
 const brandOptions = ["AMD", "Intel", "NVIDIA"];
 const ownedOptions = ["Monitor", "GPU", "Storage", "RAM", "Keyboard/Mouse"];
-const pricedOwned = ["GPU", "Storage", "RAM"];
 const partOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const partLabels: Record<string, string> = { Cooler: "CPU Cooler" };
 const explanations: Record<string, string> = {
@@ -870,25 +962,19 @@ const explanations: Record<string, string> = {
 };
 const DISCLAIMER =
   "Component prices and availability may change. Final pricing will be confirmed by IT HUB before purchase.";
-const SLIGHTLY_ABOVE =
-  "Slightly above your selected range to provide a better-balanced configuration.";
 
 type Answers = {
   purpose: PurposeId | "";
-  customText: string;
   details: Record<string, string>;
   budgetId: string;
-  customBudget: string;
   brands: string[];
   wifi: string;
   owned: string[];
 };
 const emptyAnswers: Answers = {
   purpose: "",
-  customText: "",
   details: {},
   budgetId: "",
-  customBudget: "",
   brands: [],
   wifi: "",
   owned: [],
@@ -903,41 +989,17 @@ type DetailBuild = {
   note?: string;
   templateId?: string;
   inBudget?: boolean;
+  /** Compatibility can't be confirmed from the catalogue, so IT HUB must check this build. */
+  requiresReview?: boolean;
+  /** Why this build has its label, or what's missing. Applies only to the parts as recommended. */
+  rankingReasons?: string[];
+  /** How this build relates to what the customer said they need. */
+  purposeNotes?: string[];
+  /** Where the compared parts' specifications came from. */
+  specSources?: { CPU?: string; GPU?: string };
 };
-export interface RecommendationExtra {
-  price: number;
-  template: BuildTemplate;
-}
-export type Recommendation = DetailBuild & RecommendationExtra;
 
-function inferPurpose(text: string): BuildPurpose {
-  const t = text.toLowerCase();
-  if (
-    /blender|unreal|render|3d|video|edit|premiere|davinci|after effects|stream|photo|youtube/.test(
-      t,
-    )
-  )
-    return "creation";
-  if (
-    /cad|autocad|solidworks|revit|architect|machine learning|\bai\b|data|tensorflow|engineering/.test(
-      t,
-    )
-  )
-    return "professional";
-  if (/game|gaming|fps|esports|valorant|gta/.test(t)) return "gaming";
-  if (/office|excel|code|coding|programming|business|accounting|tally/.test(t)) return "work";
-  return "general";
-}
 function resolvedBudget(answers: Answers) {
-  if (answers.budgetId === "custom") {
-    const value = Number(answers.customBudget.replace(/[^0-9]/g, ""));
-    if (!value) return null;
-    return {
-      min: Math.round(value * 0.85),
-      max: value,
-      label: `Around ${money(value)}`,
-    };
-  }
   const band = budgets.find((item) => item.id === answers.budgetId);
   if (!band) return null;
   return {
@@ -947,175 +1009,8 @@ function resolvedBudget(answers: Answers) {
       band.id === "150+" ? band.label.replace(/\s/g, "") : `${money(band.min)}–${money(band.max)}`,
   };
 }
-function findPart(catalog: Record<string, ComponentOption[]>, type: string, id: string) {
-  const normId = id.toLowerCase();
-  const bareId = normId.replace(/^[a-z]+-/, "");
-
-  // 1. Direct ID match
-  const direct = catalog[type]?.find((item) => item.id === id);
-  if (direct) return direct;
-
-  // 2. Prioritize authentic live Shopify products matching model key or name
-  const liveMatch = catalog[type]?.find((item) => {
-    if (!item.isShopifyLive) return false;
-    if (
-      item.matchedModelKey &&
-      (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))
-    )
-      return true;
-    if (item.name.toLowerCase().includes(bareId)) return true;
-    return false;
-  });
-  if (liveMatch) return liveMatch;
-
-  // 3. Reference catalog model match
-  const keyMatch = catalog[type]?.find((item) => {
-    if (
-      item.matchedModelKey &&
-      (item.matchedModelKey === id || item.matchedModelKey.includes(bareId))
-    )
-      return true;
-    if (item.name.toLowerCase().includes(bareId)) return true;
-    return false;
-  });
-  if (keyMatch) return keyMatch;
-
-  return undefined;
-}
 const sumParts = (parts: Record<string, ComponentOption>) =>
   Object.values(parts).reduce((sum, item) => sum + item.price, 0);
-const isAmd = (part?: ComponentOption) =>
-  Boolean(part && (part.socket?.startsWith("AM") || /amd|radeon|\brx\b/i.test(part.name)));
-
-/**
- * Recommendation engine. Optimises for purpose match + budget fit + compatibility
- * + performance balance + availability + upgrade potential — never just price.
- */
-function recommend(
-  templates: BuildTemplate[],
-  catalog: Record<string, ComponentOption[]>,
-  answers: Answers,
-): Recommendation[] {
-  const budget = resolvedBudget(answers);
-  if (!budget) return [];
-  const purpose: BuildPurpose =
-    answers.purpose === "custom"
-      ? inferPurpose(answers.customText)
-      : ((answers.purpose || "general") as BuildPurpose);
-  const related: Record<BuildPurpose, BuildPurpose[]> = {
-    gaming: ["creation"],
-    creation: ["professional", "gaming"],
-    work: ["general", "professional"],
-    professional: ["creation", "work"],
-    general: ["work"],
-  };
-  const resolution =
-    answers.details.resolution && answers.details.resolution !== "Not sure"
-      ? answers.details.resolution
-      : answers.purpose === "custom" && /4k/i.test(answers.customText)
-        ? "4K"
-        : "";
-  const keywords = [
-    ...(keywordFor[answers.details.type] || []),
-    ...(answers.purpose === "custom"
-      ? answers.customText
-          .toLowerCase()
-          .split(/[^a-z0-9]+/)
-          .filter((word) => word.length > 2)
-      : []),
-  ];
-  const owned = answers.owned.filter((item) => pricedOwned.includes(item));
-  const scored = templates
-    .filter((template) => template.active)
-    .map((template) => {
-      const parts: Record<string, ComponentOption> = {};
-      Object.entries(template.parts).forEach(([type, id]) => {
-        const part = findPart(catalog, type, id);
-        if (part) parts[type] = part;
-      });
-
-      // Authenticity requirement: Only recommend builds if all essential components exist in the authentic catalog
-      const hasEssentials =
-        Boolean(parts.CPU) &&
-        Boolean(parts.Motherboard) &&
-        Boolean(parts.RAM) &&
-        Boolean(parts.Storage) &&
-        Boolean(parts.PSU) &&
-        Boolean(parts.Cabinet);
-      if (!hasEssentials) return null;
-      // Wi-Fi requested: swap to the cheapest compatible Wi-Fi board.
-      if (answers.wifi === "Yes" && parts.Motherboard && !parts.Motherboard.wifi) {
-        const board = (catalog.Motherboard || [])
-          .filter(
-            (item) =>
-              item.wifi && item.stock !== 0 && compatibility({ ...parts, Motherboard: item }).valid,
-          )
-          .sort((a, b) => a.price - b.price)[0];
-        if (board) parts.Motherboard = board;
-      }
-      const priced = { ...parts };
-      owned.forEach((type) => delete priced[type]);
-      const price = sumParts(priced);
-      let score = 0;
-      if (template.purpose === purpose) score += 50;
-      else if (related[purpose].includes(template.purpose)) score += 12;
-      const text = `${template.name} ${template.usage} ${template.resolution}`.toLowerCase();
-      if (resolution) {
-        if (template.resolution.includes(resolution)) score += 16;
-        else if (template.purpose === "gaming") score -= 8;
-      }
-      if (keywords.some((word) => text.includes(word))) score += 12;
-      let note = "";
-      let inBudget = true;
-      if (price > budget.max) {
-        const over = (price - budget.max) / budget.max;
-        inBudget = false;
-        if (over <= 0.1) {
-          score += 24;
-          note = SLIGHTLY_ABOVE;
-        } else {
-          score -= over * 220;
-          note = "Above your selected range — the closest suitable configuration for your needs.";
-        }
-      } else if (price < budget.min) {
-        const under = (budget.min - price) / budget.min;
-        score += under <= 0.25 ? 22 : 22 - under * 120;
-        note = "Below your selected range — covers your needs without overspending.";
-      } else score += 40;
-      answers.brands.forEach((brand) => {
-        if (brand === "AMD") score += isAmd(parts.CPU) ? 5 : -3;
-        if (brand === "AMD" && parts.GPU) score += isAmd(parts.GPU) ? 5 : -3;
-        if (brand === "Intel") score += parts.CPU?.socket === "LGA1700" ? 8 : -4;
-        if (brand === "NVIDIA" && parts.GPU) score += /rtx|nvidia/i.test(parts.GPU.name) ? 8 : -4;
-      });
-      if (Object.values(parts).some((part) => part.stock === 0)) score -= 4;
-      if (parts.Motherboard?.socket === "AM5") score += 2;
-      if (!compatibility(parts).valid) score -= 1000;
-      const designedFor =
-        template.purpose === "gaming"
-          ? `${resolution || template.resolution || "1080p"} gaming`
-          : template.usage.charAt(0).toLowerCase() + template.usage.slice(1);
-      return {
-        name: template.name,
-        tradeoff: template.tradeoff,
-        designedFor,
-        highlights: template.highlights,
-        parts,
-        owned,
-        note,
-        inBudget,
-        templateId: template.id,
-        template,
-        price,
-        score,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-    .filter((item) => item.score > -500)
-    .sort((a, b) => b.score - a.score);
-  return scored.slice(0, 3).sort((a, b) => a.price - b.price);
-}
-
 function alternativeFor(
   catalog: Record<string, ComponentOption[]>,
   parts: Record<string, ComponentOption>,
@@ -1228,7 +1123,8 @@ function BuildDetail({
 }) {
   const store = useStore();
   const catalog = store.componentCatalog;
-  const [parts, setParts] = useState(initial.parts);
+  const [parts, setParts] = useLiveParts(initial.parts);
+  const [currentId, setCurrentId] = useState(savedId);
   const [owned, setOwned] = useState(initial.owned);
   const [name, setName] = useState(initial.name);
   const [customizing, setCustomizing] = useState(startCustomizing);
@@ -1265,40 +1161,54 @@ function BuildDetail({
   }, [store.loggedIn]);
   const priced: Record<string, ComponentOption> = { ...parts };
   owned.forEach((type) => delete priced[type]);
+  const unavailable = Object.keys(priced).filter((type) => isUnavailable(priced[type]));
+  unavailable.forEach((type) => delete priced[type]);
   const componentTotal = sumParts(priced);
   const assembly = store.assemblyCharge || 0;
   const total = componentTotal + assembly;
   const checks = compatibility(parts);
+  const canRequest = checks.valid && checks.complete && unavailable.length === 0;
+  const missing = missingForQuotation(parts);
   const changed = JSON.stringify(parts) !== JSON.stringify(initial.parts);
-  const rows = partOrder.filter((type) => parts[type] || type === "GPU" || owned.includes(type));
+  // While customizing, every slot stays on screen, so a removed part can be added back.
+  const rows = customizing
+    ? partOrder
+    : partOrder.filter((type) => parts[type] || type === "GPU" || owned.includes(type));
   const display = (type: string) =>
     owned.includes(type)
       ? "Already owned"
       : parts[type]?.name ||
-        (type === "GPU" ? "Integrated graphics (built into CPU)" : "Not selected");
+        (type === "GPU" && parts.CPU?.hasIntegratedGraphics
+          ? "Integrated graphics (built into CPU)"
+          : type === "GPU"
+            ? "No graphics card selected"
+            : "Not selected");
+  const storageIsNvme = /nvme/i.test(parts.Storage?.interface || "");
   const why = [
     ...initial.highlights,
-    parts.GPU && parts.CPU
-      ? "Balanced CPU + GPU combination"
-      : "Integrated graphics keeps cost and power low",
-    `Suitable for ${initial.designedFor}`,
-    parts.Storage ? `${parts.Storage.name.split(" ")[0]} fast NVMe storage` : "",
-    parts.Motherboard?.socket === "AM5" || parts.Motherboard?.wifi
-      ? "Upgrade-friendly motherboard"
+    !parts.GPU && parts.CPU?.hasIntegratedGraphics
+      ? "Uses the processor's integrated graphics"
       : "",
+    `Chosen for ${initial.designedFor}`,
+    storageIsNvme ? `${parts.Storage.name.split(" ")[0]} fast NVMe storage` : "",
     parts.Motherboard?.wifi ? "Built-in Wi-Fi" : "",
-    checks.result.find((check) => check.label.startsWith("PSU"))?.state === "ok"
+    checks.result.find((check) => check.label.startsWith("PSU has adequate"))?.state === "ok"
       ? "Adequate power supply"
       : "",
-    checks.valid ? "All parts checked for compatibility" : "",
+    checks.summary.status === "compatible" ? "All parts checked for compatibility" : "",
     !changed && initial.inBudget !== undefined
       ? initial.inBudget
         ? "Fits your selected budget range"
-        : initial.note === SLIGHTLY_ABOVE
-          ? "Slightly above your range for a better-balanced build"
-          : ""
+        : ""
       : "",
   ].filter(Boolean);
+
+  const removePart = (type: string) => {
+    const next = { ...parts };
+    delete next[type];
+    setParts(next);
+    store.notify(`${partLabels[type] || type} removed — estimate recalculated`);
+  };
 
   const swap = (type: string, item: ComponentOption) => {
     setParts({ ...parts, [type]: item });
@@ -1307,8 +1217,9 @@ function BuildDetail({
   };
 
   const createCanonical = (): CanonicalBuild => ({
-    id: savedId || crypto.randomUUID(),
-    userId: store.profile?.id,
+    id: currentId || crypto.randomUUID(),
+    // Only a build that's already saved has a row to update.
+    userId: currentId ? store.profile?.id : undefined,
     name: name.trim() || initial.name,
     mode: "guided",
     currency: "INR",
@@ -1333,6 +1244,7 @@ function BuildDetail({
     setSavingBuild(false);
 
     if (res.success) {
+      setCurrentId(res.id);
       const build = {
         id: res.id,
         name: canonical.name,
@@ -1384,8 +1296,15 @@ function BuildDetail({
   };
 
   const handleRequestQuotation = async () => {
-    if (!checks.valid) {
-      store.notify("Please resolve compatibility issues before requesting a quotation.");
+    if (submittingQuote) return;
+    if (!canRequest) {
+      store.notify(
+        unavailable.length > 0
+          ? `Please replace what's no longer available: ${unavailable.join(", ")}.`
+          : !checks.valid
+            ? "Please resolve compatibility issues before requesting a quotation."
+            : `Still to choose: ${missing.join(", ")}.`,
+      );
       return;
     }
 
@@ -1440,7 +1359,7 @@ function BuildDetail({
 
       setQuoteResult({
         referenceId: res.referenceId,
-        estimatedPrice: res.estimatedPrice ?? total,
+        estimatedPrice: (res.estimatedPrice ?? componentTotal) + assembly,
         parts: summaryParts,
         buildName: name.trim() || initial.name,
       });
@@ -1450,7 +1369,7 @@ function BuildDetail({
             id: res.referenceId!,
             summary: name.trim() || initial.name,
             parts: summaryParts,
-            estimate: total,
+            estimate: (res.estimatedPrice ?? componentTotal) + assembly,
             date: new Date().toISOString(),
             status: "New",
           },
@@ -1473,7 +1392,8 @@ function BuildDetail({
       </button>
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
         <div>
-          {initial.tradeoff && <Badge>{initial.tradeoff.toUpperCase()}</Badge>}
+          {/* A label describes the build as recommended, not one the customer has since changed. */}
+          {initial.tradeoff && !changed && <Badge>{initial.tradeoff.toUpperCase()}</Badge>}
           {customizing ? (
             <input
               aria-label="Build name"
@@ -1488,11 +1408,15 @@ function BuildDetail({
             <span className="text-muted-foreground">Designed for:</span>{" "}
             <strong>{initial.designedFor}</strong>
           </p>
+          {!changed && <RankingEvidence build={initial} />}
           {initial.note && !changed && (
             <p className="mt-3 flex gap-2 rounded-xl bg-secondary px-4 py-3 text-xs text-primary">
               <Info size={15} className="mt-0.5 shrink-0" /> {initial.note}
             </p>
           )}
+          <div className="mt-3">
+            <CatalogWarning />
+          </div>
           <div className="mt-6 flex items-center justify-between">
             <h2 className="text-lg font-bold">Components</h2>
             <button
@@ -1514,9 +1438,7 @@ function BuildDetail({
               return (
                 <div key={type} className="rounded-2xl border border-border bg-white p-4 md:p-5">
                   <div className="flex flex-wrap items-start gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
-                      <Cpu size={20} strokeWidth={1.6} />
-                    </div>
+                    <PartThumb part={part} />
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {partLabels[type] || type}
@@ -1529,7 +1451,18 @@ function BuildDetail({
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      {part && !isOwned && <strong className="text-sm">{money(part.price)}</strong>}
+                      {part && !isOwned && !isUnavailable(part) && (
+                        <strong className="text-sm">{money(part.price)}</strong>
+                      )}
+                      {customizing && part && !isOwned && (
+                        <button
+                          aria-label={`Remove ${partLabels[type] || type}`}
+                          onClick={() => removePart(type)}
+                          className="p-2 text-muted-foreground hover:text-red-600"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                       {customizing && (
                         <Button
                           variant="secondary"
@@ -1563,7 +1496,9 @@ function BuildDetail({
                           </Button>
                         </div>
                       ) : (
-                        <p className="mt-1">IT HUB will suggest an alternative when you enquire.</p>
+                        <p className="mt-1">
+                          Choose Customize This Build to replace it, or message IT HUB.
+                        </p>
                       )}
                     </div>
                   )}
@@ -1571,14 +1506,31 @@ function BuildDetail({
               );
             })}
           </div>
-          {customizing && (
+          {
             <div className="mt-4 rounded-2xl bg-muted p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold">Compatibility check</p>
-                <Badge tone={checks.valid ? "green" : "red"}>
-                  {checks.valid ? "Compatible" : "Needs attention"}
+                <Badge
+                  tone={
+                    !checks.valid
+                      ? "red"
+                      : checks.summary.status === "compatible"
+                        ? "green"
+                        : "amber"
+                  }
+                >
+                  {!checks.valid
+                    ? "Needs attention"
+                    : checks.summary.status === "compatible"
+                      ? "Compatible"
+                      : "Needs checking"}
                 </Badge>
               </div>
+              {checks.summary.items.some((item) => item.status === "unknown") && (
+                <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  {UNVERIFIED_NOTICE} IT HUB will check these before confirming your quotation.
+                </p>
+              )}
               <div className="mt-3 space-y-1.5">
                 {checks.result.map((check, index) => (
                   <p
@@ -1602,14 +1554,16 @@ function BuildDetail({
                   </p>
                 ))}
               </div>
-              <button
-                onClick={() => onExpert(parts, name)}
-                className="mt-4 flex items-center gap-2 text-xs font-semibold text-primary"
-              >
-                <Wrench size={13} /> Open in Expert Mode
-              </button>
+              {customizing && (
+                <button
+                  onClick={() => onExpert(parts, name)}
+                  className="mt-4 flex items-center gap-2 text-xs font-semibold text-primary"
+                >
+                  <Wrench size={13} /> Open in Expert Mode
+                </button>
+              )}
             </div>
-          )}
+          }
           <div className="mt-8 rounded-2xl border border-border p-5 md:p-6">
             <h2 className="text-lg font-bold">Why we recommend this build</h2>
             <ul className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1678,7 +1632,7 @@ function BuildDetail({
                 <div className="mt-2.5 flex items-center gap-2">
                   <Button
                     size="sm"
-                    disabled={!checks.valid || submittingQuote}
+                    disabled={!canRequest || submittingQuote}
                     onClick={async () => {
                       setPendingRestored(false);
                       clearPendingQuotation();
@@ -1702,29 +1656,33 @@ function BuildDetail({
             )}
             <div className="mt-6 grid gap-3">
               <p className="text-sm font-bold">Request Official Quotation</p>
-              <Button disabled={!checks.valid || submittingQuote} onClick={handleRequestQuotation}>
+              <Button disabled={!canRequest || submittingQuote} onClick={handleRequestQuotation}>
                 {submittingQuote ? "Submitting Request…" : "Request IT HUB Quotation"}{" "}
                 <CheckCircle2 size={15} />
               </Button>
               <button
                 onClick={enquire}
-                disabled={!checks.valid}
+                disabled={!canRequest}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
               >
                 <WhatsAppIcon size={18} /> Continue on WhatsApp
               </button>
-              <Button variant="secondary" onClick={save} disabled={!checks.valid || savingBuild}>
+              <Button variant="secondary" onClick={save} disabled={!canRequest || savingBuild}>
                 <Save size={15} />{" "}
-                {savingBuild ? "Saving to Account…" : savedId ? "Save Changes" : "Save Build"}
+                {savingBuild ? "Saving to Account…" : currentId ? "Save Changes" : "Save Build"}
               </Button>
               {!customizing && (
                 <Button variant="secondary" onClick={() => onExpert(parts, name)}>
                   <SlidersHorizontal size={15} /> Customize in Expert Mode
                 </Button>
               )}
-              {!checks.valid && (
+              {!canRequest && (
                 <p className="text-[11px] text-red-600">
-                  Resolve compatibility issues to continue.
+                  {unavailable.length > 0
+                    ? `Replace what's no longer available: ${unavailable.join(", ")}.`
+                    : !checks.valid
+                      ? "Resolve compatibility issues to continue."
+                      : `Still to choose: ${missing.join(", ")}.`}
                 </p>
               )}
             </div>
@@ -1811,10 +1769,10 @@ function BuildDetail({
         open={Boolean(selection)}
         onOpenChange={(open) => !open && setSelection("")}
         title={`Change ${(partLabels[selection] || selection).toLowerCase()}`}
-        description="Every option is checked against the rest of your build. The estimate updates instantly."
+        description="Each option is checked against the rest of your build, as far as its specifications allow."
       >
         <div className="space-y-3">
-          {selection === "GPU" && parts.GPU && parts.CPU && /graphics/i.test(parts.CPU.name) && (
+          {selection === "GPU" && parts.GPU && parts.CPU?.hasIntegratedGraphics && (
             <button
               className="flex w-full items-center justify-between rounded-xl border border-border p-4 text-left text-sm hover:bg-secondary"
               onClick={() => {
@@ -1829,20 +1787,11 @@ function BuildDetail({
           )}
           {(() => {
             const slotItems = catalog[selection] || [];
-            if (slotItems.length === 0) {
-              return (
-                <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                  <PackageX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm font-medium text-foreground">
-                    No matching products are currently available. Please contact IT HUB for
-                    assistance.
-                  </p>
-                </div>
-              );
-            }
+            if (slotItems.length === 0) return <EmptyCatalog />;
             return slotItems.map((item) => {
               const check = compatibility({ ...parts, [selection]: item });
               const issue = check.result.find((row) => row.state === "error");
+              const unverifiedCheck = check.summary.items.find((row) => row.status === "unknown");
               const current = parts[selection];
               const diff =
                 current && !owned.includes(selection) ? item.price - current.price : item.price;
@@ -1870,7 +1819,11 @@ function BuildDetail({
                           ? issue.label
                           : item.stock === 0
                             ? "Currently unavailable"
-                            : "Compatible with this build"}
+                            : item.isVerified === false
+                              ? "Specifications unverified"
+                              : unverifiedCheck
+                                ? `Needs checking: ${unverifiedCheck.label}`
+                                : "Compatible with this build"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -1929,7 +1882,8 @@ function SmartBuilder() {
             .map((b) => ({
               id: b.id,
               name: b.name,
-              parts: b.components as any,
+              // Saved in the engine's model. An empty catalogue converts without judging availability.
+              parts: reconcileBuildParts(b.components, {}).parts,
               price: Object.values(b.components).reduce((sum, c) => sum + (c?.price || 0), 0),
               designedFor: b.designedFor,
               templateId: b.templateId,
@@ -1948,16 +1902,33 @@ function SmartBuilder() {
   }, [store.products.length, store.catalogLoading]);
 
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next });
-  const templates = store.buildTemplates.length ? store.buildTemplates : initialBuildTemplates;
   const budget = resolvedBudget(answers);
-  const recommendations =
-    step === 2
-      ? generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget)
-      : [];
-  const shortfallInfo =
-    step === 2 && recommendations.length === 0
-      ? getBudgetShortfallInfo(store.componentCatalog, answers, budget)
-      : null;
+  // Builds that pass every check come first. Only when there are none, because the catalogue doesn't
+  // state enough, are builds offered that IT HUB has to check, and each one says so.
+  const { recommendations, shortfallInfo } = useMemo(() => {
+    if (step !== 2) return { recommendations: [], shortfallInfo: null };
+    const confirmed = generateDynamicCatalogRecommendations(
+      store.componentCatalog,
+      answers,
+      budget,
+    );
+    const builds =
+      confirmed.length > 0
+        ? confirmed
+        : generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget, {
+            allowUnverified: true,
+          });
+    return {
+      recommendations: builds,
+      shortfallInfo:
+        builds.length > 0
+          ? null
+          : (getBudgetShortfallInfo(store.componentCatalog, answers, budget) ??
+            getBudgetShortfallInfo(store.componentCatalog, answers, budget, {
+              allowUnverified: true,
+            })),
+    };
+  }, [step, store.componentCatalog, answers, budget?.min, budget?.max]);
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
   const missingSlots = essentialSlots.filter(
     (slot) =>
@@ -1966,7 +1937,7 @@ function SmartBuilder() {
   );
   const purposeInfo = purposes.find((item) => item.id === answers.purpose);
   const basedOn = [
-    answers.purpose === "custom" ? "Custom use" : purposeInfo?.title,
+    purposeInfo?.title,
     ...Object.values(answers.details).filter((value) => value && value !== "Not sure"),
     budget?.label,
   ]
@@ -2043,11 +2014,11 @@ function SmartBuilder() {
             },
             {
               title: "Set your overall budget",
-              text: "One number for the complete PC — not per part.",
+              text: "Pick a range for the complete PC — not per part.",
             },
             {
               title: "Get matched builds",
-              text: "Compatible configurations with clear estimated pricing.",
+              text: "Configurations from live products, with clear estimated pricing.",
             },
           ].map((item, index) => (
             <div key={item.title} className="rounded-2xl border border-border p-6">
@@ -2076,7 +2047,13 @@ function SmartBuilder() {
                 >
                   <div>
                     <h3 className="text-xs font-bold text-foreground line-clamp-1">{b.name}</h3>
-                    <p className="text-xs text-primary font-bold mt-1">{money(b.price)}</p>
+                    <p className="text-xs text-primary font-bold mt-1">
+                      {money(
+                        Object.values(
+                          reconcileBuildParts(b.parts, store.componentCatalog).parts,
+                        ).reduce((sum, part) => sum + (isUnavailable(part) ? 0 : part.price), 0),
+                      )}
+                    </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {Object.keys(b.parts || {}).length} components selected
                     </p>
@@ -2125,8 +2102,7 @@ function SmartBuilder() {
       </Page>
     );
 
-  const purposeReady =
-    answers.purpose && (answers.purpose !== "custom" || answers.customText.trim().length > 2);
+  const purposeReady = Boolean(answers.purpose);
   return (
     <Page>
       <button
@@ -2174,18 +2150,38 @@ function SmartBuilder() {
               );
             })}
           </div>
-          {answers.purpose === "custom" && (
-            <label className="mt-8 block text-sm font-semibold">
-              Describe your use case
-              <textarea
-                value={answers.customText}
-                onChange={(event) => update({ customText: event.target.value })}
-                rows={3}
-                placeholder="e.g. I need a PC for Blender and Unreal Engine."
-                className="mt-3 w-full rounded-xl border border-border p-4 text-sm font-normal focus:border-primary focus:outline-none"
-              />
-            </label>
-          )}
+          {answers.purpose &&
+            followUps[answers.purpose].map(({ key, question, options }) => (
+              <fieldset key={key} className="mt-8">
+                <legend className="text-sm font-bold">
+                  {question} <span className="font-normal text-muted-foreground">(optional)</span>
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {options.map((option) => {
+                    const active = answers.details[key] === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          update({
+                            details: { ...answers.details, [key]: active ? "" : option },
+                          })
+                        }
+                        className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          active
+                            ? "border-primary bg-secondary text-primary"
+                            : "border-border bg-white hover:border-primary"
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
           <div className="mt-10">
             <Button disabled={!purposeReady} onClick={() => go(1)}>
               Continue <ArrowRight size={15} />
@@ -2200,8 +2196,7 @@ function SmartBuilder() {
             What's your overall PC budget?
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            The complete PC build budget — not individual parts. We treat it as a guide, not a hard
-            limit.
+            The complete PC build budget — not individual parts.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {budgets.map((band) => {
@@ -2218,44 +2213,9 @@ function SmartBuilder() {
                   }`}
                 >
                   <span className="block text-lg font-bold">{band.label}</span>
-                  <span
-                    className={`mt-1 block text-sm ${
-                      active ? "text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    {band.tier}
-                  </span>
                 </button>
               );
             })}
-            <div
-              className={`rounded-2xl border p-5 transition ${
-                answers.budgetId === "custom"
-                  ? "border-primary bg-secondary"
-                  : "border-border bg-white"
-              }`}
-            >
-              <label className="block text-lg font-bold" htmlFor="custom-budget">
-                Custom Budget
-              </label>
-              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-white px-3 focus-within:border-primary">
-                <span className="text-sm font-semibold">₹</span>
-                <input
-                  id="custom-budget"
-                  inputMode="numeric"
-                  value={answers.customBudget}
-                  onFocus={() => update({ budgetId: "custom" })}
-                  onChange={(event) =>
-                    update({
-                      budgetId: "custom",
-                      customBudget: event.target.value.replace(/[^0-9]/g, ""),
-                    })
-                  }
-                  placeholder="75000"
-                  className="w-full bg-transparent py-2.5 text-sm outline-none"
-                />
-              </div>
-            </div>
           </div>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <Button disabled={!budget} onClick={() => go(2)}>
@@ -2274,7 +2234,15 @@ function SmartBuilder() {
           <p className="mt-2 text-sm text-muted-foreground">
             Based on: <strong className="text-foreground">{basedOn}</strong>
           </p>
-          {recommendations.length ? (
+          <p className="mt-1 text-xs text-muted-foreground">{RANKING_BASIS}</p>
+          <div className="mt-6">
+            <CatalogWarning />
+          </div>
+          {store.catalogLoading && recommendations.length === 0 ? (
+            <div className="mt-8 rounded-3xl bg-muted p-8 text-center">
+              <p className="text-sm font-medium text-muted-foreground">Loading live products…</p>
+            </div>
+          ) : recommendations.length ? (
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
               {recommendations.map((build, index) => {
                 const unavailable = Object.values(build.parts).some(
@@ -2294,17 +2262,24 @@ function SmartBuilder() {
                         {build.confidenceBadge === "certified" && (
                           <span
                             className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
-                            title="All component specifications verified against official manufacturer datasheets."
+                            title="Every component's specifications are on IT HUB's specification list, and every check passed."
                           >
-                            <CheckCircle2 size={11} className="text-emerald-600" /> Certified
+                            <CheckCircle2 size={11} className="text-emerald-600" /> Specs Confirmed
                           </span>
                         )}
                         {build.confidenceBadge === "high" && (
                           <span
                             className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-                            title="Core components verified against manufacturer specifications."
+                            title="Core components have stated specifications. IT HUB confirms the rest."
                           >
-                            <AlertTriangle size={11} className="text-amber-600" /> High Confidence
+                            <AlertTriangle size={11} className="text-amber-600" /> Some Specs
+                            Unconfirmed
+                          </span>
+                        )}
+                        {build.requiresReview && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            <AlertTriangle size={11} className="text-amber-600" /> Needs IT HUB
+                            review
                           </span>
                         )}
                       </div>
@@ -2313,6 +2288,7 @@ function SmartBuilder() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       Designed for {build.designedFor}
                     </p>
+                    <RankingEvidence build={build} compact />
                     <ul className="mt-5 space-y-2 text-sm">
                       {["CPU", "GPU", "RAM", "Storage"].map((type) => (
                         <li key={type} className="flex gap-2">
@@ -2323,7 +2299,9 @@ function SmartBuilder() {
                             {build.owned.includes(type)
                               ? "Already owned"
                               : build.parts[type]?.name ||
-                                (type === "GPU" ? "Integrated graphics" : "—")}
+                                (type === "GPU" && build.parts.CPU?.hasIntegratedGraphics
+                                  ? "Integrated graphics"
+                                  : "—")}
                           </span>
                         </li>
                       ))}
@@ -2335,6 +2313,11 @@ function SmartBuilder() {
                       </p>
                       {build.note && (
                         <p className="mt-2 text-xs leading-5 text-muted-foreground">{build.note}</p>
+                      )}
+                      {build.requiresReview && (
+                        <p className="mt-2 text-xs leading-5 text-amber-800">
+                          {UNVERIFIED_NOTICE} IT HUB will check this build before confirming it.
+                        </p>
                       )}
                       {unavailable && (
                         <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
@@ -2385,10 +2368,10 @@ function SmartBuilder() {
                 <SlidersHorizontal size={22} />
               </div>
               <h2 className="text-xl font-bold">
-                No complete compatible PC found within {budget?.label || "selected budget"}
+                No complete PC found within {budget?.label || "selected budget"}
               </h2>
               <p className="mt-2 text-sm text-slate-700 max-w-xl mx-auto">
-                The closest complete compatible configuration available in our live store starts at{" "}
+                The closest complete configuration available in our live store starts at{" "}
                 <strong className="text-foreground">
                   {money(shortfallInfo.closestBuild.price)}
                 </strong>{" "}

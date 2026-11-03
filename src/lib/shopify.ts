@@ -391,6 +391,20 @@ const PRODUCTS_QUERY = `
               { namespace: "pc_builder", key: "storage_interface" }
               { namespace: "pc_builder", key: "wifi" }
               { namespace: "pc_builder", key: "bios_update_required" }
+              { namespace: "pc_builder", key: "form_factor" }
+              { namespace: "pc_builder", key: "ram_slots" }
+              { namespace: "pc_builder", key: "max_ram_gb" }
+              { namespace: "pc_builder", key: "m2_slots" }
+              { namespace: "pc_builder", key: "sata_ports" }
+              { namespace: "pc_builder", key: "ram_capacity_gb" }
+              { namespace: "pc_builder", key: "ram_modules" }
+              { namespace: "pc_builder", key: "supported_motherboards" }
+              { namespace: "pc_builder", key: "max_cooler_height_mm" }
+              { namespace: "pc_builder", key: "cooler_height_mm" }
+              { namespace: "pc_builder", key: "supported_sockets" }
+              { namespace: "pc_builder", key: "pcie_connectors" }
+              { namespace: "pc_builder", key: "integrated_graphics" }
+              { namespace: "pc_builder", key: "includes_cooler" }
             ]
           ) {
             namespace
@@ -549,6 +563,59 @@ export async function fetchShopifyCatalog(
 
   inFlightCatalogRequests.set(cacheKey, requestPromise);
   return requestPromise;
+}
+
+const CATALOG_PAGE_SIZE = 100;
+const MAX_CATALOG_PAGES = 50;
+
+/**
+ * Fetches the whole catalog, newest first, so a product published in Shopify is never cut off and
+ * appears ahead of older ones. If any page fails, the whole result is an error, so callers keep
+ * their last good catalog instead of showing part of it.
+ */
+export async function fetchAllShopifyProducts(
+  options: { force?: boolean } = {},
+): Promise<ShopifyCatalogResult> {
+  const failed = (error: string): ShopifyCatalogResult => ({
+    products: [],
+    hasNextPage: false,
+    isLive: false,
+    error,
+  });
+
+  const products: Product[] = [];
+  const seenIds = new Set<string>();
+  let after: string | undefined;
+
+  for (let page = 0; page < MAX_CATALOG_PAGES; page++) {
+    const result = await fetchShopifyCatalog({
+      first: CATALOG_PAGE_SIZE,
+      after,
+      sortKey: "CREATED_AT",
+      reverse: true,
+      force: options.force,
+    });
+    if (result.error || !result.isLive) {
+      return failed(result.error || "Failed to load products from Shopify.");
+    }
+
+    // A product published during paging can move another one onto the next page.
+    for (const product of result.products) {
+      if (seenIds.has(product.id)) continue;
+      seenIds.add(product.id);
+      products.push(product);
+    }
+
+    if (!result.hasNextPage) {
+      return { products, hasNextPage: false, isLive: true };
+    }
+    if (!result.endCursor) {
+      return failed("Shopify reported more products but gave no way to fetch them.");
+    }
+    after = result.endCursor;
+  }
+
+  return failed(`The Shopify catalog is larger than ${MAX_CATALOG_PAGES} pages.`);
 }
 
 /**

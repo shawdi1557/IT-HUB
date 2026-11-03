@@ -96,7 +96,7 @@ function mapDatabaseProduct(row: DatabaseProductRow): Product {
 
   let tag: string | undefined;
   if (row.second_hand) {
-    tag = "Certified Pre-Owned";
+    tag = "Pre-Owned";
   } else if (
     row.sale_price !== null &&
     row.sale_price !== undefined &&
@@ -223,7 +223,7 @@ Deno.test("CAT-1. mapDatabaseProduct maps brand, category, MRP, and effective pr
   assertEquals(product.stock, 2);
   assertEquals(product.lowStockThreshold, 1);
   assertEquals(product.secondHand, true);
-  assertEquals(product.tag, "Certified Pre-Owned");
+  assertEquals(product.tag, "Pre-Owned");
   assertEquals(product.condition, "Like New");
   assertEquals(product.specs.Processor, "M1");
 });

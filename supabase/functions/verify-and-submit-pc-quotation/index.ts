@@ -6,6 +6,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+
 export interface QuotationVerificationDeps {
   supabaseClient?: any;
   shopifyFetch?: (query: string, variables?: any) => Promise<any>;
@@ -96,6 +98,7 @@ export async function handleQuotationVerification(
     }
 
     let userId: string | null = null;
+    let verifiedPhone: string | null = null;
     if (supabase) {
       try {
         const { data: userData, error: userErr } = await supabase.auth.getUser(token);
@@ -117,6 +120,7 @@ export async function handleQuotationVerification(
           );
         }
         userId = userData.user.id;
+        verifiedPhone = userData.user.phone || null;
       } catch {
         return new Response(
           JSON.stringify({
@@ -191,11 +195,13 @@ export async function handleQuotationVerification(
       }
     }
 
-    // 4. Extract Variant GIDs & Recalculate Authoritative Pricing
-    const partsArray = Array.isArray(parts) ? parts : Object.values(parts);
+    // 4. Extract Variant GIDs & Recalculate Authoritative Pricing. A part the customer already owns
+    // is recorded for the technician, but isn't sold, so it isn't priced.
+    const allParts = (Array.isArray(parts) ? parts : Object.values(parts)).filter(Boolean) as any[];
+    const partsArray = allParts.filter((part) => !part.owned);
     const variantGids: string[] = [];
-    for (const part of partsArray as any[]) {
-      if (part && part.variantId) {
+    for (const part of partsArray) {
+      if (part.variantId) {
         variantGids.push(part.variantId);
       }
     }
@@ -209,6 +215,7 @@ export async function handleQuotationVerification(
     const shopifyApiVersion = Deno.env.get("VITE_SHOPIFY_API_VERSION") || "2025-10";
     // A part with no variant can't be priced by Shopify, so the total can't be verified.
     const everyPartHasVariant = partsArray.length > 0 && variantGids.length === partsArray.length;
+    const unavailableParts: string[] = [];
 
     if (everyPartHasVariant && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
       const query = `
@@ -216,6 +223,10 @@ export async function handleQuotationVerification(
           nodes(ids: $ids) {
             ... on ProductVariant {
               id
+              title
+              product {
+                title
+              }
               price {
                 amount
                 currencyCode
@@ -246,10 +257,21 @@ export async function handleQuotationVerification(
         const shopifyData = await fetcher(query, { ids: variantGids });
         if (shopifyData?.data?.nodes && Array.isArray(shopifyData.data.nodes)) {
           let foundNodes = 0;
-          for (const node of shopifyData.data.nodes) {
+          for (const [index, node] of shopifyData.data.nodes.entries()) {
             if (node && node.price?.amount) {
-              authoritativePrice += Math.round(parseFloat(node.price.amount));
+              const price = Math.round(parseFloat(node.price.amount));
+              authoritativePrice += price;
               foundNodes++;
+              // What's stored is what Shopify says, whatever name and price the browser sent.
+              const part = partsArray[index];
+              part.price = price;
+              if (node.product?.title) {
+                part.title = node.product.title;
+                part.name = node.product.title;
+              }
+              if (node.availableForSale === false) {
+                unavailableParts.push(part.slot || part.title || "A component");
+              }
             }
           }
           if (foundNodes === variantGids.length && variantGids.length > 0) {
@@ -261,11 +283,73 @@ export async function handleQuotationVerification(
       }
     }
 
+    if (unavailableParts.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `No longer available: ${unavailableParts.join(", ")}. Please replace it and try again.`,
+          unavailableParts,
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // A second click or a retry returns the request already made, instead of filing another one.
+    const buildKey = JSON.stringify(allParts.map((part) => part.variantId || part.title).sort());
+    if (supabase) {
+      try {
+        const { data: recent } = await supabase
+          .from("pc_builds")
+          .select(
+            "id, reference_id, parts, estimated_price, authoritative_price, technician_review_required",
+          )
+          .eq("user_id", userId)
+          .eq("enquiry_status", "New")
+          .gte("created_at", new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString());
+        const duplicate = (recent || []).find((row: any) => {
+          const stored = (
+            Array.isArray(row.parts) ? row.parts : Object.values(row.parts || {})
+          ) as any[];
+          return (
+            row.reference_id &&
+            JSON.stringify(
+              stored
+                .filter(Boolean)
+                .map((part) => part.variantId || part.title)
+                .sort(),
+            ) === buildKey
+          );
+        });
+        if (duplicate) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              duplicate: true,
+              referenceId: duplicate.reference_id,
+              buildId: duplicate.id,
+              authoritativePrice: duplicate.authoritative_price ?? null,
+              clientEstimatedPrice: duplicate.estimated_price,
+              priceDivergence: 0,
+              technicianReviewRequired: Boolean(duplicate.technician_review_required),
+              userId,
+              isGuest: false,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } catch {
+        // The duplicate check is a courtesy. The rate limit above still applies.
+      }
+    }
+
     // 5. Anti-Tampering & Price Divergence Audit. Client-supplied prices are never authoritative,
     // so an unverified quotation records no authoritative price at all.
     const clientPrice = Math.round(Number(estimatedPrice) || 0);
     const priceDivergence = hasAuthoritativeLookup ? Math.abs(authoritativePrice - clientPrice) : 0;
-    const technicianReviewRequired = priceDivergence > 100 || !hasAuthoritativeLookup;
+    // The compatibility result comes from the browser, so it can only add a reason to review. A
+    // missing result counts as unconfirmed.
+    const technicianReviewRequired =
+      priceDivergence > 100 || !hasAuthoritativeLookup || compatibility?.status !== "compatible";
 
     // 6. Generate Authoritative Reference ID
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -279,16 +363,17 @@ export async function handleQuotationVerification(
         .from("pc_builds")
         .insert({
           user_id: userId,
-          name: buildName,
+          name: String(buildName).slice(0, 120),
           reference_id: referenceId,
           parts,
           estimated_price: hasAuthoritativeLookup ? authoritativePrice : clientPrice,
           authoritative_price: hasAuthoritativeLookup ? authoritativePrice : null,
           price_divergence: priceDivergence,
           technician_review_required: technicianReviewRequired,
-          compatibility,
+          // Worked out in the customer's browser, so it's a note for the technician, not a finding.
+          compatibility: { ...compatibility, reportedBy: "customer_browser" },
           customer_name: customerInfo.name?.trim() || null,
-          customer_phone: customerInfo.phone?.trim() || null,
+          customer_phone: verifiedPhone || customerInfo.phone?.trim() || null,
           customer_email: customerInfo.email?.trim() || null,
           enquiry_status: "New",
         })

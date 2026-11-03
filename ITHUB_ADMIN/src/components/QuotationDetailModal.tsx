@@ -73,6 +73,8 @@ export function QuotationDetailModal({ quotation, onClose, onUpdated }: Quotatio
 
   const divergence = Math.round(Number(quotation.price_divergence) || 0);
   const reviewFlagged = quotation.technician_review_required || divergence > 100;
+  const compatibilityStatus = quotation.compatibility?.status;
+  const compatibilityUnconfirmed = compatibilityStatus !== "compatible";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-0 sm:p-4 overflow-y-auto">
@@ -127,12 +129,29 @@ export function QuotationDetailModal({ quotation, onClose, onUpdated }: Quotatio
             <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
               <AlertTriangle size={18} className="shrink-0 text-amber-600 mt-0.5" />
               <div>
-                <p className="font-bold">Technician Price Review Required</p>
-                <p className="mt-0.5">
-                  Server-side price verification detected a divergence of{" "}
-                  {formatCurrency(divergence)} between the customer estimate and authoritative live
-                  Shopify pricing. Please audit component rates before finalizing the formal quote.
-                </p>
+                <p className="font-bold">Technician Review Required</p>
+                {divergence > 100 && (
+                  <p className="mt-0.5">
+                    Server-side price verification detected a divergence of{" "}
+                    {formatCurrency(divergence)} between the customer estimate and authoritative
+                    live Shopify pricing. Please audit component rates before finalizing the formal
+                    quote.
+                  </p>
+                )}
+                {!quotation.authoritative_price && (
+                  <p className="mt-0.5">
+                    Live Shopify pricing couldn't be verified for this request. Please check
+                    component rates before finalizing the formal quote.
+                  </p>
+                )}
+                {compatibilityUnconfirmed && (
+                  <p className="mt-0.5">
+                    Compatibility isn't confirmed
+                    {compatibilityStatus ? ` (reported as "${compatibilityStatus}")` : ""}. This
+                    result comes from the customer's browser. Please check the components fit
+                    together before finalizing the formal quote.
+                  </p>
+                )}
               </div>
             </div>
           )}

@@ -207,6 +207,20 @@ export function resolveProductCondition(
 }
 
 /**
+ * Whether Shopify states a device's grade. A tag like "Used" says it's pre-owned, not what state
+ * it's in, so a grade is only shown to customers when this is true.
+ */
+export function isConditionGradeStated(
+  tags: string[],
+  metafields?: Array<ShopifyMetafield | null | undefined>,
+): boolean {
+  const statements = [getMetafield(metafields, "custom", "condition") || "", ...tags];
+  return statements.some((text) =>
+    /\b(?:like new|good|fair|for parts)\b/.test(text.toLowerCase().replace(/[-_]/g, " ")),
+  );
+}
+
+/**
  * Resolves product category, preserving taxonomy category, productType, and collections distinctly.
  * - Authoritative category: Shopify Standard Product Taxonomy (category.name).
  *   If ancestors are present, builds a full hierarchical name (e.g. "Smart Phones in Mobile & Smart Phones").
@@ -556,12 +570,8 @@ export function mapShopifyProductToCatalog(
   const condition = resolveProductCondition(node.tags, node.metafields);
   const isSecondHand = condition !== "New";
 
-  // Warranty resolution
-  const warrantyMeta =
-    getMetafield(node.metafields, "custom", "warranty_summary") ||
-    (condition === "New"
-      ? "1-Year Official Manufacturer Warranty"
-      : "90-Day IT HUB Testing Warranty");
+  // Only warranty information stated in Shopify. A missing value stays missing.
+  const warrantyMeta = getMetafield(node.metafields, "custom", "warranty_summary") || undefined;
 
   // Collect all unique product imagery from Shopify (variants, featured, and gallery edges)
   const rawImageUrls: string[] = [];
@@ -638,7 +648,7 @@ export function mapShopifyProductToCatalog(
     image: primaryImage,
     images: productImages,
     stock: variantNode?.quantityAvailable ?? (isAvailable ? 10 : 0),
-    rating: 4.8, // Baseline verified store rating
+    rating: 0, // Product ratings aren't implemented, so none is claimed
     specs,
     sku: variantNode?.sku || undefined,
     description: node.description || undefined,
@@ -646,6 +656,7 @@ export function mapShopifyProductToCatalog(
     warranty: warrantyMeta,
     secondHand: isSecondHand,
     condition,
+    conditionStated: isConditionGradeStated(node.tags, node.metafields),
     tag: compareAtPrice > sellingPrice ? "Deal" : undefined,
     status: "Active",
     handle: node.handle,

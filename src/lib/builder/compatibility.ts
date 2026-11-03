@@ -12,6 +12,8 @@ import type {
 } from "./types";
 
 export interface CheckCompatibilityOptions {
+  /** The customer already has a graphics card, so one isn't missing from this build. */
+  ownsGpu?: boolean;
   workload?: "gaming" | "creation" | "work" | "general";
   budgetInr?: number;
   mode?: "automated" | "manual";
@@ -29,13 +31,18 @@ export function calculateSystemPower(
   recommendedPsuWatts: number;
   powerHeadroomWatts: number;
   powerHeadroomStatus: "adequate" | "limited" | "deficit" | "unknown";
+  /** True when a CPU or GPU power draw isn't known, so the estimate rests on a typical value. */
+  usesAssumedPower: boolean;
 } {
   const cpu = components.CPU?.specs;
   const gpu = components.GPU?.specs;
   const psu = components.PSU?.specs;
 
   const cpuWatts = cpu?.tdpWatts || (components.CPU ? 65 : 0);
-  const gpuWatts = gpu?.powerWatts || (components.GPU ? 150 : 0);
+  const gpuWatts = gpu?.powerWatts || gpu?.tdpWatts || (components.GPU ? 150 : 0);
+  const usesAssumedPower =
+    Boolean(components.CPU && !cpu?.tdpWatts) ||
+    Boolean(components.GPU && !gpu?.powerWatts && !gpu?.tdpWatts);
   const platformBaseWatts = Object.keys(components).length > 0 ? 80 : 0;
 
   const estimatedSystemLoadWatts = cpuWatts + gpuWatts + platformBaseWatts;
@@ -54,6 +61,7 @@ export function calculateSystemPower(
       recommendedPsuWatts,
       powerHeadroomWatts: 0,
       powerHeadroomStatus: "unknown",
+      usesAssumedPower,
     };
   }
 
@@ -71,7 +79,17 @@ export function calculateSystemPower(
     recommendedPsuWatts,
     powerHeadroomWatts,
     powerHeadroomStatus,
+    usesAssumedPower,
   };
+}
+
+/** Compares motherboard sizes whichever way a supplier spells them. */
+function normalizeFormFactor(value: string): string {
+  const compact = value.toUpperCase().replace(/[\s_-]/g, "");
+  if (compact === "MATX" || compact === "MICROATX" || compact === "UATX") return "MICRO-ATX";
+  if (compact === "ITX" || compact === "MINIITX") return "MINI-ITX";
+  if (compact === "EATX") return "E-ATX";
+  return compact;
 }
 
 /**
@@ -144,9 +162,8 @@ export function checkCompatibility(
           status: "conditional",
           affectedSlots: ["CPU", "Motherboard"],
           label: "Motherboard BIOS update may be required",
-          explanation: `This motherboard requires an updated BIOS version to boot with ${cpu.title}. IT HUB provides free BIOS flashing during system assembly.`,
-          suggestedResolution:
-            "IT HUB technicians will flash the latest stable BIOS before dispatch.",
+          explanation: `This motherboard may need an updated BIOS version to boot with ${cpu.title}.`,
+          suggestedResolution: "Confirm the BIOS version with IT HUB before ordering.",
         });
       } else {
         items.push({
@@ -212,6 +229,75 @@ export function checkCompatibility(
           explanation: `Both motherboard and memory modules utilize the ${ramGen} standard.`,
         });
       }
+
+      // RAM capacity and slot limits
+      const moduleCount = ram.specs.moduleCount;
+      const capacityGb = ram.specs.capacityGb;
+      const ramSlots = mobo.specs.ramSlots;
+      const maxRamGb = mobo.specs.maxRamCapacityGb;
+
+      if (moduleCount && ramSlots && moduleCount > ramSlots) {
+        items.push({
+          ruleId: "RULE_B_RAM_SLOTS_EXCEEDED",
+          severity: "error",
+          status: "incompatible",
+          affectedSlots: ["Motherboard", "RAM"],
+          label: "More memory modules than motherboard slots",
+          explanation: `${ram.title} has ${moduleCount} modules, but ${mobo.title} has ${ramSlots} memory slots.`,
+          suggestedResolution: `Choose a kit with no more than ${ramSlots} modules.`,
+        });
+      }
+      if (capacityGb && maxRamGb && capacityGb > maxRamGb) {
+        items.push({
+          ruleId: "RULE_B_RAM_CAPACITY_EXCEEDED",
+          severity: "error",
+          status: "incompatible",
+          affectedSlots: ["Motherboard", "RAM"],
+          label: "Memory capacity above the motherboard limit",
+          explanation: `${ram.title} totals ${capacityGb}GB, but ${mobo.title} supports up to ${maxRamGb}GB.`,
+          suggestedResolution: `Choose a kit of ${maxRamGb}GB or less.`,
+        });
+      }
+      if (!moduleCount || !capacityGb || !ramSlots || !maxRamGb) {
+        items.push({
+          ruleId: "RULE_B_RAM_LIMITS_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
+          affectedSlots: ["Motherboard", "RAM"],
+          label: "Memory slot and capacity limits unverified",
+          explanation:
+            "Unable to compare the memory kit against the motherboard's slots and maximum capacity.",
+          suggestedResolution: "IT HUB will confirm the memory configuration.",
+        });
+      } else if (moduleCount <= ramSlots && capacityGb <= maxRamGb) {
+        items.push({
+          ruleId: "RULE_B_RAM_LIMITS_OK",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["Motherboard", "RAM"],
+          label: `Memory fits the motherboard (${capacityGb}GB, ${moduleCount} of ${ramSlots} slots)`,
+          explanation: "The kit is within the motherboard's slot count and maximum capacity.",
+        });
+      }
+    }
+
+    // The processor's own memory support can rule a kit out, whichever motherboard is chosen.
+    const ramGeneration = ram.specs.ramGeneration?.toUpperCase().trim();
+    const cpuRamGenerations = (cpu?.specs.supportedRamGen || []).map((g) => g.toUpperCase().trim());
+    if (
+      ramGeneration &&
+      cpuRamGenerations.length > 0 &&
+      !cpuRamGenerations.includes(ramGeneration)
+    ) {
+      items.push({
+        ruleId: "RULE_B_CPU_RAM_MISMATCH",
+        severity: "error",
+        status: "incompatible",
+        affectedSlots: ["CPU", "RAM"],
+        label: `Processor doesn't support ${ramGeneration}`,
+        explanation: `${cpu?.title} supports ${cpuRamGenerations.join(" and ")} memory, but ${ram.title} is ${ramGeneration}.`,
+        suggestedResolution: `Choose ${cpuRamGenerations.join(" or ")} memory.`,
+      });
     }
   }
 
@@ -222,7 +308,17 @@ export function checkCompatibility(
     const hasCooler = Boolean(cooler);
     const includesStock = Boolean(cpu.specs.includesCooler);
 
-    if (!hasCooler && !includesStock) {
+    if (!hasCooler && cpu.specs.includesCooler === undefined) {
+      items.push({
+        ruleId: "RULE_C_STOCK_COOLER_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["CPU", "Cooler"],
+        label: "Bundled CPU cooler unverified",
+        explanation: `Unable to confirm whether ${cpu.title} includes a cooler.`,
+        suggestedResolution: "Add a CPU cooler, or confirm with IT HUB that one is included.",
+      });
+    } else if (!hasCooler && !includesStock) {
       items.push({
         ruleId: "RULE_C_COOLER_REQUIRED",
         severity: "warning",
@@ -235,13 +331,32 @@ export function checkCompatibility(
       });
     }
 
-    if (cooler && cpu.specs.socket) {
+    if (cooler) {
       const coolerSockets = (cooler.specs.supportedSockets || []).map((s) =>
         s.toUpperCase().trim(),
       );
-      const cpuSocket = cpu.specs.socket.toUpperCase().trim();
+      const cpuSocket = cpu.specs.socket?.toUpperCase().trim();
 
-      if (coolerSockets.length > 0 && !coolerSockets.includes(cpuSocket)) {
+      if (!cpuSocket || coolerSockets.length === 0) {
+        items.push({
+          ruleId: "RULE_C_COOLER_SOCKET_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
+          affectedSlots: ["CPU", "Cooler"],
+          label: "Cooler socket support unverified",
+          explanation: `Unable to confirm that ${cooler.title} mounts on ${cpu.title}.`,
+          suggestedResolution: "IT HUB will confirm the mounting hardware.",
+        });
+      } else if (coolerSockets.includes(cpuSocket)) {
+        items.push({
+          ruleId: "RULE_C_COOLER_SOCKET_MATCH",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["CPU", "Cooler"],
+          label: `Cooler supports the ${cpuSocket} socket`,
+          explanation: `${cooler.title} lists mounting support for ${cpuSocket}.`,
+        });
+      } else {
         items.push({
           ruleId: "RULE_C_COOLER_SOCKET_MISMATCH",
           severity: "error",
@@ -249,7 +364,7 @@ export function checkCompatibility(
           affectedSlots: ["CPU", "Cooler"],
           label: "Cooler bracket incompatible with CPU socket",
           explanation: `${cooler.title} does not list mounting brackets for ${cpuSocket}.`,
-          suggestedResolution: `Choose a cooler with certified ${cpuSocket} mounting hardware.`,
+          suggestedResolution: `Choose a cooler with ${cpuSocket} mounting hardware.`,
         });
       }
     }
@@ -258,7 +373,26 @@ export function checkCompatibility(
       const coolerHeight = cooler.specs.coolerHeightMm || 0;
       const caseMaxHeight = cabinet.specs.maxCoolerHeightMm || 0;
 
-      if (coolerHeight > 0 && caseMaxHeight > 0 && coolerHeight > caseMaxHeight) {
+      if (coolerHeight <= 0 || caseMaxHeight <= 0) {
+        items.push({
+          ruleId: "RULE_C_COOLER_HEIGHT_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
+          affectedSlots: ["Cooler", "Cabinet"],
+          label: "Cooler height clearance unverified",
+          explanation: `Unable to confirm that ${cooler.title} fits inside ${cabinet.title}.`,
+          suggestedResolution: "IT HUB will confirm the cabinet clearance.",
+        });
+      } else if (coolerHeight <= caseMaxHeight) {
+        items.push({
+          ruleId: "RULE_C_COOLER_HEIGHT_OK",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["Cooler", "Cabinet"],
+          label: `Cooler fits the cabinet (${coolerHeight}mm / ${caseMaxHeight}mm)`,
+          explanation: "The cooler is within the cabinet's stated height clearance.",
+        });
+      } else {
         items.push({
           ruleId: "RULE_C_COOLER_HEIGHT_EXCEEDED",
           severity: "error",
@@ -300,14 +434,14 @@ export function checkCompatibility(
           explanation: "Graphics card dimensions fit cleanly within cabinet internal clearances.",
         });
       }
-    } else if (gpuLength > 0 && !caseMaxGpu) {
+    } else {
       items.push({
         ruleId: "RULE_D_GPU_CLEARANCE_UNKNOWN",
         severity: "warning",
         status: "unknown",
         affectedSlots: ["GPU", "Cabinet"],
         label: "Chassis GPU clearance unverified",
-        explanation: `Unable to verify whether ${gpu.title} (${gpuLength}mm) fits ${cabinet.title} (clearance unspecified).`,
+        explanation: `Unable to verify whether ${gpu.title} (${gpuLength ? `${gpuLength}mm` : "length unspecified"}) fits ${cabinet.title} (${caseMaxGpu ? `${caseMaxGpu}mm clearance` : "clearance unspecified"}).`,
         suggestedResolution: "Check chassis manufacturer dimensions.",
       });
     }
@@ -329,6 +463,16 @@ export function checkCompatibility(
         explanation:
           "Unable to calculate power headroom because the PSU rated wattage is unspecified.",
         suggestedResolution: "Confirm PSU wattage specifications before ordering.",
+      });
+    } else if (power.usesAssumedPower) {
+      items.push({
+        ruleId: "RULE_E_POWER_DRAW_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["PSU"],
+        label: "Power draw unverified",
+        explanation: `A processor or graphics card has no stated power draw, so ${psu.specs.ratedWattage}W can't be checked against the build. The ${power.estimatedSystemLoadWatts}W shown uses a typical value.`,
+        suggestedResolution: "IT HUB will confirm the power supply for this build.",
       });
     } else if (power.powerHeadroomStatus === "deficit") {
       items.push({
@@ -371,7 +515,17 @@ export function checkCompatibility(
         Boolean(gpu.specs.requiredPciePins || gpu.specs.requiredPcieConnectors?.length);
       const psuConnectors = psu.specs.pciePowerConnectors;
 
-      if (!gpuNeedsAux) {
+      if (!gpuTdp && !gpuNeedsAux) {
+        items.push({
+          ruleId: "RULE_F_GPU_POWER_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
+          affectedSlots: ["GPU", "PSU"],
+          label: "Graphics card power connector unverified",
+          explanation: `${gpu.title} has no stated power draw or connector, so its PCIe power needs can't be checked.`,
+          suggestedResolution: "IT HUB will confirm the power cables for this card.",
+        });
+      } else if (!gpuNeedsAux) {
         items.push({
           ruleId: "RULE_F_PCIE_POWER_NOT_REQUIRED",
           severity: "info",
@@ -415,12 +569,13 @@ export function checkCompatibility(
         });
       } else {
         items.push({
-          ruleId: "RULE_F_PCIE_POWER_ADVISORY",
-          severity: "info",
-          status: "compatible",
+          ruleId: "RULE_F_PCIE_CONNECTORS_UNKNOWN",
+          severity: "warning",
+          status: "unknown",
           affectedSlots: ["GPU", "PSU"],
-          label: "Standard PCIe auxiliary power supported",
-          explanation: `${psu.title} (${psu.specs.ratedWattage}W) provides standard PCIe auxiliary power cables for ${gpu.title}.`,
+          label: "PSU PCIe cables unverified",
+          explanation: `${psu.title} has no stated PCIe power cables, so they can't be checked against ${gpu.title}.`,
+          suggestedResolution: "IT HUB will confirm the power cables for this card.",
         });
       }
     }
@@ -430,12 +585,20 @@ export function checkCompatibility(
   // Rule G — Motherboard and Cabinet Form Factor
   // ───────────────────────────────────────────────────────────────────────────
   if (mobo && cabinet) {
-    const moboForm = mobo.specs.formFactor?.toUpperCase().trim();
-    const caseForms = (cabinet.specs.supportedMotherboards || []).map((f) =>
-      f.toUpperCase().trim(),
-    );
+    const moboForm = mobo.specs.formFactor ? normalizeFormFactor(mobo.specs.formFactor) : undefined;
+    const caseForms = (cabinet.specs.supportedMotherboards || []).map(normalizeFormFactor);
 
-    if (moboForm && caseForms.length > 0) {
+    if (!moboForm || caseForms.length === 0) {
+      items.push({
+        ruleId: "RULE_G_FORM_FACTOR_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["Motherboard", "Cabinet"],
+        label: "Motherboard and cabinet size unverified",
+        explanation: `Unable to confirm that ${mobo.title} fits inside ${cabinet.title}.`,
+        suggestedResolution: "IT HUB will confirm the motherboard size against the cabinet.",
+      });
+    } else {
       if (!caseForms.includes(moboForm)) {
         items.push({
           ruleId: "RULE_G_FORM_FACTOR_MISMATCH",
@@ -464,7 +627,15 @@ export function checkCompatibility(
   // ───────────────────────────────────────────────────────────────────────────
   if (storage && mobo) {
     const storageType = storage.specs.storageInterface?.toUpperCase() || "";
-    if (storageType.includes("M.2") && mobo.specs.m2SlotCount === 0) {
+    const usesM2 = storageType.includes("M.2") || storageType.includes("NVME");
+    const usesSata = storageType.includes("SATA");
+    const slotCount = usesM2
+      ? mobo.specs.m2SlotCount
+      : usesSata
+        ? mobo.specs.sataPortCount
+        : undefined;
+
+    if (usesM2 && slotCount === 0) {
       items.push({
         ruleId: "RULE_H_STORAGE_SLOT_MISSING",
         severity: "error",
@@ -475,13 +646,43 @@ export function checkCompatibility(
         suggestedResolution:
           "Select a 2.5-inch SATA SSD or upgrade to a motherboard with M.2 NVMe slots.",
       });
+    } else if (usesSata && slotCount === 0) {
+      items.push({
+        ruleId: "RULE_H_STORAGE_PORT_MISSING",
+        severity: "error",
+        status: "incompatible",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: "Motherboard lacks a SATA port",
+        explanation: `${storage.title} needs a SATA port, but ${mobo.title} has none.`,
+        suggestedResolution: "Select an M.2 NVMe SSD or a motherboard with SATA ports.",
+      });
+    } else if (slotCount === undefined) {
+      items.push({
+        ruleId: "RULE_H_STORAGE_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: "Storage connection unverified",
+        explanation: `Unable to confirm that ${mobo.title} has a free connection for ${storage.title}.`,
+        suggestedResolution: "IT HUB will confirm the storage connection.",
+      });
+    } else {
+      items.push({
+        ruleId: "RULE_H_STORAGE_OK",
+        severity: "info",
+        status: "compatible",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: `Storage connection available (${usesM2 ? "M.2" : "SATA"})`,
+        explanation: `${mobo.title} lists ${slotCount} ${usesM2 ? "M.2 slot(s)" : "SATA port(s)"}.`,
+      });
     }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
   // Rule I — Conditional Discrete GPU Requirement
   // ───────────────────────────────────────────────────────────────────────────
-  if (cpu && !gpu) {
+  // A graphics card the customer already owns still drives the display.
+  if (cpu && !gpu && !options.ownsGpu) {
     const hasIgpu = cpu.specs.hasIntegratedGraphics;
     const isGamingOrCreation = options.workload === "gaming" || options.workload === "creation";
 
@@ -494,6 +695,16 @@ export function checkCompatibility(
         label: "Discrete graphics card required for display output",
         explanation: `${cpu.title} does not contain integrated graphics. Without a dedicated graphics card, your monitor will receive no video signal.`,
         suggestedResolution: "Add a dedicated graphics card to complete the build.",
+      });
+    } else if (hasIgpu === undefined) {
+      items.push({
+        ruleId: "RULE_I_DISPLAY_OUTPUT_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["CPU", "GPU"],
+        label: "Display output unverified",
+        explanation: `Unable to confirm whether ${cpu.title} has integrated graphics. Without them, a graphics card is needed for a display signal.`,
+        suggestedResolution: "Add a graphics card, or confirm with IT HUB.",
       });
     } else if (isGamingOrCreation) {
       items.push({
@@ -526,9 +737,8 @@ export function checkCompatibility(
       status: "conditional",
       affectedSlots: unverifiedParts.map((p) => p.slot),
       label: "Component specifications preliminary / unverified",
-      explanation: `${unverifiedParts.length} component(s) have preliminary merchant catalog specifications. IT HUB technicians inspect physical clearances before assembly.`,
-      suggestedResolution:
-        "Our technical team reviews all custom specifications prior to order fulfillment.",
+      explanation: `${unverifiedParts.length} component(s) don't have their full specifications stated in the catalogue.`,
+      suggestedResolution: "Confirm these specifications with IT HUB before ordering.",
     });
   }
 
@@ -554,7 +764,7 @@ export function checkCompatibility(
 
   // Core essential slots
   const requiredPopulated = Boolean(cpu && mobo && ram && storage && psu && cabinet);
-  const coolerSatisfied = Boolean(cooler || cpu?.specs.includesCooler);
+  const coolerSatisfied = Boolean(cooler || cpu?.specs.includesCooler !== false);
   const gpuSatisfied = Boolean(gpu || cpu?.specs.hasIntegratedGraphics !== false);
   const complete = requiredPopulated && coolerSatisfied && gpuSatisfied;
 
@@ -575,22 +785,85 @@ export function checkCompatibility(
 }
 
 /**
- * Legacy compatibility wrapper preserving the exact signature required by Admin.tsx and tests:
- * { result: Array<{ label: string; state: "ok" | "warning" | "error" }>, watts, recommended, valid, complete }
+ * Converts a builder selection into the engine's model. A selection made from the live catalogue
+ * carries its full specifications, so every rule sees them. The flat fields only serve selections
+ * saved before specifications were carried, and never state anything those fields don't.
  */
-export function compatibility(parts: Record<string, any>) {
-  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {};
-  for (const [key, part] of Object.entries(parts)) {
-    if (!part) continue;
-    const slot = key as ComponentSlotId;
-    canonicalParts[slot] = {
-      slot,
-      productId: part.id || `part-${key}`,
-      variantId: (part as any).variantId || `gid://shopify/ProductVariant/mock-${part.id || key}`,
-      title: part.name || part.title || `${key} component`,
-      price: part.price || 0,
-      currency: "INR",
-      specs: {
+/**
+ * Specifications a label can't rest on when they were only read from a title, because a wrong value
+ * means the part doesn't fit or doesn't power up. A capacity or a Wi-Fi claim isn't in this list.
+ */
+const LABEL_CRITICAL_SPECS: Partial<
+  Record<ComponentSlotId, { field: keyof TechnicalSpecs; name: string }[]>
+> = {
+  CPU: [{ field: "socket", name: "socket" }],
+  Motherboard: [
+    { field: "socket", name: "socket" },
+    { field: "supportedRamGeneration", name: "memory generation" },
+    { field: "formFactor", name: "form factor" },
+  ],
+  RAM: [{ field: "ramGeneration", name: "memory generation" }],
+  GPU: [{ field: "powerWatts", name: "power draw" }],
+  PSU: [{ field: "ratedWattage", name: "wattage" }],
+  Storage: [{ field: "storageInterface", name: "interface" }],
+};
+
+export function inferredCriticalSpecs(slot: string, specs?: TechnicalSpecs): string[] {
+  const inferred = specs?.inferredFromTitle;
+  if (!inferred?.length) return [];
+  return (LABEL_CRITICAL_SPECS[slot as ComponentSlotId] || [])
+    .filter(({ field }) => inferred.includes(field))
+    .map(({ name }) => name);
+}
+
+const OWNED_PART_NAMES: Record<string, string> = {
+  CPU: "processor",
+  Motherboard: "motherboard",
+  RAM: "memory",
+  GPU: "graphics card",
+  Storage: "storage",
+  PSU: "power supply",
+  Cabinet: "cabinet",
+  Cooler: "cooler",
+};
+
+/**
+ * What stops a compatible build earning a recommendation label. This doesn't make it incompatible, and
+ * it can still be offered: a mismatch rules a build out, while these mean only that nobody can yet say
+ * it's confirmed. A label needs every check confirmed from the registry or a stated Shopify field.
+ */
+export function labelCompatibilityGaps(
+  parts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
+  items: { status: string; label: string }[],
+  ownedSlots: Set<string> = new Set(),
+): string[] {
+  const gaps: string[] = [];
+  const unknown = items.filter((item) => item.status === "unknown").map((item) => item.label);
+  if (unknown.length > 0) gaps.push(`Not yet confirmed: ${unknown.join(", ")}.`);
+  const inferred = Object.values(parts).flatMap((part) =>
+    part
+      ? inferredCriticalSpecs(part.slot, part.specs).map((name) => `${name} of ${part.title}`)
+      : [],
+  );
+  if (inferred.length > 0) {
+    gaps.push(`Read from the product title, not confirmed: ${inferred.join("; ")}.`);
+  }
+  const owned = [...ownedSlots].map((slot) => OWNED_PART_NAMES[slot] || slot);
+  if (owned.length > 0) {
+    gaps.push(`IT HUB needs to check how your own ${owned.join(", ")} fits with these parts.`);
+  }
+  return gaps;
+}
+
+export function toCanonicalComponent(
+  key: string,
+  part: Record<string, any>,
+): CanonicalBuildComponent {
+  const slot = key as ComponentSlotId;
+  const stated: TechnicalSpecs | undefined = part.specs;
+  const specs: TechnicalSpecs = stated
+    ? { ...stated }
+    : {
         socket: part.socket,
         supportedRamGeneration: part.ram,
         ramGeneration: part.ram,
@@ -600,18 +873,43 @@ export function compatibility(parts: Record<string, any>) {
         lengthMm: part.length,
         maxGpuLengthMm: part.clearance,
         maxCoolerHeightMm: part.clearance,
-        coolerHeightMm: (part as any).height,
+        coolerHeightMm: part.height,
         hasWifi: part.wifi,
         requiresBiosUpdateForRyzen5000: part.bios,
-        includesCooler: (part as any).includesCooler,
-        hasIntegratedGraphics:
-          (part as any).hasIntegratedGraphics ??
-          (key === "CPU" ? part.name?.includes("G") || part.socket === "AM5" : undefined),
-      },
-      availability: "available",
-      quantity: 1,
-      retrievedAt: new Date().toISOString(),
-    };
+        includesCooler: part.includesCooler,
+        hasIntegratedGraphics: part.hasIntegratedGraphics,
+        storageInterface: part.interface,
+        provenance: part.provenance,
+      };
+
+  return {
+    slot,
+    productId: part.id || part.productId || `part-${key}`,
+    variantId: part.variantId || "",
+    title: part.name || part.title || `${key} component`,
+    price: part.price || 0,
+    currency: "INR",
+    specs,
+    imageUrl: part.image || part.imageUrl,
+    availability:
+      part.stock === 0 || part.availability === "unavailable" ? "unavailable" : "available",
+    quantity: 1,
+    retrievedAt: new Date().toISOString(),
+    isShopifyLive: Boolean(part.isShopifyLive ?? part.variantId),
+    isVerified: part.isVerified,
+    matchedModelKey: part.matchedModelKey,
+  };
+}
+
+/**
+ * Legacy compatibility wrapper preserving the exact signature required by Admin.tsx and tests:
+ * { result: Array<{ label: string; state: "ok" | "warning" | "error" }>, watts, recommended, valid, complete }
+ */
+export function compatibility(parts: Record<string, any>) {
+  const canonicalParts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {};
+  for (const [key, part] of Object.entries(parts)) {
+    if (!part) continue;
+    canonicalParts[key as ComponentSlotId] = toCanonicalComponent(key, part);
   }
 
   const summary = checkCompatibility(canonicalParts);
