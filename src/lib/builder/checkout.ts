@@ -4,6 +4,11 @@
 
 import type { CanonicalBuild, ComponentSlotId } from "./types";
 import { createShopifyCart, checkShopifyAvailability, shopifyConfig } from "../shopify";
+import {
+  CHECKOUT_EMAIL_REQUIRED,
+  isValidCheckoutEmail,
+  requireCheckoutAssociation,
+} from "../shopify-orders";
 import { money } from "../../data/catalog";
 
 export interface PrepareCheckoutResult {
@@ -11,6 +16,8 @@ export interface PrepareCheckoutResult {
   checkoutUrl?: string;
   error?: string;
   missingCount?: number;
+  requiresAuth?: boolean;
+  requiresEmail?: boolean;
 }
 
 /**
@@ -19,6 +26,7 @@ export interface PrepareCheckoutResult {
  */
 export async function prepareShopifyCheckout(
   build: CanonicalBuild,
+  contact?: { email?: string | null; phone?: string | null },
 ): Promise<PrepareCheckoutResult> {
   const owned = new Set(build.ownedSlots || []);
   const lines: Array<{ merchandiseId: string; quantity: number }> = [];
@@ -59,6 +67,16 @@ export async function prepareShopifyCheckout(
     };
   }
 
+  // A website order must belong to a signed-in customer, so no token means no checkout.
+  const association = await requireCheckoutAssociation();
+  if (!association.ok) {
+    return { success: false, error: association.error, requiresAuth: association.authRequired };
+  }
+
+  if (!isValidCheckoutEmail(contact?.email)) {
+    return { success: false, error: CHECKOUT_EMAIL_REQUIRED, requiresEmail: true };
+  }
+
   // Pre-flight availability revalidation
   const variantIds = lines.map((l) => l.merchandiseId);
   const availability = await checkShopifyAvailability(variantIds);
@@ -81,8 +99,13 @@ export async function prepareShopifyCheckout(
       { key: "build_id", value: build.id },
       { key: "return_to_store", value: returnUrl || "" },
       { key: "_return_to_store", value: returnUrl || "" },
+      { key: "_hub_assoc_token", value: association.token },
     ],
     note: `IT HUB Custom PC Build: ${build.name} (${lines.length} items)`,
+    buyerIdentity: {
+      email: contact?.email?.trim(),
+      phone: contact?.phone || undefined,
+    },
   });
 
   if (!result.cart?.checkoutUrl) {

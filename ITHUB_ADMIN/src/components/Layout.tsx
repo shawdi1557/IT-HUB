@@ -98,7 +98,7 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       label: "Sell Requests",
       icon: BadgeIndianRupee,
       active: location.pathname.startsWith("/sell-requests"),
-      visible: true,
+      visible: profile.permissions.can_manage_sell_requests,
       badge: badgeCounts.sellRequests,
     },
     {
@@ -106,7 +106,7 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       label: "Website Content",
       icon: ImageIcon,
       active: location.pathname.startsWith("/content"),
-      visible: true,
+      visible: profile.permissions.can_manage_content,
       badge: 0,
     },
     {
@@ -114,7 +114,7 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       label: "Certificates",
       icon: Award,
       active: location.pathname.startsWith("/certificates"),
-      visible: true,
+      visible: profile.permissions.can_manage_content,
       badge: 0,
     },
     {
@@ -122,7 +122,7 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       label: "Audits",
       icon: ClipboardCheck,
       active: location.pathname.startsWith("/audits"),
-      visible: true,
+      visible: profile.permissions.can_view_analytics,
       badge: 0,
     },
     {
@@ -130,7 +130,7 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       label: "Settings",
       icon: SettingsIcon,
       active: location.pathname.startsWith("/settings"),
-      visible: true,
+      visible: profile.permissions.can_manage_settings,
       badge: 0,
     },
   ];

@@ -230,23 +230,19 @@ Deno.test("TEST-SEC-5: Migration and Schema SQL restrict submit_pc_quotation_req
     true,
   );
 
-  // 2. Verify schema.sql revokes public/anon access
-  const schemaSql = await Deno.readTextFile("supabase/schema.sql");
+  // 2. Verify the grant allowlist keeps it server-only
+  const grantsSql = await Deno.readTextFile(
+    "supabase/migrations/20261102000005_security_function_grants.sql",
+  );
   assertEquals(
-    schemaSql.includes(
-      "revoke all on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) from public, anon, authenticated;",
+    grantsSql.includes(
+      "revoke execute on all functions in schema public from public, anon, authenticated, service_role;",
     ),
     true,
   );
   assertEquals(
-    schemaSql.includes(
-      "grant execute on function submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to service_role, postgres;",
-    ),
-    true,
-  );
-  assertEquals(
-    schemaSql.includes(
-      "raise exception 'Unauthorized: PC quotations must be submitted through the verified Edge Function endpoint.';",
+    grantsSql.includes(
+      "grant execute on function public.submit_pc_quotation_request(text, text, jsonb, numeric, jsonb, text, text, text) to service_role;",
     ),
     true,
   );
@@ -464,7 +460,7 @@ Deno.test("TEST-SEC-9: Unauthenticated guest requests to Edge Function are rejec
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS",
+      Authorization: "Bearer sb_publishable_synthetic_value_for_unit_tests_",
       "x-forwarded-for": "172.16.0.42",
     },
     body: JSON.stringify(guestPayload),

@@ -140,7 +140,8 @@ export function resolveProductImageUrl(pathOrUrl: string | null | undefined): st
     if (data?.publicUrl) return data.publicUrl;
   }
 
-  return `https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/${cleanPath}`;
+  // Without a configured project there's no image host to point at.
+  return "";
 }
 
 /**

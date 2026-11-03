@@ -70,7 +70,7 @@ export function Dashboard({ profile }: DashboardProps) {
 
     try {
       const { data, error } = await client
-        .from("service_requests")
+        .from("service_requests_staff")
         .select("*, profiles:user_id(full_name, phone, email)")
         .order("updated_at", { ascending: false })
         .limit(30);

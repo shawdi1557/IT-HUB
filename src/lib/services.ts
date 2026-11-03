@@ -643,6 +643,13 @@ export async function updateAuthoritativeServiceFees(
 }
 
 /**
+ * Ticket columns a customer may read. Staff notes, the guest token and payment references aren't
+ * granted to the "authenticated" role, so selecting "*" on this table is refused.
+ */
+const CUSTOMER_TICKET_COLUMNS =
+  "id, user_id, device, model, problem, method, address_id, preferred_date, preferred_slot, status, quote, quote_state, technician_name, courier_charge_return_delivery, created_at, updated_at, findings, quotation_items, quote_version, approved_items, declined_items, decision_notes, decision_at, quotation_history, pincode, address_details, inbound_courier_tracking_no, outbound_courier_tracking_no, status_descriptions, doorstep_callout_fee, billing_details, reschedule_details, ticket_reference, payment_status, payment_method, paid_at, paid_amount, customer_description";
+
+/**
  * Normalizes a phone number for secure comparison across country-code formats.
  * e.g. "+91 98765 43210" -> "9876543210"
  */
@@ -909,8 +916,20 @@ export async function createServiceBooking(
       formatted: input.address || "",
     };
 
-    // Attempt authoritative Supabase RPC create_service_booking
-    if (supabase && supabaseConfig.isConfigured && currentUserId) {
+    // The server function is the only way to book, so its validation can't be skipped. A booking
+    // that wasn't saved is always reported as a failure.
+    if (!supabase || !supabaseConfig.isConfigured) {
+      return {
+        ok: false,
+        id: "",
+        error: "Booking is temporarily unavailable. Please try again later.",
+      };
+    }
+    if (!currentUserId) {
+      return { ok: false, id: "", error: "Please sign in to book a service." };
+    }
+
+    {
       try {
         const { data: rpcData, error: rpcError } = await supabase.rpc("create_service_booking", {
           p_device: input.device,
@@ -922,8 +941,6 @@ export async function createServiceBooking(
           p_pincode: input.pincode || null,
           p_address_details: structuredAddress,
           p_inbound_courier_tracking_no: input.inboundCourierTrackingNo || null,
-          p_customer_name: input.name || null,
-          p_customer_phone: input.phone || null,
           p_notes: input.notes || null,
         });
 
@@ -936,61 +953,19 @@ export async function createServiceBooking(
           };
         }
 
-        if (
-          rpcError &&
-          !rpcError.message.includes("function") &&
-          !rpcError.message.includes("does not exist")
-        ) {
-          return { ok: false, id: "", error: rpcError.message };
-        }
+        return {
+          ok: false,
+          id: "",
+          error: rpcError?.message || "We couldn't save your booking. Please try again.",
+        };
       } catch (err: any) {
-        if (err?.message && !err.message.includes("function")) {
-          return { ok: false, id: "", error: err.message };
-        }
-      }
-
-      // Direct Supabase table insert fallback
-      try {
-        const { data, error: dbError } = await supabase
-          .from("service_requests")
-          .insert({
-            user_id: currentUserId,
-            device: input.device,
-            model: input.model || null,
-            problem: effectiveProblem,
-            method: input.method,
-            preferred_date: input.date ? input.date : null,
-            preferred_slot: input.time || null,
-            pincode: input.pincode || null,
-            address_details: structuredAddress,
-            inbound_courier_tracking_no: input.inboundCourierTrackingNo || null,
-            status: "Booked",
-            courier_charge_return_delivery: courierFee || null,
-            doorstep_callout_fee: isDoorstep ? SERVICE_FEES.DOORSTEP_CALLOUT : 0,
-          })
-          .select("id, ticket_reference, guest_tracking_token")
-          .maybeSingle();
-
-        if (dbError) {
-          return { ok: false, id: "", error: dbError.message };
-        }
-        if (data?.id) {
-          return {
-            ok: true,
-            id: data.id,
-            ticketReference: (data as any).ticket_reference || formatTicketReference(data.id),
-            guestToken: (data as any).guest_tracking_token || undefined,
-          };
-        }
-      } catch (err: any) {
-        return { ok: false, id: "", error: err?.message || "Failed to submit service booking." };
+        return {
+          ok: false,
+          id: "",
+          error: err?.message || "We couldn't save your booking. Please try again.",
+        };
       }
     }
-
-    // Local in-memory fallback
-    const id = `SRV-${crypto.randomUUID().slice(0, 7).toUpperCase()}`;
-    const localGuestToken = `tok_${crypto.randomUUID().replace(/-/g, "")}`;
-    return { ok: true, id, guestToken: localGuestToken };
   } finally {
     setTimeout(() => {
       inFlightBookingAttempts.delete(debounceKey);
@@ -1012,7 +987,7 @@ export async function fetchUserServiceRequests(): Promise<ServiceRequest[]> {
 
     const { data, error } = await supabase
       .from("service_requests")
-      .select("*")
+      .select(CUSTOMER_TICKET_COLUMNS)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -1222,7 +1197,7 @@ export async function fetchServiceRequestById(
           : `ITH-SER-${cleanId.toUpperCase()}`;
         const { data, error } = await supabase
           .from("service_requests")
-          .select("*")
+          .select(CUSTOMER_TICKET_COLUMNS)
           .eq("ticket_reference", refUpper)
           .maybeSingle();
 
@@ -1234,7 +1209,7 @@ export async function fetchServiceRequestById(
       if (isUuid(cleanId)) {
         const { data, error } = await supabase
           .from("service_requests")
-          .select("*")
+          .select(CUSTOMER_TICKET_COLUMNS)
           .eq("id", cleanId)
           .maybeSingle();
 
@@ -1245,7 +1220,7 @@ export async function fetchServiceRequestById(
         // Exact 8-character hex prefix match for authenticated customer's own tickets
         const { data, error } = await supabase
           .from("service_requests")
-          .select("*")
+          .select(CUSTOMER_TICKET_COLUMNS)
           .order("created_at", { ascending: false });
 
         if (data && !error && data.length > 0) {
@@ -1269,7 +1244,7 @@ export async function fetchServiceRequestById(
     try {
       const { data, error } = await supabase
         .from("service_requests")
-        .select("*")
+        .select(CUSTOMER_TICKET_COLUMNS)
         .eq("id", cleanId)
         .maybeSingle();
 
@@ -1340,187 +1315,27 @@ export async function submitCustomerQuoteDecision(
         };
       }
 
-      // If RPC failed due to domain rule validation, return its explicit error message
-      if (
-        rpcError &&
-        !rpcError.message.includes("function") &&
-        !rpcError.message.includes("does not exist") &&
-        !rpcError.message.includes("syntax") &&
-        !rpcError.message.includes("not found")
-      ) {
-        return { ok: false, error: rpcError.message };
-      }
-    } catch {
-      // Fall through to table update fallback
-    }
-
-    try {
-      // 2. Fetch authoritative ticket to verify ownership, version, and pending status
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        if (!currentRequest) {
-          return {
-            ok: false,
-            error: "You must be signed in to approve or decline a quotation.",
-          };
-        }
-      }
-
-      const { data: existing, error: fetchErr } = await supabase
-        .from("service_requests")
-        .select(
-          "id, user_id, status, quote, quote_state, quote_version, quotation_items, courier_charge_return_delivery",
-        )
-        .eq("id", requestId)
-        .maybeSingle();
-
-      if (fetchErr || !existing) {
-        if (!currentRequest) {
-          return {
-            ok: false,
-            error: "Service request not found or you do not have permission to view it.",
-          };
-        }
-        // Fall through to local fallback for demo/in-memory tickets
-      } else {
-        // Enforce ticket ownership unless administrator
-        if (user && existing.user_id !== user.id) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .maybeSingle();
-
-          if (profile?.role !== "admin") {
-            return {
-              ok: false,
-              error: "Unauthorized: You do not own this service ticket.",
-            };
-          }
-        }
-
-        if (existing.quote_state !== "pending") {
-          return {
-            ok: false,
-            error: `This quotation has already been ${existing.quote_state}. Further decisions cannot be submitted.`,
-          };
-        }
-
-        if (existing.quote_version && existing.quote_version !== expectedVersion) {
-          return {
-            ok: false,
-            error: `The quotation has been revised to version ${existing.quote_version}. Please refresh to review the updated estimate.`,
-          };
-        }
-
-        const items: QuotationItem[] = Array.isArray(existing.quotation_items)
-          ? existing.quotation_items
-          : [];
-
-        // Validate selection
-        const val = validateItemSelection(items, selectedItemIds, decision);
-        if (!val.valid) {
-          return { ok: false, error: val.error };
-        }
-
-        const courierCharge = existing.courier_charge_return_delivery
-          ? { returnDelivery: Number(existing.courier_charge_return_delivery) }
-          : undefined;
-
-        const effectiveSelectedIds = decision === "approved" ? selectedItemIds : [];
-        const calc = calculateQuotationTotals(items, effectiveSelectedIds, courierCharge);
-
-        const allItemIds = items.map((i) => i.id);
-        const declinedItemIds = allItemIds.filter((id) => !effectiveSelectedIds.includes(id));
-
-        const updatedItems = items.map((i) => {
-          if (effectiveSelectedIds.includes(i.id)) {
-            return { ...i, approvalState: "approved" as const };
-          }
-          if (decision === "approved" && i.canDefer) {
-            return { ...i, approvalState: "deferred" as const };
-          }
-          return { ...i, approvalState: "declined" as const };
-        });
-
-        const nextStatus = decision === "approved" && effectiveSelectedIds.length > 0 ? 5 : 4;
-        const nextStatusLabel = nextStatus === 5 ? "Approved" : "Awaiting approval";
-
-        const { error: updateErr } = await supabase
-          .from("service_requests")
-          .update({
-            quote_state: decision,
-            quote: calc.totalPayable,
-            quotation_items: updatedItems,
-            approved_items: effectiveSelectedIds,
-            declined_items: declinedItemIds,
-            decision_notes: notes || null,
-            decision_at: new Date().toISOString(),
-            decision_actor: user?.id,
-          })
-          .eq("id", requestId)
-          .eq("quote_state", "pending");
-
-        if (updateErr) {
-          if (
-            updateErr.message.includes("schema cache") ||
-            updateErr.message.includes("approved_items") ||
-            updateErr.message.includes("quotation_items")
-          ) {
-            try {
-              await supabase
-                .from("service_requests")
-                .update({
-                  quote: calc.totalPayable,
-                })
-                .eq("id", requestId);
-            } catch {
-              // Ignore remote failure when remote schema is pending migration
-            }
-
-            return {
-              ok: true,
-              decision,
-              nextStatus,
-              nextStatusLabel,
-              approvedItems: effectiveSelectedIds,
-              declinedItems: declinedItemIds,
-              totalAmount: calc.totalPayable,
-              version: existing.quote_version || expectedVersion,
-            };
-          }
-          return {
-            ok: false,
-            error: updateErr.message || "Failed to update quotation decision.",
-          };
-        }
-
-        return {
-          ok: true,
-          decision,
-          nextStatus,
-          nextStatusLabel,
-          approvedItems: effectiveSelectedIds,
-          declinedItems: declinedItemIds,
-          totalAmount: calc.totalPayable,
-          version: existing.quote_version || expectedVersion,
-        };
-      }
+      return {
+        ok: false,
+        error: rpcError?.message || "Failed to submit your decision. Please try again.",
+      };
     } catch (err: any) {
-      if (!currentRequest) {
-        return {
-          ok: false,
-          error: err?.message || "A network error occurred while submitting your decision.",
-        };
-      }
-      // If error occurred and currentRequest is available, fall through to local fallback
+      return {
+        ok: false,
+        error: err?.message || "A network error occurred while submitting your decision.",
+      };
     }
   }
 
-  // Fallback for offline prototype / demo mode / Deno test harness
+  if (supabase && supabaseConfig.isConfigured) {
+    return { ok: false, error: "This ticket can't accept a quotation decision." };
+  }
+
+  // No backend is configured, so nothing can be saved. This only previews the totals for local
+  // component tests, and it's refused for anything that looks like a real ticket.
+  if (isUuid(requestId)) {
+    return { ok: false, error: "Quotation decisions are temporarily unavailable." };
+  }
   const items = currentRequest?.quotationItems || [];
   const val = validateItemSelection(items, selectedItemIds, decision);
   if (!val.valid) {
@@ -1621,35 +1436,6 @@ export async function adminPublishQuotation(
         .eq("id", requestId);
 
       if (error) {
-        // Handle unmigrated remote database gracefully by updating legacy columns or local store
-        if (
-          error.message.includes("schema cache") ||
-          error.message.includes("approved_items") ||
-          error.message.includes("quotation_items") ||
-          error.message.includes("findings")
-        ) {
-          try {
-            await supabase
-              .from("service_requests")
-              .update({
-                status: "Awaiting Approval",
-                quote: calc.totalPayable,
-                notes: adminNotes !== undefined ? adminNotes : currentRequest?.notes,
-              })
-              .eq("id", requestId);
-          } catch {
-            // Ignore remote failure when remote schema is pending migration
-          }
-
-          // Always return success for the local session store so testing is unblocked
-          return {
-            ok: true,
-            newVersion,
-            totalAmount: calc.totalPayable,
-            warning:
-              "Quotation published in local mode. Please run the Phase 5.2 SQL migration in Supabase to sync itemized quotes to the database.",
-          };
-        }
         return { ok: false, error: error.message };
       }
       return { ok: true, newVersion, totalAmount: calc.totalPayable };
@@ -1658,7 +1444,7 @@ export async function adminPublishQuotation(
     }
   }
 
-  return { ok: true, newVersion, totalAmount: calc.totalPayable };
+  return { ok: false, error: "Publishing quotations is temporarily unavailable." };
 }
 
 export interface RequestRescheduleParams {
@@ -1666,6 +1452,20 @@ export interface RequestRescheduleParams {
   requestedDate: string;
   requestedSlot: string;
   reason?: string;
+}
+
+export async function cancelServiceRequest(ticketId: string): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  if (!supabase || !supabaseConfig.isConfigured) {
+    return { ok: false, error: "Cancellation is temporarily unavailable." };
+  }
+  const { data, error } = await supabase.rpc("customer_cancel_service_request", {
+    p_ticket_id: ticketId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: data?.ok === true };
 }
 
 export async function requestAppointmentReschedule({
@@ -1702,7 +1502,7 @@ export async function requestAppointmentReschedule({
       return { ok: false, error: err?.message || "Network error submitting reschedule request." };
     }
   }
-  return { ok: true, message: "Reschedule request simulated in local development mode." };
+  return { ok: false, error: "Rescheduling is temporarily unavailable. Please try again later." };
 }
 
 /**
@@ -1732,7 +1532,7 @@ export async function adminUpdateServiceRequest(
       return { ok: false, error: err?.message };
     }
   }
-  return { ok: true };
+  return { ok: false, error: "Ticket updates are temporarily unavailable." };
 }
 
 /**

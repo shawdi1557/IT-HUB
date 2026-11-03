@@ -4,6 +4,7 @@ build/
 .cache/
 inventory_staging/
 supabase/.temp/
+.test-env/
 # Environment variables, local secrets, and example env files
 .env
 .env*

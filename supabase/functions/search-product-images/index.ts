@@ -4,7 +4,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -345,30 +344,12 @@ serve(async (req: Request) => {
         );
       }
 
-      // Query profile role using caller's authenticated session
+      // Asks the database as the caller, so both administrator identities are recognised.
       const userAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { headers: { Authorization: authHeader } },
       });
-      const { data: profile } = await userAuthClient
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.role === "admin") {
-        isAuthorizedAdmin = true;
-      } else if (SUPABASE_SERVICE_ROLE_KEY) {
-        const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const { data: adminProfile } = await adminClient
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (adminProfile?.role === "admin") {
-          isAuthorizedAdmin = true;
-        }
-      }
+      const { data: isAdmin } = await userAuthClient.rpc("is_admin");
+      isAuthorizedAdmin = isAdmin === true;
     }
 
     if (!isAuthorizedAdmin) {
@@ -399,64 +380,6 @@ serve(async (req: Request) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    // ── Action: Apply Table Grants for Authenticated & Service Role ─────────
-    if (action === "fix-grants") {
-      const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-      if (!dbUrl) {
-        return new Response(JSON.stringify({ ok: false, error: "NO_DB_URL" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      try {
-        const client = new Client(dbUrl);
-        await client.connect();
-        await client.queryArray(`
-          GRANT ALL ON TABLE public.products TO service_role;
-          GRANT ALL ON TABLE public.product_images TO service_role;
-          GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.products TO authenticated;
-          GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.product_images TO authenticated;
-          
-          DO $$
-          BEGIN
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Product Images Public Read'
-            ) THEN
-              CREATE POLICY "Product Images Public Read" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Product Images Admin Insert'
-            ) THEN
-              CREATE POLICY "Product Images Admin Insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images' AND is_admin());
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Product Images Admin Update'
-            ) THEN
-              CREATE POLICY "Product Images Admin Update" ON storage.objects FOR UPDATE USING (bucket_id = 'product-images' AND is_admin()) WITH CHECK (bucket_id = 'product-images' AND is_admin());
-            END IF;
-
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Product Images Admin Delete'
-            ) THEN
-              CREATE POLICY "Product Images Admin Delete" ON storage.objects FOR DELETE USING (bucket_id = 'product-images' AND is_admin());
-            END IF;
-          END $$;
-        `);
-        await client.end();
-        return new Response(JSON.stringify({ ok: true, message: "Grants applied successfully" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } catch (err: any) {
-        return new Response(JSON.stringify({ ok: false, error: err.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
     }
 
     // ── Action: Ensure Fresh Product in Database ─────────────────────────────

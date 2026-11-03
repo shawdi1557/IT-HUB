@@ -21,13 +21,18 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { Client as PgClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import {
+  TEST_ANON_KEY,
+  TEST_DB_URL,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SUPABASE_SERVICE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SUPABASE_ANON_KEY = TEST_ANON_KEY;
+const SUPABASE_SERVICE_KEY = TEST_SERVICE_KEY;
+const DB_URL = TEST_DB_URL;
 
 // Canonical supported problems
 export const SUPPORTED_MOBILE_PROBLEMS = [
@@ -301,7 +306,7 @@ Deno.test("PROB-9: Unsupported arbitrary problem string is rejected", () => {
 // 5. SERVER-SIDE DATABASE LEVEL VALIDATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("PROB-10: Database reject insert with missing, empty, or whitespace problem", async () => {
+dbTest("PROB-10: Database reject insert with missing, empty, or whitespace problem", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -342,7 +347,7 @@ Deno.test("PROB-10: Database reject insert with missing, empty, or whitespace pr
   await pg.end();
 });
 
-Deno.test("PROB-11: Database rejects booking with 'Other' and no description", async () => {
+dbTest("PROB-11: Database rejects booking with 'Other' and no description", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -365,14 +370,16 @@ Deno.test("PROB-11: Database rejects booking with 'Other' and no description", a
   await pg.end();
 });
 
-Deno.test("PROB-12: Valid service booking with supported problem persists correctly in DB", async () => {
-  const pg = new PgClient(DB_URL);
-  await pg.connect();
+dbTest(
+  "PROB-12: Valid service booking with supported problem persists correctly in DB",
+  async () => {
+    const pg = new PgClient(DB_URL);
+    await pg.connect();
 
-  const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
-  const testProblem = "Screen / display broken";
+    const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
+    const testProblem = "Screen / display broken";
 
-  const res = await pg.queryObject<{ id: string; problem: string; model: string }>`
+    const res = await pg.queryObject<{ id: string; problem: string; model: string }>`
     INSERT INTO public.service_requests (
       user_id, device, model, problem, method, status
     ) VALUES (
@@ -381,12 +388,13 @@ Deno.test("PROB-12: Valid service booking with supported problem persists correc
     RETURNING id, problem, model
   `;
 
-  assertEquals(res.rows.length, 1);
-  assertEquals(res.rows[0].problem, "Screen / display broken");
-  assertEquals(res.rows[0].model, "Samsung Galaxy S22");
+    assertEquals(res.rows.length, 1);
+    assertEquals(res.rows[0].problem, "Screen / display broken");
+    assertEquals(res.rows[0].model, "Samsung Galaxy S22");
 
-  // Clean up test ticket
-  await pg.queryObject`DELETE FROM public.service_requests WHERE id = ${res.rows[0].id}`;
+    // Clean up test ticket
+    await pg.queryObject`DELETE FROM public.service_requests WHERE id = ${res.rows[0].id}`;
 
-  await pg.end();
-});
+    await pg.end();
+  },
+);

@@ -15,13 +15,18 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { Client as PgClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import {
+  TEST_ANON_KEY,
+  TEST_DB_URL,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SUPABASE_SERVICE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SUPABASE_ANON_KEY = TEST_ANON_KEY;
+const SUPABASE_SERVICE_KEY = TEST_SERVICE_KEY;
+const DB_URL = TEST_DB_URL;
 
 const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -30,7 +35,7 @@ const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // 1. POSTGRESQL REALTIME PUBLICATION & REPLICA IDENTITY
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-1: All content tables are registered in supabase_realtime publication", async () => {
+dbTest("SYNC-1: All content tables are registered in supabase_realtime publication", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -67,7 +72,7 @@ Deno.test("SYNC-1: All content tables are registered in supabase_realtime public
   );
 });
 
-Deno.test("SYNC-2: All content tables have REPLICA IDENTITY FULL configured", async () => {
+dbTest("SYNC-2: All content tables have REPLICA IDENTITY FULL configured", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -89,61 +94,64 @@ Deno.test("SYNC-2: All content tables have REPLICA IDENTITY FULL configured", as
 // 2. PARTNER CERTIFICATES REALTIME SYNCHRONIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-3: Partner certificates are accessible publicly and can receive live mutations", async () => {
-  const testCertId = `cert-realtime-test-${Date.now()}`;
+dbTest(
+  "SYNC-3: Partner certificates are accessible publicly and can receive live mutations",
+  async () => {
+    const testCertId = `cert-realtime-test-${Date.now()}`;
 
-  // 1. Staff inserts a new certificate
-  const { error: insertErr } = await adminClient.from("partner_certificates").insert({
-    id: testCertId,
-    text: "Realtime Sync Partner",
-    brand: "RealtimeBrand",
-    category: "Laptops & Computing",
-    status: "Authorised Partner",
-    validity: "2026 Certified",
-    description: "Testing realtime synchronization without browser reload.",
-    image: "/images/recognition/asus-premium-partner.jpg",
-    alt: "Realtime Partner Certificate for IT HUB",
-    display_order: 999,
-    is_published: true,
-  });
-  assertEquals(insertErr, null, "Staff insert should succeed");
+    // 1. Staff inserts a new certificate
+    const { error: insertErr } = await adminClient.from("partner_certificates").insert({
+      id: testCertId,
+      text: "Realtime Sync Partner",
+      brand: "RealtimeBrand",
+      category: "Laptops & Computing",
+      status: "Authorised Partner",
+      validity: "2026 Certified",
+      description: "Testing realtime synchronization without browser reload.",
+      image: "/images/recognition/asus-premium-partner.jpg",
+      alt: "Realtime Partner Certificate for IT HUB",
+      display_order: 999,
+      is_published: true,
+    });
+    assertEquals(insertErr, null, "Staff insert should succeed");
 
-  // 2. Verify Storefront query sees the new certificate immediately
-  const { data: storeData1, error: storeErr1 } = await anonClient
-    .from("partner_certificates")
-    .select("*")
-    .eq("id", testCertId)
-    .single();
-  assertEquals(storeErr1, null);
-  assertEquals(storeData1?.text, "Realtime Sync Partner");
+    // 2. Verify Storefront query sees the new certificate immediately
+    const { data: storeData1, error: storeErr1 } = await anonClient
+      .from("partner_certificates")
+      .select("*")
+      .eq("id", testCertId)
+      .single();
+    assertEquals(storeErr1, null);
+    assertEquals(storeData1?.text, "Realtime Sync Partner");
 
-  // 3. Staff unpublishes the certificate
-  const { error: updateErr } = await adminClient
-    .from("partner_certificates")
-    .update({ is_published: false })
-    .eq("id", testCertId);
-  assertEquals(updateErr, null);
+    // 3. Staff unpublishes the certificate
+    const { error: updateErr } = await adminClient
+      .from("partner_certificates")
+      .update({ is_published: false })
+      .eq("id", testCertId);
+    assertEquals(updateErr, null);
 
-  // 4. Storefront query should NOT see unpublished certificate
-  const { data: storeData2 } = await anonClient
-    .from("partner_certificates")
-    .select("*")
-    .eq("id", testCertId);
-  assertEquals(
-    storeData2?.length,
-    0,
-    "Unpublished certificate must not be returned to public storefront",
-  );
+    // 4. Storefront query should NOT see unpublished certificate
+    const { data: storeData2 } = await anonClient
+      .from("partner_certificates")
+      .select("*")
+      .eq("id", testCertId);
+    assertEquals(
+      storeData2?.length,
+      0,
+      "Unpublished certificate must not be returned to public storefront",
+    );
 
-  // 5. Clean up
-  await adminClient.from("partner_certificates").delete().eq("id", testCertId);
-});
+    // 5. Clean up
+    await adminClient.from("partner_certificates").delete().eq("id", testCertId);
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. WEBSITE SHOWCASE REALTIME SYNCHRONIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-4: Website showcase photos sync immediately without reload", async () => {
+dbTest("SYNC-4: Website showcase photos sync immediately without reload", async () => {
   const testShowcaseId = `showcase-test-${Date.now()}`;
 
   // 1. Staff adds showcase photo
@@ -185,52 +193,55 @@ Deno.test("SYNC-4: Website showcase photos sync immediately without reload", asy
 // 4. PROMOTIONAL ANNOUNCEMENTS REALTIME SYNCHRONIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-5: Announcements table supports banner schema and public storefront access", async () => {
-  // Staff saves promotional announcement
-  const announcementPayload = {
-    title: "Special Festival Discount",
-    message: "Get flat 10% discount on all laptop upgrades this weekend!",
-    cta_label: "FESTIVAL OFFER",
-    cta_url: "/services",
-    image_url: null,
-    is_active: true,
-    starts_at: new Date(Date.now() - 3600000).toISOString(),
-    ends_at: new Date(Date.now() + 86400000).toISOString(),
-  };
+dbTest(
+  "SYNC-5: Announcements table supports banner schema and public storefront access",
+  async () => {
+    // Staff saves promotional announcement
+    const announcementPayload = {
+      title: "Special Festival Discount",
+      message: "Get flat 10% discount on all laptop upgrades this weekend!",
+      cta_label: "FESTIVAL OFFER",
+      cta_url: "/services",
+      image_url: null,
+      is_active: true,
+      starts_at: new Date(Date.now() - 3600000).toISOString(),
+      ends_at: new Date(Date.now() + 86400000).toISOString(),
+    };
 
-  const { data: inserted, error: insertErr } = await adminClient
-    .from("announcements")
-    .insert(announcementPayload)
-    .select()
-    .single();
+    const { data: inserted, error: insertErr } = await adminClient
+      .from("announcements")
+      .insert(announcementPayload)
+      .select()
+      .single();
 
-  assertEquals(insertErr, null, "Staff insert into announcements must succeed");
-  assertEquals(inserted?.title, "Special Festival Discount");
-  assertEquals(inserted?.message, "Get flat 10% discount on all laptop upgrades this weekend!");
+    assertEquals(insertErr, null, "Staff insert into announcements must succeed");
+    assertEquals(inserted?.title, "Special Festival Discount");
+    assertEquals(inserted?.message, "Get flat 10% discount on all laptop upgrades this weekend!");
 
-  // Storefront reads active announcement
-  const { data: publicAnnouncement, error: publicErr } = await anonClient
-    .from("announcements")
-    .select("*")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    // Storefront reads active announcement
+    const { data: publicAnnouncement, error: publicErr } = await anonClient
+      .from("announcements")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  assertEquals(publicErr, null);
-  assertEquals(publicAnnouncement?.title, "Special Festival Discount");
+    assertEquals(publicErr, null);
+    assertEquals(publicAnnouncement?.title, "Special Festival Discount");
 
-  // Clean up test announcement
-  if (inserted?.id) {
-    await adminClient.from("announcements").delete().eq("id", inserted.id);
-  }
-});
+    // Clean up test announcement
+    if (inserted?.id) {
+      await adminClient.from("announcements").delete().eq("id", inserted.id);
+    }
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. STORE SETTINGS REALTIME SYNCHRONIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-6: Store settings changes sync immediately to storefront", async () => {
+dbTest("SYNC-6: Store settings changes sync immediately to storefront", async () => {
   // Read current settings
   const { data: initialSettings } = await anonClient
     .from("store_settings")
@@ -265,19 +276,26 @@ Deno.test("SYNC-6: Store settings changes sync immediately to storefront", async
 // 6. VISIBILITY & SHOPIFY SEPARATION GUARANTEES
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-7: Realtime Content Sync respects Shopify authoritative commerce ownership", async () => {
-  // Verify that products table or shopify-backed catalog is NOT in the content sync publication
-  const pg = new PgClient(DB_URL);
-  await pg.connect();
+dbTest(
+  "SYNC-7: Realtime Content Sync respects Shopify authoritative commerce ownership",
+  async () => {
+    // Verify that products table or shopify-backed catalog is NOT in the content sync publication
+    const pg = new PgClient(DB_URL);
+    await pg.connect();
 
-  const res = await pg.queryObject<{ tablename: string }>(
-    "SELECT tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';",
-  );
-  await pg.end();
+    const res = await pg.queryObject<{ tablename: string }>(
+      "SELECT tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';",
+    );
+    await pg.end();
 
-  const tables = res.rows.map((r) => r.tablename);
-  // Orders, carts, blogs, or checkout must NOT be routed through client content sync
-  assertEquals(tables.includes("orders"), false, "orders must not be in content sync publication");
-  assertEquals(tables.includes("cart"), false, "cart must not be in content sync publication");
-  assertEquals(tables.includes("blog_articles"), false, "blog articles belong to Shopify CMS");
-});
+    const tables = res.rows.map((r) => r.tablename);
+    // Orders, carts, blogs, or checkout must NOT be routed through client content sync
+    assertEquals(
+      tables.includes("orders"),
+      false,
+      "orders must not be in content sync publication",
+    );
+    assertEquals(tables.includes("cart"), false, "cart must not be in content sync publication");
+    assertEquals(tables.includes("blog_articles"), false, "blog articles belong to Shopify CMS");
+  },
+);

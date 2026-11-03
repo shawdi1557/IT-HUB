@@ -113,7 +113,7 @@ export async function handleCreateServiceRazorpayOrder(
     const {
       data: { user },
       error: authError,
-    } = await userClient.auth.getUser();
+    } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, "").trim());
 
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
@@ -173,14 +173,10 @@ export async function handleCreateServiceRazorpayOrder(
 
     // 4. Verify ownership
     if (service.user_id !== user.id) {
-      // Check if user is staff/admin
-      const { data: profile } = await adminClient
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      // Asks the database as the caller, so both administrator identities are recognised.
+      const { data: isAdmin } = await userClient.rpc("is_admin");
 
-      if (profile?.role !== "admin") {
+      if (isAdmin !== true) {
         return new Response(
           JSON.stringify({ error: "Forbidden: You do not own this service ticket" }),
           {

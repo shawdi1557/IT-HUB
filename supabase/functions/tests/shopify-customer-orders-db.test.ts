@@ -7,20 +7,23 @@ import {
   assertRejects,
 } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import {
+  TEST_ANON_KEY,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
+import { createSignedInUser } from "./_helpers/test_users.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "http://127.0.0.1:54321";
-const SERVICE_KEY =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const ANON_KEY =
-  Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SERVICE_KEY = TEST_SERVICE_KEY;
+const ANON_KEY = TEST_ANON_KEY;
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
-Deno.test("DB-SHOPIFY-1: Tables exist and have appropriate columns", async () => {
+dbTest("DB-SHOPIFY-1: Tables exist and have appropriate columns", async () => {
   const { data: assocCols, error: err1 } = await adminClient
     .from("shopify_order_associations")
     .select("id, token, user_id, expires_at, used_at, shopify_order_id, created_at")
@@ -38,19 +41,19 @@ Deno.test("DB-SHOPIFY-1: Tables exist and have appropriate columns", async () =>
   assertEquals(err2, null, "shopify_customer_orders table should exist with required columns");
 });
 
-Deno.test("DB-SHOPIFY-2: Token creation and consumption RPCs validate lifecycle", async () => {
-  // 1. Get an existing customer profile id
-  const { data: profs } = await adminClient.from("profiles").select("id").limit(1);
-  const testUserId = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
+dbTest("DB-SHOPIFY-2: Token creation and consumption RPCs validate lifecycle", async () => {
+  // 1. A real customer creates a token through the real RPC
+  const customer = await createSignedInUser("db-shopify");
+  const testUserId = customer.id;
+  const { data: token, error: insErr } = await customer.client.rpc("create_checkout_association");
+  assertEquals(insErr, null, "Should create association token");
 
-  // 2. Insert association token for this user
-  const token = `test_token_${Date.now()}`;
-  const { error: insErr } = await adminClient.from("shopify_order_associations").insert({
-    token,
-    user_id: testUserId,
-    expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+  // 2. The customer can't consume it themselves: only the server can
+  const blocked = await customer.client.rpc("validate_and_consume_association_token", {
+    p_token: token,
+    p_shopify_order_id: "gid://shopify/Order/990000",
   });
-  assertEquals(insErr, null, "Should insert association token");
+  assertEquals(blocked.error?.code, "42501");
 
   // 3. Test RPC: validate_and_consume_association_token
   const shopifyOrderId = `gid://shopify/Order/990001`;
@@ -65,8 +68,20 @@ Deno.test("DB-SHOPIFY-2: Token creation and consumption RPCs validate lifecycle"
   assertEquals(rpcErr, null, "RPC validate_and_consume_association_token should succeed");
   assertEquals(consumedUserId, testUserId, "Should return correct user_id");
 
-  // 4. Repeated consumption must fail (single-use enforcement)
+  // 4. A used token can't link a different order (single-use enforcement)
   const { data: secondConsume, error: secondErr } = await adminClient.rpc(
+    "validate_and_consume_association_token",
+    {
+      p_token: token,
+      p_shopify_order_id: "gid://shopify/Order/990002",
+    },
+  );
+
+  assertEquals(secondErr, null);
+  assertEquals(secondConsume, null, "Already-consumed token must return null (cannot be reused)");
+
+  // 5. Shopify's retry of the same order gets the same owner, and nothing changes
+  const { data: retried, error: retryErr } = await adminClient.rpc(
     "validate_and_consume_association_token",
     {
       p_token: token,
@@ -74,11 +89,11 @@ Deno.test("DB-SHOPIFY-2: Token creation and consumption RPCs validate lifecycle"
     },
   );
 
-  assertEquals(secondErr, null);
-  assertEquals(secondConsume, null, "Already-consumed token must return null (cannot be reused)");
+  assertEquals(retryErr, null);
+  assertEquals(retried, testUserId, "A retry for the same order must find its owner");
 });
 
-Deno.test("DB-SHOPIFY-3: RLS ensures Customer A cannot view Customer B orders", async () => {
+dbTest("DB-SHOPIFY-3: RLS ensures Customer A cannot view Customer B orders", async () => {
   const { data: profs } = await adminClient.from("profiles").select("id").limit(2);
   const userA = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
   const userB = profs?.[1]?.id || "0370fb7a-7896-44bc-a543-023dd399913f";

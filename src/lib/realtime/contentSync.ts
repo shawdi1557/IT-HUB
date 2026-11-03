@@ -477,20 +477,20 @@ export class ContentSyncManager {
             address: data.address || prev.settings.address,
             workingHours: data.hours || prev.settings.workingHours,
           },
-          locations: (prev.locations || []).map((loc: ItHubLocation) =>
-            loc.id === "kothamangalam"
-              ? {
-                  ...loc,
-                  name: `${data.store_name || "IT HUB"} Kothamangalam (Headquarters)`,
-                  address: data.address || loc.address,
-                  serviceRadiusKm:
-                    data.service_radius_km != null
-                      ? Number(data.service_radius_km)
-                      : loc.serviceRadiusKm,
-                  pincode: data.pincode || loc.pincode,
-                }
-              : loc,
-          ),
+          locations: (prev.locations || []).map((loc: ItHubLocation) => ({
+            ...loc,
+            active: loc.active !== false,
+            name:
+              loc.isHeadquarters || loc.id === "kothamangalam" || loc.pincode === "686691"
+                ? `${data.store_name || "IT HUB"} Kothamangalam (Headquarters)`
+                : loc.name,
+            address: data.address || loc.address,
+            serviceRadiusKm:
+              data.service_radius_km != null
+                ? Math.min(15, Number(data.service_radius_km))
+                : loc.serviceRadiusKm || 15,
+            pincode: data.pincode || loc.pincode,
+          })),
         }));
       }
     } catch (err) {
@@ -533,8 +533,11 @@ export class ContentSyncManager {
             pincode: loc.pincode || "686691",
             latitude: loc.latitude != null ? Number(loc.latitude) : 10.0601,
             longitude: loc.longitude != null ? Number(loc.longitude) : 76.6277,
-            serviceRadiusKm: loc.service_radius_km != null ? Number(loc.service_radius_km) : 15,
-            isHeadquarters: loc.is_headquarters ?? loc.id === "kothamangalam",
+            serviceRadiusKm:
+              loc.service_radius_km != null ? Math.min(15, Number(loc.service_radius_km)) : 15,
+            active: loc.active !== false,
+            isHeadquarters:
+              loc.is_headquarters ?? (loc.id === "kothamangalam" || loc.pincode === "686691"),
           })),
         }));
       }

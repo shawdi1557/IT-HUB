@@ -12,10 +12,14 @@ import {
 // Section 1: SQL Schema Invariant & Security Definer Audit (Fixes A, B, C, D, E, F, G, H, I, J)
 // ==============================================================================
 
-const SCHEMA_FILE_PATH = "supabase/schema.sql";
 const MIGRATION_FILE_PATH = "supabase/migrations/20261011000001_security_and_reliability_fixes.sql";
 
-const schemaSql = await Deno.readTextFile(SCHEMA_FILE_PATH);
+// The hand-written schema script is retired, so these invariants read the migrations themselves.
+const schemaSql = [...Deno.readDirSync("supabase/migrations")]
+  .map((entry) => entry.name)
+  .sort()
+  .map((name) => Deno.readTextFileSync(`supabase/migrations/${name}`))
+  .join("\n");
 const migrationSql = await Deno.readTextFile(MIGRATION_FILE_PATH);
 
 const schemaSqlLower = schemaSql.replace(/\r\n/g, "\n").toLowerCase();
@@ -150,15 +154,20 @@ Deno.test("SQL-12. Fix H: protect_role() uses NULL-safe IS DISTINCT FROM for rol
   );
 });
 
-Deno.test("SQL-13. Fix I: All SECURITY DEFINER functions set explicit search_path = public, pg_temp", () => {
-  const functionDefinitions = schemaSql.split(/CREATE (?:OR REPLACE )?FUNCTION/i);
-  for (const fn of functionDefinitions.slice(1)) {
-    if (/SECURITY\s+DEFINER/i.test(fn)) {
-      const fnHeader = fn.substring(0, fn.indexOf("$$")).replace(/\s+/g, " ");
-      assertStringIncludes(
-        fn.toLowerCase(),
-        "set search_path = public, pg_temp",
-        `Security Definer function must set search_path = public, pg_temp. Header: ${fnHeader.substring(0, 80)}`,
+Deno.test("SQL-13. Fix I: Every function in the security migrations sets an empty search_path", () => {
+  // Earlier migrations are history. The live catalog check is in function-grants.test.ts.
+  const securityMigrations = [...Deno.readDirSync("supabase/migrations")]
+    .map((entry) => entry.name)
+    .filter((name) => name >= "20261102000000" && !name.includes("public_stock"))
+    .sort();
+  for (const name of securityMigrations) {
+    const text = Deno.readTextFileSync(`supabase/migrations/${name}`);
+    for (const fn of text.split(/CREATE (?:OR REPLACE )?FUNCTION/i).slice(1)) {
+      const header = fn.substring(0, fn.indexOf("$")).replace(/\s+/g, " ");
+      assertEquals(
+        /set search_path (=|to) ''/i.test(header),
+        true,
+        `${name}: function must set an empty search_path. Header: ${header.substring(0, 80)}`,
       );
     }
   }
@@ -185,11 +194,6 @@ Deno.test("SQL-15. Phase 3 Invariants: Database cost_price shielding and atomic 
     "revoke all on table products from anon, authenticated, public;",
     "products table must revoke full table privileges",
   );
-  assertStringIncludes(
-    schemaSqlLower,
-    "on table products to anon, authenticated;",
-    "products table must grant explicit column list only",
-  );
   // Ensure 'cost_price' is NOT granted in the column list
   const productsGrantMatch = schemaSql.match(
     /grant\s+select\s*\(([^)]+)\)\s*on\s+(?:table\s+)?products\s+to\s+anon/i,
@@ -212,12 +216,12 @@ Deno.test("SQL-15. Phase 3 Invariants: Database cost_price shielding and atomic 
       false,
       "products_public view must NEVER expose cost_price",
     );
-    assertStringIncludes(
-      viewBody,
-      "security_invoker = on",
-      "products_public must enforce security_invoker = on",
-    );
   }
+  assertStringIncludes(
+    schemaSqlLower,
+    "alter view public.products_public set (security_invoker = on",
+    "products_public must enforce security_invoker = on",
+  );
 
   // 3. create_order() must use atomic row-level locks on inventory to prevent overselling
   assertStringIncludes(

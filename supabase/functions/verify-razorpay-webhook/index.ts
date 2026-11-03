@@ -161,8 +161,50 @@ export async function handleRazorpayWebhook(req: Request, deps?: WebhookDeps): P
         ? internalOrderIdRaw.trim()
         : null;
 
-    // 4. Call privileged database finalization function via service_role client
     const supabase = deps?.supabaseAdminClient ?? createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // 4. A captured payment for a service ticket. Razorpay retries non-2xx responses, so an amount
+    // that doesn't match the quote is acknowledged and left unpaid for staff to review.
+    const { data: serviceTicket, error: serviceLookupError } = await supabase
+      .from("service_requests")
+      .select("id")
+      .eq("razorpay_order_id", razorpayOrderId)
+      .maybeSingle();
+
+    if (serviceLookupError) {
+      console.error("[verify-razorpay-webhook] Service lookup failed:", serviceLookupError.message);
+      return new Response(JSON.stringify({ error: "Payment recording failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (serviceTicket?.id) {
+      const { data: serviceResult, error: serviceError } = await supabase.rpc(
+        "record_service_payment",
+        {
+          p_service_request_id: serviceTicket.id,
+          p_razorpay_order_id: razorpayOrderId,
+          p_razorpay_payment_id: razorpayPaymentId,
+          p_razorpay_signature: signature.trim(),
+          p_amount_paid: amountPaid,
+          p_currency: currency,
+        },
+      );
+      if (serviceError) {
+        console.error("[verify-razorpay-webhook] Service payment rejected:", serviceError.message);
+        return new Response(JSON.stringify({ ok: true, recorded: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, recorded: true, result: serviceResult }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // 5. Otherwise, a legacy storefront order
     const { data: result, error: rpcError } = await supabase.rpc("record_order_payment", {
       p_order_id: internalOrderId,
       p_razorpay_order_id: razorpayOrderId,

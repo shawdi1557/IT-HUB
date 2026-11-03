@@ -12,7 +12,7 @@ IT HUB is an omnichannel e-commerce and computer hardware/repair services platfo
 2. **Encapsulated Business Logic**: Critical state transitions (order creation, inventory reservation, payment recording, order cancellation, and quote acceptance) are executed through PostgreSQL `SECURITY DEFINER` stored procedures (`plpgsql`) that run in controlled search paths (`search_path = public, pg_temp`).
 3. **Pessimistic Concurrency & Lock Determinism**: Multi-row inventory locks are always acquired using `SELECT ... FOR UPDATE` ordered deterministically by `product_id ASC` to prevent deadlocks under heavy concurrent checkout traffic.
 4. **Data Isolation via Row Level Security (RLS)**: Every single table in the `public` schema has Row Level Security enabled (`ENABLE ROW LEVEL SECURITY`). Tables storing sensitive operational or financial data are isolated from anonymous and customer access.
-5. **Separation of Public Views**: Protected columns (such as product `cost_price` and coupon secret analytics) are never exposed through raw table queries. Public views such as [`public_products`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1078) and [`public_coupons`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1095) provide sanitized projections for frontend consumers.
+5. **Separation of Public Views**: Protected columns (such as product `cost_price` and coupon secret analytics) are never exposed through raw table queries. Public views such as `public_products` and `public_coupons` provide sanitized projections for frontend consumers.
 
 ---
 
@@ -47,14 +47,13 @@ To deploy IT HUB on an empty Supabase project, execute the migration and setup s
 
 ### Step 1: Database Schema Deployment
 
-Execute the canonical schema script:
+Migrations are the only source of the schema. Never paste SQL files into the Dashboard's SQL Editor: that's how the hosted schema drifted from the code. Apply them with the Supabase CLI:
 
 ```bash
-# Path: supabase/schema.sql
-# In Supabase Dashboard -> SQL Editor, run the full contents of schema.sql
+npx supabase db push
 ```
 
-This script creates:
+They create:
 
 - Core extensions (`pgcrypto`, `uuid-ossp`).
 - Enum types (`user_role`, `order_status`, `payment_status`, `service_status`, `sell_status`).
@@ -65,14 +64,7 @@ This script creates:
 
 ### Step 2: Storage Buckets & Policies
 
-Execute the storage isolation script:
-
-```bash
-# Path: supabase/storage-policies.sql
-# Run in Supabase SQL Editor
-```
-
-This creates and secures 3 storage buckets:
+The migrations create and secure the storage buckets, in `20261102000006_storage_buckets_and_policies.sql`:
 
 - `product-images` (Public read for active products; upload restricted to Admin; SVGs disallowed to prevent XSS).
 - `sell-request-photos` (Private; path-isolated to `{user_id}/{request_id}/*`; Admin full access).
@@ -141,14 +133,14 @@ By default, all new user registrations in Supabase Auth are created as `customer
 
 All RPCs feature strict parameter signatures and role access constraints:
 
-| Stored Procedure                                                                          | Allowed Caller           | Purpose & Guarantees                                                                        |
-| :---------------------------------------------------------------------------------------- | :----------------------- | :------------------------------------------------------------------------------------------ |
-| [`create_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1435)           | `authenticated`          | Atomically validates prices, stocks, and coupons. Deducts inventory and sets 30-min TTL.    |
-| [`record_order_payment`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1604)   | `service_role` **ONLY**  | Validates gateway signature, amount, currency. Idempotently marks Paid and commits coupons. |
-| [`record_payment_failure`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1829) | `service_role` **ONLY**  | Marks order Failed and releases reserved inventory.                                         |
-| [`cancel_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1876)           | `authenticated`, `admin` | Customers can cancel Pending unpaid orders only. Restores reserved stock idempotently.      |
-| [`cleanup_expired_orders`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1928) | `service_role` **ONLY**  | Scheduled worker; unlocks stock for unpaid checkouts past 30 minutes using `SKIP LOCKED`.   |
-| [`bootstrap_first_admin`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1970)  | `service_role` **ONLY**  | One-time trusted admin role assignment.                                                     |
+| Stored Procedure         | Allowed Caller           | Purpose & Guarantees                                                                        |
+| :----------------------- | :----------------------- | :------------------------------------------------------------------------------------------ |
+| `create_order`           | `authenticated`          | Atomically validates prices, stocks, and coupons. Deducts inventory and sets 30-min TTL.    |
+| `record_order_payment`   | `service_role` **ONLY**  | Validates gateway signature, amount, currency. Idempotently marks Paid and commits coupons. |
+| `record_payment_failure` | `service_role` **ONLY**  | Marks order Failed and releases reserved inventory.                                         |
+| `cancel_order`           | `authenticated`, `admin` | Customers can cancel Pending unpaid orders only. Restores reserved stock idempotently.      |
+| `cleanup_expired_orders` | `service_role` **ONLY**  | Scheduled worker; unlocks stock for unpaid checkouts past 30 minutes using `SKIP LOCKED`.   |
+| `bootstrap_first_admin`  | `service_role` **ONLY**  | One-time trusted admin role assignment.                                                     |
 
 ---
 
@@ -181,7 +173,7 @@ Customers submit used devices for evaluation and quote acceptance.
 
 ## 7. Authoritative Pricing & Coupon Engine
 
-IT HUB implements a single server-side pricing algorithm executed inside [`create_order`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql#L1435):
+IT HUB implements a single server-side pricing algorithm executed inside `create_order`:
 
 1. **Item Price Validation**:
    - Queries `products` directly with `FOR SHARE` lock.
@@ -206,7 +198,7 @@ IT HUB implements a single server-side pricing algorithm executed inside [`creat
 
 ## 8. Storage Buckets & File Security
 
-Storage policies in [`supabase/storage-policies.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/storage-policies.sql) implement folder-level isolation:
+Storage policies in `20261102000006_storage_buckets_and_policies.sql` implement folder-level isolation:
 
 | Bucket                | Access Policy                                   | Allowed MIME Types                                                  |
 | :-------------------- | :---------------------------------------------- | :------------------------------------------------------------------ |
@@ -234,4 +226,4 @@ If a schema installation fails mid-way on a non-production test instance:
    -- Drop custom types
    DROP TYPE IF EXISTS sell_status, service_status, payment_status, order_status, user_role CASCADE;
    ```
-3. Re-run [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) from the top.
+3. Re-apply the migrations with `npx supabase db push`.

@@ -37,7 +37,7 @@ serve(async (req: Request) => {
     const {
       data: { user },
       error: authError,
-    } = await userClient.auth.getUser();
+    } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, "").trim());
 
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized: Invalid user session" }), {

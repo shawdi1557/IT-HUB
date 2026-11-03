@@ -1,8 +1,8 @@
 // supabase/functions/send-sms-hook/index.ts
-// Supabase Auth "Send SMS" Hook for Indian SMS Gateways (Fast2SMS, MSG91, 2Factor, Twilio)
-// IT HUB — Kerala, India
-
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// Supabase Auth "Send SMS" hook. Supabase generates and verifies the OTP. This only delivers it,
+// through one provider chosen explicitly, using a DLT-registered template, to Indian numbers only.
+// It fails closed: an unsigned request is refused, and with no complete provider configuration no
+// code is sent, so nobody can sign in. OTP values are never written to logs.
 
 interface SendSmsHookPayload {
   user: {
@@ -14,155 +14,293 @@ interface SendSmsHookPayload {
   };
 }
 
-/**
- * Normalizes Indian phone numbers from E.164 (+919847223886) to 10 digits (9847223886)
- */
-function to10Digits(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
+export interface SendSmsHookDeps {
+  hookSecret?: string;
+  env?: (name: string) => string | undefined;
+  fetchImpl?: typeof fetch;
+  nowSeconds?: number;
+  attemptTimeoutMs?: number;
+  retryDelayMs?: number;
 }
 
-Deno.serve(async (req: Request) => {
-  // 1. Health check or non-POST requests
+const TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+// Supabase Auth gives the whole hook 5 seconds, including any retries of its own. That leaves room
+// for one retry here, and this hook never asks Auth to retry. A retry after a timeout can deliver
+// the same code twice, which costs an SMS but is otherwise harmless, so it's better than no code.
+const ATTEMPT_TIMEOUT_MS = 1800;
+const RETRY_DELAY_MS = 200;
+const MAX_ATTEMPTS = 2;
+
+function failure(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: { http_code: status, message } }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function success(provider: string): Response {
+  return new Response(JSON.stringify({ success: true, provider }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** The 10-digit number for a valid Indian mobile in any common form, otherwise null. */
+export function indianMobileDigits(phone: string): string | null {
+  const match = phone.replace(/\D/g, "").match(/^(?:91)?([6-9]\d{9})$/);
+  return match ? match[1] : null;
+}
+
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  let diff = 0;
+  for (let i = 0; i < a.byteLength; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+function decodeBase64(value: string): Uint8Array | null {
+  try {
+    return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies a Standard Webhooks signature, the scheme Supabase Auth uses for HTTP hooks.
+ * The secret has the form "v1,whsec_<base64>"; the signed content is "id.timestamp.body".
+ */
+export async function verifyHookSignature(
+  rawBody: string,
+  headers: Headers,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<boolean> {
+  const id = headers.get("webhook-id");
+  const timestamp = headers.get("webhook-timestamp");
+  const signatures = headers.get("webhook-signature");
+  if (!id || !timestamp || !signatures) return false;
+
+  const sentAt = Number(timestamp);
+  if (!Number.isFinite(sentAt) || Math.abs(nowSeconds - sentAt) > TIMESTAMP_TOLERANCE_SECONDS) {
+    return false;
+  }
+
+  const keyBytes = decodeBase64(secret.replace(/^v1,/, "").replace(/^whsec_/, ""));
+  if (!keyBytes || keyBytes.byteLength === 0) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes as BufferSource,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const expected = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${id}.${timestamp}.${rawBody}`),
+    ),
+  );
+
+  for (const candidate of signatures.split(" ")) {
+    const [version, value] = candidate.split(",");
+    if (version !== "v1" || !value) continue;
+    const provided = decodeBase64(value);
+    if (provided && constantTimeEqual(expected, provided)) return true;
+  }
+  return false;
+}
+
+type Env = (name: string) => string | undefined;
+type SendResult = { configured: boolean; delivered: boolean; detail?: string };
+type Delivery = { fetcher: typeof fetch; attemptTimeoutMs: number; retryDelayMs: number };
+type ProviderReply = { status: number; body: any; failure?: string };
+
+/** Provider messages can echo the request, so long digit runs are removed before logging. */
+function safeDetail(message: unknown): string {
+  return String(message ?? "no message")
+    .replace(/\d{4,}/g, "#")
+    .slice(0, 120);
+}
+
+/** Retries only what might succeed next time: no response, rate limiting and server errors. */
+async function postToProvider(
+  delivery: Delivery,
+  url: string,
+  init: RequestInit,
+): Promise<ProviderReply> {
+  let reply: ProviderReply = { status: 0, body: null, failure: "no response" };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await delivery.fetcher(url, {
+        ...init,
+        signal: AbortSignal.timeout(delivery.attemptTimeoutMs),
+      });
+      const body = await response.json().catch(() => null);
+      reply = { status: response.status, body };
+      if (response.status !== 429 && response.status < 500) return reply;
+      reply.failure = response.status === 429 ? "rate limited" : `HTTP ${response.status}`;
+      // Waiting as long as the provider asks wouldn't fit in Auth's time limit.
+      const askedToWaitMs = Number(response.headers.get("retry-after") ?? 0) * 1000;
+      if (askedToWaitMs > delivery.retryDelayMs) return reply;
+    } catch (err: any) {
+      reply = {
+        status: 0,
+        body: null,
+        failure: err?.name === "TimeoutError" ? "timed out" : "network error",
+      };
+    }
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, delivery.retryDelayMs));
+    }
+  }
+  return reply;
+}
+
+/**
+ * MSG91 Flow API: POST /api/v5/flow, with the authkey in a header. Flow only delivers a message,
+ * unlike MSG91's Send OTP API, which stores and checks its own code. Supabase owns the code here.
+ * The template holds the DLT Template ID and its sender, and contains the variable ##OTP##.
+ */
+async function sendWithMsg91(
+  env: Env,
+  delivery: Delivery,
+  phone10: string,
+  otp: string,
+): Promise<SendResult> {
+  const authKey = env("MSG91_AUTH_KEY");
+  const templateId = env("MSG91_TEMPLATE_ID");
+  if (!authKey || !templateId) return { configured: false, delivered: false };
+
+  const reply = await postToProvider(delivery, "https://control.msg91.com/api/v5/flow", {
+    method: "POST",
+    headers: {
+      authkey: authKey,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      template_id: templateId,
+      short_url: "0",
+      realTimeResponse: "1",
+      recipients: [{ mobiles: `91${phone10}`, OTP: otp }],
+    }),
+  });
+  const delivered = reply.status >= 200 && reply.status < 300 && reply.body?.type === "success";
+  return {
+    configured: true,
+    delivered,
+    detail: delivered ? undefined : (reply.failure ?? safeDetail(reply.body?.message)),
+  };
+}
+
+/** Fast2SMS DLT route only. Its non-DLT routes aren't used. */
+async function sendWithFast2Sms(
+  env: Env,
+  delivery: Delivery,
+  phone10: string,
+  otp: string,
+): Promise<SendResult> {
+  const apiKey = env("FAST2SMS_API_KEY");
+  const senderId = env("FAST2SMS_SENDER_ID");
+  const templateId = env("FAST2SMS_TEMPLATE_ID");
+  if (!apiKey || !senderId || !templateId) return { configured: false, delivered: false };
+
+  const reply = await postToProvider(delivery, "https://www.fast2sms.com/dev/bulkV2", {
+    method: "POST",
+    headers: { authorization: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      route: "dlt",
+      sender_id: senderId,
+      message: templateId,
+      variables_values: otp,
+      numbers: phone10,
+    }),
+  });
+  const delivered = reply.status >= 200 && reply.status < 300 && reply.body?.return === true;
+  return {
+    configured: true,
+    delivered,
+    detail: delivered ? undefined : (reply.failure ?? safeDetail(reply.body?.message)),
+  };
+}
+
+const PROVIDERS: Record<
+  string,
+  (env: Env, delivery: Delivery, phone10: string, otp: string) => Promise<SendResult>
+> = {
+  msg91: sendWithMsg91,
+  fast2sms: sendWithFast2Sms,
+};
+
+export async function handleSendSmsHook(req: Request, deps?: SendSmsHookDeps): Promise<Response> {
+  const env: Env = deps?.env ?? ((name: string) => Deno.env.get(name));
+  const fetcher = deps?.fetchImpl ?? fetch;
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ status: "ok", service: "IT HUB SMS Gateway Hook" }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return failure("Method not allowed. Expected POST.", 405);
+  }
+
+  // The hook secret is mandatory. Without it, anyone could use this endpoint to send SMS.
+  const hookSecret = deps?.hookSecret ?? env("SEND_SMS_HOOK_SECRET");
+  if (!hookSecret) {
+    console.error("[send-sms-hook] SEND_SMS_HOOK_SECRET is not configured");
+    return failure("SMS hook is not configured.", 500);
   }
 
   try {
-    // 2. Validate optional secret token (if configured in Supabase hook headers)
-    const hookSecret = Deno.env.get("SEND_SMS_HOOK_SECRET");
-    if (hookSecret) {
-      const authHeader = req.headers.get("x-hook-secret") || req.headers.get("authorization");
-      if (authHeader !== hookSecret && authHeader !== `Bearer ${hookSecret}`) {
-        return new Response(JSON.stringify({ error: "Unauthorized hook invocation" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+    const rawBody = await req.text();
+    const verified = await verifyHookSignature(rawBody, req.headers, hookSecret, deps?.nowSeconds);
+    if (!verified) {
+      return failure("Unauthorized hook invocation", 401);
     }
 
-    // 3. Parse Supabase Auth Hook payload
-    const body: SendSmsHookPayload = await req.json();
+    const body: SendSmsHookPayload = JSON.parse(rawBody);
     const { user, sms } = body;
-
     if (!user?.phone || !sms?.otp) {
-      return new Response(JSON.stringify({ error: "Missing required phone or OTP in payload" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return failure("Missing required phone or OTP in payload", 400);
     }
 
-    const phoneE164 = user.phone;
-    const phone10 = to10Digits(phoneE164);
-    const otp = sms.otp;
-    const storeName = Deno.env.get("STORE_NAME") || "IT HUB";
-
-    console.log(`[send-sms-hook] Dispatching OTP for phone ${phone10} (length: ${otp.length})`);
-
-    // ────────────────────────────────────────────────────────────────────────────
-    // 4. Provider Dispatch
-    // ────────────────────────────────────────────────────────────────────────────
-
-    // Provider A: Fast2SMS (Popular in India for Quick OTPs)
-    const fast2smsApiKey = Deno.env.get("FAST2SMS_API_KEY");
-    if (fast2smsApiKey) {
-      const resp = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-        method: "POST",
-        headers: {
-          authorization: fast2smsApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          route: "otp",
-          variables_values: otp,
-          numbers: phone10,
-        }),
-      });
-
-      const resJson = await resp.json();
-      if (!resp.ok || resJson.return === false) {
-        console.error("[send-sms-hook] Fast2SMS dispatch failed:", resJson);
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via Fast2SMS" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true, provider: "fast2sms" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+    const phone10 = indianMobileDigits(user.phone);
+    if (!phone10) {
+      return failure("Only Indian mobile numbers are supported.", 400);
     }
 
-    // Provider B: 2Factor (Specialized in Indian 2FA / OTP delivery)
-    const twoFactorApiKey = Deno.env.get("TWO_FACTOR_API_KEY");
-    if (twoFactorApiKey) {
-      const templateName = Deno.env.get("TWO_FACTOR_TEMPLATE") || "IT_HUB_OTP";
-      const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactorApiKey)}/SMS/${encodeURIComponent(phone10)}/${encodeURIComponent(otp)}/${encodeURIComponent(templateName)}`;
-      const resp = await fetch(url);
-      const resJson = await resp.json();
-
-      if (!resp.ok || resJson.Status !== "Success") {
-        console.error("[send-sms-hook] 2Factor dispatch failed:", resJson);
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via 2Factor" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true, provider: "2factor" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+    const providerName = (env("SMS_PROVIDER") ?? "").trim().toLowerCase();
+    const send = Object.hasOwn(PROVIDERS, providerName) ? PROVIDERS[providerName] : undefined;
+    if (!send) {
+      console.error("[send-sms-hook] SMS_PROVIDER is not set to a supported provider");
+      return failure("No SMS provider is configured.", 503);
     }
 
-    // Provider C: MSG91 (DLT-Approved Indian SMS Gateway)
-    const msg91AuthKey = Deno.env.get("MSG91_AUTH_KEY");
-    const msg91TemplateId = Deno.env.get("MSG91_TEMPLATE_ID");
-    if (msg91AuthKey && msg91TemplateId) {
-      const resp = await fetch(
-        `https://control.msg91.com/api/v5/otp?template_id=${encodeURIComponent(msg91TemplateId)}&mobile=91${encodeURIComponent(phone10)}&authkey=${encodeURIComponent(msg91AuthKey)}&otp=${encodeURIComponent(otp)}`,
-        { method: "POST" },
-      );
-      const resJson = await resp.json();
-
-      if (!resp.ok || resJson.type === "error") {
-        console.error("[send-sms-hook] MSG91 dispatch failed:", resJson);
-        return new Response(JSON.stringify({ error: "SMS dispatch failed via MSG91" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true, provider: "msg91" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    // Provider D: Generic / Mock Gateway (Log for test environments)
-    console.log(
-      `[send-sms-hook] [DEVELOPMENT MOCK] Sending OTP "${otp}" to +91 ${phone10} for ${storeName}`,
-    );
-    return new Response(
-      JSON.stringify({
-        success: true,
-        provider: "mock_development",
-        phone: phone10,
-      }),
+    const result = await send(
+      env,
       {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+        fetcher,
+        attemptTimeoutMs: deps?.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS,
+        retryDelayMs: deps?.retryDelayMs ?? RETRY_DELAY_MS,
       },
+      phone10,
+      sms.otp,
     );
+    if (!result.configured) {
+      console.error(`[send-sms-hook] ${providerName} is missing its key or DLT configuration`);
+      return failure("The SMS provider's DLT configuration is incomplete.", 503);
+    }
+    if (!result.delivered) {
+      console.error(`[send-sms-hook] ${providerName} didn't send: ${result.detail}`);
+      return failure("The SMS provider couldn't send the message.", 502);
+    }
+    return success(providerName);
   } catch (err: any) {
-    console.error("[send-sms-hook] Unhandled exception:", err);
-    return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("[send-sms-hook] Unhandled exception:", err?.name);
+    return failure("Internal server error", 500);
   }
-});
+}
+
+if (import.meta.main) {
+  Deno.serve((req: Request) => handleSendSmsHook(req));
+}

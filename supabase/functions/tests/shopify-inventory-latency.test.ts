@@ -13,6 +13,7 @@ import {
 } from "../../../src/lib/shopify.ts";
 import { syncBuilderCatalogWithShopify } from "../../../src/lib/builder/catalog.ts";
 import type { Product } from "../../../src/data/catalog.ts";
+import { liveServiceTest } from "./_helpers/disposable_env.ts";
 
 // Helper to generate a realistic product catalog for testing
 function createMockCatalog(count = 25): Product[] {
@@ -105,11 +106,13 @@ Deno.test("LAT-BENCH-1: Application processing delay (T3 -> T4) is strictly < 10
 // Test 3: Real Storefront API Roundtrip Latency (10 Consecutive Probes)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("LAT-API-10: 10 live Storefront API availability probes measure network RTT", async () => {
-  const endpoint = "https://it-hub-m8tzfzjd.myshopify.com/api/2026-10/graphql.json";
-  const token = "cc5aa3f11b65cd26b5dfd1998f8aaddd";
+liveServiceTest(
+  "LAT-API-10: 10 live Storefront API availability probes measure network RTT",
+  async () => {
+    const endpoint = "https://it-hub-m8tzfzjd.myshopify.com/api/2026-10/graphql.json";
+    const token = Deno.env.get("ITHUB_LIVE_STOREFRONT_TOKEN") ?? "";
 
-  const query = `
+    const query = `
     query checkVariantsAvailability($ids: [ID!]!) {
       nodes(ids: $ids) {
         ... on ProductVariant {
@@ -123,45 +126,46 @@ Deno.test("LAT-API-10: 10 live Storefront API availability probes measure networ
       }
     }
   `;
-  const variables = {
-    ids: ["gid://shopify/Product/15448703107316", "gid://shopify/ProductVariant/67870578311412"],
-  };
+    const variables = {
+      ids: ["gid://shopify/Product/15448703107316", "gid://shopify/ProductVariant/67870578311412"],
+    };
 
-  const durations: number[] = [];
+    const durations: number[] = [];
 
-  for (let i = 0; i < 10; i++) {
-    const t2 = performance.now();
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Storefront-Access-Token": token,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-      body: JSON.stringify({ query, variables }),
-    });
-    const t3 = performance.now();
+    for (let i = 0; i < 10; i++) {
+      const t2 = performance.now();
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": token,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({ query, variables }),
+      });
+      const t3 = performance.now();
 
-    assertEquals(res.status, 200);
-    const data = await res.json();
-    assert(Array.isArray(data.data?.nodes), "Nodes should be returned");
-    durations.push(t3 - t2);
-  }
+      assertEquals(res.status, 200);
+      const data = await res.json();
+      assert(Array.isArray(data.data?.nodes), "Nodes should be returned");
+      durations.push(t3 - t2);
+    }
 
-  durations.sort((a, b) => a - b);
-  const p50 = durations[Math.floor(durations.length * 0.5)];
-  const p95 = durations[Math.floor(durations.length * 0.95)];
-  const max = durations[durations.length - 1];
+    durations.sort((a, b) => a - b);
+    const p50 = durations[Math.floor(durations.length * 0.5)];
+    const p95 = durations[Math.floor(durations.length * 0.95)];
+    const max = durations[durations.length - 1];
 
-  console.log(`\n  Live Storefront API 10-Probe Network Latency (T2 -> T3):`);
-  console.log(
-    `  Min: ${durations[0].toFixed(1)}ms | p50: ${p50.toFixed(1)}ms | p95: ${p95.toFixed(1)}ms | Max: ${max.toFixed(1)}ms`,
-  );
+    console.log(`\n  Live Storefront API 10-Probe Network Latency (T2 -> T3):`);
+    console.log(
+      `  Min: ${durations[0].toFixed(1)}ms | p50: ${p50.toFixed(1)}ms | p95: ${p95.toFixed(1)}ms | Max: ${max.toFixed(1)}ms`,
+    );
 
-  // Target requirement: Network RTT should reliably be under 500ms
-  assert(p50 < 500, `p50 (${p50}ms) must be under 500ms`);
-});
+    // Target requirement: Network RTT should reliably be under 500ms
+    assert(p50 < 500, `p50 (${p50}ms) must be under 500ms`);
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test 4: 10 Controlled Inventory Transitions Matrix (T1 to T5 Breakdown)

@@ -3,29 +3,24 @@
 
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { TEST_SERVICE_KEY, TEST_SUPABASE_URL, dbTest } from "./_helpers/disposable_env.ts";
+import { createSignedInUser } from "./_helpers/test_users.ts";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SERVICE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SERVICE_KEY = TEST_SERVICE_KEY;
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
-Deno.test("ASSOC-1: RPC create_checkout_association generates valid opaque token", async () => {
-  const { data: profs } = await adminClient.from("profiles").select("id").limit(1);
-  const testUserId = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
+dbTest("ASSOC-1: RPC create_checkout_association generates valid opaque token", async () => {
+  const customer = await createSignedInUser("assoc");
+  const testUserId = customer.id;
 
-  // When called via SQL with auth.uid() context:
-  const token = `hub_assoc_test_${Date.now()}`;
-  const { error: insErr } = await adminClient.from("shopify_order_associations").insert({
-    token,
-    user_id: testUserId,
-    expires_at: new Date(Date.now() + 7200 * 1000).toISOString(),
-  });
-
-  assertEquals(insErr, null);
+  const { data: token, error: rpcErr } = await customer.client.rpc("create_checkout_association");
+  assertEquals(rpcErr, null);
   assertEquals(token.startsWith("hub_assoc_"), true);
+  assertEquals(token.length > 40, true);
 
   // Verify token is in DB
   const { data: assoc } = await adminClient

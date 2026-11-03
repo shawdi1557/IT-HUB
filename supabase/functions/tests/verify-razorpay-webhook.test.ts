@@ -49,6 +49,12 @@ function createMockAdminClient(opts?: MockAdminOpts) {
   return {
     calls,
     client: {
+      // No service ticket matches, so these events take the legacy order path.
+      from: () => ({
+        select: () => ({
+          eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+        }),
+      }),
       rpc: async (fn: string, args: any) => {
         calls.push({ fn, args });
         if (opts?.rpcError) {

@@ -12,48 +12,6 @@ export interface ShopifyWebhookDeps {
   supabaseServiceRoleKey?: string;
 }
 
-// In-memory LRU idempotency cache for deduplicating repeated webhook deliveries
-const PROCESSED_WEBHOOK_IDS = new Map<string, number>();
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-export function isDuplicateWebhook(webhookId: string): boolean {
-  if (!webhookId) return false;
-  const now = Date.now();
-  const timestamp = PROCESSED_WEBHOOK_IDS.get(webhookId);
-  if (timestamp && now - timestamp < IDEMPOTENCY_TTL_MS) {
-    return true;
-  }
-  // Clean old entries if cache grows large
-  if (PROCESSED_WEBHOOK_IDS.size > 1000) {
-    for (const [id, ts] of PROCESSED_WEBHOOK_IDS.entries()) {
-      if (now - ts >= IDEMPOTENCY_TTL_MS) {
-        PROCESSED_WEBHOOK_IDS.delete(id);
-      }
-    }
-  }
-  PROCESSED_WEBHOOK_IDS.set(webhookId, now);
-  return false;
-}
-
-export function clearProcessedWebhooksForTesting(): void {
-  PROCESSED_WEBHOOK_IDS.clear();
-}
-
-/**
- * Normalizes an Indian phone number or general phone to standard format.
- */
-function normalizePhone(raw?: string): string {
-  if (!raw) return "";
-  const digitsOnly = raw.replace(/\D/g, "");
-  if (digitsOnly.length === 10) {
-    return `+91${digitsOnly}`;
-  }
-  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
-    return `+${digitsOnly}`;
-  }
-  return `+${digitsOnly}`;
-}
-
 export async function handleShopifyWebhook(
   req: Request,
   deps?: ShopifyWebhookDeps,
@@ -74,11 +32,8 @@ export async function handleShopifyWebhook(
   const webhookId = req.headers.get("X-Shopify-Webhook-Id") || "";
   const shopDomain = req.headers.get("X-Shopify-Shop-Domain") || "";
 
-  const secret =
-    deps?.webhookSecret ??
-    Deno.env.get("SHOPIFY_WEBHOOK_SECRET") ??
-    Deno.env.get("VITE_SHOPIFY_WEBHOOK_SECRET") ??
-    "";
+  // Never read a VITE_ variable here: those are built into the browser bundle.
+  const secret = deps?.webhookSecret ?? Deno.env.get("SHOPIFY_WEBHOOK_SECRET") ?? "";
 
   if (!secret) {
     return new Response(
@@ -110,20 +65,7 @@ export async function handleShopifyWebhook(
     );
   }
 
-  // 2. Enforce idempotency: prevent re-executing duplicate webhook deliveries
-  if (webhookId && isDuplicateWebhook(webhookId)) {
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        message: "Duplicate webhook delivery acknowledged and skipped.",
-        webhookId,
-        topic: topicHeader,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  // 3. Parse JSON payload
+  // 2. Parse JSON payload
   let payload: any = {};
   if (rawBodyText.trim()) {
     try {
@@ -136,7 +78,7 @@ export async function handleShopifyWebhook(
     }
   }
 
-  // 4. Handle Order Topics (orders/create, orders/updated, orders/fulfilled, orders/cancelled, orders/paid)
+  // 3. Handle Order Topics (orders/create, orders/updated, orders/fulfilled, orders/cancelled, orders/paid)
   if (topicHeader.startsWith("orders/")) {
     const rawId = payload.id ? String(payload.id) : "";
     if (!rawId) {
@@ -165,16 +107,81 @@ export async function handleShopifyWebhook(
       auth: { persistSession: false },
     });
 
-    // Check if order already has an existing binding in shopify_customer_orders
-    const { data: existingOrder } = await supabase
+    // Shopify retries until it gets a 2xx, so a delivery must not be marked done before it has
+    // been processed. A failed attempt stays claimable and its retry runs again.
+    if (webhookId) {
+      const { data: claimed, error: claimErr } = await supabase.rpc("claim_shopify_webhook", {
+        p_webhook_id: webhookId,
+        p_topic: topicHeader,
+      });
+      if (claimErr) {
+        console.error(`[shopify-webhook] Could not claim delivery: ${claimErr.message}`);
+        return new Response(JSON.stringify({ error: "Could not record webhook delivery." }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (claimed === false) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            message: "Duplicate webhook delivery acknowledged and skipped.",
+            webhookId,
+            topic: topicHeader,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    const finish = async (succeeded: boolean, error?: string) => {
+      if (!webhookId) return;
+      const { error: finishErr } = await supabase.rpc("finish_shopify_webhook", {
+        p_webhook_id: webhookId,
+        p_succeeded: succeeded,
+        p_error: error ?? null,
+      });
+      if (finishErr) console.error(`[shopify-webhook] Could not finish: ${finishErr.message}`);
+    };
+
+    // An order that's already bound stays with that customer.
+    const { data: existingOrder, error: existingErr } = await supabase
       .from("shopify_customer_orders")
-      .select("id, user_id")
+      .select("id, user_id, shopify_updated_at")
       .eq("shopify_order_id", orderGid)
       .maybeSingle();
 
+    if (existingErr) {
+      await finish(false, existingErr.message);
+      return new Response(JSON.stringify({ error: "Could not read the existing order." }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     let resolvedUserId: string | null = existingOrder?.user_id ?? null;
 
-    // Check for association token if not yet resolved
+    // Webhooks can arrive out of order. An older delivery must not overwrite a newer one.
+    const incomingUpdatedAt = payload.updated_at ? new Date(payload.updated_at).getTime() : null;
+    const storedUpdatedAt = existingOrder?.shopify_updated_at
+      ? new Date(existingOrder.shopify_updated_at).getTime()
+      : null;
+    if (incomingUpdatedAt && storedUpdatedAt && incomingUpdatedAt < storedUpdatedAt) {
+      await finish(true);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          topic: topicHeader,
+          orderId: orderGid,
+          message: "Older delivery ignored; the stored order is newer.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // The single-use token issued to the signed-in customer's own session is the only proof of
+    // ownership. Emails and phone numbers are never used: anyone can edit their profile's contact
+    // details, and anyone can type any address at checkout.
     if (!resolvedUserId) {
       const noteAttributes: Array<{ name?: string; key?: string; value?: string }> =
         payload.note_attributes || payload.custom_attributes || [];
@@ -195,48 +202,33 @@ export async function handleShopifyWebhook(
           },
         );
 
-        if (!rpcErr && consumedUserId) {
+        if (rpcErr) {
+          await finish(false, rpcErr.message);
+          return new Response(JSON.stringify({ error: "Could not validate association token." }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (consumedUserId) {
           resolvedUserId = consumedUserId;
-        }
-      }
-    }
-
-    // Controlled fallback: Match by verified profile phone or email ONLY if exactly 1 non-ambiguous profile exists
-    if (!resolvedUserId) {
-      const rawPhone = payload.phone || payload.customer?.phone || "";
-      const rawEmail = (payload.email || payload.customer?.email || "").toLowerCase().trim();
-      const normalizedP = normalizePhone(rawPhone);
-
-      if (normalizedP || rawEmail) {
-        let query = supabase.from("profiles").select("id, phone, email");
-        if (normalizedP && rawEmail) {
-          query = query.or(`phone.eq.${normalizedP},email.eq.${rawEmail}`);
-        } else if (normalizedP) {
-          query = query.eq("phone", normalizedP);
         } else {
-          query = query.eq("email", rawEmail);
-        }
-
-        const { data: matchingProfiles } = await query;
-        // Strict ambiguity check: Exactly ONE profile must match
-        if (matchingProfiles && matchingProfiles.length === 1) {
-          resolvedUserId = matchingProfiles[0].id;
-        } else if (matchingProfiles && matchingProfiles.length > 1) {
-          console.warn(
-            `[shopify-webhook] Identity ambiguity: order ${orderGid} matched ${matchingProfiles.length} customer profiles. Skipping automatic association.`,
-          );
+          // Started on the website, but the token has expired or already linked another order.
+          console.warn(`[shopify-webhook] Unusable checkout token on order ${orderGid}`);
         }
       }
     }
 
+    // No valid token means this isn't a website order: an in-store, WhatsApp, manual or historical
+    // order, for example. Those aren't tracked, so nothing about the order is kept.
     if (!resolvedUserId) {
+      await finish(true);
       return new Response(
         JSON.stringify({
           ok: true,
           topic: topicHeader,
           orderId: orderGid,
           orderAssociated: false,
-          message: "Order processed without customer association (guest checkout or unmatched).",
+          message: "Not a website order, so it isn't linked to an account.",
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -294,25 +286,30 @@ export async function handleShopifyWebhook(
     );
     const currencyCode = payload.currency || "INR";
 
+    const orderData = {
+      order_number: orderNumber,
+      created_at: createdAt,
+      financial_status: financialStatus,
+      fulfillment_status: fulfillmentStatus,
+      currency_code: currencyCode,
+      total_price: totalPrice,
+      subtotal_price: subtotalPrice,
+      total_shipping: totalShipping,
+      total_tax: totalTax,
+      total_discount: totalDiscount,
+      tracking_company: trackingCompany,
+      tracking_number: trackingNumber,
+      tracking_url: trackingUrl,
+      line_items: lineItems,
+      shipping_address: payload.shipping_address || null,
+    };
+
     const { error: upsertErr } = await supabase.from("shopify_customer_orders").upsert(
       {
+        ...orderData,
         user_id: resolvedUserId,
         shopify_order_id: orderGid,
-        order_number: orderNumber,
-        created_at: createdAt,
-        financial_status: financialStatus,
-        fulfillment_status: fulfillmentStatus,
-        currency_code: currencyCode,
-        total_price: totalPrice,
-        subtotal_price: subtotalPrice,
-        total_shipping: totalShipping,
-        total_tax: totalTax,
-        total_discount: totalDiscount,
-        tracking_company: trackingCompany,
-        tracking_number: trackingNumber,
-        tracking_url: trackingUrl,
-        line_items: lineItems,
-        shipping_address: payload.shipping_address || null,
+        shopify_updated_at: payload.updated_at || null,
         synced_at: new Date().toISOString(),
       },
       { onConflict: "shopify_order_id" },
@@ -320,12 +317,14 @@ export async function handleShopifyWebhook(
 
     if (upsertErr) {
       console.error(`[shopify-webhook] Upsert error: ${upsertErr.message}`);
-      return new Response(JSON.stringify({ error: upsertErr.message }), {
+      await finish(false, upsertErr.message);
+      return new Response(JSON.stringify({ error: "Could not save the order." }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       });
     }
 
+    await finish(true);
     return new Response(
       JSON.stringify({
         ok: true,
@@ -339,7 +338,7 @@ export async function handleShopifyWebhook(
     );
   }
 
-  // 5. Fallback for Product / Catalog Topics
+  // 4. Product and catalog topics are only logged, so a repeat delivery has no effect
   const productId = payload.id ? String(payload.id) : undefined;
   const variantId = payload.variant_id ? String(payload.variant_id) : undefined;
 

@@ -13,11 +13,7 @@ import {
   broadcastShopifySync,
 } from "../../../src/lib/shopify.ts";
 import type { Product } from "../../../src/data/catalog.ts";
-import {
-  handleShopifyWebhook,
-  isDuplicateWebhook,
-  clearProcessedWebhooksForTesting,
-} from "../shopify-webhook/index.ts";
+import { handleShopifyWebhook } from "../shopify-webhook/index.ts";
 
 // Helper to create a base mock Shopify product node
 function createMockNode(overrides: Partial<ShopifyProductNode> = {}): ShopifyProductNode {
@@ -308,7 +304,6 @@ async function generateTestHmac(secret: string, body: string): Promise<string> {
 }
 
 Deno.test("SYNC-HOOK-1: Shopify webhook accepts verified HMAC signature (HTTP 200)", async () => {
-  clearProcessedWebhooksForTesting();
   const secret = "shpss_test_secret_key_123456789";
   const payload = JSON.stringify({
     id: 987654321,
@@ -357,8 +352,7 @@ Deno.test("SYNC-HOOK-2: Shopify webhook rejects tampered signature (HTTP 401)", 
   assertEquals(data.error.includes("signature mismatch"), true);
 });
 
-Deno.test("SYNC-HOOK-3: Shopify webhook handles duplicate delivery idempotently (HTTP 200 skipped)", async () => {
-  clearProcessedWebhooksForTesting();
+Deno.test("SYNC-HOOK-3: A repeated catalog topic is safe to acknowledge, because it's only logged", async () => {
   const secret = "shpss_test_secret_key_123456789";
   const payload = JSON.stringify({ id: 112233, action: "inventory_update" });
   const hmac = await generateTestHmac(secret, payload);
@@ -375,16 +369,13 @@ Deno.test("SYNC-HOOK-3: Shopify webhook handles duplicate delivery idempotently 
       body: payload,
     });
 
-  // First delivery
-  const res1 = await handleShopifyWebhook(createReq(), { webhookSecret: secret });
-  assertEquals(res1.status, 200);
-
-  // Second duplicate delivery
-  const res2 = await handleShopifyWebhook(createReq(), { webhookSecret: secret });
-  assertEquals(res2.status, 200);
-  const data2 = await res2.json();
-  assertEquals(data2.ok, true);
-  assertEquals(data2.message.includes("Duplicate webhook delivery"), true);
+  // No database is configured here, so neither delivery can have written anything.
+  // Order deliveries are de-duplicated in the database: see webhook-idempotency.test.ts.
+  for (let delivery = 0; delivery < 2; delivery++) {
+    const res = await handleShopifyWebhook(createReq(), { webhookSecret: secret });
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).ok, true);
+  }
 });
 
 Deno.test("SYNC-HOOK-4: Shopify webhook returns 500 when server secret is unconfigured", async () => {

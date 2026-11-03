@@ -11,6 +11,8 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { shouldDisplayReschedulePanel } from "../../../src/lib/serviceReschedule.ts";
+import { TEST_SERVICE_KEY, TEST_SUPABASE_URL, dbTest } from "./_helpers/disposable_env.ts";
+import { createSignedInUser } from "./_helpers/test_users.ts";
 
 function sanitizeExcelCell(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -21,9 +23,8 @@ function sanitizeExcelCell(val: unknown): string {
   return s;
 }
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SERVICE_ROLE_KEY = TEST_SERVICE_KEY;
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -134,203 +135,211 @@ Deno.test("RESCHED-APPROVAL-1: shouldDisplayReschedulePanel suppresses decided r
   assertEquals(shouldDisplayReschedulePanel(courierTicket), false);
 });
 
-Deno.test("RESCHED-APPROVAL-2: Atomic Approval updates ticket status to 'Rescheduled', sets date/slot & logs audit", async () => {
-  const testTicketId = "00000000-0000-0000-0000-000000000e01";
-  const testReqId = "00000000-0000-0000-0000-000000000e02";
+dbTest(
+  "RESCHED-APPROVAL-2: Atomic Approval updates ticket status to 'Rescheduled', sets date/slot & logs audit",
+  async () => {
+    const testTicketId = "00000000-0000-0000-0000-000000000e01";
+    const testReqId = "00000000-0000-0000-0000-000000000e02";
 
-  // Cleanup
-  await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
-  await adminClient.from("service_requests").delete().eq("id", testTicketId);
+    // Cleanup
+    await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
+    await adminClient.from("service_requests").delete().eq("id", testTicketId);
 
-  // 1. Insert test on-site ticket
-  const { error: ticketErr } = await adminClient.from("service_requests").insert({
-    id: testTicketId,
-    user_id: "0370fb7a-7896-44bc-a543-023dd399913f",
-    device: "Dell XPS 15 Laptop",
-    problem: "Display flickering on battery",
-    method: "On-site service",
-    status: "Booked",
-    preferred_date: "2026-11-05",
-    preferred_slot: "10:00 – 12:00",
-    reschedule_details: {
-      requestId: testReqId,
-      requestedDate: "2026-11-08",
-      requestedSlot: "14:00 – 16:00",
-      reason: "Traveling out of town until Friday",
-      status: "pending",
-    },
-  });
-  assertEquals(ticketErr, null, `Failed inserting test ticket: ${ticketErr?.message}`);
-
-  // 2. Insert pending reschedule request row
-  const { error: reqErr } = await adminClient
-    .from("service_appointment_reschedule_requests")
-    .insert({
-      id: testReqId,
-      ticket_id: testTicketId,
-      original_date: "2026-11-05",
-      original_slot: "10:00 – 12:00",
-      requested_date: "2026-11-08",
-      requested_slot: "14:00 – 16:00",
-      reason: "Traveling out of town until Friday",
-      status: "pending",
+    // 1. Insert test on-site ticket
+    const { error: ticketErr } = await adminClient.from("service_requests").insert({
+      id: testTicketId,
+      user_id: "0370fb7a-7896-44bc-a543-023dd399913f",
+      device: "Dell XPS 15 Laptop",
+      problem: "Display flickering on battery",
+      method: "On-site service",
+      status: "Booked",
+      preferred_date: "2026-11-05",
+      preferred_slot: "10:00 – 12:00",
+      reschedule_details: {
+        requestId: testReqId,
+        requestedDate: "2026-11-08",
+        requestedSlot: "14:00 – 16:00",
+        reason: "Traveling out of town until Friday",
+        status: "pending",
+      },
     });
-  assertEquals(reqErr, null, `Failed inserting test reschedule request: ${reqErr?.message}`);
+    assertEquals(ticketErr, null, `Failed inserting test ticket: ${ticketErr?.message}`);
 
-  // 3. Invoke staff_decide_appointment_reschedule as service_role
-  const { data: decisionRes, error: rpcErr } = await adminClient.rpc(
-    "staff_decide_appointment_reschedule",
-    {
-      p_request_id: testReqId,
-      p_decision: "approved",
-      p_staff_response: "Confirmed with technician Arun for 2 PM slot.",
-      p_ticket_id: testTicketId,
-    },
-  );
+    // 2. Insert pending reschedule request row
+    const { error: reqErr } = await adminClient
+      .from("service_appointment_reschedule_requests")
+      .insert({
+        id: testReqId,
+        ticket_id: testTicketId,
+        original_date: "2026-11-05",
+        original_slot: "10:00 – 12:00",
+        requested_date: "2026-11-08",
+        requested_slot: "14:00 – 16:00",
+        reason: "Traveling out of town until Friday",
+        status: "pending",
+      });
+    assertEquals(reqErr, null, `Failed inserting test reschedule request: ${reqErr?.message}`);
 
-  assertEquals(rpcErr, null, `RPC error: ${rpcErr?.message}`);
-  assertEquals(decisionRes.ok, true, `Decision result not ok: ${JSON.stringify(decisionRes)}`);
-  assertEquals(decisionRes.newStatus, "Rescheduled");
-  assertEquals(decisionRes.newDate, "2026-11-08");
-  assertEquals(decisionRes.newSlot, "14:00 – 16:00");
+    // 3. Invoke staff_decide_appointment_reschedule as a real staff member
+    const staff = await createSignedInUser("resched-approve", "service_staff");
+    const { data: decisionRes, error: rpcErr } = await staff.client.rpc(
+      "staff_decide_appointment_reschedule",
+      {
+        p_request_id: testReqId,
+        p_decision: "approved",
+        p_staff_response: "Confirmed with technician Arun for 2 PM slot.",
+        p_ticket_id: testTicketId,
+      },
+    );
 
-  // 4. Verify updated service_requests row
-  const { data: updatedTicket } = await adminClient
-    .from("service_requests")
-    .select("status, preferred_date, preferred_slot, reschedule_details")
-    .eq("id", testTicketId)
-    .single();
+    assertEquals(rpcErr, null, `RPC error: ${rpcErr?.message}`);
+    assertEquals(decisionRes.ok, true, `Decision result not ok: ${JSON.stringify(decisionRes)}`);
+    assertEquals(decisionRes.newStatus, "Rescheduled");
+    assertEquals(decisionRes.newDate, "2026-11-08");
+    assertEquals(decisionRes.newSlot, "14:00 – 16:00");
 
-  assertEquals(updatedTicket?.status, "Rescheduled");
-  assertEquals(updatedTicket?.preferred_date, "2026-11-08");
-  assertEquals(updatedTicket?.preferred_slot, "14:00 – 16:00");
-  assertEquals(updatedTicket?.reschedule_details?.status, "approved");
+    // 4. Verify updated service_requests row
+    const { data: updatedTicket } = await adminClient
+      .from("service_requests")
+      .select("status, preferred_date, preferred_slot, reschedule_details")
+      .eq("id", testTicketId)
+      .single();
 
-  // 5. Verify service_appointment_reschedule_requests row
-  const { data: updatedReq } = await adminClient
-    .from("service_appointment_reschedule_requests")
-    .select("status, staff_response")
-    .eq("id", testReqId)
-    .single();
+    assertEquals(updatedTicket?.status, "Rescheduled");
+    assertEquals(updatedTicket?.preferred_date, "2026-11-08");
+    assertEquals(updatedTicket?.preferred_slot, "14:00 – 16:00");
+    assertEquals(updatedTicket?.reschedule_details?.status, "approved");
 
-  assertEquals(updatedReq?.status, "approved");
-  assertStringIncludes(updatedReq?.staff_response || "", "technician Arun");
+    // 5. Verify service_appointment_reschedule_requests row
+    const { data: updatedReq } = await adminClient
+      .from("service_appointment_reschedule_requests")
+      .select("status, staff_response")
+      .eq("id", testReqId)
+      .single();
 
-  // 6. Verify staff audit log
-  const { data: auditLog } = await adminClient
-    .from("staff_audit_logs")
-    .select("action_type, new_status, metadata")
-    .eq("entity_id", testTicketId)
-    .eq("action_type", "APPROVE_RESCHEDULE")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    assertEquals(updatedReq?.status, "approved");
+    assertStringIncludes(updatedReq?.staff_response || "", "technician Arun");
 
-  assertExists(auditLog);
-  assertEquals(auditLog?.action_type, "APPROVE_RESCHEDULE");
-  assertEquals(auditLog?.new_status, "Rescheduled");
+    // 6. Verify staff audit log
+    const { data: auditLog } = await adminClient
+      .from("staff_audit_logs")
+      .select("action_type, new_status, metadata")
+      .eq("entity_id", testTicketId)
+      .eq("action_type", "APPROVE_RESCHEDULE")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  // Cleanup
-  await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
-  await adminClient.from("service_requests").delete().eq("id", testTicketId);
-});
+    assertExists(auditLog);
+    assertEquals(auditLog?.action_type, "APPROVE_RESCHEDULE");
+    assertEquals(auditLog?.new_status, "Rescheduled");
 
-Deno.test("RESCHED-REJECTION-1: Atomic Rejection reverts status from 'Reschedule Requested' to 'Booked' & preserves original slot", async () => {
-  const testTicketId = "00000000-0000-0000-0000-000000000e03";
-  const testReqId = "00000000-0000-0000-0000-000000000e04";
+    // Cleanup
+    await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
+    await adminClient.from("service_requests").delete().eq("id", testTicketId);
+  },
+);
 
-  // Cleanup
-  await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
-  await adminClient.from("service_requests").delete().eq("id", testTicketId);
+dbTest(
+  "RESCHED-REJECTION-1: Atomic Rejection reverts status from 'Reschedule Requested' to 'Booked' & preserves original slot",
+  async () => {
+    const testTicketId = "00000000-0000-0000-0000-000000000e03";
+    const testReqId = "00000000-0000-0000-0000-000000000e04";
 
-  // 1. Insert test on-site ticket with status 'Reschedule Requested'
-  const { error: ticketErr } = await adminClient.from("service_requests").insert({
-    id: testTicketId,
-    user_id: "0370fb7a-7896-44bc-a543-023dd399913f",
-    device: "MacBook Pro M2",
-    problem: "Battery replacement",
-    method: "On-site service",
-    status: "Reschedule Requested",
-    preferred_date: "2026-11-06",
-    preferred_slot: "11:00 – 13:00",
-    reschedule_details: {
-      requestId: testReqId,
-      requestedDate: "2026-11-09",
-      requestedSlot: "16:00 – 18:00",
-      reason: "Sunday preference",
-      status: "pending",
-    },
-  });
-  assertEquals(ticketErr, null, `Failed inserting test ticket: ${ticketErr?.message}`);
+    // Cleanup
+    await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
+    await adminClient.from("service_requests").delete().eq("id", testTicketId);
 
-  // 2. Insert pending reschedule request row
-  const { error: reqErr } = await adminClient
-    .from("service_appointment_reschedule_requests")
-    .insert({
-      id: testReqId,
-      ticket_id: testTicketId,
-      original_date: "2026-11-06",
-      original_slot: "11:00 – 13:00",
-      requested_date: "2026-11-09",
-      requested_slot: "16:00 – 18:00",
-      reason: "Sunday preference",
-      status: "pending",
+    // 1. Insert test on-site ticket with status 'Reschedule Requested'
+    const { error: ticketErr } = await adminClient.from("service_requests").insert({
+      id: testTicketId,
+      user_id: "0370fb7a-7896-44bc-a543-023dd399913f",
+      device: "MacBook Pro M2",
+      problem: "Battery replacement",
+      method: "On-site service",
+      status: "Reschedule Requested",
+      preferred_date: "2026-11-06",
+      preferred_slot: "11:00 – 13:00",
+      reschedule_details: {
+        requestId: testReqId,
+        requestedDate: "2026-11-09",
+        requestedSlot: "16:00 – 18:00",
+        reason: "Sunday preference",
+        status: "pending",
+      },
     });
-  assertEquals(reqErr, null, `Failed inserting test reschedule request: ${reqErr?.message}`);
+    assertEquals(ticketErr, null, `Failed inserting test ticket: ${ticketErr?.message}`);
 
-  // 3. Invoke rejection RPC
-  const { data: rejectRes, error: rpcErr } = await adminClient.rpc(
-    "staff_decide_appointment_reschedule",
-    {
-      p_request_id: testReqId,
-      p_decision: "rejected",
-      p_staff_response: "Technicians fully booked on Sunday. Original slot maintained.",
-      p_ticket_id: testTicketId,
-    },
-  );
+    // 2. Insert pending reschedule request row
+    const { error: reqErr } = await adminClient
+      .from("service_appointment_reschedule_requests")
+      .insert({
+        id: testReqId,
+        ticket_id: testTicketId,
+        original_date: "2026-11-06",
+        original_slot: "11:00 – 13:00",
+        requested_date: "2026-11-09",
+        requested_slot: "16:00 – 18:00",
+        reason: "Sunday preference",
+        status: "pending",
+      });
+    assertEquals(reqErr, null, `Failed inserting test reschedule request: ${reqErr?.message}`);
 
-  assertEquals(rpcErr, null, `RPC error: ${rpcErr?.message}`);
-  assertEquals(rejectRes.ok, true);
-  assertEquals(rejectRes.decision, "rejected");
-  assertEquals(rejectRes.newStatus, "Booked");
-  assertEquals(rejectRes.preservedDate, "2026-11-06");
+    // 3. Invoke rejection RPC
+    const staff = await createSignedInUser("resched-reject", "service_staff");
+    const { data: rejectRes, error: rpcErr } = await staff.client.rpc(
+      "staff_decide_appointment_reschedule",
+      {
+        p_request_id: testReqId,
+        p_decision: "rejected",
+        p_staff_response: "Technicians fully booked on Sunday. Original slot maintained.",
+        p_ticket_id: testTicketId,
+      },
+    );
 
-  // 4. Verify updated service_requests row: status reverted to 'Booked', original date/slot PRESERVED
-  const { data: updatedTicket } = await adminClient
-    .from("service_requests")
-    .select("status, preferred_date, preferred_slot, reschedule_details")
-    .eq("id", testTicketId)
-    .single();
+    assertEquals(rpcErr, null, `RPC error: ${rpcErr?.message}`);
+    assertEquals(rejectRes.ok, true);
+    assertEquals(rejectRes.decision, "rejected");
+    assertEquals(rejectRes.newStatus, "Booked");
+    assertEquals(rejectRes.preservedDate, "2026-11-06");
 
-  assertEquals(updatedTicket?.status, "Booked");
-  assertEquals(updatedTicket?.preferred_date, "2026-11-06");
-  assertEquals(updatedTicket?.preferred_slot, "11:00 – 13:00");
-  assertEquals(updatedTicket?.reschedule_details?.status, "rejected");
+    // 4. Verify updated service_requests row: status reverted to 'Booked', original date/slot PRESERVED
+    const { data: updatedTicket } = await adminClient
+      .from("service_requests")
+      .select("status, preferred_date, preferred_slot, reschedule_details")
+      .eq("id", testTicketId)
+      .single();
 
-  // 5. Verify staff audit log
-  const { data: auditLog } = await adminClient
-    .from("staff_audit_logs")
-    .select("action_type, new_status, metadata")
-    .eq("entity_id", testTicketId)
-    .eq("action_type", "REJECT_RESCHEDULE")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    assertEquals(updatedTicket?.status, "Booked");
+    assertEquals(updatedTicket?.preferred_date, "2026-11-06");
+    assertEquals(updatedTicket?.preferred_slot, "11:00 – 13:00");
+    assertEquals(updatedTicket?.reschedule_details?.status, "rejected");
 
-  assertExists(auditLog);
-  assertEquals(auditLog?.action_type, "REJECT_RESCHEDULE");
-  assertEquals(auditLog?.new_status, "Booked");
+    // 5. Verify staff audit log
+    const { data: auditLog } = await adminClient
+      .from("staff_audit_logs")
+      .select("action_type, new_status, metadata")
+      .eq("entity_id", testTicketId)
+      .eq("action_type", "REJECT_RESCHEDULE")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  // Cleanup
-  await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
-  await adminClient.from("service_requests").delete().eq("id", testTicketId);
-});
+    assertExists(auditLog);
+    assertEquals(auditLog?.action_type, "REJECT_RESCHEDULE");
+    assertEquals(auditLog?.new_status, "Booked");
+
+    // Cleanup
+    await adminClient.from("service_appointment_reschedule_requests").delete().eq("id", testReqId);
+    await adminClient.from("service_requests").delete().eq("id", testTicketId);
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. PHASE 3 – WEBSITE VISITOR ANALYTICS SCHEMA & STOREFRONT LOGGING
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("ANALYTICS-DB-1: visitor_sessions and visitor_events tables are accessible", async () => {
+dbTest("ANALYTICS-DB-1: visitor_sessions and visitor_events tables are accessible", async () => {
   const { data: sessions, error: sessErr } = await adminClient
     .from("visitor_sessions")
     .select("id, visitor_id, device, landing_page, page_views")
@@ -348,7 +357,7 @@ Deno.test("ANALYTICS-DB-1: visitor_sessions and visitor_events tables are access
   assertExists(events);
 });
 
-Deno.test("ANALYTICS-DB-2: log_visitor_event stored procedure inserts session and event", async () => {
+dbTest("ANALYTICS-DB-2: log_visitor_event stored procedure inserts session and event", async () => {
   const testSessionId = "00000000-0000-0000-0000-000000000e10";
   const testVisitorId = "tok_test_deno_visitor_12345";
 

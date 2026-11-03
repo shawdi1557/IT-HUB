@@ -106,13 +106,28 @@ export function getOrderStatusBadgeTone(
   }
 }
 
+export type CheckoutAssociation =
+  | { ok: true; token: string }
+  | { ok: false; authRequired: boolean; error: string };
+
+const SIGN_IN_TO_BUY = "Please sign in to check out, so your order is saved to your account.";
+
 /**
- * Requests an opaque, single-use association token for an authenticated customer
- * prior to creating a Shopify checkout cart.
+ * Gets the single-use token that links a website order to the signed-in customer. The server issues
+ * it to whoever the session's verified JWT says, so nothing here can name an owner. Without a token
+ * the order could never reach the customer's account, so checkout must not start.
  */
-export async function requestCheckoutAssociationToken(): Promise<string | null> {
+export const CHECKOUT_EMAIL_REQUIRED =
+  "An email address is needed for your order confirmation and delivery updates.";
+
+/** Checkout's email is for order communication. It never identifies a customer or an order's owner. */
+export function isValidCheckoutEmail(email: string | null | undefined): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email ?? "").trim());
+}
+
+export async function requireCheckoutAssociation(): Promise<CheckoutAssociation> {
   if (!supabase || !supabaseConfig.isConfigured) {
-    return null;
+    return { ok: false, authRequired: false, error: "Checkout is temporarily unavailable." };
   }
 
   try {
@@ -121,19 +136,28 @@ export async function requestCheckoutAssociationToken(): Promise<string | null> 
     } = await supabase.auth.getSession();
 
     if (!session?.user) {
-      return null;
+      return { ok: false, authRequired: true, error: SIGN_IN_TO_BUY };
     }
 
-    const { data: token, error } = await supabase.rpc("create_checkout_association");
+    const { data: token, error, status } = await supabase.rpc("create_checkout_association");
     if (error || !token) {
-      console.warn("[shopify-orders] Failed to generate checkout association token:", error);
-      return null;
+      const expired = status === 401 || error?.code === "42501" || error?.code === "PGRST301";
+      return expired
+        ? { ok: false, authRequired: true, error: SIGN_IN_TO_BUY }
+        : {
+            ok: false,
+            authRequired: false,
+            error: "We couldn't start a secure checkout. Please try again.",
+          };
     }
 
-    return token;
-  } catch (err) {
-    console.warn("[shopify-orders] Unexpected error requesting association token:", err);
-    return null;
+    return { ok: true, token };
+  } catch {
+    return {
+      ok: false,
+      authRequired: false,
+      error: "We couldn't start a secure checkout. Please try again.",
+    };
   }
 }
 
@@ -150,13 +174,13 @@ export interface FetchOrdersResult {
 }
 
 /**
- * Fetches authenticated customer orders with server-side pagination and on-demand reconciliation.
+ * Fetches the signed-in customer's orders with server-side pagination. Orders are linked to an
+ * account by the signed Shopify webhook and a checkout token, never from this call.
  */
 export async function fetchCustomerShopifyOrders(options?: {
   refresh?: boolean;
   offset?: number;
   limit?: number;
-  linkQuery?: string;
 }): Promise<FetchOrdersResult> {
   if (!supabase || !supabaseConfig.isConfigured) {
     return {
@@ -184,15 +208,12 @@ export async function fetchCustomerShopifyOrders(options?: {
   const limit = options?.limit ?? 10;
   const offset = options?.offset ?? 0;
   const refresh = options?.refresh ?? false;
-  const linkQuery = options?.linkQuery
-    ? `&link_query=${encodeURIComponent(options.linkQuery)}`
-    : "";
 
   let edgeFnError: string | null = null;
 
   // 1. First attempt to call the customer-shopify-orders Edge Function
   try {
-    const fnUrl = `${supabaseConfig.url}/functions/v1/customer-shopify-orders?limit=${limit}&offset=${offset}&reconcile=${refresh ? "true" : "false"}${linkQuery}`;
+    const fnUrl = `${supabaseConfig.url}/functions/v1/customer-shopify-orders?limit=${limit}&offset=${offset}`;
     const res = await fetch(fnUrl, {
       method: "GET",
       headers: {
@@ -252,7 +273,7 @@ export async function fetchCustomerShopifyOrders(options?: {
 
     // If edge function failed and local database has 0 orders, surface the actual error
     // rather than misleading the user into thinking no orders ever existed
-    if (edgeFnError && orders.length === 0 && (refresh || options?.linkQuery)) {
+    if (edgeFnError && orders.length === 0 && refresh) {
       return {
         orders: [],
         pageInfo: { hasNextPage: false, endCursor: null },

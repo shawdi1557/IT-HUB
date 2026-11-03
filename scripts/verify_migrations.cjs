@@ -45,10 +45,13 @@ for (const file of files) {
   }
 }
 
-const schemaFile = path.join(__dirname, "..", "supabase", "schema.sql");
-if (!fs.existsSync(schemaFile) || fs.statSync(schemaFile).size === 0) {
-  console.error("::error::supabase/schema.sql is missing or empty.");
-  hasErrors = true;
+// These hand-written schema scripts drifted from the migrations and recreated a vulnerability
+// every time someone ran them. Migrations are the only source of the schema.
+for (const retired of ["schema.sql", "migration.sql", "storage-policies.sql"]) {
+  if (fs.existsSync(path.join(__dirname, "..", "supabase", retired))) {
+    console.error(`::error::supabase/${retired} is retired and must not be restored.`);
+    hasErrors = true;
+  }
 }
 
 if (hasErrors) {
@@ -56,6 +59,4 @@ if (hasErrors) {
   process.exit(1);
 }
 
-console.log(
-  `Verified ${files.length} sequential database migrations and canonical schema.sql successfully.`,
-);
+console.log(`Verified ${files.length} sequential database migrations successfully.`);

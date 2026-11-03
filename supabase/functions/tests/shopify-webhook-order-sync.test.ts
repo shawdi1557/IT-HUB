@@ -3,14 +3,11 @@
 
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import {
-  handleShopifyWebhook,
-  clearProcessedWebhooksForTesting,
-} from "../shopify-webhook/index.ts";
+import { handleShopifyWebhook } from "../shopify-webhook/index.ts";
+import { TEST_SERVICE_KEY, TEST_SUPABASE_URL, dbTest } from "./_helpers/disposable_env.ts";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SERVICE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SERVICE_KEY = TEST_SERVICE_KEY;
 const WEBHOOK_SECRET = "test_webhook_signing_secret_xyz123";
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -36,9 +33,7 @@ async function signPayload(body: string, secret: string): Promise<string> {
   return btoa(binary);
 }
 
-Deno.test("WH-ORDER-1: Ingests valid orders/create with association token", async () => {
-  clearProcessedWebhooksForTesting();
-
+dbTest("WH-ORDER-1: Ingests valid orders/create with association token", async () => {
   // 1. Get existing customer profile id
   const { data: profs } = await adminClient.from("profiles").select("id").limit(1);
   const testUserId = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
@@ -127,9 +122,7 @@ Deno.test("WH-ORDER-1: Ingests valid orders/create with association token", asyn
   await adminClient.from("shopify_customer_orders").delete().eq("shopify_order_id", orderGid);
 });
 
-Deno.test("WH-ORDER-2: Updates order when fulfillment arrives (orders/updated)", async () => {
-  clearProcessedWebhooksForTesting();
-
+dbTest("WH-ORDER-2: Updates order when fulfillment arrives (orders/updated)", async () => {
   const { data: profs } = await adminClient.from("profiles").select("id").limit(1);
   const testUserId = profs?.[0]?.id || "29f73eb0-86d2-47d3-a493-7c1932b45ed5";
 
@@ -201,8 +194,6 @@ Deno.test("WH-ORDER-2: Updates order when fulfillment arrives (orders/updated)",
 });
 
 Deno.test("WH-ORDER-3: Rejects webhook with invalid HMAC signature", async () => {
-  clearProcessedWebhooksForTesting();
-
   const req = new Request("http://localhost/shopify-webhook", {
     method: "POST",
     headers: {

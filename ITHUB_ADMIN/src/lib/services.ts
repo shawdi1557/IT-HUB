@@ -193,52 +193,23 @@ export async function saveOnSiteBilling(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: "Database client unavailable." };
   try {
-    const isPaid = billing.paymentStatus === "Received";
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const updatePayload: Record<string, any> = {
-      billing_details: billing,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (isPaid) {
-      updatePayload.payment_status = "Paid";
-      updatePayload.payment_method = billing.paymentMethod?.toLowerCase().includes("upi")
-        ? "upi"
-        : "store";
-      updatePayload.paid_amount = billing.total;
-      updatePayload.paid_at = billing.finalizedAt || new Date().toISOString();
-      if (user?.id) updatePayload.payment_collected_by = user.id;
-    } else {
-      updatePayload.payment_status = "Pay at Store";
-      updatePayload.payment_method = "store";
-    }
-
-    const { error } = await supabase
-      .from("service_requests")
-      .update(updatePayload)
-      .eq("id", serviceId);
-    if (error) return { ok: false, error: error.message };
-
-    await supabase.from("staff_audit_logs").insert({
-      staff_id: user?.id,
-      action: isPaid ? "SERVICE_PAYMENT_COLLECTED" : "SAVE_ONSITE_BILLING",
-      entity_type: "service_request",
-      entity_id: serviceId,
-      metadata: billing,
+    const { error } = await supabase.rpc("staff_save_service_billing", {
+      p_service_id: serviceId,
+      p_billing: billing,
+      p_is_paid: billing.paymentStatus === "Received",
     });
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
   } catch (err: any) {
     return { ok: false, error: err?.message || "Failed to save billing." };
   }
 }
 
+// The approved date and slot come from the customer's stored request, never from this call.
 export async function approveRescheduleRequest(
   serviceId: string,
-  newDate: string,
-  newSlot: string,
+  _newDate: string,
+  _newSlot: string,
   requestId?: string,
   staffResponse?: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -275,55 +246,7 @@ export async function approveRescheduleRequest(
       return { ok: true };
     }
 
-    // 2. Direct fallback if RPC was not applicable
-    const { data: ticket, error: fetchErr } = await supabase
-      .from("service_requests")
-      .select("id, method, status, reschedule_details")
-      .eq("id", serviceId)
-      .single();
-
-    if (fetchErr || !ticket) {
-      return { ok: false, error: fetchErr?.message || "Service ticket not found." };
-    }
-
-    const validation = validateRescheduleApproval(ticket);
-    if (!validation.valid) {
-      return { ok: false, error: validation.error };
-    }
-
-    const currentDetails = (ticket?.reschedule_details as any) || {};
-    const { error: updateErr } = await supabase
-      .from("service_requests")
-      .update({
-        status: "Rescheduled",
-        preferred_date: newDate,
-        preferred_slot: newSlot,
-        reschedule_details: {
-          ...currentDetails,
-          status: "approved",
-          decidedAt: new Date().toISOString(),
-          approvedDate: newDate,
-          approvedSlot: newSlot,
-          staffResponse: staffResponse || null,
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", serviceId);
-    if (updateErr) return { ok: false, error: updateErr.message };
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    await supabase.from("staff_audit_logs").insert({
-      staff_user_id: user?.id,
-      action_type: "APPROVE_RESCHEDULE",
-      entity_type: "service_request",
-      entity_id: serviceId,
-      previous_status: ticket.status,
-      new_status: "Rescheduled",
-      metadata: { newDate, newSlot, method: ticket.method, staffResponse },
-    });
-    return { ok: true };
+    return { ok: false, error: "The reschedule decision couldn't be saved." };
   } catch (err: any) {
     return { ok: false, error: err?.message || "Failed to approve reschedule." };
   }
@@ -365,43 +288,7 @@ export async function rejectRescheduleRequest(
       return { ok: true };
     }
 
-    // Direct fallback: keep confirmed appointment unchanged, update reschedule_details status & revert status to Booked
-    const { data: ticket } = await supabase
-      .from("service_requests")
-      .select("id, status, reschedule_details")
-      .eq("id", serviceId)
-      .single();
-
-    const currentDetails = (ticket?.reschedule_details as any) || {};
-    const revertedStatus =
-      ticket?.status === "Reschedule Requested" ? "Booked" : ticket?.status || "Booked";
-    await supabase
-      .from("service_requests")
-      .update({
-        status: revertedStatus,
-        reschedule_details: {
-          ...currentDetails,
-          status: "rejected",
-          staffResponse: staffResponse || null,
-          decidedAt: new Date().toISOString(),
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", serviceId);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    await supabase.from("staff_audit_logs").insert({
-      staff_user_id: user?.id,
-      action_type: "REJECT_RESCHEDULE",
-      entity_type: "service_request",
-      entity_id: serviceId,
-      previous_status: ticket?.status,
-      new_status: revertedStatus,
-      metadata: { staffResponse },
-    });
-    return { ok: true };
+    return { ok: false, error: "The reschedule decision couldn't be saved." };
   } catch (err: any) {
     return { ok: false, error: err?.message || "Failed to reject reschedule." };
   }
@@ -460,7 +347,7 @@ export async function fetchServices(
 
   try {
     let query = supabase
-      .from("service_requests")
+      .from("service_requests_staff")
       .select("*, profiles:user_id(full_name, phone, email)", { count: "exact" });
 
     if (status && status !== "ALL") {
@@ -750,7 +637,7 @@ export async function fetchServiceById(id: string): Promise<ServiceRecord | null
 
   try {
     let query = supabase
-      .from("service_requests")
+      .from("service_requests_staff")
       .select("*, profiles:user_id(full_name, phone, email)");
 
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {

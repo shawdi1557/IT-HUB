@@ -39,7 +39,8 @@ import {
   toVariantGid,
   toProductGid,
 } from "../lib/shopify";
-import { requestCheckoutAssociationToken } from "../lib/shopify-orders";
+import { requireCheckoutAssociation } from "../lib/shopify-orders";
+import { useCheckoutEmail } from "../components/CheckoutEmailPrompt";
 import { sanitizeHtml, resolveProductDescription } from "../lib/sanitize";
 import ProductCard, { ProductImage } from "../components/ProductCard";
 import SellYourItem from "../components/SellYourItem";
@@ -626,6 +627,7 @@ export function ProductDetail() {
   const [fetchingDirect, setFetchingDirect] = useState(false);
 
   const [buyingNow, setBuyingNow] = useState(false);
+  const { ensureEmail, emailPrompt, emailRequiredMessage } = useCheckoutEmail();
   const [buyNowError, setBuyNowError] = useState<string | null>(null);
 
   const product = useMemo(() => {
@@ -961,40 +963,38 @@ export function ProductDetail() {
           return;
         }
 
-        let assocToken: string | null = null;
-        if (store.loggedIn) {
-          try {
-            assocToken = await requestCheckoutAssociationToken();
-          } catch {
-            // Non-blocking fallback
-          }
+        // A website order must belong to a signed-in customer, so no token means no checkout.
+        const association = await requireCheckoutAssociation();
+        if (!association.ok) {
+          setBuyNowError(association.error);
+          if (association.authRequired) store.setAuthOpen(true);
+          return;
         }
 
-        const returnUrl = store.loggedIn
-          ? `${window.location.origin}/account/orders?checkout_completed=true`
-          : `${window.location.origin}/products/${encodeURIComponent(product.handle || product.id)}?checkout_completed=true`;
+        // The address for order updates. It isn't used to sign in, or to decide who owns the order.
+        const checkoutEmail = await ensureEmail();
+        if (!checkoutEmail) {
+          setBuyNowError(emailRequiredMessage);
+          return;
+        }
+
+        const returnUrl = `${window.location.origin}/account/orders?checkout_completed=true`;
 
         const cartAttributes = [
           {
             key: "return_to_store",
             value: returnUrl,
           },
+          {
+            key: "_hub_assoc_token",
+            value: association.token,
+          },
         ];
 
-        if (assocToken) {
-          cartAttributes.push({
-            key: "_hub_assoc_token",
-            value: assocToken,
-          });
-        }
-
-        const buyerIdentity =
-          store.loggedIn && (store.profile.email || store.profile.phone)
-            ? {
-                email: store.profile.email || undefined,
-                phone: store.profile.phone || undefined,
-              }
-            : undefined;
+        const buyerIdentity = {
+          email: checkoutEmail,
+          phone: store.profile.phone || undefined,
+        };
 
         // Real-time pre-flight availability check before creating checkout URL
         const availability = await checkShopifyAvailability([variantId]);
@@ -1049,6 +1049,7 @@ export function ProductDetail() {
   };
   return (
     <Page>
+      {emailPrompt}
       <div className="mb-8 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Link to="/">Home</Link>
         <ChevronRight size={12} />

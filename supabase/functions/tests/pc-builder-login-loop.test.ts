@@ -8,14 +8,16 @@ import {
   assertMatch,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import {
+  TEST_ANON_KEY,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
 
-const LOCAL_SUPABASE_URL = Deno.env.get("VITE_SUPABASE_URL") || "http://127.0.0.1:54321";
-const LOCAL_SUPABASE_ANON =
-  Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const LOCAL_SUPABASE_SERVICE_ROLE =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicmVmIjoiMTI3LjAuMC4xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzI3NTAwMCwiZXhwIjoyMTA4NjM1MDAwfQ.e1aa46kGEZiBSW3jrNHrdvVxqz7-x3DKRPtWNEYraLw";
+const LOCAL_SUPABASE_URL = TEST_SUPABASE_URL;
+const LOCAL_SUPABASE_ANON = TEST_ANON_KEY;
+const LOCAL_SUPABASE_SERVICE_ROLE = TEST_SERVICE_KEY;
 
 Deno.env.set("VITE_SUPABASE_URL", LOCAL_SUPABASE_URL);
 Deno.env.set("SUPABASE_URL", LOCAL_SUPABASE_URL);
@@ -29,6 +31,29 @@ const { verifyPhoneOtp, sendPhoneOtp, formatIndianPhoneToE164, isValidIndianMobi
 const { submitQuotationRequest } = await import("../../../src/lib/builder/persistence.ts");
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
+
+/** A real, confirmed account with a real password session. No phone number proves anything here. */
+async function signInSynthetic(label: string) {
+  const email = `login-loop-${label}-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  const password = `Synthetic-${crypto.randomUUID()}`;
+  const service = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const created = await service.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    phone: `+918${String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000_000).padStart(9, "0")}`,
+    phone_confirm: true,
+  });
+  if (created.error) throw new Error(created.error.message);
+  const client = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const signed = await client.auth.signInWithPassword({ email, password });
+  if (signed.error) throw new Error(signed.error.message);
+  return { ok: true, user: signed.data.user, session: signed.data.session };
+}
 
 async function createAuthenticatedClient(session: any) {
   const client = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
@@ -112,51 +137,44 @@ Deno.test("LOGIN-LOOP-1: Logged-out user quotation request triggers requiresAuth
 
 Deno.test("LOGIN-LOOP-2: Invalid or expired OTP is strictly rejected and creates no session", async () => {
   const phone = "9876543210";
-  const expectedFallbackCode = "123456";
 
-  // Mismatched token
-  const resBadCode = await verifyPhoneOtp(phone, "999999", expectedFallbackCode);
+  const resBadCode = await verifyPhoneOtp(phone, "999999");
   assertEquals(resBadCode.ok, false);
   assertEquals(resBadCode.user, undefined);
   assertEquals(resBadCode.session, undefined);
   assertNotEquals(resBadCode.error, undefined);
 });
 
-Deno.test("LOGIN-LOOP-3: Valid OTP verification MUST establish real Supabase session and user", async () => {
-  const phone = "9876543299";
-  const validCode = "654321";
-
-  const res = await verifyPhoneOtp(phone, validCode, validCode);
-  assertEquals(res.ok, true);
-  assertEquals(Boolean(res.user), true);
-  assertEquals(Boolean(res.session), true);
-  assertEquals(Boolean(res.user?.id), true);
-  assertEquals(res.profile?.role, "customer");
+dbTest("LOGIN-LOOP-3: A code the browser chose can't establish a session", async () => {
+  const res = await verifyPhoneOtp("9876543299", "654321");
+  assertEquals(res.ok, false);
+  assertEquals(res.user, undefined);
+  assertEquals(res.session, undefined);
 });
 
-Deno.test("LOGIN-LOOP-4: Authenticated user quotation request succeeds without requiresAuth", async () => {
-  const phone = "9876543299";
-  const validCode = "654321";
+dbTest(
+  "LOGIN-LOOP-4: Authenticated user quotation request succeeds without requiresAuth",
+  async () => {
+    const authRes = await signInSynthetic("quote");
+    assertEquals(authRes.ok, true);
+    assertEquals(Boolean(authRes.user), true);
 
-  const authRes = await verifyPhoneOtp(phone, validCode, validCode);
-  assertEquals(authRes.ok, true);
-  assertEquals(Boolean(authRes.user), true);
+    // Now create authenticated client with the verified session
+    const client = await createAuthenticatedClient(authRes.session);
 
-  // Now create authenticated client with the verified session
-  const client = await createAuthenticatedClient(authRes.session);
+    // Verify submitting quotation with authenticated user succeeds
+    const quoteRes = await submitQuotationRequest(
+      sampleBuild,
+      { name: "Kerala Customer", phone: "+919876543299", email: "kerala@example.com" },
+      { supabaseClient: client },
+    );
 
-  // Verify submitting quotation with authenticated user succeeds
-  const quoteRes = await submitQuotationRequest(
-    sampleBuild,
-    { name: "Kerala Customer", phone: "+919876543299", email: "kerala@example.com" },
-    { supabaseClient: client },
-  );
-
-  assertEquals(quoteRes.requiresAuth, undefined);
-  assertEquals(quoteRes.success, true);
-  assertEquals(Boolean(quoteRes.referenceId), true);
-  assertMatch(quoteRes.referenceId!, /^ITH-PC-\d{8}-[A-Z0-9]+$/);
-});
+    assertEquals(quoteRes.requiresAuth, undefined);
+    assertEquals(quoteRes.success, true);
+    assertEquals(Boolean(quoteRes.referenceId), true);
+    assertMatch(quoteRes.referenceId!, /^ITH-PC-\d{8}-[A-Z0-9]+$/);
+  },
+);
 
 Deno.test("LOGIN-LOOP-5: Edge Function authoritatively derives customer identity and forbids forgery", async () => {
   const reqNoAuth = new Request("http://localhost/verify-and-submit-pc-quotation", {
@@ -177,78 +195,80 @@ Deno.test("LOGIN-LOOP-5: Edge Function authoritatively derives customer identity
   assertEquals(data.requiresAuth, true);
 });
 
-Deno.test("LOGIN-LOOP-6: Page refresh / session restoration preserves authentication state", async () => {
-  const phone = "9876543288";
-  const validCode = "888888";
+dbTest(
+  "LOGIN-LOOP-6: Page refresh / session restoration preserves authentication state",
+  async () => {
+    const authRes = await signInSynthetic("reload");
+    assertEquals(authRes.ok, true);
+    assertEquals(Boolean(authRes.session), true);
 
-  // Simulate OTP verification and login
-  const authRes = await verifyPhoneOtp(phone, validCode, validCode);
-  assertEquals(authRes.ok, true);
-  assertEquals(Boolean(authRes.session), true);
+    // Simulate page reload by creating a client initialized with that session
+    const reloadedClient = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
+      auth: { persistSession: false },
+    });
+    await reloadedClient.auth.setSession({
+      access_token: authRes.session!.access_token,
+      refresh_token: authRes.session!.refresh_token,
+    });
 
-  // Simulate page reload by creating a client initialized with that session
-  const reloadedClient = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
-    auth: { persistSession: false },
-  });
-  await reloadedClient.auth.setSession({
-    access_token: authRes.session!.access_token,
-    refresh_token: authRes.session!.refresh_token,
-  });
+    // Check getSession and getUser
+    const { data: sessionData } = await reloadedClient.auth.getSession();
+    assertEquals(Boolean(sessionData.session), true);
+    assertEquals(sessionData.session?.user.id, authRes.user?.id);
 
-  // Check getSession and getUser
-  const { data: sessionData } = await reloadedClient.auth.getSession();
-  assertEquals(Boolean(sessionData.session), true);
-  assertEquals(sessionData.session?.user.id, authRes.user?.id);
+    const { data: userData } = await reloadedClient.auth.getUser();
+    assertEquals(Boolean(userData.user), true);
+    assertEquals(userData.user?.id, authRes.user?.id);
+  },
+);
 
-  const { data: userData } = await reloadedClient.auth.getUser();
-  assertEquals(Boolean(userData.user), true);
-  assertEquals(userData.user?.id, authRes.user?.id);
-});
+dbTest(
+  "LOGIN-LOOP-7: Customer isolation — Customer B cannot access Customer A's quotations",
+  async () => {
+    // Customer A logs in
+    const authA = await signInSynthetic("customer-a");
+    assertEquals(authA.ok, true);
 
-Deno.test("LOGIN-LOOP-7: Customer isolation — Customer B cannot access Customer A's quotations", async () => {
-  // Customer A logs in
-  const authA = await verifyPhoneOtp("9876543201", "111111", "111111");
-  assertEquals(authA.ok, true);
+    const clientA = await createAuthenticatedClient(authA.session);
 
-  const clientA = await createAuthenticatedClient(authA.session);
+    // Customer A submits a quotation
+    const quoteA = await submitQuotationRequest(
+      sampleBuild,
+      { name: "Customer A", phone: "+919876543201" },
+      { supabaseClient: clientA },
+    );
+    assertEquals(quoteA.success, true);
+    assertEquals(Boolean(quoteA.referenceId), true);
 
-  // Customer A submits a quotation
-  const quoteA = await submitQuotationRequest(
-    sampleBuild,
-    { name: "Customer A", phone: "+919876543201" },
-    { supabaseClient: clientA },
-  );
-  assertEquals(quoteA.success, true);
-  assertEquals(Boolean(quoteA.referenceId), true);
+    // Customer B logs in
+    const authB = await signInSynthetic("customer-b");
+    assertEquals(authB.ok, true);
 
-  // Customer B logs in
-  const authB = await verifyPhoneOtp("9876543202", "222222", "222222");
-  assertEquals(authB.ok, true);
+    const clientB = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
+      auth: { persistSession: false },
+    });
+    await clientB.auth.setSession({
+      access_token: authB.session!.access_token,
+      refresh_token: authB.session!.refresh_token,
+    });
 
-  const clientB = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
-    auth: { persistSession: false },
-  });
-  await clientB.auth.setSession({
-    access_token: authB.session!.access_token,
-    refresh_token: authB.session!.refresh_token,
-  });
+    // Customer B attempts to select Customer A's quotation directly from pc_builds
+    const { data: customerBReadsQuoteA } = await clientB
+      .from("pc_builds")
+      .select("id, reference_id, user_id, customer_name")
+      .eq("reference_id", quoteA.referenceId!);
 
-  // Customer B attempts to select Customer A's quotation directly from pc_builds
-  const { data: customerBReadsQuoteA } = await clientB
-    .from("pc_builds")
-    .select("id, reference_id, user_id, customer_name")
-    .eq("reference_id", quoteA.referenceId!);
+    // RLS MUST block access: Customer B sees an empty list
+    assertEquals(customerBReadsQuoteA?.length, 0);
 
-  // RLS MUST block access: Customer B sees an empty list
-  assertEquals(customerBReadsQuoteA?.length, 0);
+    // Customer A CAN read their own quotation
+    const { data: customerAReadsOwnQuote } = await clientA
+      .from("pc_builds")
+      .select("id, reference_id, user_id, customer_name")
+      .eq("reference_id", quoteA.referenceId!);
 
-  // Customer A CAN read their own quotation
-  const { data: customerAReadsOwnQuote } = await clientA
-    .from("pc_builds")
-    .select("id, reference_id, user_id, customer_name")
-    .eq("reference_id", quoteA.referenceId!);
-
-  assertEquals(customerAReadsOwnQuote?.length, 1);
-  assertEquals(customerAReadsOwnQuote?.[0].reference_id, quoteA.referenceId);
-  assertEquals(customerAReadsOwnQuote?.[0].user_id, authA.user?.id);
-});
+    assertEquals(customerAReadsOwnQuote?.length, 1);
+    assertEquals(customerAReadsOwnQuote?.[0].reference_id, quoteA.referenceId);
+    assertEquals(customerAReadsOwnQuote?.[0].user_id, authA.user?.id);
+  },
+);

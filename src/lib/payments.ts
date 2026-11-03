@@ -440,7 +440,7 @@ export async function recordServicePayAtStore(
   notes?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!supabase || !supabaseConfig.isConfigured) {
-    return { ok: true }; // Local demo mode fallback
+    return { ok: false, error: "Payment selection is temporarily unavailable." };
   }
 
   try {

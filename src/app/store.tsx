@@ -66,6 +66,7 @@ import {
   initialSellRequests,
   type CertificateItem,
   initialCertificates,
+  isPublicCertificate,
 } from "../data/catalog";
 
 import { initialBuildTemplates, type BuildTemplate } from "../data/buildTemplates";
@@ -441,30 +442,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               }
             }
           }
-          return list;
+          return list.filter(isPublicCertificate);
         })(),
 
         locations:
           parsed.locations && parsed.locations.length > 0
-            ? parsed.locations.map((loc) =>
-                loc.id === "kothamangalam"
-                  ? {
-                      ...loc,
-
-                      name: "IT HUB Kothamangalam (Headquarters)",
-
-                      address: "Molathu Building, College Jn., Kothamangalam, Kerala",
-
-                      pincode: "686691",
-
-                      latitude: 10.0601,
-
-                      longitude: 76.6277,
-
-                      serviceRadiusKm: 15,
-                    }
-                  : loc,
-              )
+            ? parsed.locations.map((loc) => ({
+                ...loc,
+                name:
+                  loc.name ||
+                  (loc.id === "kothamangalam" || loc.pincode === "686691"
+                    ? "IT HUB Kothamangalam (Headquarters)"
+                    : loc.name),
+                address:
+                  loc.address ||
+                  (loc.id === "kothamangalam" || loc.pincode === "686691"
+                    ? "Molathu Building, College Jn., Kothamangalam, Kerala - 686691"
+                    : loc.address),
+                pincode: loc.pincode || "686691",
+                latitude: loc.latitude != null ? Number(loc.latitude) : 10.0601,
+                longitude: loc.longitude != null ? Number(loc.longitude) : 76.6277,
+                serviceRadiusKm:
+                  loc.serviceRadiusKm != null ? Math.min(15, Number(loc.serviceRadiusKm)) : 15,
+                active: loc.active !== false,
+              }))
             : initial.locations,
 
         brandSupport: parsed.brandSupport?.some((r: any) => r.warrantyPhone)

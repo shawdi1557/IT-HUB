@@ -105,12 +105,53 @@ export function App() {
               profile.permissions.can_manage_services ? <Services /> : <Navigate to="/" replace />
             }
           />
-          <Route path="/content" element={<WebsiteContent />} />
-          <Route path="/certificates" element={<Certificates />} />
+          <Route
+            path="/content"
+            element={
+              profile.permissions.can_manage_content ? (
+                <WebsiteContent />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/certificates"
+            element={
+              profile.permissions.can_manage_content ? (
+                <Certificates />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
           <Route path="/reviews" element={<Navigate to="/" replace />} />
-          <Route path="/sell-requests" element={<SellRequests />} />
-          <Route path="/audits" element={<Audits profile={profile} />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route
+            path="/sell-requests"
+            element={
+              profile.permissions.can_manage_sell_requests ? (
+                <SellRequests />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/audits"
+            element={
+              profile.permissions.can_view_analytics ? (
+                <Audits profile={profile} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              profile.permissions.can_manage_settings ? <Settings /> : <Navigate to="/" replace />
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

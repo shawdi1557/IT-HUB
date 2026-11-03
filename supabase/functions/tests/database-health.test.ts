@@ -61,21 +61,21 @@ function validateConfigHelper(url?: string, key?: string) {
 
 Deno.test("H1. Configuration validation passes with valid URL and key", () => {
   const result = validateConfigHelper(
-    "https://aeulrulvpxyqmxmypzey.supabase.co",
-    "sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS",
+    "https://example-project.supabase.co",
+    "sb_publishable_synthetic_value_for_unit_tests_",
   );
   assertEquals(result.isConfigured, true);
   assertEquals(result.error, null);
 });
 
 Deno.test("H2. Configuration validation fails when URL is missing", () => {
-  const result = validateConfigHelper("", "sb_publishable_y-r_ZxASFqW4Jf3yDLK9_g_bbJNwFZS");
+  const result = validateConfigHelper("", "sb_publishable_synthetic_value_for_unit_tests_");
   assertEquals(result.isConfigured, false);
   assertMatch(result.error ?? "", /VITE_SUPABASE_URL is missing/);
 });
 
 Deno.test("H3. Configuration validation fails when key is missing", () => {
-  const result = validateConfigHelper("https://aeulrulvpxyqmxmypzey.supabase.co", "");
+  const result = validateConfigHelper("https://example-project.supabase.co", "");
   assertEquals(result.isConfigured, false);
   assertMatch(result.error ?? "", /VITE_SUPABASE_ANON_KEY is missing/);
 });
@@ -91,7 +91,7 @@ Deno.test("H4. Configuration validation rejects placeholder credentials", () => 
 
 Deno.test("H5. Configuration validation rejects invalid URL protocol", () => {
   const result = validateConfigHelper(
-    "ftp://aeulrulvpxyqmxmypzey.supabase.co",
+    "ftp://example-project.supabase.co",
     "sb_publishable_valid_key",
   );
   assertEquals(result.isConfigured, false);

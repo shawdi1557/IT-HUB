@@ -18,6 +18,7 @@ import WhatsAppIcon from "../components/WhatsAppIcon";
 import ShinyText from "../components/ShinyText";
 import { useStore } from "../app/store";
 import { FadeContent, SplitText } from "../components/reactbits";
+import GoogleReviewShowcase from "../components/GoogleReviewShowcase";
 import {
   ActionLink,
   buttonClass,
@@ -223,7 +224,11 @@ export function About() {
             From a local store to complete solutions.
           </h2>
           <p>
-            In 2016, we expanded into the mobile technology segment, adding mobile devices and
+            Founded in 2011, IT HUB started as a dedicated technology destination in Kothamangalam,
+            providing IT products, sales, and technical services.
+          </p>
+          <p>
+            In 2026, we expanded into the mobile technology segment, adding mobile phone sales and
             accessories to our growing range of technology products.
           </p>
           <p>
@@ -255,14 +260,14 @@ export function About() {
                 "IT HUB Founded",
                 "Started with IT products, sales, and technical services.",
               ],
-              ["2016", "Mobile Technology", "Expanded into mobile phone sales and accessories."],
+              ["2026", "Mobile Technology", "Expanded into mobile phone sales and accessories."],
               [
                 "2026",
                 "Software & Digital Solutions",
-                "Entered the software development field, offering websites, web applications, and custom software solutions.",
+                "Entered the software development field, offering website development, web applications, and custom software solutions.",
               ],
             ].map(([year, title, text]) => (
-              <li key={year} className="relative">
+              <li key={`${year}-${title}`} className="relative">
                 <span className="absolute -left-[37px] top-1 h-4 w-4 rounded-full border-4 border-card bg-primary ring-2 ring-primary/30" />
                 <p className="font-display text-2xl font-bold text-primary">{year}</p>
                 <h3 className="mt-1 text-base font-semibold">{title}</h3>
@@ -445,6 +450,7 @@ export function About() {
             <ArrowUpRight size={13} className="text-muted-foreground" />
           </a>
         </div>
+        <GoogleReviewShowcase />
       </div>
       <div className="grid items-center gap-8 md:grid-cols-2">
         <div>

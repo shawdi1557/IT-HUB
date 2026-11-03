@@ -30,7 +30,7 @@ flowchart TD
         PaymentClient["Payment Client (src/lib/payments.ts)"]
     end
 
-    subgraph SupabasePlatform["Supabase Cloud Platform (aeulrulvpxyqmxmypzey)"]
+    subgraph SupabasePlatform["Supabase Cloud Platform (example-project)"]
         Gateway["Kong API Gateway"]
         GoTrue["Supabase Auth (GoTrue)"]
         PostgREST["PostgREST Engine"]
@@ -88,7 +88,7 @@ Hardened the PostgreSQL 15 database running on Supabase, resolved all security l
 
 ### 3.2. Key Implementation Deliverables
 
-- **Canonical Schemas**: Authored [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) and [`supabase/migration.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/migration.sql).
+- **Canonical Schemas**: Authored `supabase/schema.sql` and `supabase/migration.sql`.
 - **Security Definer View Remediation**:
   - Converted `products_public`, `live_offers`, and `public_coupons` views to:
     ```sql
@@ -138,7 +138,7 @@ Connect the customer-facing storefront to live database tables. Storefront listi
 ### 5.2. Implementation Tasks
 
 - [ ] **Task 3.1: Database View Enrichment & Full Seed**
-  - Enrich `products_public` view in [`supabase/schema.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/schema.sql) to join `brands.name as brand` and `categories.name as category`.
+  - Enrich `products_public` view in `supabase/schema.sql` to join `brands.name as brand` and `categories.name as category`.
   - Add primary image subquery resolution from `product_images`.
   - Seed complete fresh product catalog into [`supabase/seed.sql`](file:///d:/mario/IT%20HUB/ITHUB_WEB/supabase/seed.sql).
 - [ ] **Task 3.2: Dedicated Catalog Client Service**

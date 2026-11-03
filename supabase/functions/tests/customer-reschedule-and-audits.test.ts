@@ -117,8 +117,8 @@ Deno.test("RESCHED-2: validateRequestedAppointmentDate strictly enforces future 
   assertEquals(sundayRes.valid, false);
   assertStringIncludes(sundayRes.error || "", "Sunday");
 
-  // Non-Sunday future date (e.g. 2026-11-02 was a Monday)
-  const mondayRes = validateRequestedAppointmentDate("2026-11-02");
+  // Non-Sunday future date (e.g. 2026-11-10 is a Tuesday)
+  const mondayRes = validateRequestedAppointmentDate("2026-11-10");
   assertEquals(mondayRes.valid, true);
 });
 
@@ -275,11 +275,11 @@ Deno.test("AUDITS-3: App.tsx registers /audits route between Certificates and Se
   // Import Audits
   assertStringIncludes(code, 'import { Audits } from "./pages/Audits";');
 
-  // Route registration
+  // Route registration, guarded by the analytics permission
   assertMatch(
     code,
-    /<Route\s+path=["']\/audits["']\s+element=\{<Audits\s+profile=\{profile\}\s*\/>\}\s*\/>/,
-    "Route /audits must be registered in App.tsx",
+    /<Route\s+path=["']\/audits["']\s+element=\{\s*profile\.permissions\.can_view_analytics \? \(\s*<Audits\s+profile=\{profile\}\s*\/>/,
+    "Route /audits must be registered and guarded in App.tsx",
   );
 });
 

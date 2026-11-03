@@ -60,7 +60,7 @@ This portal is intentionally separate from the public e-commerce storefront and 
    Create `.env.local` using `.env.example`:
 
    ```env
-   VITE_SUPABASE_URL=https://aeulrulvpxyqmxmypzey.supabase.co
+   VITE_SUPABASE_URL=https://example-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-supabase-publishable-key
    ```
 

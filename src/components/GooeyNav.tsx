@@ -7,20 +7,23 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : us
 
 const THEMES = {
   dark: {
-    "--gn-frame": "rgba(38, 35, 46, 0.66)",
+    "--gn-frame": "rgba(30, 41, 59, 0.65)",
+    "--gn-frame-border": "rgba(255, 255, 255, 0.15)",
     "--gn-frame-edge": "rgba(255, 255, 255, 0.08)",
-    "--gn-frame-highlight": "rgba(255, 255, 255, 0.07)",
-    "--gn-frame-shadow": "none",
-    "--gn-ink": "#f4f4f5",
-    "--gn-muted": "rgba(244, 244, 245, 0.62)",
+    "--gn-frame-highlight": "rgba(255, 255, 255, 0.1)",
+    "--gn-frame-shadow": "0 8px 32px 0 rgba(0, 0, 0, 0.25)",
+    "--gn-ink": "#f8fafc",
+    "--gn-muted": "rgba(241, 245, 249, 0.75)",
   },
   light: {
-    "--gn-frame": "rgba(240, 240, 243, 0.8)",
-    "--gn-frame-edge": "rgba(24, 24, 27, 0.07)",
+    "--gn-frame": "rgba(255, 255, 255, 0.65)",
+    "--gn-frame-border": "rgba(255, 255, 255, 0.75)",
+    "--gn-frame-edge": "transparent",
     "--gn-frame-highlight": "rgba(255, 255, 255, 0.95)",
-    "--gn-frame-shadow": "none",
-    "--gn-ink": "#27272a",
-    "--gn-muted": "rgba(39, 39, 42, 0.62)",
+    "--gn-frame-shadow":
+      "0 0 0 1px rgba(15, 23, 42, 0.05), 0 4px 24px -2px rgba(12, 47, 138, 0.07), 0 2px 6px -1px rgba(0, 0, 0, 0.04), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95)",
+    "--gn-ink": "#0a1e4a",
+    "--gn-muted": "rgba(15, 23, 42, 0.75)",
   },
 };
 

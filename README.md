@@ -123,8 +123,7 @@ ITHUB_WEB/
 │           └── Settings.tsx              # Store hours, address, WhatsApp message settings
 │
 ├── supabase/                             # Database & Backend Infrastructure
-│   ├── schema.sql                        # Canonical declarative PostgreSQL schema
-│   ├── migrations/                       # 31 sequential database migrations
+│   ├── migrations/                       # Sequential database migrations: the only schema source
 │   └── functions/                        # Serverless Deno Edge Functions
 │       ├── verify-and-submit-pc-quotation/
 │       ├── shopify-webhook/
@@ -358,10 +357,10 @@ Local Supabase database runs via Docker CLI:
 # Start local Supabase services (Postgres on 54322, Studio on 54323)
 npx supabase start
 
-# Apply all 31 sequential database migrations
+# Apply all sequential database migrations
 npx supabase migration up
 
-# Verify migration consistency against canonical schema.sql
+# Check migration file names and order
 npm run verify:migrations
 ```
 

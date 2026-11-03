@@ -85,7 +85,7 @@ export async function fetchQuotations(
 
   try {
     let query = supabase
-      .from("pc_builds")
+      .from("pc_builds_staff")
       .select("*", { count: "exact" })
       .not("reference_id", "is", null); // Display formal customer quotation requests
 
@@ -132,7 +132,7 @@ export async function getQuotationById(quotationId: string): Promise<PcQuotation
 
   try {
     const { data, error } = await supabase
-      .from("pc_builds")
+      .from("pc_builds_staff")
       .select("*")
       .eq("id", quotationId)
       .single();

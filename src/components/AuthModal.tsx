@@ -1,26 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  LockKeyhole,
-  MessageSquareText,
-  Smartphone,
-  Mail,
-  RefreshCw,
-  CheckCircle2,
-} from "lucide-react";
-import WhatsAppIcon from "./WhatsAppIcon";
+import { ArrowLeft, ArrowRight, LockKeyhole, RefreshCw, Smartphone } from "lucide-react";
 import { useStore } from "../app/store";
 import { Button, Modal } from "./ui";
 import {
   sendPhoneOtp,
   verifyPhoneOtp,
-  signInCustomerWithPassword,
   isValidIndianMobile,
   formatIndianPhoneToE164,
 } from "../lib/auth";
 
-const RESEND_SECONDS = 30;
+// Matches the wait between codes that the production Auth settings enforce.
+const RESEND_SECONDS = 60;
 
 export default function AuthModal({
   open,
@@ -30,14 +20,9 @@ export default function AuthModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const store = useStore();
-  const [step, setStep] = useState<"phone" | "otp" | "email">("phone");
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [code, setCode] = useState("");
-  const [isSimulated, setIsSimulated] = useState(false);
-  const [channel, setChannel] = useState<"SMS" | "WhatsApp">("SMS");
   const [timer, setTimer] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,8 +32,6 @@ export default function AuthModal({
     if (!open) {
       setStep("phone");
       setOtp(["", "", "", "", "", ""]);
-      setEmail("");
-      setPassword("");
       setError("");
       setLoading(false);
     }
@@ -62,36 +45,24 @@ export default function AuthModal({
 
   const valid = isValidIndianMobile(phone);
 
-  const send = async (via: "SMS" | "WhatsApp") => {
+  const send = async () => {
     if (!valid || loading) return;
     setLoading(true);
     setError("");
 
     try {
-      const res = await sendPhoneOtp(phone, via);
+      const res = await sendPhoneOtp(phone);
       if (!res.ok) {
-        setError(res.error || "Failed to send verification code. Please try again.");
-        setLoading(false);
+        setError(res.error || "We couldn't send a code. Please try again.");
         return;
       }
 
-      setChannel(via);
       setTimer(RESEND_SECONDS);
       setOtp(["", "", "", "", "", ""]);
       setStep("otp");
-      setIsSimulated(Boolean(res.isSimulated));
-
-      if (res.isSimulated && res.demoCode) {
-        setCode(res.demoCode);
-        store.notify(`Demo code: ${res.demoCode} (configure Supabase Auth for real SMS)`);
-      } else {
-        setCode("");
-        store.notify(`Verification code sent via SMS to ${res.formattedPhone}`);
-      }
+      store.notify(`Code sent by SMS to ${res.formattedPhone}`);
 
       setTimeout(() => inputs.current[0]?.focus(), 50);
-    } catch (err: any) {
-      setError(err?.message || "Could not connect to authentication service.");
     } finally {
       setLoading(false);
     }
@@ -104,10 +75,9 @@ export default function AuthModal({
     setError("");
 
     try {
-      const res = await verifyPhoneOtp(phone, entered, isSimulated ? code : undefined);
+      const res = await verifyPhoneOtp(phone, entered);
       if (!res.ok) {
-        setError(res.error || "Incorrect verification code. Please try again.");
-        setLoading(false);
+        setError(res.error || "That code is incorrect or has expired.");
         return;
       }
 
@@ -123,57 +93,13 @@ export default function AuthModal({
           role: res.profile?.role || s.profile.role || "customer",
           phone: res.profile?.phone || formatted,
           name: res.profile?.full_name || s.profile.name || "",
-          email:
-            res.profile?.email ||
-            (res.user?.email && !res.user.email.endsWith("@customer.ithub.internal")
-              ? res.user.email
-              : "") ||
-            s.profile.email ||
-            "",
+          email: res.profile?.email || s.profile.email || "",
           address: res.profile?.address || s.profile.address || "",
         },
       }));
 
       store.notify(isNew ? "Welcome to IT HUB! Your account is active." : "Welcome back!");
       onOpenChange(false);
-    } catch (err: any) {
-      setError(err?.message || "Verification request failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmailSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !password || loading) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await signInCustomerWithPassword(email, password);
-      if (!res.ok) {
-        setError(res.error || "Sign in failed. Please check your credentials.");
-        setLoading(false);
-        return;
-      }
-
-      store.set((s) => ({
-        loggedIn: true,
-        profile: {
-          ...s.profile,
-          id: res.user?.id || res.profile?.id || s.profile.id,
-          role: res.profile?.role || s.profile.role || "customer",
-          phone: res.profile?.phone || s.profile.phone || "",
-          name: res.profile?.full_name || s.profile.name || "",
-          email: res.profile?.email || res.user?.email || email.trim(),
-          address: res.profile?.address || s.profile.address || "",
-        },
-      }));
-
-      store.notify("Welcome back to IT HUB!");
-      onOpenChange(false);
-    } catch (err: any) {
-      setError(err?.message || "Sign in failed.");
     } finally {
       setLoading(false);
     }
@@ -187,33 +113,23 @@ export default function AuthModal({
     if (digit && index < 5) inputs.current[index + 1]?.focus();
   };
 
-  const modalTitle =
-    step === "phone"
-      ? "Login or sign up"
-      : step === "otp"
-        ? "Verify your number"
-        : "Sign in with Email";
-
-  const modalDescription =
-    step === "phone"
-      ? "Use your mobile number to continue. New here? We'll create your account."
-      : step === "otp"
-        ? `Enter the 6-digit code sent via ${channel} to +91 ${phone}.`
-        : "Enter your customer account email and password.";
-
   return (
     <Modal
       size="max-w-md"
       open={open}
       onOpenChange={onOpenChange}
-      title={modalTitle}
-      description={modalDescription}
+      title={step === "phone" ? "Login or sign up" : "Enter your code"}
+      description={
+        step === "phone"
+          ? "Enter your mobile number and we'll text you a 6-digit code. No password needed."
+          : `We texted a 6-digit code to +91 ${phone}.`
+      }
     >
       {step === "phone" && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (valid) send("SMS");
+            send();
           }}
         >
           <label className="mb-2 block text-xs font-semibold">Mobile number</label>
@@ -223,6 +139,7 @@ export default function AuthModal({
             </span>
             <input
               inputMode="numeric"
+              autoComplete="tel-national"
               autoFocus
               maxLength={10}
               value={phone}
@@ -236,97 +153,29 @@ export default function AuthModal({
           {phone.length === 10 && !valid && (
             <p className="mt-2 text-xs text-destructive">Enter a valid Indian mobile number.</p>
           )}
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-          <Button type="submit" disabled={!valid || loading} className="mt-6 w-full">
+          {error && (
+            <p role="alert" className="mt-2 text-xs text-destructive">
+              {error}
+            </p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            New to IT HUB? Your account is created when you enter the code. Only Indian mobile
+            numbers (+91) are supported.
+          </p>
+          <Button type="submit" disabled={!valid || loading} className="mt-5 w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <RefreshCw size={16} className="animate-spin" /> Sending verification code...
+                <RefreshCw size={16} className="animate-spin" /> Sending code...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
-                Send OTP <ArrowRight size={16} />
+                Send code <ArrowRight size={16} />
               </span>
             )}
           </Button>
-          <div className="mt-5 border-t border-border pt-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setStep("email");
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Mail size={14} /> Or sign in with email and password
-            </button>
-          </div>
           <p className="mt-4 text-center text-[11px] text-muted-foreground">
             By continuing you agree to IT HUB's terms and privacy policy.
           </p>
-        </form>
-      )}
-
-      {step === "email" && (
-        <form onSubmit={handleEmailSignIn}>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-xs font-semibold">Email address</label>
-              <div className="flex items-center overflow-hidden rounded-xl border border-border bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-                <Mail size={18} className="mr-3 shrink-0 text-muted-foreground" />
-                <input
-                  type="email"
-                  autoFocus
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="customer@example.com"
-                  className="w-full bg-transparent py-3.5 text-sm"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-semibold">Password</label>
-              <div className="flex items-center overflow-hidden rounded-xl border border-border bg-card px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-                <LockKeyhole size={18} className="mr-3 shrink-0 text-muted-foreground" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-transparent py-3.5 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-          {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-          <Button
-            type="submit"
-            disabled={!email.trim() || !password || loading}
-            className="mt-6 w-full"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <RefreshCw size={16} className="animate-spin" /> Signing in...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                Sign In <ArrowRight size={16} />
-              </span>
-            )}
-          </Button>
-          <div className="mt-5 border-t border-border pt-4 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setStep("phone");
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Smartphone size={14} /> Back to Mobile OTP Login
-            </button>
-          </div>
         </form>
       )}
 
@@ -346,6 +195,7 @@ export default function AuthModal({
                 }}
                 value={digit}
                 inputMode="numeric"
+                autoComplete={i === 0 ? "one-time-code" : "off"}
                 aria-label={`OTP digit ${i + 1}`}
                 onChange={(e) => type(i, e.target.value)}
                 onKeyDown={(e) => {
@@ -363,17 +213,14 @@ export default function AuthModal({
               />
             ))}
           </div>
-          {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-          {isSimulated && code ? (
-            <p className="mt-3 rounded-lg bg-secondary px-3 py-2 text-[11px] text-secondary-foreground">
-              Development fallback mode: your test code is <b>{code}</b>.
-            </p>
-          ) : (
-            <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
-              <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
-              Verification code dispatched via Supabase Auth to +91 {phone}.
+          {error && (
+            <p role="alert" className="mt-3 text-xs text-destructive">
+              {error}
             </p>
           )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            The code only works for a short time. If it expires, request a new one.
+          </p>
           <Button
             type="submit"
             disabled={otp.join("").length < 6 || loading}
@@ -381,7 +228,7 @@ export default function AuthModal({
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <RefreshCw size={16} className="animate-spin" /> Verifying code...
+                <RefreshCw size={16} className="animate-spin" /> Checking code...
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -390,35 +237,26 @@ export default function AuthModal({
             )}
           </Button>
           <div className="mt-6 border-t border-border pt-5 text-center">
-            <p className="text-xs text-muted-foreground">
-              Didn't receive the OTP?{" "}
-              {timer > 0 && <span>Resend in 0:{String(timer).padStart(2, "0")}</span>}
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled={timer > 0}
-                onClick={() => send("SMS")}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-xs font-semibold transition hover:border-primary hover:text-primary disabled:opacity-40"
-              >
-                <MessageSquareText size={15} /> Resend via SMS
-              </button>
-              <button
-                type="button"
-                disabled={timer > 0}
-                onClick={() => send("WhatsApp")}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-4 py-2.5 text-xs font-semibold transition hover:border-[#25D366] hover:text-[#1da851] disabled:opacity-40"
-              >
-                <WhatsAppIcon size={15} /> Resend via WhatsApp
-              </button>
-            </div>
             <button
               type="button"
-              onClick={() => setStep("phone")}
-              className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
+              disabled={timer > 0 || loading}
+              onClick={send}
+              className="text-xs font-semibold text-primary disabled:text-muted-foreground"
             >
-              <ArrowLeft size={14} /> Change number
+              {timer > 0 ? `Didn't get it? Resend in ${timer}s` : "Resend code"}
             </button>
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setStep("phone");
+                }}
+                className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-primary"
+              >
+                <ArrowLeft size={14} /> Change number
+              </button>
+            </div>
           </div>
         </form>
       )}

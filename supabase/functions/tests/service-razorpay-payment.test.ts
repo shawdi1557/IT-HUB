@@ -50,6 +50,7 @@ async function calculateHmacSignature(
 // Mock User Client Factory
 function createMockUserClient(options: { userId?: string; serviceRecord?: any; userError?: any }) {
   return {
+    rpc: async () => ({ data: false, error: null }),
     auth: {
       getUser: async () => {
         if (options.userError) return { data: { user: null }, error: options.userError };
@@ -402,6 +403,20 @@ Deno.test("SRV-PAY-6: Verifies valid timing-safe HMAC signature and invokes reco
     supabaseUserClient: userClient,
     supabaseAdminClient: adminClient,
     appEnv: "development",
+    // Stands in for Razorpay's own record of this payment.
+    fetchImpl: () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: TEST_RZP_PAY_ID,
+            order_id: TEST_RZP_ORDER_ID,
+            status: "captured",
+            amount: 450000,
+            currency: "INR",
+          }),
+          { status: 200 },
+        ),
+      ),
   };
 
   const req = new Request("http://localhost:54321/functions/v1/verify-service-payment", {

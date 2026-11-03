@@ -8,8 +8,6 @@ import { supabase, supabaseConfig } from "./supabase";
 export interface SendOtpResult {
   ok: boolean;
   formattedPhone: string;
-  isSimulated?: boolean;
-  demoCode?: string;
   message?: string;
   error?: string;
 }
@@ -65,208 +63,56 @@ export function isValidIndianMobile(phone: string): boolean {
   return false;
 }
 
+const SIGN_IN_UNAVAILABLE = "Phone sign-in is currently unavailable. Please try again later.";
+
 /**
- * Sends a Phone OTP using Supabase Auth (or graceful development fallback).
+ * Asks Supabase Auth to text a code to an Indian mobile number. Supabase generates the code. If it
+ * can't be delivered, sign-in fails: only a code received on the phone proves the number is theirs.
  */
-export async function sendPhoneOtp(
-  rawPhone: string,
-  _channel: "SMS" | "WhatsApp" = "SMS",
-): Promise<SendOtpResult> {
+export async function sendPhoneOtp(rawPhone: string): Promise<SendOtpResult> {
   const formattedPhone = formatIndianPhoneToE164(rawPhone);
 
-  // If Supabase client is not available, provide local simulated demo OTP
+  if (!isValidIndianMobile(rawPhone)) {
+    return { ok: false, formattedPhone, error: "Enter a valid 10-digit Indian mobile number." };
+  }
+
   if (!supabase || !supabaseConfig.isConfigured) {
-    const demoCode = String(Math.floor(100000 + Math.random() * 900000));
-    return {
-      ok: true,
-      formattedPhone,
-      isSimulated: true,
-      demoCode,
-      message: `Demo OTP: ${demoCode}`,
-    };
+    return { ok: false, formattedPhone, error: SIGN_IN_UNAVAILABLE };
   }
 
   try {
     const { error } = await supabase.auth.signInWithOtp({
       phone: formattedPhone,
-      options: {
-        channel: "sms",
-      },
+      options: { channel: "sms" },
     });
 
     if (error) {
-      const msg = error.message.toLowerCase();
-      // If Phone provider is not yet enabled in Supabase dashboard
-      if (
-        msg.includes("provider is not enabled") ||
-        msg.includes("unsupported phone provider") ||
-        msg.includes("sms_provider_not_configured") ||
-        (error.status === 400 && msg.includes("phone"))
-      ) {
-        const demoCode = String(Math.floor(100000 + Math.random() * 900000));
-        return {
-          ok: true,
-          formattedPhone,
-          isSimulated: true,
-          demoCode,
-          message:
-            "Phone provider not yet enabled in Supabase Dashboard. Using development demo code.",
-        };
-      }
-
-      // Rate limit or quota error
-      if (msg.includes("rate limit") || msg.includes("too many requests") || error.status === 429) {
-        return {
-          ok: false,
-          formattedPhone,
-          error: "Too many OTP attempts. Please wait 60 seconds before trying again.",
-        };
-      }
-
+      const tooSoon =
+        error.status === 429 ||
+        /rate limit|too many requests|security purposes/i.test(error.message);
       return {
         ok: false,
         formattedPhone,
-        error: error.message || "Failed to send OTP. Please check your phone number.",
+        error: tooSoon
+          ? "A code was requested recently. Please wait a minute before trying again."
+          : SIGN_IN_UNAVAILABLE,
       };
     }
 
-    return {
-      ok: true,
-      formattedPhone,
-      isSimulated: false,
-      message: `OTP sent to ${formattedPhone}`,
-    };
-  } catch (err: any) {
-    return {
-      ok: false,
-      formattedPhone,
-      error: err?.message || "Unexpected error connecting to authentication service.",
-    };
+    return { ok: true, formattedPhone, message: `OTP sent to ${formattedPhone}` };
+  } catch {
+    return { ok: false, formattedPhone, error: SIGN_IN_UNAVAILABLE };
   }
 }
 
 /**
- * Verifies a Phone OTP and establishes a Supabase user session.
+ * Asks Supabase Auth to check a code. A session exists only if it accepts the code.
  */
-export async function verifyPhoneOtp(
-  rawPhone: string,
-  token: string,
-  fallbackDemoCode?: string,
-): Promise<VerifyOtpResult> {
+export async function verifyPhoneOtp(rawPhone: string, token: string): Promise<VerifyOtpResult> {
   const formattedPhone = formatIndianPhoneToE164(rawPhone);
 
-  // Check fallback simulated code if Supabase isn't active or provider not enabled
-  if (fallbackDemoCode) {
-    if (token.trim() !== fallbackDemoCode.trim()) {
-      return {
-        ok: false,
-        error: "Incorrect verification code. Please check and try again.",
-      };
-    }
-
-    // When Supabase is configured, establish an authoritative authenticated customer session
-    if (supabase && supabaseConfig.isConfigured) {
-      try {
-        const digits = formattedPhone.replace(/\D/g, "");
-        const internalEmail = `phone.${digits}@customer.ithub.internal`;
-        const internalPassword = `dev_otp_customer_${digits}_session_secret`;
-
-        let user: User | null = null;
-        let session: Session | null = null;
-
-        const signInRes = await supabase.auth.signInWithPassword({
-          email: internalEmail,
-          password: internalPassword,
-        });
-
-        if (signInRes.data?.user && signInRes.data?.session) {
-          user = signInRes.data.user;
-          session = signInRes.data.session;
-        } else {
-          const signUpRes = await supabase.auth.signUp({
-            email: internalEmail,
-            password: internalPassword,
-            options: {
-              data: {
-                phone: formattedPhone,
-                role: "customer",
-              },
-            },
-          });
-
-          if (signUpRes.error) {
-            return {
-              ok: false,
-              error:
-                signUpRes.error.message || "Failed to establish authenticated customer session.",
-            };
-          }
-
-          user = signUpRes.data.user;
-          session = signUpRes.data.session;
-        }
-
-        if (!user) {
-          return {
-            ok: false,
-            error: "Failed to establish authenticated customer session.",
-          };
-        }
-
-        let profile = await fetchOrCreateProfile(user);
-        if (profile && profile.phone !== formattedPhone) {
-          try {
-            await supabase
-              .from("profiles")
-              .update({ phone: formattedPhone, updated_at: new Date().toISOString() })
-              .eq("id", user.id);
-            profile.phone = formattedPhone;
-          } catch {
-            // Profile update non-fatal
-          }
-        }
-
-        return {
-          ok: true,
-          user,
-          session,
-          profile: profile || {
-            id: user.id,
-            role: "customer",
-            full_name: null,
-            email: null,
-            phone: formattedPhone,
-            address: null,
-          },
-        };
-      } catch (err: any) {
-        return {
-          ok: false,
-          error: err?.message || "Verification request failed.",
-        };
-      }
-    }
-
-    return {
-      ok: true,
-      user: null,
-      session: null,
-      profile: {
-        id: "demo-user",
-        role: "customer",
-        full_name: null,
-        email: null,
-        phone: formattedPhone,
-        address: null,
-      },
-    };
-  }
-
   if (!supabase || !supabaseConfig.isConfigured) {
-    return {
-      ok: false,
-      error: "Authentication service is not configured.",
-    };
+    return { ok: false, error: SIGN_IN_UNAVAILABLE };
   }
 
   try {
@@ -277,80 +123,24 @@ export async function verifyPhoneOtp(
     });
 
     if (error) {
-      const msg = error.message.toLowerCase();
-      if (msg.includes("token has expired") || msg.includes("expired")) {
-        return {
-          ok: false,
-          error: "The OTP code has expired. Please request a new one.",
-        };
-      }
-      if (msg.includes("invalid") || msg.includes("token is invalid")) {
-        return {
-          ok: false,
-          error: "Incorrect verification code. Please check and try again.",
-        };
-      }
-      return { ok: false, error: error.message };
-    }
-
-    if (!data.user) {
+      // Supabase deliberately reports a wrong code and an expired code the same way.
+      const tooMany = error.status === 429;
       return {
         ok: false,
-        error: "Authentication failed. No user record returned.",
+        error: tooMany
+          ? "Too many attempts. Please wait a minute before trying again."
+          : "That code is incorrect or has expired. Check it, or request a new one.",
       };
     }
 
-    // Reconcile and load profile
-    const profile = await fetchOrCreateProfile(data.user);
-
-    return {
-      ok: true,
-      user: data.user,
-      session: data.session,
-      profile,
-    };
-  } catch (err: any) {
-    return {
-      ok: false,
-      error: err?.message || "Verification request failed.",
-    };
-  }
-}
-
-/**
- * Authenticates an existing customer with email and password via Supabase Auth.
- */
-export async function signInCustomerWithPassword(
-  email: string,
-  password: string,
-): Promise<VerifyOtpResult> {
-  if (!supabase || !supabaseConfig.isConfigured) {
-    return { ok: false, error: "Authentication service is not configured." };
-  }
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !password) {
-    return { ok: false, error: "Please enter your email and password." };
-  }
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
-    if (error) {
-      return { ok: false, error: error.message };
+    if (!data.user || !data.session) {
+      return { ok: false, error: "We couldn't sign you in. Please request a new code." };
     }
-    if (!data.user) {
-      return { ok: false, error: "Authentication failed. No user record returned." };
-    }
+
     const profile = await fetchOrCreateProfile(data.user);
-    return {
-      ok: true,
-      user: data.user,
-      session: data.session,
-      profile,
-    };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Customer sign-in failed." };
+    return { ok: true, user: data.user, session: data.session, profile };
+  } catch {
+    return { ok: false, error: "We couldn't check that code. Please try again." };
   }
 }
 
@@ -390,23 +180,6 @@ export async function fetchOrCreateProfile(user: User): Promise<CustomerProfile 
       return rpcData.profile as CustomerProfile;
     }
 
-    // 3. Fallback direct upsert if permitted
-    const { data: upsertData, error: upsertErr } = await supabase
-      .from("profiles")
-      .upsert({
-        id: user.id,
-        phone: user.phone || null,
-        email: user.email || null,
-        role: "customer",
-        updated_at: new Date().toISOString(),
-      })
-      .select("id, role, full_name, email, phone")
-      .maybeSingle();
-
-    if (upsertData && !upsertErr) {
-      return upsertData as CustomerProfile;
-    }
-
     return null;
   } catch {
     return null;
@@ -426,7 +199,6 @@ export async function updateCustomerProfile(updates: {
   fullName?: string;
   email?: string;
   address?: string;
-  phone?: string;
 }): Promise<UpdateProfileResult> {
   if (!supabase) {
     return { ok: false, error: "Supabase client not available" };
@@ -449,7 +221,6 @@ export async function updateCustomerProfile(updates: {
     if (updates.fullName !== undefined) payload.full_name = updates.fullName.trim() || null;
     if (updates.email !== undefined) payload.email = updates.email.trim() || null;
     if (updates.address !== undefined) payload.address = updates.address.trim() || null;
-    if (updates.phone !== undefined) payload.phone = formatIndianPhoneToE164(updates.phone);
 
     const { data, error } = await supabase
       .from("profiles")
@@ -550,6 +321,13 @@ export interface AdminSessionStatus {
   error?: string;
 }
 
+/** Asks the database, which recognises both administrator identities. */
+async function hasAdminAccess(): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc("is_admin");
+  return !error && data === true;
+}
+
 /**
  * Authenticates an administrator with email and password via Supabase Auth.
  * Reconciles and verifies that the account's profile role is strictly 'admin'.
@@ -622,7 +400,7 @@ export async function signInAdminWithPassword(
     // Verify application profile role
     const profile = await fetchOrCreateProfile(data.user);
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || !(await hasAdminAccess())) {
       // Immediate session termination for non-admins attempting admin access
       await supabase.auth.signOut();
       return {
@@ -675,7 +453,7 @@ export async function checkAdminSession(): Promise<AdminSessionStatus> {
 
     const profile = await fetchOrCreateProfile(session.user);
 
-    if (profile?.role === "admin") {
+    if (profile && (await hasAdminAccess())) {
       return {
         state: "authorized",
         user: session.user,
@@ -697,133 +475,5 @@ export async function checkAdminSession(): Promise<AdminSessionStatus> {
       profile: null,
       error: err?.message || "Failed to verify session authorization.",
     };
-  }
-}
-
-export interface EmailOtpResult {
-  ok: boolean;
-  message?: string;
-  error?: string;
-  isSimulated?: boolean;
-}
-
-/**
- * Sends an email verification OTP via Supabase Auth.
- */
-export async function sendEmailVerificationOtp(email: string): Promise<EmailOtpResult> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
-    return { ok: false, error: "Please enter a valid email address." };
-  }
-
-  if (!supabase || !supabaseConfig.isConfigured) {
-    return {
-      ok: true,
-      isSimulated: true,
-      message: "Development mode: simulated verification code sent.",
-    };
-  }
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { error } = await supabase.auth.updateUser({ email: cleanEmail });
-      if (error) {
-        const { error: otpErr } = await supabase.auth.signInWithOtp({
-          email: cleanEmail,
-          options: { shouldCreateUser: false },
-        });
-        if (otpErr) {
-          return { ok: false, error: error.message || otpErr.message };
-        }
-      }
-      return {
-        ok: true,
-        message: `Verification code sent to ${cleanEmail}. Please check your inbox.`,
-      };
-    } else {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
-        options: { shouldCreateUser: false },
-      });
-      if (error) {
-        return { ok: false, error: error.message };
-      }
-      return {
-        ok: true,
-        message: `Verification code sent to ${cleanEmail}. Please check your inbox.`,
-      };
-    }
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Failed to send email verification OTP." };
-  }
-}
-
-/**
- * Verifies an email verification OTP via Supabase Auth.
- */
-export async function verifyEmailVerificationOtp(
-  email: string,
-  token: string,
-): Promise<VerifyOtpResult> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanToken = token.trim();
-
-  if (!cleanEmail || !cleanToken) {
-    return { ok: false, error: "Please provide both email and verification code." };
-  }
-
-  if (!supabase || !supabaseConfig.isConfigured) {
-    if (cleanToken === "123456" || cleanToken.length === 6) {
-      return { ok: true };
-    }
-    return { ok: false, error: "Invalid verification code." };
-  }
-
-  try {
-    let { data, error } = await supabase.auth.verifyOtp({
-      email: cleanEmail,
-      token: cleanToken,
-      type: "email",
-    });
-
-    if (error) {
-      const retry = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanToken,
-        type: "email_change",
-      });
-      if (!retry.error && retry.data) {
-        data = retry.data;
-        error = null;
-      }
-    }
-
-    if (error) {
-      return { ok: false, error: error.message || "Invalid or expired verification code." };
-    }
-
-    if (data?.user) {
-      const profile = await fetchOrCreateProfile(data.user);
-      if (profile) {
-        try {
-          await supabase
-            .from("profiles")
-            .update({ email: cleanEmail, updated_at: new Date().toISOString() })
-            .eq("id", data.user.id);
-          profile.email = cleanEmail;
-        } catch {
-          // Non-fatal
-        }
-      }
-      return { ok: true, user: data.user, session: data.session, profile };
-    }
-
-    return { ok: true };
-  } catch (err: any) {
-    return { ok: false, error: err?.message || "Failed to verify email OTP." };
   }
 }

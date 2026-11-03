@@ -13,14 +13,12 @@ import {
   Settings,
   ArrowUpRight,
   UserRound,
-  Tag,
   BadgeCheck,
   Smartphone,
   BadgeIndianRupee,
   RefreshCw,
   CheckCircle2,
   Phone,
-  Mail,
   MessageSquare,
   Clock,
   Sparkles,
@@ -41,11 +39,7 @@ import {
   type Build,
 } from "../data/catalog";
 import { fetchUserSellRequests } from "../lib/sellRequests";
-import {
-  updateCustomerProfile,
-  sendEmailVerificationOtp,
-  verifyEmailVerificationOtp,
-} from "../lib/auth";
+import { updateCustomerProfile } from "../lib/auth";
 import { updateShopifyCartDiscountCodes } from "../lib/shopify";
 import {
   formatTicketReference,
@@ -105,14 +99,6 @@ export default function Account() {
   const [auth, setAuth] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
-  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
-  const [emailOtpStep, setEmailOtpStep] = useState<
-    "idle" | "sending" | "otp_sent" | "verified" | "error"
-  >("idle");
-  const [emailOtpCode, setEmailOtpCode] = useState("");
-  const [emailOtpCooldown, setEmailOtpCooldown] = useState(0);
-  const [emailOtpMessage, setEmailOtpMessage] = useState("");
-  const [emailOtpError, setEmailOtpError] = useState("");
   const [applyingCode, setApplyingCode] = useState<string | null>(null);
   const [usedCodes, setUsedCodes] = useState<string[]>(() => {
     try {
@@ -129,12 +115,6 @@ export default function Account() {
   const [ordersRefreshing, setOrdersRefreshing] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [ordersAuthError, setOrdersAuthError] = useState(false);
-  const [linkQueryInput, setLinkQueryInput] = useState("");
-  const [linkingOrder, setLinkingOrder] = useState(false);
-  const [linkStatusMsg, setLinkStatusMsg] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
   const [ordersPageInfo, setOrdersPageInfo] = useState<{
     hasNextPage: boolean;
     endCursor: string | null;
@@ -147,7 +127,7 @@ export default function Account() {
   );
   const [checkoutCompletedBanner, setCheckoutCompletedBanner] = useState(false);
 
-  const loadOrders = async (isManualRefresh = false, linkQuery?: string) => {
+  const loadOrders = async (isManualRefresh = false) => {
     if (!store.loggedIn) {
       setOrdersAuthError(true);
       return;
@@ -163,7 +143,6 @@ export default function Account() {
     const res = await fetchCustomerShopifyOrders({
       refresh: isManualRefresh,
       limit: 10,
-      linkQuery,
     });
     if (res.authError) {
       setOrdersAuthError(true);
@@ -173,32 +152,9 @@ export default function Account() {
     } else {
       setShopifyOrders(res.orders);
       setOrdersPageInfo(res.pageInfo);
-      if (linkQuery && res.orders.length > 0) {
-        setLinkStatusMsg({
-          type: "success",
-          text: "Order located and successfully linked to your account!",
-        });
-      } else if (linkQuery && res.orders.length === 0) {
-        setLinkStatusMsg({
-          type: "error",
-          text: "No matching order found for the provided information. Please verify your payment ID, email, or mobile number.",
-        });
-      }
     }
     setOrdersLoading(false);
     setOrdersRefreshing(false);
-  };
-
-  const handleLinkOrderSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!linkQueryInput.trim()) return;
-    setLinkingOrder(true);
-    setLinkStatusMsg(null);
-    try {
-      await loadOrders(true, linkQueryInput.trim());
-    } finally {
-      setLinkingOrder(false);
-    }
   };
 
   const loadMoreOrders = async () => {
@@ -233,14 +189,6 @@ export default function Account() {
       loadOrders(section === "orders");
     }
   }, [store.loggedIn, section]);
-
-  useEffect(() => {
-    if (emailOtpCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setEmailOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [emailOtpCooldown]);
 
   useEffect(() => {
     if (store.loggedIn) {
@@ -568,9 +516,11 @@ export default function Account() {
                   <div className="rounded-2xl bg-muted p-4">
                     <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                       <span>Mobile</span>
-                      <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                        <BadgeCheck size={12} /> VERIFIED
-                      </span>
+                      {store.profile.phone && (
+                        <span className="text-[10px] font-bold text-primary flex items-center gap-1">
+                          <BadgeCheck size={12} /> VERIFIED
+                        </span>
+                      )}
                     </dt>
                     <dd className="mt-1.5 text-sm font-mono font-medium">
                       {store.profile.phone || "Not linked"}
@@ -578,103 +528,15 @@ export default function Account() {
                   </div>
 
                   <div className="rounded-2xl bg-muted p-4 sm:col-span-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Email Address
-                      </dt>
-                      {store.profile.email && (
-                        <div className="flex items-center gap-2">
-                          {emailOtpStep === "verified" ? (
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <CheckCircle2 size={12} /> VERIFIED
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                setEmailOtpStep("sending");
-                                setEmailOtpError("");
-                                setEmailOtpMessage("");
-                                const res = await sendEmailVerificationOtp(store.profile.email!);
-                                if (res.ok) {
-                                  setEmailOtpStep("otp_sent");
-                                  setEmailOtpCooldown(60);
-                                  setEmailOtpMessage(
-                                    res.message ||
-                                      `Verification code sent to ${store.profile.email}`,
-                                  );
-                                } else {
-                                  setEmailOtpStep("error");
-                                  setEmailOtpError(res.error || "Failed to send code.");
-                                }
-                              }}
-                              disabled={emailOtpStep === "sending" || emailOtpCooldown > 0}
-                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <Mail size={12} />
-                              {emailOtpCooldown > 0
-                                ? `Resend code in ${emailOtpCooldown}s`
-                                : "Verify Email with OTP"}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Email (optional)
+                    </dt>
                     <dd className="mt-1.5 text-sm font-medium">
                       {store.profile.email || "Not added yet"}
                     </dd>
-
-                    {/* Email Verification Box */}
-                    {emailOtpStep === "otp_sent" && (
-                      <div className="mt-4 rounded-xl border border-primary/20 bg-card p-4 space-y-3">
-                        <p className="text-xs text-muted-foreground">
-                          Enter the 6-digit verification code sent to{" "}
-                          <strong>{store.profile.email}</strong>:
-                        </p>
-                        <div className="flex items-center gap-2 max-w-sm">
-                          <input
-                            type="text"
-                            maxLength={6}
-                            placeholder="123456"
-                            value={emailOtpCode}
-                            onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
-                            className={`${fieldClass} text-center font-mono tracking-widest text-base font-bold`}
-                          />
-                          <Button
-                            size="sm"
-                            disabled={emailOtpCode.length < 6 || isVerifyingEmailOtp}
-                            onClick={async () => {
-                              setIsVerifyingEmailOtp(true);
-                              setEmailOtpError("");
-                              try {
-                                const res = await verifyEmailVerificationOtp(
-                                  store.profile.email!,
-                                  emailOtpCode,
-                                );
-                                if (res.ok) {
-                                  setEmailOtpStep("verified");
-                                  setEmailOtpMessage("Email verified successfully!");
-                                  store.notify("Email verified successfully");
-                                } else {
-                                  setEmailOtpStep("otp_sent");
-                                  setEmailOtpError(res.error || "Invalid code. Please try again.");
-                                }
-                              } finally {
-                                setIsVerifyingEmailOtp(false);
-                              }
-                            }}
-                          >
-                            {isVerifyingEmailOtp ? "Verifying..." : "Confirm"}
-                          </Button>
-                        </div>
-                        {emailOtpMessage && (
-                          <p className="text-xs text-green-600 font-medium">{emailOtpMessage}</p>
-                        )}
-                        {emailOtpError && (
-                          <p className="text-xs text-destructive font-medium">{emailOtpError}</p>
-                        )}
-                      </div>
-                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      For order and service updates. You sign in with your mobile number.
+                    </p>
                   </div>
 
                   <div className="rounded-2xl bg-muted p-4 sm:col-span-2">
@@ -718,7 +580,6 @@ export default function Account() {
                                     fullName: updatedProfile.name,
                                     email: updatedProfile.email,
                                     address: "",
-                                    phone: updatedProfile.phone,
                                   });
                                 } catch {
                                   // Local profile updated
@@ -955,36 +816,6 @@ export default function Account() {
                 </div>
               )}
 
-              {linkStatusMsg && (
-                <div
-                  className={`mb-6 flex items-start gap-3 rounded-2xl border p-4 text-xs shadow-xs animate-in fade-in ${
-                    linkStatusMsg.type === "success"
-                      ? "border-emerald-200 bg-emerald-50/90 text-emerald-950"
-                      : "border-red-200 bg-red-50/90 text-red-950"
-                  }`}
-                >
-                  {linkStatusMsg.type === "success" ? (
-                    <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <p className="font-bold text-sm">
-                      {linkStatusMsg.type === "success"
-                        ? "Order Linked Successfully"
-                        : "Order Lookup Notice"}
-                    </p>
-                    <p className="mt-0.5">{linkStatusMsg.text}</p>
-                  </div>
-                  <button
-                    onClick={() => setLinkStatusMsg(null)}
-                    className="text-xs font-semibold opacity-70 hover:opacity-100"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
-
               {!store.loggedIn || ordersAuthError ? (
                 <div className="rounded-3xl border border-border bg-card p-8 text-center shadow-xs">
                   <UserRound size={36} className="mx-auto text-primary mb-3" />
@@ -1036,34 +867,6 @@ export default function Account() {
                     >
                       <RefreshCw size={14} /> Retry Order Sync
                     </Button>
-                  </div>
-
-                  {/* Manual Order Recovery Form */}
-                  <div className="rounded-2xl border border-border bg-card p-6">
-                    <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                      <Tag size={16} className="text-primary" /> Find &amp; Link Your Purchase
-                    </h4>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      If your order was placed using an alternate email, phone number, or Razorpay
-                      payment reference:
-                    </p>
-                    <form onSubmit={handleLinkOrderSubmit} className="mt-4 flex flex-wrap gap-2">
-                      <input
-                        type="text"
-                        value={linkQueryInput}
-                        onChange={(e) => setLinkQueryInput(e.target.value)}
-                        placeholder="e.g. alternate email, mobile number, or payment ID (pay_...)"
-                        className={`${fieldClass} flex-1 min-w-[240px] text-xs`}
-                      />
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={linkingOrder || !linkQueryInput.trim()}
-                        className="text-xs"
-                      >
-                        {linkingOrder ? "Searching..." : "Find & Link Order"}
-                      </Button>
-                    </form>
                   </div>
                 </div>
               ) : shopifyOrders.length > 0 ? (
@@ -1199,31 +1002,6 @@ export default function Account() {
                       </Button>
                     </div>
                   )}
-
-                  {/* Secondary Link Helper in Case Customer Has Another Order */}
-                  <div className="mt-8 rounded-2xl border border-dashed border-border bg-muted/30 p-5">
-                    <p className="text-xs font-semibold text-foreground">
-                      Missing an order placed under a different email or phone number?
-                    </p>
-                    <form onSubmit={handleLinkOrderSubmit} className="mt-3 flex flex-wrap gap-2">
-                      <input
-                        type="text"
-                        value={linkQueryInput}
-                        onChange={(e) => setLinkQueryInput(e.target.value)}
-                        placeholder="Alternate email, phone (+91...), or payment ID (pay_...)"
-                        className={`${fieldClass} flex-1 min-w-[200px] text-xs`}
-                      />
-                      <Button
-                        type="submit"
-                        size="sm"
-                        variant="secondary"
-                        disabled={linkingOrder || !linkQueryInput.trim()}
-                        className="text-xs"
-                      >
-                        {linkingOrder ? "Searching..." : "Link Order"}
-                      </Button>
-                    </form>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -1246,34 +1024,6 @@ export default function Account() {
                         <RefreshCw size={12} className="mr-1.5" /> Re-check Orders
                       </Button>
                     </div>
-                  </div>
-
-                  {/* Dedicated Order Recovery Form for Empty State */}
-                  <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
-                    <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                      <Tag size={16} className="text-primary" /> Already Completed a Purchase?
-                    </h4>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      If you checked out using an alternate email, phone number, or paid via
-                      Razorpay, enter your details below to securely link your order:
-                    </p>
-                    <form onSubmit={handleLinkOrderSubmit} className="mt-4 flex flex-wrap gap-2">
-                      <input
-                        type="text"
-                        value={linkQueryInput}
-                        onChange={(e) => setLinkQueryInput(e.target.value)}
-                        placeholder="e.g. alternate email, mobile number, or payment ID (pay_...)"
-                        className={`${fieldClass} flex-1 min-w-[240px] text-xs`}
-                      />
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={linkingOrder || !linkQueryInput.trim()}
-                        className="text-xs"
-                      >
-                        {linkingOrder ? "Searching..." : "Find & Link Order"}
-                      </Button>
-                    </form>
                   </div>
                 </div>
               )}
@@ -1396,14 +1146,6 @@ export default function Account() {
                             </div>
                           )}
                         </div>
-
-                        {/* Admin Notes / Instructions Callout */}
-                        {req.adminNotes && (
-                          <div className="mt-3.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
-                            <span className="font-semibold text-primary">IT HUB Note:</span>{" "}
-                            <span className="text-foreground">{req.adminNotes}</span>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -1787,7 +1529,6 @@ export default function Account() {
                 fullName: updatedProfile.name,
                 email: updatedProfile.email,
                 address: updatedProfile.address,
-                phone: updatedProfile.phone,
               });
               if (res.ok) {
                 store.notify("Profile saved to database");
@@ -1809,9 +1550,8 @@ export default function Account() {
               className={fieldClass}
             />
           </Field>
-          <Field label="Email">
+          <Field label="Email (optional)">
             <input
-              required
               type="email"
               value={profile.email}
               onChange={(event) => setProfile({ ...profile, email: event.target.value })}

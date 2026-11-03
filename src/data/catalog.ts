@@ -1846,20 +1846,16 @@ export const formatDate = (iso: string) =>
 
 export type ItHubLocation = {
   id: string;
-
   name: string;
-
   address: string;
-
+  phone?: string;
+  email?: string;
   pincode: string;
-
   latitude: number;
-
   longitude: number;
-
   serviceRadiusKm: number;
-
   active: boolean;
+  isHeadquarters?: boolean;
 };
 
 export const initialLocations: ItHubLocation[] = [
@@ -2107,104 +2103,143 @@ export const pincodeDirectory: Record<
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
-export const distanceKm = (
-  aLat: number,
+/** Validates whether latitude and longitude are valid finite geographic coordinates */
+export const isValidCoordinate = (lat: unknown, lng: unknown): boolean => {
+  if (typeof lat !== "number" || typeof lng !== "number") return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+};
 
-  aLng: number,
+/**
+ * Calculates geographic distance in kilometres between two coordinate pairs
+ * using the Haversine formula (Mean Earth radius = 6371 km).
+ * Returns NaN if coordinates are invalid or out of range.
+ */
+export const distanceKm = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+  if (!isValidCoordinate(aLat, aLng) || !isValidCoordinate(bLat, bLng)) {
+    return NaN;
+  }
 
-  bLat: number,
-
-  bLng: number,
-) => {
   const dLat = toRad(bLat - aLat);
-
   const dLng = toRad(bLng - aLng);
 
   const h =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
 
-  return 6371 * 2 * Math.asin(Math.sqrt(h));
+  // Clamp h between 0 and 1 to prevent NaN from floating point imprecision
+  const clampedH = Math.min(1, Math.max(0, h));
+  return 6371 * 2 * Math.asin(Math.sqrt(clampedH));
 };
 
 export type WarrantyResult =
-  | { status: "invalid" }
+  | { status: "invalid"; message?: string }
   | {
       status: "unknown";
-
       pincode: string;
+      reason?: string;
+      message?: string;
     }
   | {
       status: "eligible" | "ineligible";
-
       pincode: string;
-
       area: string;
-
       location: ItHubLocation;
-
-      distanceKm: number | null;
+      distanceKm: number;
+      serviceRadiusKm: number;
     };
 
 /** Straight-line distance from the PIN centroid to the nearest active IT HUB location. */
-
-export const checkWarranty = (
-  pincode: string,
-
-  locations: ItHubLocation[],
-): WarrantyResult => {
+export const checkWarranty = (pincode: string, locations?: ItHubLocation[]): WarrantyResult => {
   const pin = pincode.trim();
 
-  if (!/^[1-9]\d{5}$/.test(pin)) return { status: "invalid" };
+  // Strict Indian PIN code validation: 6 digits, first digit 1-9
+  if (!/^[1-9]\d{5}$/.test(pin)) {
+    return { status: "invalid", message: "Please enter a valid 6-digit Indian PIN code." };
+  }
+
+  // Resilient resolution of active store locations
+  const rawLocations =
+    Array.isArray(locations) && locations.length > 0 ? locations : initialLocations;
+  let active = rawLocations.filter((location) => location.active !== false);
+  if (!active.length) {
+    active = initialLocations.filter((location) => location.active !== false);
+  }
 
   const centroid = pincodeDirectory[pin];
 
-  const active = locations.filter((location) => location.active);
-
-  if (!centroid || !active.length) {
-    const fallbackLocation = active[0] || initialLocations[0];
-
+  // If PIN centroid is not found in local directory, return status: "unknown" (unable to verify)
+  // NEVER return "ineligible" without confirmed valid geographic coordinates
+  if (!centroid) {
     return {
-      status: "ineligible",
-
+      status: "unknown",
       pincode: pin,
-
-      area: "Outside Service Area",
-
-      location: fallbackLocation,
-
-      distanceKm: null,
+      reason: "centroid_not_found",
+      message: "We could not verify service coverage for this PIN code automatically.",
     };
   }
 
-  const nearest = active
+  // Validate centroid coordinates
+  if (!isValidCoordinate(centroid.latitude, centroid.longitude)) {
+    return {
+      status: "unknown",
+      pincode: pin,
+      reason: "invalid_coordinates",
+      message: "Geographic coordinates for this area could not be validated.",
+    };
+  }
 
-    .map((location) => ({
-      location,
+  // Filter stores with valid coordinates
+  const validStores = active.filter((loc) => isValidCoordinate(loc.latitude, loc.longitude));
+  if (!validStores.length) {
+    return {
+      status: "unknown",
+      pincode: pin,
+      reason: "no_valid_store_coordinates",
+      message: "Store location coordinates are currently unavailable.",
+    };
+  }
 
-      km: distanceKm(
+  const nearest = validStores
+    .map((location) => {
+      const km = distanceKm(
         centroid.latitude,
-
         centroid.longitude,
-
         location.latitude,
-
         location.longitude,
-      ),
-    }))
-
+      );
+      return {
+        location,
+        km,
+      };
+    })
+    .filter((item) => Number.isFinite(item.km))
     .sort((a, b) => a.km - b.km)[0];
 
+  if (!nearest) {
+    return {
+      status: "unknown",
+      pincode: pin,
+      reason: "distance_calculation_failed",
+      message: "Distance calculation could not be completed.",
+    };
+  }
+
+  // Fixed 15 km coverage policy — do not expand beyond 15 km
+  const effectiveRadius = Math.min(15, nearest.location.serviceRadiusKm || 15);
+  const roundedKm = Math.round(nearest.km * 10) / 10;
+  const isEligible = roundedKm <= effectiveRadius;
+
   return {
-    status: nearest.km <= nearest.location.serviceRadiusKm ? "eligible" : "ineligible",
-
+    status: isEligible ? "eligible" : "ineligible",
     pincode: pin,
-
     area: centroid.area,
-
-    location: nearest.location,
-
-    distanceKm: Math.round(nearest.km * 10) / 10,
+    location: {
+      ...nearest.location,
+      serviceRadiusKm: effectiveRadius,
+    },
+    distanceKm: roundedKm,
+    serviceRadiusKm: effectiveRadius,
   };
 };
 
@@ -9923,6 +9958,8 @@ export const initialSellRequests: SellRequest[] = [
 export type CertificateItem = {
   id: string;
 
+  isPublished?: boolean;
+
   text: string;
 
   brand: string;
@@ -9942,7 +9979,7 @@ export type CertificateItem = {
   shopUrl?: string;
 };
 
-export const initialCertificates: CertificateItem[] = [
+const allCertificates: CertificateItem[] = [
   {
     id: "cert-asus",
 
@@ -10077,5 +10114,13 @@ export const initialCertificates: CertificateItem[] = [
     alt: "Intel Partner Alliance Membership Certificate for IT HUB",
 
     shopUrl: "/products?brand=Intel",
+
+    isPublished: false,
   },
 ];
+
+/** Certificates the storefront may show. An unpublished one never renders, even from a cache. */
+export const isPublicCertificate = (certificate: CertificateItem) =>
+  certificate.isPublished !== false && certificate.id !== "cert-intel";
+
+export const initialCertificates: CertificateItem[] = allCertificates.filter(isPublicCertificate);

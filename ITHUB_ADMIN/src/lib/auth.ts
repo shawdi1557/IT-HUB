@@ -11,6 +11,10 @@ export interface StaffPermissions {
   can_manage_quotations: boolean;
   can_manage_services: boolean;
   can_manage_staff: boolean;
+  can_manage_content: boolean;
+  can_manage_settings: boolean;
+  can_view_analytics: boolean;
+  can_manage_sell_requests: boolean;
 }
 
 export interface StaffProfile {
@@ -54,6 +58,10 @@ export async function verifyStaffAuthorization(user: User): Promise<StaffProfile
         can_manage_quotations: Boolean(data.permissions?.can_manage_quotations),
         can_manage_services: Boolean(data.permissions?.can_manage_services),
         can_manage_staff: Boolean(data.permissions?.can_manage_staff),
+        can_manage_content: data.permissions?.can_manage_content === true,
+        can_manage_settings: data.permissions?.can_manage_settings === true,
+        can_view_analytics: data.permissions?.can_view_analytics === true,
+        can_manage_sell_requests: data.permissions?.can_manage_sell_requests === true,
       },
     };
   } catch (err) {

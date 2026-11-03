@@ -1,0 +1,172 @@
+/* src/components/GoogleReviewShowcase.css */
+/* Seamless continuous marquee for genuine Google customer reviews.
+   Each track holds two identical halves, so translating by -50% loops without a jump.
+   Spacing sits inside each item, not in a flex gap, to keep both halves exactly equal. */
+
+@keyframes googleReviewsMarquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.google-reviews-container {
+  --review-card-width: clamp(264px, 82vw, 340px);
+  --review-card-gap: 1rem;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Bleeds through the parent panel's p-8 so the fade reaches the panel edges. */
+  margin-inline: -2rem;
+  overflow: hidden;
+  /* clip, unlike hidden, cannot be scrolled when an off-screen control takes focus. */
+  overflow: clip;
+  /* Vertical swipes stay with the page; horizontal swipes drive the track. */
+  touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+@media (min-width: 768px) {
+  .google-reviews-container {
+    --review-card-width: 340px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .google-reviews-container {
+    --review-card-width: 372px;
+  }
+}
+
+/* A keyboard-focused card at the start of a row must not sit under the edge fade. */
+.google-reviews-container:has(:focus-visible) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* The padding leaves room for card shadows inside the clipped area. */
+.google-reviews-row {
+  padding-block: 0.5rem 1rem;
+}
+
+.google-reviews-marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: googleReviewsMarquee 40s linear infinite;
+}
+
+.google-reviews-row--reverse .google-reviews-marquee-track {
+  animation-duration: 48s;
+  animation-direction: reverse;
+}
+
+/* One row of eight cards on phones, slowed to keep the same reading speed. */
+@media (max-width: 767px) {
+  .google-reviews-marquee-track {
+    animation-duration: 84s;
+  }
+}
+
+.google-reviews-item {
+  display: flex;
+  flex: 0 0 auto;
+  width: calc(var(--review-card-width) + var(--review-card-gap));
+  padding-inline: calc(var(--review-card-gap) / 2);
+}
+
+/* Hover only pauses on devices with real hover, so a tap can't leave it stuck on. */
+@media (hover: hover) {
+  .google-reviews-container:hover .google-reviews-marquee-track {
+    animation-play-state: paused;
+  }
+
+  .google-review-card:hover {
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    box-shadow:
+      0 1px 2px rgb(10 30 74 / 6%),
+      0 16px 30px -16px rgb(12 47 138 / 32%);
+    transform: translateY(-2px);
+  }
+}
+
+.google-reviews-container:focus-within .google-reviews-marquee-track,
+.google-reviews-container.is-paused .google-reviews-marquee-track,
+.google-reviews-marquee-track.is-held {
+  animation-play-state: paused;
+}
+
+.google-review-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  text-align: left;
+  box-shadow:
+    0 1px 2px rgb(10 30 74 / 5%),
+    0 10px 24px -18px rgb(12 47 138 / 24%);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+.google-review-card:focus-within {
+  border-color: var(--primary);
+}
+
+.google-review-card__text {
+  display: -webkit-box;
+  margin-top: 0.875rem;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
+/* Static grid of the eight reviews when motion is reduced */
+@media (prefers-reduced-motion: reduce) {
+  .google-reviews-container {
+    margin-inline: 0;
+    overflow: visible;
+    touch-action: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .google-reviews-marquee-track {
+    animation: none !important;
+    transform: none !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  .google-reviews-item {
+    width: auto;
+    padding-inline: 0;
+  }
+
+  .google-reviews-marquee-duplicate {
+    display: none !important;
+  }
+
+  .google-review-card {
+    transition: none;
+  }
+
+  .google-review-card:hover {
+    transform: none;
+  }
+}

@@ -8,20 +8,23 @@ import {
   assertMatch,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import {
+  TEST_ANON_KEY,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
+import { createSignedInUser } from "./_helpers/test_users.ts";
 
-const LOCAL_SUPABASE_URL = Deno.env.get("VITE_SUPABASE_URL") || "http://127.0.0.1:54321";
-const LOCAL_SUPABASE_ANON =
-  Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const LOCAL_SUPABASE_SERVICE_ROLE =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicmVmIjoiMTI3LjAuMC4xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzI3NTAwMCwiZXhwIjoyMTA4NjM1MDAwfQ.e1aa46kGEZiBSW3jrNHrdvVxqz7-x3DKRPtWNEYraLw";
+const LOCAL_SUPABASE_URL = TEST_SUPABASE_URL;
+const LOCAL_SUPABASE_ANON = TEST_ANON_KEY;
+const LOCAL_SUPABASE_SERVICE_ROLE = TEST_SERVICE_KEY;
 
 const adminClient = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_SERVICE_ROLE, {
   auth: { persistSession: false },
 });
 
-Deno.test("REV-1: Customer reviews query joins customer profile and product accurately", async () => {
+dbTest("REV-1: Customer reviews query joins customer profile and product accurately", async () => {
   const { data, error } = await adminClient
     .from("reviews")
     .select(`
@@ -44,33 +47,45 @@ Deno.test("REV-1: Customer reviews query joins customer profile and product accu
   }
 });
 
-Deno.test("REV-2: Review moderation RPC updates status and logs immutable audit trail", async () => {
-  // 1. Fetch or create test review
-  const { data: existing } = await adminClient.from("reviews").select("id, status").limit(1);
-  if (!existing || existing.length === 0) return;
-
-  const testReview = existing[0];
-  const newStatus = testReview.status === "Published" ? "Hidden" : "Published";
-
-  // 2. Perform status change
-  const { error: updateErr } = await adminClient
+dbTest("REV-2: Review moderation RPC updates status and logs immutable audit trail", async () => {
+  const author = await createSignedInUser("rev-author");
+  const { data: review, error: fixtureErr } = await adminClient
     .from("reviews")
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq("id", testReview.id);
+    .insert({
+      user_id: author.id,
+      rating: 5,
+      body: "Synthetic review",
+      status: "Pending",
+      review_type: "general",
+    })
+    .select("id")
+    .single();
+  assertEquals(fixtureErr, null);
 
-  assertEquals(updateErr, null);
+  const staff = await createSignedInUser("rev-staff", "service_staff");
+  const { error: rpcErr } = await staff.client.rpc("staff_update_review_status", {
+    p_review_id: review!.id,
+    p_status: "Published",
+  });
+  assertEquals(rpcErr, null);
 
-  // 3. Verify status persisted
   const { data: verified } = await adminClient
     .from("reviews")
     .select("status")
-    .eq("id", testReview.id)
+    .eq("id", review!.id)
     .single();
+  assertEquals(verified?.status, "Published");
 
-  assertEquals(verified?.status, newStatus);
+  const { data: logs } = await adminClient
+    .from("staff_audit_logs")
+    .select("staff_user_id, action_type, new_status")
+    .eq("entity_id", review!.id);
+  assertEquals(logs, [
+    { staff_user_id: staff.id, action_type: "MODERATE_REVIEW", new_status: "Published" },
+  ]);
 });
 
-Deno.test("REV-3: Unauthenticated user cannot read hidden or pending customer reviews", async () => {
+dbTest("REV-3: Unauthenticated user cannot read hidden or pending customer reviews", async () => {
   const anonClient = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
     auth: { persistSession: false },
   });
@@ -85,10 +100,12 @@ Deno.test("REV-3: Unauthenticated user cannot read hidden or pending customer re
   assertEquals(data?.length, 0);
 });
 
-Deno.test("SELL-1: Sell requests query retrieves customer hardware submission and customer info", async () => {
-  const { data, error } = await adminClient
-    .from("sell_requests")
-    .select(`
+dbTest(
+  "SELL-1: Sell requests query retrieves customer hardware submission and customer info",
+  async () => {
+    const { data, error } = await adminClient
+      .from("sell_requests")
+      .select(`
       id,
       category,
       product_name,
@@ -98,24 +115,25 @@ Deno.test("SELL-1: Sell requests query retrieves customer hardware submission an
       status,
       customer:profiles!sell_requests_customer_id_fkey(id, full_name, email, phone)
     `)
-    .limit(5);
+      .limit(5);
 
-  assertEquals(error, null);
-  assertEquals(Array.isArray(data), true);
-  if (data && data.length > 0) {
-    const req = data[0];
-    assertEquals(Boolean(req.category), true);
-    assertEquals(Boolean(req.product_name), true);
-    assertEquals(
-      ["Pending", "Under Review", "Contacted", "Approved", "Rejected", "Completed"].includes(
-        req.status,
-      ),
-      true,
-    );
-  }
-});
+    assertEquals(error, null);
+    assertEquals(Array.isArray(data), true);
+    if (data && data.length > 0) {
+      const req = data[0];
+      assertEquals(Boolean(req.category), true);
+      assertEquals(Boolean(req.product_name), true);
+      assertEquals(
+        ["Pending", "Under Review", "Contacted", "Approved", "Rejected", "Completed"].includes(
+          req.status,
+        ),
+        true,
+      );
+    }
+  },
+);
 
-Deno.test("SELL-2: Staff can update valuation, offered price, and request status", async () => {
+dbTest("SELL-2: Staff can update valuation, offered price, and request status", async () => {
   const { data: existing } = await adminClient.from("sell_requests").select("id, status").limit(1);
   if (!existing || existing.length === 0) return;
 
@@ -146,88 +164,116 @@ Deno.test("SELL-2: Staff can update valuation, offered price, and request status
   assertEquals(verified?.admin_notes, testNotes);
 });
 
-Deno.test("SELL-3: Unauthenticated user cannot read customer sell submissions", async () => {
+dbTest("SELL-3: Unauthenticated user cannot read customer sell submissions", async () => {
   const anonClient = createClient(LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON, {
     auth: { persistSession: false },
   });
 
   const { data } = await anonClient.from("sell_requests").select("id, product_name, customer_id");
 
-  // RLS own_sell_read policy strictly blocks access for unauthenticated callers
-  assertEquals(data?.length, 0);
+  // Anonymous visitors have no privileges on this table at all, so they get no rows.
+  assertEquals(data ?? [], []);
 });
 
-Deno.test("SELL-4: Sell request images and documents join cleanly with customer submission", async () => {
-  const { data: testReqs } = await adminClient
-    .from("sell_requests")
-    .select(`
+dbTest(
+  "SELL-4: Sell request images and documents join cleanly with customer submission",
+  async () => {
+    const { data: testReqs } = await adminClient
+      .from("sell_requests")
+      .select(`
       id,
       product_name,
       images:sell_request_images(id, storage_path, display_order),
       documents:sell_request_documents(id, storage_path, document_type)
     `)
-    .limit(3);
+      .limit(3);
 
-  assertEquals(Array.isArray(testReqs), true);
-  if (testReqs && testReqs.length > 0) {
-    const r = testReqs[0];
-    assertEquals(Array.isArray(r.images), true);
-    assertEquals(Array.isArray(r.documents), true);
-  }
-});
+    assertEquals(Array.isArray(testReqs), true);
+    if (testReqs && testReqs.length > 0) {
+      const r = testReqs[0];
+      assertEquals(Array.isArray(r.images), true);
+      assertEquals(Array.isArray(r.documents), true);
+    }
+  },
+);
 
-Deno.test("SELL-5: Atomic staff_update_sell_request RPC validates status, updates offered price, and preserves expected price", async () => {
-  const { data: existing } = await adminClient
+dbTest(
+  "SELL-5: Atomic staff_update_sell_request RPC validates status, updates offered price, and preserves expected price",
+  async () => {
+    const customer = await createSignedInUser("sell-customer");
+    const { data: req, error: fixtureErr } = await adminClient
+      .from("sell_requests")
+      .insert({
+        customer_id: customer.id,
+        category: "Laptop",
+        product_name: "Synthetic",
+        condition: "Good",
+        status: "Pending",
+        expected_price: 50000,
+      })
+      .select("id, status, expected_price")
+      .single();
+    assertEquals(fixtureErr, null);
+
+    const staff = await createSignedInUser("sell-staff", "service_staff");
+    const originalExpected = req!.expected_price;
+    const newOffered = 42500;
+    const testNotes = "Audited via Staff Portal automated test harness.";
+
+    const { data: rpcRes, error: rpcErr } = await staff.client.rpc("staff_update_sell_request", {
+      p_request_id: req!.id,
+      p_status: "Approved",
+      p_admin_notes: testNotes,
+      p_offered_price: newOffered,
+    });
+
+    assertEquals(rpcErr, null);
+    assertEquals(rpcRes?.success, true);
+    assertEquals(rpcRes?.status, "Approved");
+
+    // Verify offered price was updated while expected price was preserved
+    const { data: verified } = await adminClient
+      .from("sell_requests")
+      .select("status, offered_price, expected_price, admin_notes")
+      .eq("id", req!.id)
+      .single();
+
+    assertEquals(verified?.status, "Approved");
+    assertEquals(Number(verified?.offered_price), newOffered);
+    assertEquals(verified?.expected_price, originalExpected);
+    assertEquals(verified?.admin_notes, testNotes);
+
+    // Verify audit log entry
+    const { data: auditLogs } = await adminClient
+      .from("staff_audit_logs")
+      .select("action_type, entity_type, entity_id, new_status, staff_user_id")
+      .eq("entity_id", req!.id)
+      .eq("action_type", "UPDATE_SELL_REQUEST");
+
+    assertEquals(Boolean(auditLogs && auditLogs.length > 0), true);
+    assertEquals(auditLogs![0].new_status, "Approved");
+    assertEquals(auditLogs![0].staff_user_id, staff.id);
+  },
+);
+
+dbTest("SELL-6: Invalid sell request status is strictly rejected by RPC validator", async () => {
+  const customer = await createSignedInUser("sell-invalid");
+  const { data: req, error: fixtureErr } = await adminClient
     .from("sell_requests")
-    .select("id, status, expected_price")
-    .limit(1);
-  if (!existing || existing.length === 0) return;
-
-  const req = existing[0];
-  const originalExpected = req.expected_price;
-  const newOffered = 42500;
-  const testNotes = "Audited via Staff Portal automated test harness.";
-
-  const { data: rpcRes, error: rpcErr } = await adminClient.rpc("staff_update_sell_request", {
-    p_request_id: req.id,
-    p_status: "Approved",
-    p_admin_notes: testNotes,
-    p_offered_price: newOffered,
-  });
-
-  assertEquals(rpcErr, null);
-  assertEquals(rpcRes?.success, true);
-  assertEquals(rpcRes?.status, "Approved");
-
-  // Verify offered price was updated while expected price was preserved
-  const { data: verified } = await adminClient
-    .from("sell_requests")
-    .select("status, offered_price, expected_price, admin_notes")
-    .eq("id", req.id)
+    .insert({
+      customer_id: customer.id,
+      category: "Laptop",
+      product_name: "Synthetic",
+      condition: "Good",
+      status: "Pending",
+    })
+    .select("id")
     .single();
+  assertEquals(fixtureErr, null);
 
-  assertEquals(verified?.status, "Approved");
-  assertEquals(Number(verified?.offered_price), newOffered);
-  assertEquals(verified?.expected_price, originalExpected);
-  assertEquals(verified?.admin_notes, testNotes);
-
-  // Verify audit log entry
-  const { data: auditLogs } = await adminClient
-    .from("staff_audit_logs")
-    .select("action_type, entity_type, entity_id, new_status")
-    .eq("entity_id", req.id)
-    .eq("action_type", "UPDATE_SELL_REQUEST");
-
-  assertEquals(Boolean(auditLogs && auditLogs.length > 0), true);
-  assertEquals(auditLogs![0].new_status, "Approved");
-});
-
-Deno.test("SELL-6: Invalid sell request status is strictly rejected by RPC validator", async () => {
-  const { data: existing } = await adminClient.from("sell_requests").select("id").limit(1);
-  if (!existing || existing.length === 0) return;
-
-  const { error: invalidErr } = await adminClient.rpc("staff_update_sell_request", {
-    p_request_id: existing[0].id,
+  const staff = await createSignedInUser("sell-invalid-staff", "service_staff");
+  const { error: invalidErr } = await staff.client.rpc("staff_update_sell_request", {
+    p_request_id: req!.id,
     p_status: "INVALID_STATUS_NAME",
   });
 

@@ -1,0 +1,102 @@
+# IT HUB disposable test environment. `npm run test:env:up` renders this file into
+# .test-env/supabase/config.toml and writes a random JWT secret to .test-env/supabase/.env.
+#
+# It shares nothing with the development stack (project_id ITHUB_WEB, ports 5432x):
+# separate containers, volumes, network, ports and JWT secret. No project is linked.
+project_id = "ITHUB_TEST_DISPOSABLE"
+
+[api]
+enabled = true
+port = 55421
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55422
+shadow_port = 55420
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+
+# seed.sql is deliberately not loaded: tests create their own synthetic data.
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:55499"
+additional_redirect_urls = []
+jwt_expiry = 3600
+jwt_secret = "env(ITHUB_DISPOSABLE_JWT_SECRET)"
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 6
+
+# Generous limits, because the suites sign up many synthetic users in quick succession.
+[auth.rate_limit]
+email_sent = 1000
+sms_sent = 100000
+anonymous_users = 0
+token_refresh = 100000
+sign_in_sign_ups = 100000
+token_verifications = 100000
+
+# The Email provider stays on because staff sign in by email. Turning it off would lock them out.
+# Registering by email is refused by the before_user_created hook below. No SMTP server is
+# configured, so no real email is sent.
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# Phone sign-in, with codes generated and checked by the real Auth server. The hook is the real
+# send-sms-hook handler, in scripts/test-env/sms-sink.ts, with only the provider's network call
+# replaced. No fixed test codes are configured, and no SMS leaves this machine.
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+max_frequency = "5s"
+template = "Your code is {{ .Code }}"
+
+[auth.hook.send_sms]
+enabled = true
+uri = "http://host.docker.internal:55431/send-sms"
+secrets = "env(ITHUB_DISPOSABLE_SMS_HOOK_SECRET)"
+
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_before_user_created"
+
+# The CLI turns phone login off unless a built-in provider is enabled, even with a hook. This block
+# only satisfies that check. The values are invented, and Auth uses the hook instead of a provider.
+[auth.sms.twilio]
+enabled = true
+account_sid = "synthetic-not-a-real-account"
+message_service_sid = "synthetic-not-a-real-service"
+auth_token = "synthetic-not-a-real-token"
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false

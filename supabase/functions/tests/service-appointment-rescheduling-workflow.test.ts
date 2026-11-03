@@ -15,6 +15,8 @@ import {
   validateRequestedAppointmentDate,
   formatAppointmentDisplay,
 } from "../../../src/lib/serviceReschedule.ts";
+import { TEST_ANON_KEY, TEST_SUPABASE_URL, dbTest } from "./_helpers/disposable_env.ts";
+import { createSignedInUser } from "./_helpers/test_users.ts";
 
 const repoRoot = path.resolve(path.fromFileUrl(import.meta.url), "../../../..");
 const servicesTrackingPagePath = path.join(repoRoot, "src", "pages", "Services.tsx");
@@ -110,12 +112,8 @@ Deno.test("RESCHED-2: shouldDisplayRescheduleButton strictly checks all 5 precon
 
 Deno.test("RESCHED-3: validateRequestedAppointmentDate enforces future date & Sunday closure", () => {
   const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-  // Past date must be rejected
-  const pastRes = validateRequestedAppointmentDate(yesterdayStr);
+  // Past date must be rejected (use a past non-Sunday date like 2020-01-01 Wednesday)
+  const pastRes = validateRequestedAppointmentDate("2020-01-01");
   assertEquals(pastRes.valid, false);
   assertEquals(pastRes.error, "Requested appointment date must be in the future.");
 
@@ -223,24 +221,34 @@ Deno.test("RESCHED-6: ServiceDetailModal.tsx implements full Reschedule Requests
 // 4. DATABASE RPC CONTRACT & INTEGRATION (Local Supabase DB)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("RESCHED-7: Supabase functions customer_request_appointment_reschedule & staff_decide_appointment_reschedule exist in schema", async () => {
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.0");
-  const supabaseUrl = Deno.env.get("VITE_SUPABASE_URL") || "http://127.0.0.1:54321";
-  const supabaseKey =
-    Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-  const client = createClient(supabaseUrl, supabaseKey);
+dbTest(
+  "RESCHED-7: Supabase functions customer_request_appointment_reschedule & staff_decide_appointment_reschedule exist in schema",
+  async () => {
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.0");
+    const supabaseUrl = TEST_SUPABASE_URL;
+    const supabaseKey = TEST_ANON_KEY;
+    const client = createClient(supabaseUrl, supabaseKey);
 
-  // Verify calling RPC with dummy UUID returns structured jsonb without Postgres crashing
-  const dummyId = "00000000-0000-0000-0000-000000000000";
-  const { data: res } = await client.rpc("customer_request_appointment_reschedule", {
-    p_ticket_id: dummyId,
-    p_requested_date: "2026-11-20",
-    p_requested_slot: "10:00 – 12:00",
-    p_reason: "Test reason",
-  });
+    const dummyId = "00000000-0000-0000-0000-000000000000";
+    const args = {
+      p_ticket_id: dummyId,
+      p_requested_date: "2026-11-20",
+      p_requested_slot: "10:00 – 12:00",
+      p_reason: "Test reason",
+    };
 
-  // Since ticket does not exist, it should return { ok: false, error: 'Service ticket not found.' }
-  assertEquals(res?.ok, false);
-  assertEquals(res?.error, "Service ticket not found.");
-});
+    // Anonymous callers are refused before anything is looked up.
+    const anonymous = await client.rpc("customer_request_appointment_reschedule", args);
+    assertEquals(anonymous.data, null);
+    assertEquals(anonymous.error?.code, "42501");
+
+    // A signed-in customer gets a structured answer, without Postgres crashing.
+    const customer = await createSignedInUser("resched-7");
+    const { data: res } = await customer.client.rpc(
+      "customer_request_appointment_reschedule",
+      args,
+    );
+    assertEquals(res?.ok, false);
+    assertEquals(res?.error, "Service ticket not found.");
+  },
+);

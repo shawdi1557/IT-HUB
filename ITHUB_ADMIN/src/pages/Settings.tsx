@@ -219,9 +219,10 @@ export function Settings() {
             data: { user },
           } = await supabase.auth.getUser();
           await supabase.from("staff_audit_logs").insert({
-            staff_id: user?.id,
-            action: "UPDATE_STORE_SETTINGS",
+            staff_user_id: user?.id,
+            action_type: "UPDATE_STORE_SETTINGS",
             entity_type: "store_settings",
+            entity_id: "1",
             metadata: {
               store_name: config.name,
               phone: config.phone,

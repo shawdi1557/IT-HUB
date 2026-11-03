@@ -158,8 +158,9 @@ Deno.test("SPMC-8: Staff Portal on-site billing and courier parcel intake are in
   const adminModalCode = await Deno.readTextFile(ADMIN_MODAL_PATH);
 
   // Staff on-site billing sets "Pay at Store" when offline
-  assertStringIncludes(adminServicesCode, 'updatePayload.payment_status = "Pay at Store"');
-  assertStringIncludes(adminServicesCode, 'updatePayload.payment_status = "Paid"');
+  // and both outcomes go through the audited server function
+  assertStringIncludes(adminServicesCode, '"staff_save_service_billing"');
+  assertStringIncludes(adminServicesCode, 'p_is_paid: billing.paymentStatus === "Received"');
 
   // Staff parcel intake for courier tickets
   assertStringIncludes(adminModalCode, "Confirm Parcel Received at IT HUB");

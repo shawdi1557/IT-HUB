@@ -144,13 +144,12 @@ export async function submitSellRequest(input: CreateSellRequestInput): Promise<
 
     const dbRequestId = crypto.randomUUID();
 
-    // Ensure customer's profile is updated with the latest submitted contact info
-    if (input.customerName || input.customerPhone) {
+    // Keep the profile's contact details current. Its mobile number comes only from a verified OTP.
+    if (input.customerName || input.customerEmail) {
       await supabase
         .from("profiles")
         .update({
           full_name: input.customerName || undefined,
-          phone: input.customerPhone || undefined,
           email:
             input.customerEmail && input.customerEmail !== "unspecified@example.com"
               ? input.customerEmail
@@ -294,7 +293,6 @@ export async function fetchUserSellRequests(userId?: string): Promise<SellReques
         expected_price,
         offered_price,
         status,
-        admin_notes,
         created_at,
         updated_at,
         sell_request_images (storage_path, display_order),
@@ -376,7 +374,7 @@ export async function fetchUserSellRequests(userId?: string): Promise<SellReques
           imagePaths: images.length ? images : ["/images/laptop.jpg"],
           invoicePath: docUrl,
           status: row.status as SellRequestStatus,
-          adminNotes: row.admin_notes || "",
+          adminNotes: "",
           submittedAt: row.created_at,
           updatedAt: row.updated_at,
         };

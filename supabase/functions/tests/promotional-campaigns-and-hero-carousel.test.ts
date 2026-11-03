@@ -10,11 +10,9 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SERVICE_ROLE_KEY = TEST_SERVICE_KEY;
+const ANON_KEY = TEST_ANON_KEY;
 
 const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 const anonClient = createClient(SUPABASE_URL, ANON_KEY);
@@ -23,7 +21,7 @@ const anonClient = createClient(SUPABASE_URL, ANON_KEY);
 // 1. DATABASE SCHEMA, STORAGE, RLS & AUDIT CONSTRAINTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("CAMP-DB-1: promotional_campaigns table exists with required schema columns", async () => {
+dbTest("CAMP-DB-1: promotional_campaigns table exists with required schema columns", async () => {
   const { data, error } = await adminClient
     .from("promotional_campaigns")
     .select(
@@ -35,89 +33,99 @@ Deno.test("CAMP-DB-1: promotional_campaigns table exists with required schema co
   assertExists(data);
 });
 
-Deno.test("CAMP-DB-2: promotional_campaigns rejects invalid status and destination_type constraints", async () => {
-  // Test invalid status
-  const { error: statusError } = await adminClient.from("promotional_campaigns").insert({
-    title: "Invalid Status Test",
-    image_url: "https://example.com/banner.jpg",
-    status: "nonexistent_status",
-  });
-  assertNotEquals(statusError, null, "Should reject invalid status");
+dbTest(
+  "CAMP-DB-2: promotional_campaigns rejects invalid status and destination_type constraints",
+  async () => {
+    // Test invalid status
+    const { error: statusError } = await adminClient.from("promotional_campaigns").insert({
+      title: "Invalid Status Test",
+      image_url: "https://example.com/banner.jpg",
+      status: "nonexistent_status",
+    });
+    assertNotEquals(statusError, null, "Should reject invalid status");
 
-  // Test invalid destination_type
-  const { error: destError } = await adminClient.from("promotional_campaigns").insert({
-    title: "Invalid Destination Test",
-    image_url: "https://example.com/banner.jpg",
-    destination_type: "external_spam",
-  });
-  assertNotEquals(destError, null, "Should reject invalid destination_type");
-});
+    // Test invalid destination_type
+    const { error: destError } = await adminClient.from("promotional_campaigns").insert({
+      title: "Invalid Destination Test",
+      image_url: "https://example.com/banner.jpg",
+      destination_type: "external_spam",
+    });
+    assertNotEquals(destError, null, "Should reject invalid destination_type");
+  },
+);
 
-Deno.test("CAMP-DB-3: RLS enforces that anon client sees ONLY published & unexpired campaigns", async () => {
-  const testIdDraft = "00000000-0000-0000-0000-0000000000a1";
-  const testIdPublished = "00000000-0000-0000-0000-0000000000a2";
-  const testIdExpired = "00000000-0000-0000-0000-0000000000a3";
+dbTest(
+  "CAMP-DB-3: RLS enforces that anon client sees ONLY published & unexpired campaigns",
+  async () => {
+    const testIdDraft = "00000000-0000-0000-0000-0000000000a1";
+    const testIdPublished = "00000000-0000-0000-0000-0000000000a2";
+    const testIdExpired = "00000000-0000-0000-0000-0000000000a3";
 
-  // Cleanup potential previous runs
-  await adminClient
-    .from("promotional_campaigns")
-    .delete()
-    .in("id", [testIdDraft, testIdPublished, testIdExpired]);
+    // Cleanup potential previous runs
+    await adminClient
+      .from("promotional_campaigns")
+      .delete()
+      .in("id", [testIdDraft, testIdPublished, testIdExpired]);
 
-  // Insert Draft
-  await adminClient.from("promotional_campaigns").insert({
-    id: testIdDraft,
-    title: "TDD Draft Campaign",
-    image_url: "https://example.com/draft.jpg",
-    status: "draft",
-    destination_url: "/products",
-  });
+    // Insert Draft
+    await adminClient.from("promotional_campaigns").insert({
+      id: testIdDraft,
+      title: "TDD Draft Campaign",
+      image_url: "https://example.com/draft.jpg",
+      status: "draft",
+      destination_url: "/products",
+    });
 
-  // Insert Published (Active)
-  await adminClient.from("promotional_campaigns").insert({
-    id: testIdPublished,
-    title: "TDD Published Campaign",
-    image_url: "https://example.com/published.jpg",
-    status: "published",
-    destination_url: "/products",
-    starts_at: new Date(Date.now() - 3600000).toISOString(),
-    ends_at: new Date(Date.now() + 86400000).toISOString(),
-  });
+    // Insert Published (Active)
+    await adminClient.from("promotional_campaigns").insert({
+      id: testIdPublished,
+      title: "TDD Published Campaign",
+      image_url: "https://example.com/published.jpg",
+      status: "published",
+      destination_url: "/products",
+      starts_at: new Date(Date.now() - 3600000).toISOString(),
+      ends_at: new Date(Date.now() + 86400000).toISOString(),
+    });
 
-  // Insert Expired
-  await adminClient.from("promotional_campaigns").insert({
-    id: testIdExpired,
-    title: "TDD Expired Campaign",
-    image_url: "https://example.com/expired.jpg",
-    status: "published",
-    destination_url: "/products",
-    starts_at: new Date(Date.now() - 7200000).toISOString(),
-    ends_at: new Date(Date.now() - 3600000).toISOString(),
-  });
+    // Insert Expired
+    await adminClient.from("promotional_campaigns").insert({
+      id: testIdExpired,
+      title: "TDD Expired Campaign",
+      image_url: "https://example.com/expired.jpg",
+      status: "published",
+      destination_url: "/products",
+      starts_at: new Date(Date.now() - 7200000).toISOString(),
+      ends_at: new Date(Date.now() - 3600000).toISOString(),
+    });
 
-  // Query as anon client
-  const { data: anonData, error: anonErr } = await anonClient
-    .from("promotional_campaigns")
-    .select("id, title, status");
+    // Query as anon client
+    const { data: anonData, error: anonErr } = await anonClient
+      .from("promotional_campaigns")
+      .select("id, title, status");
 
-  assertEquals(anonErr, null);
-  const anonIds = (anonData || []).map((c: any) => c.id);
+    assertEquals(anonErr, null);
+    const anonIds = (anonData || []).map((c: any) => c.id);
 
-  // Assert anon client can see published active campaign
-  assertEquals(anonIds.includes(testIdPublished), true, "Anon must see active published campaign");
+    // Assert anon client can see published active campaign
+    assertEquals(
+      anonIds.includes(testIdPublished),
+      true,
+      "Anon must see active published campaign",
+    );
 
-  // Assert anon client CANNOT see draft or expired campaigns
-  assertEquals(anonIds.includes(testIdDraft), false, "Anon must NOT see draft campaign");
-  assertEquals(anonIds.includes(testIdExpired), false, "Anon must NOT see expired campaign");
+    // Assert anon client CANNOT see draft or expired campaigns
+    assertEquals(anonIds.includes(testIdDraft), false, "Anon must NOT see draft campaign");
+    assertEquals(anonIds.includes(testIdExpired), false, "Anon must NOT see expired campaign");
 
-  // Cleanup test records
-  await adminClient
-    .from("promotional_campaigns")
-    .delete()
-    .in("id", [testIdDraft, testIdPublished, testIdExpired]);
-});
+    // Cleanup test records
+    await adminClient
+      .from("promotional_campaigns")
+      .delete()
+      .in("id", [testIdDraft, testIdPublished, testIdExpired]);
+  },
+);
 
-Deno.test("CAMP-DB-4: Storage bucket promotional-banners is configured and public", async () => {
+dbTest("CAMP-DB-4: Storage bucket promotional-banners is configured and public", async () => {
   const { data: buckets, error } = await adminClient.storage.listBuckets();
   assertEquals(error, null);
   assertExists(buckets, "Buckets list should not be null");
@@ -127,7 +135,7 @@ Deno.test("CAMP-DB-4: Storage bucket promotional-banners is configured and publi
   assertEquals(bucket.file_size_limit, 5242880, "5MB limit");
 });
 
-Deno.test("CAMP-DB-5: staff_audit_logs permits entity_type 'promotional_campaign'", async () => {
+dbTest("CAMP-DB-5: staff_audit_logs permits entity_type 'promotional_campaign'", async () => {
   const staffUserId = "4df85a8a-fb06-431d-ae85-831e4b3564d4";
   const { data, error } = await adminClient
     .from("staff_audit_logs")
@@ -200,46 +208,55 @@ import {
   ContentSyncManager,
   type PromotionalCampaign,
 } from "../../../src/lib/realtime/contentSync.ts";
+import {
+  TEST_ANON_KEY,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
 
-Deno.test("CAMP-SYNC-1: syncPromotionalCampaigns fetches and stores active published campaigns", async () => {
-  const testCampId = "00000000-0000-0000-0000-0000000000c1";
+dbTest(
+  "CAMP-SYNC-1: syncPromotionalCampaigns fetches and stores active published campaigns",
+  async () => {
+    const testCampId = "00000000-0000-0000-0000-0000000000c1";
 
-  // Cleanup
-  await adminClient.from("promotional_campaigns").delete().eq("id", testCampId);
+    // Cleanup
+    await adminClient.from("promotional_campaigns").delete().eq("id", testCampId);
 
-  // Insert active published campaign
-  await adminClient.from("promotional_campaigns").insert({
-    id: testCampId,
-    title: "Sync Test Diwali Offer",
-    badge: "FESTIVE OFFER",
-    image_url: "https://example.com/diwali.jpg",
-    destination_type: "product",
-    destination_ref: "iphone-16-pro",
-    destination_url: "/products/iphone-16-pro",
-    status: "published",
-    starts_at: new Date(Date.now() - 3600000).toISOString(),
-    ends_at: new Date(Date.now() + 86400000).toISOString(),
-    display_order: 1,
-  });
+    // Insert active published campaign
+    await adminClient.from("promotional_campaigns").insert({
+      id: testCampId,
+      title: "Sync Test Diwali Offer",
+      badge: "FESTIVE OFFER",
+      image_url: "https://example.com/diwali.jpg",
+      destination_type: "product",
+      destination_ref: "iphone-16-pro",
+      destination_url: "/products/iphone-16-pro",
+      status: "published",
+      starts_at: new Date(Date.now() - 3600000).toISOString(),
+      ends_at: new Date(Date.now() + 86400000).toISOString(),
+      display_order: 1,
+    });
 
-  let state: any = { promotionalCampaigns: [] };
-  const mockStore = {
-    set: (updater: any) => {
-      state = updater(state);
-    },
-  };
+    let state: any = { promotionalCampaigns: [] };
+    const mockStore = {
+      set: (updater: any) => {
+        state = updater(state);
+      },
+    };
 
-  const manager = new ContentSyncManager(mockStore, { client: adminClient });
-  await manager.syncPromotionalCampaigns();
+    const manager = new ContentSyncManager(mockStore, { client: adminClient });
+    await manager.syncPromotionalCampaigns();
 
-  const found = state.promotionalCampaigns.find((c: PromotionalCampaign) => c.id === testCampId);
-  assertExists(found, "Manager must sync published campaign into store state");
-  assertEquals(found.title, "Sync Test Diwali Offer");
-  assertEquals(found.destination_url, "/products/iphone-16-pro");
+    const found = state.promotionalCampaigns.find((c: PromotionalCampaign) => c.id === testCampId);
+    assertExists(found, "Manager must sync published campaign into store state");
+    assertEquals(found.title, "Sync Test Diwali Offer");
+    assertEquals(found.destination_url, "/products/iphone-16-pro");
 
-  // Cleanup
-  await adminClient.from("promotional_campaigns").delete().eq("id", testCampId);
-});
+    // Cleanup
+    await adminClient.from("promotional_campaigns").delete().eq("id", testCampId);
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. HOMEPAGE HERO INTEGRATION & DESTINATION VALIDATION
@@ -434,76 +451,79 @@ Deno.test("CAMP-STAFF-1: WebsiteContent.tsx implements full Promotional Campaign
   );
 });
 
-Deno.test("CAMP-STAFF-2: Staff portal campaign mutation creates, updates, and logs actions", async () => {
-  const staffUserId = "4df85a8a-fb06-431d-ae85-831e4b3564d4";
-  const campId = "00000000-0000-0000-0000-0000000000d1";
+dbTest(
+  "CAMP-STAFF-2: Staff portal campaign mutation creates, updates, and logs actions",
+  async () => {
+    const staffUserId = "4df85a8a-fb06-431d-ae85-831e4b3564d4";
+    const campId = "00000000-0000-0000-0000-0000000000d1";
 
-  // Cleanup
-  await adminClient.from("promotional_campaigns").delete().eq("id", campId);
-  await adminClient.from("staff_audit_logs").delete().eq("entity_id", campId);
+    // Cleanup
+    await adminClient.from("promotional_campaigns").delete().eq("id", campId);
+    await adminClient.from("staff_audit_logs").delete().eq("entity_id", campId);
 
-  // 1. Staff creates campaign
-  const { data: created, error: createErr } = await adminClient
-    .from("promotional_campaigns")
-    .insert({
-      id: campId,
-      title: "Staff Test Festive Promo",
-      badge: "FESTIVE OFFER",
-      image_url: "https://example.com/banner.jpg",
-      destination_type: "service",
-      destination_ref: "Laptop Repair",
-      destination_url: "/services/book?service=Laptop%20Repair",
-      status: "published",
-      show_countdown: true,
-      countdown_heading: "OFFER CLOSES IN",
-      display_order: 1,
-    })
-    .select()
-    .single();
+    // 1. Staff creates campaign
+    const { data: created, error: createErr } = await adminClient
+      .from("promotional_campaigns")
+      .insert({
+        id: campId,
+        title: "Staff Test Festive Promo",
+        badge: "FESTIVE OFFER",
+        image_url: "https://example.com/banner.jpg",
+        destination_type: "service",
+        destination_ref: "Laptop Repair",
+        destination_url: "/services/book?service=Laptop%20Repair",
+        status: "published",
+        show_countdown: true,
+        countdown_heading: "OFFER CLOSES IN",
+        display_order: 1,
+      })
+      .select()
+      .single();
 
-  assertEquals(createErr, null);
-  assertEquals(created.title, "Staff Test Festive Promo");
+    assertEquals(createErr, null);
+    assertEquals(created.title, "Staff Test Festive Promo");
 
-  // Record audit log
-  const { error: auditErr1 } = await adminClient.from("staff_audit_logs").insert({
-    staff_user_id: staffUserId,
-    action_type: "CREATE_CAMPAIGN",
-    entity_type: "promotional_campaign",
-    entity_id: campId,
-    metadata: { title: created.title, status: created.status },
-  });
-  assertEquals(auditErr1, null);
+    // Record audit log
+    const { error: auditErr1 } = await adminClient.from("staff_audit_logs").insert({
+      staff_user_id: staffUserId,
+      action_type: "CREATE_CAMPAIGN",
+      entity_type: "promotional_campaign",
+      entity_id: campId,
+      metadata: { title: created.title, status: created.status },
+    });
+    assertEquals(auditErr1, null);
 
-  // 2. Staff pauses campaign
-  const { error: pauseErr } = await adminClient
-    .from("promotional_campaigns")
-    .update({ status: "paused" })
-    .eq("id", campId);
-  assertEquals(pauseErr, null);
+    // 2. Staff pauses campaign
+    const { error: pauseErr } = await adminClient
+      .from("promotional_campaigns")
+      .update({ status: "paused" })
+      .eq("id", campId);
+    assertEquals(pauseErr, null);
 
-  // Record pause audit log
-  const { error: auditErr2 } = await adminClient.from("staff_audit_logs").insert({
-    staff_user_id: staffUserId,
-    action_type: "PAUSE_CAMPAIGN",
-    entity_type: "promotional_campaign",
-    entity_id: campId,
-    metadata: { title: created.title, status: "paused" },
-  });
-  assertEquals(auditErr2, null);
+    // Record pause audit log
+    const { error: auditErr2 } = await adminClient.from("staff_audit_logs").insert({
+      staff_user_id: staffUserId,
+      action_type: "PAUSE_CAMPAIGN",
+      entity_type: "promotional_campaign",
+      entity_id: campId,
+      metadata: { title: created.title, status: "paused" },
+    });
+    assertEquals(auditErr2, null);
 
-  // Verify audit logs exist
-  const { data: auditLogs, error: logFetchErr } = await adminClient
-    .from("staff_audit_logs")
-    .select("action_type, entity_type, entity_id")
-    .eq("entity_id", campId);
+    // Verify audit logs exist
+    const { data: auditLogs, error: logFetchErr } = await adminClient
+      .from("staff_audit_logs")
+      .select("action_type, entity_type, entity_id")
+      .eq("entity_id", campId);
 
-  assertEquals(logFetchErr, null);
-  assertEquals(auditLogs?.length, 2);
-  const actions = (auditLogs || []).map((l: any) => l.action_type);
-  assertEquals(actions.includes("CREATE_CAMPAIGN"), true);
-  assertEquals(actions.includes("PAUSE_CAMPAIGN"), true);
+    assertEquals(logFetchErr, null);
+    assertEquals(auditLogs?.length, 2);
+    const actions = (auditLogs || []).map((l: any) => l.action_type);
+    assertEquals(actions.includes("CREATE_CAMPAIGN"), true);
+    assertEquals(actions.includes("PAUSE_CAMPAIGN"), true);
 
-  // 3. Cleanup
-  await adminClient.from("promotional_campaigns").delete().eq("id", campId);
-  await adminClient.from("staff_audit_logs").delete().eq("entity_id", campId);
-});
+    // 3. Cleanup
+    await adminClient.from("promotional_campaigns").delete().eq("id", campId);
+    await adminClient.from("staff_audit_logs").delete().eq("entity_id", campId);
+  },
+);

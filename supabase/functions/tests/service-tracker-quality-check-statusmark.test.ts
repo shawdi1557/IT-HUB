@@ -13,8 +13,9 @@ import {
   assertExists,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { Client as PgClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { TEST_DB_URL, dbTest } from "./_helpers/disposable_env.ts";
 
-const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const DB_URL = TEST_DB_URL;
 
 async function getValidUserId(client: PgClient): Promise<string> {
   const res = await client.queryObject<{ id: string }>(
@@ -26,205 +27,232 @@ async function getValidUserId(client: PgClient): Promise<string> {
   return "0370fb7a-7896-44bc-a543-023dd399913f";
 }
 
-Deno.test("Database schema: customer_description column exists on public.service_requests", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
+dbTest(
+  "Database schema: customer_description column exists on public.service_requests",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
 
-  const res = await client.queryObject<{ column_name: string; data_type: string }>(
-    `SELECT column_name, data_type 
+    const res = await client.queryObject<{ column_name: string; data_type: string }>(
+      `SELECT column_name, data_type 
      FROM information_schema.columns 
      WHERE table_schema = 'public' 
        AND table_name = 'service_requests' 
        AND column_name = 'customer_description'`,
-  );
+    );
 
-  assertEquals(res.rows.length, 1);
-  assertEquals(res.rows[0].column_name, "customer_description");
-  assertEquals(res.rows[0].data_type, "text");
+    assertEquals(res.rows.length, 1);
+    assertEquals(res.rows[0].column_name, "customer_description");
+    assertEquals(res.rows[0].data_type, "text");
 
-  await client.end();
-});
+    await client.end();
+  },
+);
 
-Deno.test("Database constraint: service_requests_status_check allows 'Quality Check', 'Ready for Delivery', and 'Approved'", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
+dbTest(
+  "Database constraint: service_requests_status_check allows 'Quality Check', 'Ready for Delivery', and 'Approved'",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
 
-  const res = await client.queryObject<{ conname: string; def: string }>(
-    `SELECT conname, pg_get_constraintdef(oid) as def 
+    const res = await client.queryObject<{ conname: string; def: string }>(
+      `SELECT conname, pg_get_constraintdef(oid) as def 
      FROM pg_constraint 
      WHERE conrelid = 'public.service_requests'::regclass 
        AND conname = 'service_requests_status_check'`,
-  );
+    );
 
-  assertEquals(res.rows.length, 1);
-  const def = res.rows[0].def;
-  assertEquals(def.includes("'Quality Check'"), true, "Quality Check must be allowed");
-  assertEquals(def.includes("'Ready for Delivery'"), true, "Ready for Delivery must be allowed");
-  assertEquals(def.includes("'Approved'"), true, "Approved must be allowed");
+    assertEquals(res.rows.length, 1);
+    const def = res.rows[0].def;
+    assertEquals(def.includes("'Quality Check'"), true, "Quality Check must be allowed");
+    assertEquals(def.includes("'Ready for Delivery'"), true, "Ready for Delivery must be allowed");
+    assertEquals(def.includes("'Approved'"), true, "Approved must be allowed");
 
-  await client.end();
-});
+    await client.end();
+  },
+);
 
-Deno.test("RPC: staff_update_service_status accepts 'Quality Check' and transitions ticket cleanly", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
-  const userId = await getValidUserId(client);
+dbTest(
+  "RPC: staff_update_service_status accepts 'Quality Check' and transitions ticket cleanly",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
+    const userId = await getValidUserId(client);
 
-  // Create test ticket
-  const testId = crypto.randomUUID();
-  const insertRes = await client.queryObject<{ id: string }>(
-    `INSERT INTO public.service_requests (
+    // Create test ticket
+    const testId = crypto.randomUUID();
+    const insertRes = await client.queryObject<{ id: string }>(
+      `INSERT INTO public.service_requests (
       id, user_id, device, model, problem, method, status, payment_status
     ) VALUES (
       $1, $2, 'Laptop', 'Dell XPS 15', 'Screen issue', 'Visit IT HUB', 'In Progress', 'Pending'
     ) RETURNING id`,
-    [testId, userId],
-  );
-  assertEquals(insertRes.rows.length, 1);
+      [testId, userId],
+    );
+    assertEquals(insertRes.rows.length, 1);
 
-  // Update status to 'Quality Check'
-  const updateRes = await client.queryObject<{ status: string }>(
-    `UPDATE public.service_requests 
+    // Update status to 'Quality Check'
+    const updateRes = await client.queryObject<{ status: string }>(
+      `UPDATE public.service_requests 
      SET status = 'Quality Check', updated_at = now() 
      WHERE id = $1 
      RETURNING status`,
-    [testId],
-  );
-  assertEquals(updateRes.rows[0].status, "Quality Check");
+      [testId],
+    );
+    assertEquals(updateRes.rows[0].status, "Quality Check");
 
-  // Clean up
-  await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
-  await client.end();
-});
+    // Clean up
+    await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
+    await client.end();
+  },
+);
 
-Deno.test("RPC: staff_update_service_status prevents completed tickets from reverting to earlier statuses", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
-  const userId = await getValidUserId(client);
+dbTest(
+  "RPC: staff_update_service_status prevents completed tickets from reverting to earlier statuses",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
+    const userId = await getValidUserId(client);
 
-  const testId = crypto.randomUUID();
-  await client.queryArray(
-    `INSERT INTO public.service_requests (
+    const testId = crypto.randomUUID();
+    await client.queryArray(
+      `INSERT INTO public.service_requests (
       id, user_id, device, model, problem, method, status, payment_status
     ) VALUES (
       $1, $2, 'Mobile', 'iPhone 13', 'Battery draining fast', 'Visit IT HUB', 'Completed', 'Paid'
     )`,
-    [testId, userId],
-  );
+      [testId, userId],
+    );
 
-  // Test RPC exception when attempting to revert Completed ticket
-  let revertedError: string | null = null;
-  try {
+    // A real staff identity, so the refusal comes from the business rule rather than the login check.
+    const staffId = crypto.randomUUID();
     await client.queryArray(
-      `SELECT public.staff_update_service_status(
+      `INSERT INTO auth.users (id, email, aud, role) VALUES ($1, $2, 'authenticated', 'authenticated')`,
+      [staffId, `revert-${staffId}@example.test`],
+    );
+    await client.queryArray(
+      `INSERT INTO public.staff_members (user_id, role, full_name, email) VALUES ($1, 'service_staff', 'Synthetic', $2)`,
+      [staffId, `revert-${staffId}@example.test`],
+    );
+
+    let revertedError: string | null = null;
+    await client.queryArray("BEGIN");
+    try {
+      await client.queryArray(`SELECT set_config('request.jwt.claims', $1, true)`, [
+        JSON.stringify({ sub: staffId, role: "authenticated" }),
+      ]);
+      await client.queryArray(
+        `SELECT public.staff_update_service_status(
         $1::uuid,
         'In Progress'::text,
         'Bench Tech'::text,
         'Attempting illegal revert'::text
       )`,
-      [testId],
-    );
-  } catch (err: any) {
-    revertedError = err?.message || String(err);
-  }
+        [testId],
+      );
+    } catch (err: any) {
+      revertedError = err?.message || String(err);
+    }
+    await client.queryArray("ROLLBACK");
 
-  // Expect failure or restriction
-  assertExists(revertedError, "Reverting a Completed ticket must be rejected");
-  assertEquals(
-    revertedError.includes("Completed service requests cannot be reverted") ||
-      revertedError.includes("Unauthorized") ||
-      revertedError.includes("revert"),
-    true,
-  );
+    assertExists(revertedError, "Reverting a Completed ticket must be rejected");
+    assertEquals(revertedError.includes("Completed service requests cannot be reverted"), true);
 
-  // Clean up
-  await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
-  await client.end();
-});
+    // Clean up
+    await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
+    await client.end();
+  },
+);
 
-Deno.test("RPC: get_service_request_tracking projects customer_description and created_at while omitting internal staff notes", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
-  const userId = await getValidUserId(client);
+dbTest(
+  "RPC: get_service_request_tracking projects customer_description and created_at while omitting internal staff notes",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
+    const userId = await getValidUserId(client);
 
-  const testId = crypto.randomUUID();
-  const guestToken = "testtoken1234567890abcdef";
-  const customerNotes = "Screen flickering intermittently after physical drop on table";
-  const internalSecretStaffNotes =
-    "SECRET STAFF NOTE: Customer may be difficult; diagnostic fee waived per supervisor";
+    const testId = crypto.randomUUID();
+    const guestToken = "testtoken1234567890abcdef";
+    const customerNotes = "Screen flickering intermittently after physical drop on table";
+    const internalSecretStaffNotes =
+      "SECRET STAFF NOTE: Customer may be difficult; diagnostic fee waived per supervisor";
 
-  await client.queryArray(
-    `INSERT INTO public.service_requests (
+    await client.queryArray(
+      `INSERT INTO public.service_requests (
       id, user_id, ticket_reference, device, model, problem, customer_description, notes, method, status, guest_tracking_token, payment_status
     ) VALUES (
       $1, $2, 'ITH-SER-TEST0001', 'Laptop', 'Lenovo ThinkPad T14', 'Screen issue', $3, $4, 'Visit IT HUB', 'Under Diagnosis', $5, 'Pending'
     )`,
-    [testId, userId, customerNotes, internalSecretStaffNotes, guestToken],
-  );
+      [testId, userId, customerNotes, internalSecretStaffNotes, guestToken],
+    );
 
-  // Query tracking RPC as public/guest
-  const rpcRes = await client.queryObject<{ get_service_request_tracking: any }>(
-    `SELECT public.get_service_request_tracking('ITH-SER-TEST0001', $1) as get_service_request_tracking`,
-    [guestToken],
-  );
+    // Query tracking RPC as public/guest
+    const rpcRes = await client.queryObject<{ get_service_request_tracking: any }>(
+      `SELECT public.get_service_request_tracking('ITH-SER-TEST0001', $1) as get_service_request_tracking`,
+      [guestToken],
+    );
 
-  const trackingData = rpcRes.rows[0].get_service_request_tracking;
-  assertExists(trackingData, "Tracking data should be returned for valid ticket and token");
-  assertEquals(trackingData.device, "Laptop");
-  assertEquals(trackingData.model, "Lenovo ThinkPad T14");
-  assertEquals(trackingData.problem, "Screen issue");
-  assertEquals(
-    trackingData.customer_description,
-    customerNotes,
-    "Customer description must be projected",
-  );
-  assertExists(trackingData.created_at, "created_at booking date must be projected");
+    const trackingData = rpcRes.rows[0].get_service_request_tracking;
+    assertExists(trackingData, "Tracking data should be returned for valid ticket and token");
+    assertEquals(trackingData.device, "Laptop");
+    assertEquals(trackingData.model, "Lenovo ThinkPad T14");
+    assertEquals(trackingData.problem, "Screen issue");
+    assertEquals(
+      trackingData.customer_description,
+      customerNotes,
+      "Customer description must be projected",
+    );
+    assertExists(trackingData.created_at, "created_at booking date must be projected");
 
-  // CRITICAL SECURITY ASSERTION: Internal staff notes must NEVER be exposed to public tracking!
-  assertEquals(trackingData.notes, undefined, "Internal staff notes must not be present");
-  assertEquals(trackingData.internal_notes, undefined, "Internal notes must not be present");
-  assertEquals(
-    trackingData.notesPublic,
-    undefined,
-    "notesPublic must not expose internal staff notes",
-  );
+    // CRITICAL SECURITY ASSERTION: Internal staff notes must NEVER be exposed to public tracking!
+    assertEquals(trackingData.notes, undefined, "Internal staff notes must not be present");
+    assertEquals(trackingData.internal_notes, undefined, "Internal notes must not be present");
+    assertEquals(
+      trackingData.notesPublic,
+      undefined,
+      "notesPublic must not expose internal staff notes",
+    );
 
-  // Clean up
-  await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
-  await client.end();
-});
+    // Clean up
+    await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
+    await client.end();
+  },
+);
 
-Deno.test("Service booking: customer_description is persisted in public.service_requests", async () => {
-  const client = new PgClient(DB_URL);
-  await client.connect();
-  const userId = await getValidUserId(client);
+dbTest(
+  "Service booking: customer_description is persisted in public.service_requests",
+  async () => {
+    const client = new PgClient(DB_URL);
+    await client.connect();
+    const userId = await getValidUserId(client);
 
-  const testId = crypto.randomUUID();
-  const testNotes = "Laptop keyboard key 'W' is unresponsive and sticky";
+    const testId = crypto.randomUUID();
+    const testNotes = "Laptop keyboard key 'W' is unresponsive and sticky";
 
-  const insertRes = await client.queryObject<{
-    id: string;
-    customer_description: string;
-    model: string;
-  }>(
-    `INSERT INTO public.service_requests (
+    const insertRes = await client.queryObject<{
+      id: string;
+      customer_description: string;
+      model: string;
+    }>(
+      `INSERT INTO public.service_requests (
       id, user_id, device, model, problem, customer_description, method, status, payment_status
     ) VALUES (
       $1, $2, 'Laptop', 'Asus ROG Strix G15', 'Keyboard issue', $3, 'Visit IT HUB', 'Booked', 'Pending'
     ) RETURNING id, customer_description, model`,
-    [testId, userId, testNotes],
-  );
+      [testId, userId, testNotes],
+    );
 
-  assertEquals(insertRes.rows.length, 1);
-  assertEquals(insertRes.rows[0].customer_description, testNotes);
-  assertEquals(insertRes.rows[0].model, "Asus ROG Strix G15");
+    assertEquals(insertRes.rows.length, 1);
+    assertEquals(insertRes.rows[0].customer_description, testNotes);
+    assertEquals(insertRes.rows[0].model, "Asus ROG Strix G15");
 
-  // Clean up
-  await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
-  await client.end();
-});
+    // Clean up
+    await client.queryArray(`DELETE FROM public.service_requests WHERE id = $1`, [testId]);
+    await client.end();
+  },
+);
 
-Deno.test("Quotation Payment State Machine: Approval does not mark payment as 'Paid'", async () => {
+dbTest("Quotation Payment State Machine: Approval does not mark payment as 'Paid'", async () => {
   const client = new PgClient(DB_URL);
   await client.connect();
   const userId = await getValidUserId(client);

@@ -84,7 +84,7 @@ function resolveProductImageUrl(pathOrUrl: string | null | undefined): string {
   }
 
   const cleanPath = trimmed.replace(/^product-images\//, "").replace(/^\/+/, "");
-  return `https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/${cleanPath}`;
+  return `https://example-project.supabase.co/storage/v1/object/public/product-images/${cleanPath}`;
 }
 
 function mapDatabaseProduct(row: DatabaseProductRow): Product {
@@ -582,7 +582,7 @@ Deno.test("CAT-11: resolveProductImageUrl correctly resolves storage paths, remo
   const storageUrl = resolveProductImageUrl("products/ith-lpt-hp-b91dnpa-3ade/primary.jpg");
   assertEquals(
     storageUrl,
-    "https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/products/ith-lpt-hp-b91dnpa-3ade/primary.jpg",
+    "https://example-project.supabase.co/storage/v1/object/public/product-images/products/ith-lpt-hp-b91dnpa-3ade/primary.jpg",
   );
 
   // 2. Second-hand physical photo path
@@ -591,7 +591,7 @@ Deno.test("CAT-11: resolveProductImageUrl correctly resolves storage paths, remo
   );
   assertEquals(
     shPhotoUrl,
-    "https://aeulrulvpxyqmxmypzey.supabase.co/storage/v1/object/public/product-images/products/second-hand/sh-macbook-air-m1/photo-1792220852101-0.jpg",
+    "https://example-project.supabase.co/storage/v1/object/public/product-images/products/second-hand/sh-macbook-air-m1/photo-1792220852101-0.jpg",
   );
 
   // 3. Local bundled asset

@@ -44,11 +44,7 @@ export async function handleQuotationVerification(
 
     // 1. Initialize Supabase Admin Client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("VITE_SUPABASE_URL") || "";
-    const serviceKey =
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-      Deno.env.get("SUPABASE_ANON_KEY") ||
-      Deno.env.get("VITE_SUPABASE_ANON_KEY") ||
-      "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
     const supabase =
       deps?.supabaseClient ??
@@ -168,7 +164,15 @@ export async function handleQuotationVerification(
         p_window_seconds: 60,
       });
 
-      if (!rlErr && allowed === false) {
+      // Fail closed: if the limiter can't answer, don't accept the submission.
+      if (rlErr) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Service temporarily unavailable." }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      if (allowed === false) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -200,11 +204,13 @@ export async function handleQuotationVerification(
     let hasAuthoritativeLookup = false;
 
     // Fetch authoritative variant prices if Shopify is configured
-    const shopifyDomain =
-      Deno.env.get("VITE_SHOPIFY_STORE_DOMAIN") || "it-hub-m8tzfzjd.myshopify.com";
-    const shopifyToken = Deno.env.get("VITE_SHOPIFY_STOREFRONT_TOKEN") || "";
+    const shopifyDomain = Deno.env.get("VITE_SHOPIFY_STORE_DOMAIN") || "";
+    const shopifyToken = Deno.env.get("VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN") || "";
+    const shopifyApiVersion = Deno.env.get("VITE_SHOPIFY_API_VERSION") || "2025-10";
+    // A part with no variant can't be priced by Shopify, so the total can't be verified.
+    const everyPartHasVariant = partsArray.length > 0 && variantGids.length === partsArray.length;
 
-    if (variantGids.length > 0 && (shopifyToken || deps?.shopifyFetch)) {
+    if (everyPartHasVariant && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
       const query = `
         query getVariantPrices($ids: [ID!]!) {
           nodes(ids: $ids) {
@@ -223,14 +229,17 @@ export async function handleQuotationVerification(
         const fetcher =
           deps?.shopifyFetch ??
           (async (q: string, vars: any) => {
-            const res = await fetch(`https://${shopifyDomain}/api/2024-01/graphql.json`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Shopify-Storefront-Access-Token": shopifyToken,
+            const res = await fetch(
+              `https://${shopifyDomain}/api/${shopifyApiVersion}/graphql.json`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Shopify-Storefront-Access-Token": shopifyToken,
+                },
+                body: JSON.stringify({ query: q, variables: vars }),
               },
-              body: JSON.stringify({ query: q, variables: vars }),
-            });
+            );
             return await res.json();
           });
 
@@ -248,37 +257,14 @@ export async function handleQuotationVerification(
           }
         }
       } catch {
-        // Fall back to server database verification
+        // The price stays unverified and the quotation goes to a technician for review.
       }
     }
 
-    // If Shopify query was not available, look up in hardware_variants table
-    if (!hasAuthoritativeLookup && variantGids.length > 0 && supabase) {
-      const { data: dbVariants } = await supabase
-        .from("hardware_variants")
-        .select("shopify_variant_id")
-        .in("shopify_variant_id", variantGids);
-
-      if (dbVariants && dbVariants.length === variantGids.length) {
-        authoritativePrice = partsArray.reduce(
-          (acc: number, p: any) => acc + (Number(p.price) || 0),
-          0,
-        );
-        hasAuthoritativeLookup = true;
-      }
-    }
-
-    // If still uncalculated, calculate directly from parts price
-    if (!hasAuthoritativeLookup) {
-      authoritativePrice = partsArray.reduce(
-        (acc: number, p: any) => acc + (Number(p.price) || 0),
-        0,
-      );
-    }
-
-    // 5. Anti-Tampering & Price Divergence Audit
+    // 5. Anti-Tampering & Price Divergence Audit. Client-supplied prices are never authoritative,
+    // so an unverified quotation records no authoritative price at all.
     const clientPrice = Math.round(Number(estimatedPrice) || 0);
-    const priceDivergence = Math.abs(authoritativePrice - clientPrice);
+    const priceDivergence = hasAuthoritativeLookup ? Math.abs(authoritativePrice - clientPrice) : 0;
     const technicianReviewRequired = priceDivergence > 100 || !hasAuthoritativeLookup;
 
     // 6. Generate Authoritative Reference ID
@@ -296,8 +282,8 @@ export async function handleQuotationVerification(
           name: buildName,
           reference_id: referenceId,
           parts,
-          estimated_price: authoritativePrice, // Authoritative price persisted
-          authoritative_price: authoritativePrice,
+          estimated_price: hasAuthoritativeLookup ? authoritativePrice : clientPrice,
+          authoritative_price: hasAuthoritativeLookup ? authoritativePrice : null,
           price_divergence: priceDivergence,
           technician_review_required: technicianReviewRequired,
           compatibility,
@@ -313,7 +299,7 @@ export async function handleQuotationVerification(
         return new Response(
           JSON.stringify({
             success: false,
-            error: insErr.message || "Failed to persist quotation request.",
+            error: "Failed to save the quotation request.",
           }),
           {
             status: 500,
@@ -335,7 +321,7 @@ export async function handleQuotationVerification(
         success: true,
         referenceId,
         buildId,
-        authoritativePrice,
+        authoritativePrice: hasAuthoritativeLookup ? authoritativePrice : null,
         clientEstimatedPrice: clientPrice,
         priceDivergence,
         technicianReviewRequired,
@@ -351,10 +337,10 @@ export async function handleQuotationVerification(
       },
     );
   } catch (err: any) {
-    return new Response(
-      JSON.stringify({ success: false, error: err.message || "Internal Server Error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ success: false, error: "Internal Server Error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 }
 

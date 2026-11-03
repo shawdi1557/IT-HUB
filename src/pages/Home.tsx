@@ -33,6 +33,7 @@ import { motion, useReducedMotion } from "motion/react";
 import heroBanner from "../imports/Futuristic Blue Tech Showroom Banner.png";
 import mobileHeroBanner from "../imports/Mobile_Banner.png";
 import ShinyText from "../components/ShinyText";
+import AnimatedContent from "../components/AnimatedContent";
 import PromotionalHeroCarousel from "../components/PromotionalHeroCarousel";
 import { useStore } from "../app/store";
 import { supabase } from "../lib/supabase";
@@ -216,68 +217,104 @@ export default function Home() {
         />
         <div className="relative z-10 mx-auto flex w-full max-w-lg sm:max-w-6xl flex-1 flex-col items-center justify-start pt-2 sm:pt-6 md:justify-center md:pt-0 px-4 sm:px-6 py-6 sm:py-12 md:py-20 text-center">
           <div className="flex w-full max-w-full sm:max-w-3xl flex-col items-center text-center pt-7 min-[360px]:pt-8 min-[375px]:pt-9 min-[390px]:pt-10 min-[430px]:pt-11 sm:pt-0">
-            <motion.p
-              {...enter(0)}
-              className="mb-3.5 sm:mb-6 inline-flex max-w-[calc(100vw-24px)] items-center gap-2 rounded-full border border-blue-200/80 bg-white/95 px-3.5 sm:px-4 py-1.5 text-[13px] min-[390px]:text-[14px] sm:text-xs font-semibold text-slate-800 md:text-muted-foreground shadow-xs backdrop-blur mx-auto"
+            <AnimatedContent
+              distance={35}
+              direction="vertical"
+              duration={0.8}
+              ease="power3.out"
+              initialOpacity={0}
+              delay={0}
+              trigger="mount"
+              className="mb-3.5 sm:mb-6 mx-auto inline-flex"
             >
-              <span
-                aria-hidden="true"
-                className="size-1.5 shrink-0 animate-pulse rounded-full bg-primary"
-              />
-              <ShinyText
-                text="Your Trusted Tech Hub · Since 2011"
-                color="var(--muted-foreground)"
-                shineColor="var(--primary)"
-                speed={2.5}
-                delay={0.6}
-              />
-            </motion.p>
-            <motion.h1
-              {...enter(0.08)}
-              className="w-full text-balance font-display text-2xl min-[360px]:text-[34px] min-[375px]:text-[38px] min-[390px]:text-[42px] sm:text-5xl md:text-6xl lg:text-7xl font-[800] tracking-tight text-[#0a1e4a] md:text-foreground text-center leading-[1.14] sm:leading-[1.12]"
-            >
-              Everything Tech.{" "}
-              <span className="block">
-                <GradientText>
-                  Sales, Service
-                  <br className="sm:hidden" /> & Support.
-                </GradientText>
-              </span>
-            </motion.h1>
-            <motion.p
-              {...enter(0.16)}
-              className="mt-3.5 sm:mt-5 md:mt-6 w-full max-w-[95%] sm:max-w-xl mx-auto text-pretty text-[14px] min-[360px]:text-[15px] min-[375px]:text-[17px] min-[390px]:text-[18px] sm:text-base md:text-lg font-medium text-slate-800 md:text-muted-foreground leading-[1.5] text-center"
-            >
-              <span className="md:hidden">
-                Shop laptops, computers, mobiles, printers & IT services backed by IT HUB support.
-              </span>
-              <span className="hidden md:inline">
-                Shop laptops, computers, mobiles, printers, accessories and components — backed by
-                professional IT services and after-sales support from IT HUB.
-              </span>
-            </motion.p>
-            <motion.div
-              {...enter(0.24)}
-              className="mt-5 sm:mt-8 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none mx-auto"
-            >
-              <ActionLink
-                to="/products"
-                className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none group h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold shadow-sm justify-center whitespace-nowrap"
-              >
-                Shop Products
-                <ArrowRight
-                  size={17}
-                  className="transition-transform group-hover:translate-x-0.5"
+              <p className="inline-flex max-w-[calc(100vw-24px)] items-center gap-2 rounded-full border border-blue-200/80 bg-white/95 px-3.5 sm:px-4 py-1.5 text-[13px] min-[390px]:text-[14px] sm:text-xs font-semibold text-slate-800 md:text-muted-foreground shadow-xs backdrop-blur">
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 shrink-0 animate-pulse rounded-full bg-primary"
                 />
-              </ActionLink>
-              <ActionLink
-                secondary
-                to="/services"
-                className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold bg-white/95 backdrop-blur hover:bg-white text-slate-900 border border-blue-200/80 shadow-xs justify-center whitespace-nowrap"
-              >
-                <Wrench size={17} /> Explore Services
-              </ActionLink>
-            </motion.div>
+                <ShinyText
+                  text="Your Trusted Tech Hub · Since 2011"
+                  color="var(--muted-foreground)"
+                  shineColor="var(--primary)"
+                  speed={2.5}
+                  delay={0.6}
+                />
+              </p>
+            </AnimatedContent>
+
+            <AnimatedContent
+              distance={40}
+              direction="vertical"
+              duration={0.8}
+              ease="power3.out"
+              initialOpacity={0}
+              blur={3}
+              delay={0.12}
+              trigger="mount"
+              className="w-full"
+            >
+              <h1 className="w-full text-balance font-display text-2xl min-[360px]:text-[34px] min-[375px]:text-[38px] min-[390px]:text-[42px] sm:text-5xl md:text-6xl lg:text-7xl font-[800] tracking-tight text-[#0a1e4a] md:text-foreground text-center leading-[1.14] sm:leading-[1.12]">
+                Everything Tech.{" "}
+                <span className="block">
+                  <GradientText>
+                    Sales, Service
+                    <br className="sm:hidden" /> & Support.
+                  </GradientText>
+                </span>
+              </h1>
+            </AnimatedContent>
+
+            <AnimatedContent
+              distance={35}
+              direction="vertical"
+              duration={0.8}
+              ease="power3.out"
+              initialOpacity={0}
+              delay={0.24}
+              trigger="mount"
+              className="w-full"
+            >
+              <p className="mt-3.5 sm:mt-5 md:mt-6 w-full max-w-[95%] sm:max-w-xl mx-auto text-pretty text-[14px] min-[360px]:text-[15px] min-[375px]:text-[17px] min-[390px]:text-[18px] sm:text-base md:text-lg font-medium text-slate-800 md:text-muted-foreground leading-[1.5] text-center">
+                <span className="md:hidden">
+                  Shop laptops, computers, mobiles, printers & IT services backed by IT HUB support.
+                </span>
+                <span className="hidden md:inline">
+                  Shop laptops, computers, mobiles, printers, accessories and components — backed by
+                  professional IT services and after-sales support from IT HUB.
+                </span>
+              </p>
+            </AnimatedContent>
+
+            <AnimatedContent
+              distance={30}
+              direction="vertical"
+              duration={0.8}
+              ease="power3.out"
+              initialOpacity={0}
+              delay={0.36}
+              trigger="mount"
+              className="w-full"
+            >
+              <div className="mt-5 sm:mt-8 md:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none mx-auto">
+                <ActionLink
+                  to="/products"
+                  className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none group h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold shadow-sm justify-center whitespace-nowrap"
+                >
+                  Shop Products
+                  <ArrowRight
+                    size={17}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </ActionLink>
+                <ActionLink
+                  secondary
+                  to="/services"
+                  className="w-full sm:w-auto min-w-[220px] sm:min-w-0 max-w-[260px] sm:max-w-none h-12 px-6 sm:px-7 text-[15px] min-[390px]:text-[16px] sm:text-sm font-semibold bg-white/95 backdrop-blur hover:bg-white text-slate-900 border border-blue-200/80 shadow-xs justify-center whitespace-nowrap"
+                >
+                  <Wrench size={17} /> Explore Services
+                </ActionLink>
+              </div>
+            </AnimatedContent>
           </div>
         </div>
       </section>

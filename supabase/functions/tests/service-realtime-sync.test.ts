@@ -21,13 +21,18 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { Client as PgClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import {
+  TEST_ANON_KEY,
+  TEST_DB_URL,
+  TEST_SERVICE_KEY,
+  TEST_SUPABASE_URL,
+  dbTest,
+} from "./_helpers/disposable_env.ts";
 
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SUPABASE_SERVICE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const SUPABASE_URL = TEST_SUPABASE_URL;
+const SUPABASE_ANON_KEY = TEST_ANON_KEY;
+const SUPABASE_SERVICE_KEY = TEST_SERVICE_KEY;
+const DB_URL = TEST_DB_URL;
 
 const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -36,7 +41,7 @@ const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 // 1. POSTGRESQL REALTIME PUBLICATION & REPLICA IDENTITY
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-1: service_requests is registered in supabase_realtime publication", async () => {
+dbTest("SYNC-1: service_requests is registered in supabase_realtime publication", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -49,7 +54,7 @@ Deno.test("SYNC-1: service_requests is registered in supabase_realtime publicati
   assertEquals(res.rows[0].tablename, "service_requests");
 });
 
-Deno.test("SYNC-2: service_requests has REPLICA IDENTITY FULL configured", async () => {
+dbTest("SYNC-2: service_requests has REPLICA IDENTITY FULL configured", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -66,7 +71,7 @@ Deno.test("SYNC-2: service_requests has REPLICA IDENTITY FULL configured", async
 // 2. AUTHORITATIVE NOTIFICATION TRIGGER
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-3: trg_service_requests_customer_notify trigger is active", async () => {
+dbTest("SYNC-3: trg_service_requests_customer_notify trigger is active", async () => {
   const pg = new PgClient(DB_URL);
   await pg.connect();
 
@@ -78,7 +83,7 @@ Deno.test("SYNC-3: trg_service_requests_customer_notify trigger is active", asyn
   assertEquals(res.rows.length, 1, "trg_service_requests_customer_notify trigger must be active");
 });
 
-Deno.test("SYNC-4: Staff status update creates customer notification atomically", async () => {
+dbTest("SYNC-4: Staff status update creates customer notification atomically", async () => {
   // Use existing customer profile
   const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
 
@@ -139,66 +144,69 @@ Deno.test("SYNC-4: Staff status update creates customer notification atomically"
 // 3. GET_SERVICE_REQUEST_TRACKING RPC ENHANCEMENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-5: get_service_request_tracking projects payment, appointment & quotation fields", async () => {
-  const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
-  const ticketRef = `ITH-SER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+dbTest(
+  "SYNC-5: get_service_request_tracking projects payment, appointment & quotation fields",
+  async () => {
+    const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
+    const ticketRef = `ITH-SER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
-  const { data: insertedTicket, error: insertErr } = await adminClient
-    .from("service_requests")
-    .insert({
-      user_id: testUserId,
-      ticket_reference: ticketRef,
-      device: "Desktop",
-      model: "Custom Gaming PC",
-      problem: "GPU artifacting",
-      method: "On-site service",
-      status: "Completed",
-      quote: 4500,
-      quote_state: "approved",
-      quote_version: 2,
-      technician_name: "Sandeep V.",
-      preferred_date: "2026-11-05",
-      preferred_slot: "14:00 – 16:00",
-      payment_status: "Paid",
-      payment_method: "upi",
-      paid_amount: 4500,
-      paid_at: new Date().toISOString(),
-      notes: "Internal staff testing note - secret",
-      guest_tracking_token: "test-guest-token-1234",
-    })
-    .select("id")
-    .single();
+    const { data: insertedTicket, error: insertErr } = await adminClient
+      .from("service_requests")
+      .insert({
+        user_id: testUserId,
+        ticket_reference: ticketRef,
+        device: "Desktop",
+        model: "Custom Gaming PC",
+        problem: "GPU artifacting",
+        method: "On-site service",
+        status: "Completed",
+        quote: 4500,
+        quote_state: "approved",
+        quote_version: 2,
+        technician_name: "Sandeep V.",
+        preferred_date: "2026-11-05",
+        preferred_slot: "14:00 – 16:00",
+        payment_status: "Paid",
+        payment_method: "upi",
+        paid_amount: 4500,
+        paid_at: new Date().toISOString(),
+        notes: "Internal staff testing note - secret",
+        guest_tracking_token: "test-guest-token-1234",
+      })
+      .select("id")
+      .single();
 
-  assertEquals(insertErr, null);
+    assertEquals(insertErr, null);
 
-  // Fetch via get_service_request_tracking RPC
-  const { data: trackingData, error: rpcErr } = await adminClient.rpc(
-    "get_service_request_tracking",
-    {
-      p_tracking_id: ticketRef,
-      p_guest_token: "test-guest-token-1234",
-    },
-  );
+    // Fetch via get_service_request_tracking RPC
+    const { data: trackingData, error: rpcErr } = await adminClient.rpc(
+      "get_service_request_tracking",
+      {
+        p_tracking_id: ticketRef,
+        p_guest_token: "test-guest-token-1234",
+      },
+    );
 
-  assertEquals(rpcErr, null);
-  assertExists(trackingData);
-  assertEquals(trackingData.ticket_reference, ticketRef);
-  assertEquals(trackingData.status, "Completed");
-  assertEquals(trackingData.quote, 4500);
-  assertEquals(trackingData.quote_state, "approved");
-  assertEquals(trackingData.payment_status, "Paid");
-  assertEquals(trackingData.payment_method, "upi");
-  assertEquals(trackingData.paid_amount, 4500);
-  assertExists(trackingData.paid_at);
-  assertEquals(trackingData.preferred_date, "2026-11-05");
-  assertEquals(trackingData.preferred_slot, "14:00 – 16:00");
+    assertEquals(rpcErr, null);
+    assertExists(trackingData);
+    assertEquals(trackingData.ticket_reference, ticketRef);
+    assertEquals(trackingData.status, "Completed");
+    assertEquals(trackingData.quote, 4500);
+    assertEquals(trackingData.quote_state, "approved");
+    assertEquals(trackingData.payment_status, "Paid");
+    assertEquals(trackingData.payment_method, "upi");
+    assertEquals(trackingData.paid_amount, 4500);
+    assertExists(trackingData.paid_at);
+    assertEquals(trackingData.preferred_date, "2026-11-05");
+    assertEquals(trackingData.preferred_slot, "14:00 – 16:00");
 
-  // Verify internal staff notes are strictly OMITTED from the customer response
-  assertEquals(trackingData.notes, undefined, "Internal notes must not be leaked");
+    // Verify internal staff notes are strictly OMITTED from the customer response
+    assertEquals(trackingData.notes, undefined, "Internal notes must not be leaked");
 
-  // Cleanup
-  await adminClient.from("service_requests").delete().eq("id", insertedTicket!.id);
-});
+    // Cleanup
+    await adminClient.from("service_requests").delete().eq("id", insertedTicket!.id);
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. CLIENT-SIDE MERGE & RECONCILIATION LOGIC
@@ -308,7 +316,7 @@ Deno.test("SYNC-7: upsertSingleServiceRequest adds brand-new ticket and updates 
 // 5. SECURITY & RLS ENFORCEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-8: Anonymous user cannot query another customer's ticket without token", async () => {
+dbTest("SYNC-8: Anonymous user cannot query another customer's ticket without token", async () => {
   const secretUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
   const ticketRef = `ITH-SER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
@@ -344,7 +352,7 @@ Deno.test("SYNC-8: Anonymous user cannot query another customer's ticket without
 // 6. NOTIFICATION TRIGGERS FOR SPECIALIST ASSIGNMENT, PAYMENT & APPOINTMENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SYNC-9: Staff specialist assignment creates technician_assigned notification", async () => {
+dbTest("SYNC-9: Staff specialist assignment creates technician_assigned notification", async () => {
   const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
   await adminClient.from("customer_notifications").delete().eq("user_id", testUserId);
 
@@ -392,7 +400,7 @@ Deno.test("SYNC-9: Staff specialist assignment creates technician_assigned notif
   await adminClient.from("service_requests").delete().eq("id", ticket!.id);
 });
 
-Deno.test("SYNC-10: Staff payment collection creates payment confirmation notification", async () => {
+dbTest("SYNC-10: Staff payment collection creates payment confirmation notification", async () => {
   const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
   await adminClient.from("customer_notifications").delete().eq("user_id", testUserId);
 
@@ -445,7 +453,7 @@ Deno.test("SYNC-10: Staff payment collection creates payment confirmation notifi
   await adminClient.from("service_requests").delete().eq("id", ticket!.id);
 });
 
-Deno.test("SYNC-11: Staff appointment update creates appointment_updated notification", async () => {
+dbTest("SYNC-11: Staff appointment update creates appointment_updated notification", async () => {
   const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
   await adminClient.from("customer_notifications").delete().eq("user_id", testUserId);
 
@@ -496,72 +504,75 @@ Deno.test("SYNC-11: Staff appointment update creates appointment_updated notific
   await adminClient.from("service_requests").delete().eq("id", ticket!.id);
 });
 
-Deno.test("SYNC-12: Realtime channel receives postgres_changes when service_requests is mutated", async () => {
-  const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
-  const ticketRef = `ITH-SER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+dbTest(
+  "SYNC-12: Realtime channel receives postgres_changes when service_requests is mutated",
+  async () => {
+    const testUserId = "0370fb7a-7896-44bc-a543-023dd399913f";
+    const ticketRef = `ITH-SER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
-  const { data: ticket, error: insertErr } = await adminClient
-    .from("service_requests")
-    .insert({
-      user_id: testUserId,
-      ticket_reference: ticketRef,
-      device: "Laptop",
-      model: "MacBook Air M2",
-      problem: "Trackpad unresponsive",
-      method: "Visit IT HUB",
-      status: "Booked",
-    })
-    .select("id")
-    .single();
+    const { data: ticket, error: insertErr } = await adminClient
+      .from("service_requests")
+      .insert({
+        user_id: testUserId,
+        ticket_reference: ticketRef,
+        device: "Laptop",
+        model: "MacBook Air M2",
+        problem: "Trackpad unresponsive",
+        method: "Visit IT HUB",
+        status: "Booked",
+      })
+      .select("id")
+      .single();
 
-  assertEquals(insertErr, null);
+    assertEquals(insertErr, null);
 
-  let eventReceived = false;
-  let receivedRecord: any = null;
+    let eventReceived = false;
+    let receivedRecord: any = null;
 
-  // Subscribe to realtime channel using adminClient
-  const channel = adminClient.channel(`test-sync-${Date.now()}`).on(
-    "postgres_changes",
-    {
-      event: "UPDATE",
-      schema: "public",
-      table: "service_requests",
-      filter: `id=eq.${ticket!.id}`,
-    },
-    (payload) => {
-      eventReceived = true;
-      receivedRecord = payload.new;
-    },
-  );
+    // Subscribe to realtime channel using adminClient
+    const channel = adminClient.channel(`test-sync-${Date.now()}`).on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "service_requests",
+        filter: `id=eq.${ticket!.id}`,
+      },
+      (payload) => {
+        eventReceived = true;
+        receivedRecord = payload.new;
+      },
+    );
 
-  await new Promise<void>((resolve) => {
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") resolve();
+    await new Promise<void>((resolve) => {
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+      });
     });
-  });
 
-  // Perform update in database
-  await adminClient
-    .from("service_requests")
-    .update({
-      status: "Ready for Pickup",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", ticket!.id);
+    // Perform update in database
+    await adminClient
+      .from("service_requests")
+      .update({
+        status: "Ready for Pickup",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticket!.id);
 
-  // Wait up to 3 seconds for websocket event
-  for (let i = 0; i < 30; i++) {
-    if (eventReceived) break;
-    await new Promise((r) => setTimeout(r, 100));
-  }
+    // Wait up to 3 seconds for websocket event
+    for (let i = 0; i < 30; i++) {
+      if (eventReceived) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
 
-  adminClient.removeChannel(channel);
+    adminClient.removeChannel(channel);
 
-  assertEquals(eventReceived, true, "Realtime channel must receive UPDATE event");
-  assertEquals(receivedRecord?.status, "Ready for Pickup");
-  assertEquals(receivedRecord?.id, ticket!.id);
+    assertEquals(eventReceived, true, "Realtime channel must receive UPDATE event");
+    assertEquals(receivedRecord?.status, "Ready for Pickup");
+    assertEquals(receivedRecord?.id, ticket!.id);
 
-  // Cleanup
-  await adminClient.from("customer_notifications").delete().eq("user_id", testUserId);
-  await adminClient.from("service_requests").delete().eq("id", ticket!.id);
-});
+    // Cleanup
+    await adminClient.from("customer_notifications").delete().eq("user_id", testUserId);
+    await adminClient.from("service_requests").delete().eq("id", ticket!.id);
+  },
+);

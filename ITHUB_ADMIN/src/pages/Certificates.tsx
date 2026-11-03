@@ -113,7 +113,7 @@ export const DEFAULT_CERTIFICATES: CertificateItem[] = [
       "Official Intel® Partner Alliance Member delivering authentic Core processors, boxed CPUs, and certified desktop computing solutions.",
     alt: "Intel Partner Alliance Membership Certificate for IT HUB",
     shopUrl: "/products?brand=Intel",
-    isPublished: true,
+    isPublished: false,
   },
 ];
 

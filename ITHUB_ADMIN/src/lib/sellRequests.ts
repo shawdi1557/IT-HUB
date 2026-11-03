@@ -83,7 +83,7 @@ export async function fetchSellRequests(
 
   try {
     let query = supabase
-      .from("sell_requests")
+      .from("sell_requests_staff")
       .select(
         `
         id,
@@ -269,21 +269,7 @@ export async function updateSellRequest(
       p_offered_price: offeredPrice ?? null,
     });
 
-    if (error) {
-      // Fallback direct update if RPC is missing
-      const { error: directError } = await supabase
-        .from("sell_requests")
-        .update({
-          status,
-          admin_notes: adminNotes ?? null,
-          offered_price: offeredPrice ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", requestId);
-
-      if (directError) return { ok: false, error: directError.message };
-      return { ok: true };
-    }
+    if (error) return { ok: false, error: error.message };
 
     return { ok: true };
   } catch (err: any) {

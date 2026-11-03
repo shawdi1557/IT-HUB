@@ -2,7 +2,7 @@
 -- IT HUB — Initial Configuration & Seed Data Script
 -- Purpose: Populates foundational store categories, brands, locations, settings,
 --          and templates required for storefront operation on a fresh install.
--- Execution: Run after supabase/schema.sql in Supabase SQL Editor or via CLI.
+-- Execution: Run after the migrations have been applied, with psql or the CLI.
 -- ============================================================================
 
 begin;

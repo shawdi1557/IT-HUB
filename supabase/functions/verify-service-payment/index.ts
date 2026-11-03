@@ -17,6 +17,7 @@ export interface VerifyServicePaymentDeps {
   supabaseServiceRoleKey?: string;
   appEnv?: string;
   storefrontOrigin?: string;
+  fetchImpl?: typeof fetch;
 }
 
 const DEV_LOCALHOST_ORIGINS = [
@@ -104,6 +105,7 @@ export async function handleVerifyServicePayment(
     });
   }
 
+  const razorpayKeyId = deps?.razorpayKeyId ?? Deno.env.get("RAZORPAY_KEY_ID") ?? "";
   const razorpayKeySecret = deps?.razorpayKeySecret ?? Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
   const supabaseUrl = deps?.supabaseUrl ?? Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = deps?.supabaseAnonKey ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -129,7 +131,7 @@ export async function handleVerifyServicePayment(
     const {
       data: { user },
       error: authError,
-    } = await userClient.auth.getUser();
+    } = await userClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, "").trim());
 
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
@@ -190,8 +192,8 @@ export async function handleVerifyServicePayment(
     }
 
     // 3. Timing-Safe HMAC-SHA256 Signature Verification
-    if (!razorpayKeySecret) {
-      console.error("[verify-service-payment] Missing RAZORPAY_KEY_SECRET in environment");
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      console.error("[verify-service-payment] Missing Razorpay credentials in environment");
       return new Response(JSON.stringify({ error: "Server payment configuration error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -240,7 +242,16 @@ export async function handleVerifyServicePayment(
       });
     }
 
-    // 5. Verify attached order ID
+    // 5. Only the ticket's owner may finalize its payment
+    if (service.user_id !== user.id) {
+      console.warn(`[verify-service-payment] Ownership mismatch for service ${service.id}`);
+      return new Response(JSON.stringify({ error: "You do not own this service ticket" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 6. Verify attached order ID
     if (
       !service.razorpay_order_id ||
       service.razorpay_order_id.trim() !== razorpay_order_id.trim()
@@ -254,7 +265,7 @@ export async function handleVerifyServicePayment(
       );
     }
 
-    // 6. Duplicate check / Idempotency
+    // 7. Duplicate check / Idempotency
     if (service.payment_status === "Paid") {
       if (service.razorpay_payment_id === razorpay_payment_id.trim()) {
         return new Response(
@@ -284,26 +295,63 @@ export async function handleVerifyServicePayment(
       }
     }
 
-    // 7. Invoke privileged record_service_payment RPC
+    // 8. Ask Razorpay what actually happened. A valid signature proves the ids belong together,
+    // not that the money was captured or how much it was.
+    const fetcher = deps?.fetchImpl ?? fetch;
+    let payment: any;
+    try {
+      const paymentRes = await fetcher(
+        `https://api.razorpay.com/v1/payments/${encodeURIComponent(razorpay_payment_id.trim())}`,
+        { headers: { Authorization: "Basic " + btoa(`${razorpayKeyId}:${razorpayKeySecret}`) } },
+      );
+      if (!paymentRes.ok) throw new Error(`Razorpay responded ${paymentRes.status}`);
+      payment = await paymentRes.json();
+    } catch (fetchErr: any) {
+      console.error("[verify-service-payment] Razorpay lookup failed:", fetchErr?.message);
+      return new Response(
+        JSON.stringify({ error: "Could not confirm the payment with Razorpay" }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const quoteAmount = Number(service.quote) || 0;
+    const expectedPaise = Math.round(quoteAmount * 100);
+    if (
+      payment?.status !== "captured" ||
+      payment?.order_id !== razorpay_order_id.trim() ||
+      payment?.currency !== "INR" ||
+      expectedPaise <= 0 ||
+      payment?.amount !== expectedPaise
+    ) {
+      console.warn(`[verify-service-payment] Payment details rejected for service ${service.id}`);
+      return new Response(
+        JSON.stringify({ error: "Payment was not captured for the full quoted amount" }),
+        {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // 9. Invoke privileged record_service_payment RPC with the amount Razorpay reports
     const { data: rpcData, error: rpcError } = await adminClient.rpc("record_service_payment", {
       p_service_request_id: service.id,
       p_razorpay_order_id: razorpay_order_id.trim(),
       p_razorpay_payment_id: razorpay_payment_id.trim(),
       p_razorpay_signature: razorpay_signature.trim(),
-      p_amount_paid: quoteAmount,
-      p_currency: "INR",
+      p_amount_paid: payment.amount / 100,
+      p_currency: payment.currency,
     });
 
     if (rpcError) {
       console.error("[verify-service-payment] record_service_payment RPC error:", rpcError);
-      return new Response(
-        JSON.stringify({ error: rpcError.message || "Failed to record payment in database" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Failed to record payment" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(
@@ -322,7 +370,7 @@ export async function handleVerifyServicePayment(
     );
   } catch (err: any) {
     console.error("[verify-service-payment] Exception:", err);
-    return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

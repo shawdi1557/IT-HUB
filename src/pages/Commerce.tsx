@@ -34,7 +34,8 @@ import {
 } from "../lib/payments";
 import WarrantyCheck from "../components/WarrantyCheck";
 import { shopifyConfig, createShopifyCart, revalidateCartAvailability } from "../lib/shopify";
-import { requestCheckoutAssociationToken } from "../lib/shopify-orders";
+import { requireCheckoutAssociation } from "../lib/shopify-orders";
+import { useCheckoutEmail } from "../components/CheckoutEmailPrompt";
 import {
   ActionLink,
   Badge,
@@ -79,6 +80,7 @@ export function Cart() {
   }
   const navigate = useNavigate();
   const [checkingOut, setCheckingOut] = useState(false);
+  const { ensureEmail, emailPrompt, emailRequiredMessage } = useCheckoutEmail();
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [unavailableIds, setUnavailableIds] = useState<string[]>([]);
   const [promoInput, setPromoInput] = useState("");
@@ -130,18 +132,24 @@ export function Cart() {
       }
 
       // 2. Build lines with validated merchandiseId (variantId) and quantity
-      let assocToken: string | null = null;
-      if (store.loggedIn) {
-        try {
-          assocToken = await requestCheckoutAssociationToken();
-        } catch {
-          // Non-blocking fallback
-        }
+      // A website order must belong to a signed-in customer, so no token means no checkout.
+      const association = await requireCheckoutAssociation();
+      if (!association.ok) {
+        setCheckoutError(association.error);
+        setCheckingOut(false);
+        if (association.authRequired) store.setAuthOpen(true);
+        return;
       }
 
-      const returnUrl = store.loggedIn
-        ? `${window.location.origin}/account/orders?checkout_completed=true`
-        : `${window.location.origin}/cart?checkout_completed=true`;
+      // The address for order updates. It isn't used to sign in, or to decide who owns the order.
+      const checkoutEmail = await ensureEmail();
+      if (!checkoutEmail) {
+        setCheckoutError(emailRequiredMessage);
+        setCheckingOut(false);
+        return;
+      }
+
+      const returnUrl = `${window.location.origin}/account/orders?checkout_completed=true`;
 
       const lines = store.cart.map((item) => {
         const resolvedVariantId =
@@ -161,22 +169,16 @@ export function Cart() {
           key: "return_to_store",
           value: returnUrl,
         },
+        {
+          key: "_hub_assoc_token",
+          value: association.token,
+        },
       ];
 
-      if (assocToken) {
-        cartAttributes.push({
-          key: "_hub_assoc_token",
-          value: assocToken,
-        });
-      }
-
-      const buyerIdentity =
-        store.loggedIn && (store.profile.email || store.profile.phone)
-          ? {
-              email: store.profile.email || undefined,
-              phone: store.profile.phone || undefined,
-            }
-          : undefined;
+      const buyerIdentity = {
+        email: checkoutEmail,
+        phone: store.profile.phone || undefined,
+      };
 
       const res = await createShopifyCart(lines, {
         attributes: cartAttributes,
@@ -253,6 +255,7 @@ export function Cart() {
     });
   return (
     <Page>
+      {emailPrompt}
       <PageHeading
         title="Your shopping bag."
         description={`${store.cart.reduce((sum, item) => sum + item.quantity, 0)} items, one step closer to your next upgrade.`}
