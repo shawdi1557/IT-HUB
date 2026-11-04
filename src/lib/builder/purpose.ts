@@ -106,7 +106,11 @@ export function purposeProfile(
       purpose === "gaming" ||
       purpose === "creation" ||
       (purpose === "professional" && kind !== "Software Development"),
-    requirement: kind ? REQUIREMENT_FOR_WORK[kind] : undefined,
+    requirement: kind
+      ? REQUIREMENT_FOR_WORK[kind]
+      : purpose === "programming"
+        ? REQUIREMENT_FOR_WORK["Software Development"]
+        : undefined,
     requestedResolution: purpose === "gaming" ? resolution : undefined,
     requireWifi,
   };

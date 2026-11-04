@@ -501,7 +501,7 @@ Deno.test("CONFLICT: any conflict goes to a technician, even on a value no rule 
   assertEquals(summary.hasBlockingUnknowns, true);
 });
 
-Deno.test("CONFLICT: an unreadable value blocks a label, without forcing review by itself", () => {
+Deno.test("CONFLICT: an unreadable value blocks a label, and sends the build to review", () => {
   const cabinet = match(product("Vendor Case", "Computer Cases", { cabinet_clearance_mm: "wide" }));
   const summary = checkCompatibility({ Cabinet: cabinet });
   const item = summary.items.find((i: any) => i.ruleId === "RULE_K_SPEC_INVALID");
@@ -511,7 +511,7 @@ Deno.test("CONFLICT: an unreadable value blocks a label, without forcing review 
       gap.includes("unreadable"),
     ),
   );
-  assertEquals(summary.hasBlockingUnknowns, false);
+  assertEquals(summary.hasBlockingUnknowns, true);
 });
 
 // ── What a label needs ───────────────────────────────────────────────────────

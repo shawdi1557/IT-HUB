@@ -386,7 +386,16 @@ Deno.test("FIND-MY-PC-7: Does not depend on fixed template product IDs from buil
     productType: "Motherboard",
     tags: ["pc-builder", "motherboard", "lga1700", "b760", "ddr4"],
     variantId: "gid://shopify/ProductVariant/760",
-    specs: { socket: "LGA1700", ram_generation: "DDR4", form_factor: "Micro-ATX", ...REVIEWED },
+    specs: {
+      socket: "LGA1700",
+      ram_generation: "DDR4",
+      form_factor: "Micro-ATX",
+      ram_slots: "4",
+      max_ram_gb: "128",
+      m2_slots: "2",
+      sata_ports: "4",
+      ...REVIEWED,
+    },
     stock: 4,
   };
 

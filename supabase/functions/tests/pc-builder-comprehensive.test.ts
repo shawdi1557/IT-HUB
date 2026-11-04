@@ -297,7 +297,15 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/3",
         title: "MSI B650M",
         price: 10499,
-        specs: { socket: "AM5", formFactor: "Micro-ATX", supportedRamGeneration: "DDR5" },
+        specs: {
+          socket: "AM5",
+          formFactor: "Micro-ATX",
+          supportedRamGeneration: "DDR5",
+          ramSlots: 4,
+          maxRamCapacityGb: 128,
+          m2SlotCount: 2,
+          sataPortCount: 4,
+        },
       },
       {
         slot: "Motherboard",
@@ -305,7 +313,15 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/4",
         title: "ASUS B550M",
         price: 8999,
-        specs: { socket: "AM4", formFactor: "Micro-ATX", supportedRamGeneration: "DDR4" },
+        specs: {
+          socket: "AM4",
+          formFactor: "Micro-ATX",
+          supportedRamGeneration: "DDR4",
+          ramSlots: 4,
+          maxRamCapacityGb: 128,
+          m2SlotCount: 2,
+          sataPortCount: 4,
+        },
       },
     ],
     RAM: [
@@ -315,7 +331,7 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/5",
         title: "16GB DDR5",
         price: 4299,
-        specs: { ramGeneration: "DDR5", isLaptopSoDimm: false },
+        specs: { ramGeneration: "DDR5", isLaptopSoDimm: false, capacityGb: 16, moduleCount: 2 },
       },
       {
         slot: "RAM",
@@ -323,7 +339,7 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/6",
         title: "16GB DDR4",
         price: 3299,
-        specs: { ramGeneration: "DDR4", isLaptopSoDimm: false },
+        specs: { ramGeneration: "DDR4", isLaptopSoDimm: false, capacityGb: 16, moduleCount: 2 },
       },
     ],
     GPU: [

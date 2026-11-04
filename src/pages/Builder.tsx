@@ -16,6 +16,7 @@ import {
   Gamepad2,
   Clapperboard,
   Briefcase,
+  Code2,
   DraftingCompass,
   House,
   Check,
@@ -882,7 +883,7 @@ function ExpertBuilder({
 
 // ───────────────────────── Smart PC Builder ─────────────────────────
 
-type PurposeId = "gaming" | "creation" | "work" | "professional" | "general";
+type PurposeId = "gaming" | "creation" | "work" | "programming" | "professional" | "general";
 const purposes: {
   id: PurposeId;
   title: string;
@@ -904,13 +905,19 @@ const purposes: {
   {
     id: "work",
     title: "Work / Office",
-    text: "Office work, programming, business and productivity",
+    text: "Office work, business and productivity",
     Icon: Briefcase,
+  },
+  {
+    id: "programming",
+    title: "Software Development",
+    text: "Coding, compiling and development tools",
+    Icon: Code2,
   },
   {
     id: "professional",
     title: "Professional",
-    text: "Software development, CAD, architecture, data/AI",
+    text: "CAD, architecture, engineering, data/AI",
     Icon: DraftingCompass,
   },
   {
@@ -920,55 +927,6 @@ const purposes: {
     Icon: House,
   },
 ];
-const followUps: Record<
-  PurposeId,
-  {
-    key: string;
-    question: string;
-    options: string[];
-  }[]
-> = {
-  gaming: [
-    {
-      key: "type",
-      question: "What kind of gaming?",
-      options: ["Competitive / Esports", "AAA Games", "Both"],
-    },
-    {
-      key: "resolution",
-      question: "What resolution do you mainly want?",
-      options: ["1080p", "1440p", "4K", "Not sure"],
-    },
-  ],
-  creation: [
-    {
-      key: "type",
-      question: "What do you mainly create?",
-      options: ["Video", "Motion Graphics", "3D", "Photography", "Streaming", "Mixed"],
-    },
-  ],
-  work: [
-    {
-      key: "type",
-      question: "What type of work?",
-      options: ["Office", "Programming", "Business", "Professional Software", "Mixed"],
-    },
-  ],
-  professional: [
-    {
-      key: "type",
-      question: "Which kind of professional work?",
-      options: ["Software Development", "Architecture", "CAD", "Engineering", "Data / AI"],
-    },
-  ],
-  general: [
-    {
-      key: "type",
-      question: "What will you mostly use it for?",
-      options: ["Browsing", "Media", "Education", "Home use"],
-    },
-  ],
-};
 export interface Budget {
   id: string;
   label: string;
@@ -1007,16 +965,6 @@ const budgets: Budget[] = [
     max: 300000,
   },
 ];
-/** Only these can be left out of a build. The fit of anything else can't be checked. */
-const ownedOptions = [
-  { slot: "GPU", label: "Graphics card" },
-  { slot: "RAM", label: "RAM" },
-  { slot: "Storage", label: "Storage" },
-];
-const wifiOptions = [
-  { value: "Yes", label: "Yes" },
-  { value: "No", label: "Not needed" },
-];
 const partOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const partLabels: Record<string, string> = { Cooler: "CPU Cooler" };
 const explanations: Record<string, string> = {
@@ -1034,19 +982,13 @@ const DISCLAIMER =
 
 type Answers = {
   purpose: PurposeId | "";
-  details: Record<string, string>;
   budgetId: string;
   brands: string[];
-  wifi: string;
-  owned: string[];
 };
 const emptyAnswers: Answers = {
   purpose: "",
-  details: {},
   budgetId: "",
   brands: [],
-  wifi: "",
-  owned: [],
 };
 type DetailBuild = {
   name: string;
@@ -2013,25 +1955,11 @@ function SmartBuilder() {
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
   const missingSlots = essentialSlots.filter(
     (slot) =>
-      !answers.owned.includes(slot) &&
       // A rejected part is never recommended, so a slot with only those is as good as empty.
       !(store.componentCatalog[slot] || []).some((part) => !hasRejectedSpecs(part.specs)),
   );
   const purposeInfo = purposes.find((item) => item.id === answers.purpose);
-  const basedOn = [
-    purposeInfo?.title,
-    ...Object.values(answers.details).filter((value) => value && value !== "Not sure"),
-    answers.wifi === "Yes" ? "Wi-Fi" : "",
-    answers.owned.length > 0
-      ? `Own ${ownedOptions
-          .filter(({ slot }) => answers.owned.includes(slot))
-          .map(({ label }) => label)
-          .join(", ")}`
-      : "",
-    budget?.label,
-  ]
-    .filter(Boolean)
-    .join(" • ");
+  const basedOn = [purposeInfo?.title, budget?.label].filter(Boolean).join(" • ");
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const go = (next: number) => {
     setStep(next);
@@ -2223,7 +2151,7 @@ function SmartBuilder() {
                 <button
                   key={id}
                   aria-pressed={active}
-                  onClick={() => update({ purpose: id, details: {} })}
+                  onClick={() => update({ purpose: id })}
                   className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 md:flex-col md:p-6 ${
                     active
                       ? "border-primary bg-secondary shadow-[0_10px_30px_-15px_rgba(26,79,214,.6)]"
@@ -2245,105 +2173,6 @@ function SmartBuilder() {
               );
             })}
           </div>
-          {answers.purpose &&
-            followUps[answers.purpose].map(({ key, question, options }) => (
-              <fieldset key={key} className="mt-8">
-                <legend className="text-sm font-bold">
-                  {question} <span className="font-normal text-muted-foreground">(optional)</span>
-                </legend>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {options.map((option) => {
-                    const active = answers.details[key] === option;
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
-                          update({
-                            details: { ...answers.details, [key]: active ? "" : option },
-                          })
-                        }
-                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                          active
-                            ? "border-primary bg-secondary text-primary"
-                            : "border-border bg-white hover:border-primary"
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            ))}
-          {answers.purpose && (
-            <>
-              <fieldset className="mt-8">
-                <legend className="text-sm font-bold">
-                  Do you need Wi-Fi?{" "}
-                  <span className="font-normal text-muted-foreground">(optional)</span>
-                </legend>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {wifiOptions.map(({ value, label }) => {
-                    const active = answers.wifi === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => update({ wifi: active ? "" : value })}
-                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                          active
-                            ? "border-primary bg-secondary text-primary"
-                            : "border-border bg-white hover:border-primary"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-              <fieldset className="mt-8">
-                <legend className="text-sm font-bold">
-                  Do you already own any of these?{" "}
-                  <span className="font-normal text-muted-foreground">(optional)</span>
-                </legend>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ownedOptions.map(({ slot, label }) => {
-                    const active = answers.owned.includes(slot);
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
-                          update({
-                            owned: active
-                              ? answers.owned.filter((item) => item !== slot)
-                              : [...answers.owned, slot],
-                          })
-                        }
-                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                          active
-                            ? "border-primary bg-secondary text-primary"
-                            : "border-border bg-white hover:border-primary"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-                {answers.owned.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Parts you own aren't priced. IT HUB will check they fit the build.
-                  </p>
-                )}
-              </fieldset>
-            </>
-          )}
           <div className="mt-10">
             <Button disabled={!purposeReady} onClick={() => go(1)}>
               Continue <ArrowRight size={15} />

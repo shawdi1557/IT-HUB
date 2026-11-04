@@ -26,6 +26,7 @@ const {
 } = await import("../../../src/lib/builder/spec-schema.ts");
 const { buildSpecReport, formatSpecReport } =
   await import("../../../src/lib/builder/spec-report.ts");
+const { purposeProfile } = await import("../../../src/lib/builder/purpose.ts");
 const { mapShopifyProductToCatalog, specUpdatedTimes } =
   await import("../../../src/lib/shopify-schema.ts");
 const { PRODUCTS_QUERY, diffCatalogProducts } = await import("../../../src/lib/shopify.ts");
@@ -625,6 +626,81 @@ Deno.test("D5: a part isn't marked rejected for being unreviewed", () => {
 
 // ── B1: unknown physical fit ─────────────────────────────────────────────────────────────────────
 
+Deno.test("B1: every remaining kind of unknown also sends the build to review", () => {
+  const silentCpu = cpu({ socket: "AM4", ...REVIEWED });
+  const cases: [string, any][] = [
+    ["RULE_C_STOCK_COOLER_UNKNOWN", { CPU: silentCpu }],
+    ["RULE_I_DISPLAY_OUTPUT_UNKNOWN", { CPU: silentCpu }],
+    [
+      "RULE_H_STORAGE_UNKNOWN",
+      {
+        Motherboard: board({ ...REVIEWED }),
+        Storage: match(
+          product("QZX Validation Drive", "Solid State Drives", {
+            storage_interface: "M.2 NVMe",
+            ...REVIEWED,
+          }),
+        ),
+      },
+    ],
+    [
+      "RULE_B_RAM_LIMITS_UNKNOWN",
+      {
+        Motherboard: board({ ...REVIEWED }),
+        RAM: kit({ ram_generation: "DDR4", ram_capacity_gb: "16", ...REVIEWED }),
+      },
+    ],
+    ["RULE_K_SPEC_INVALID", { Cabinet: cabinet({ cabinet_clearance_mm: "wide", ...REVIEWED }) }],
+  ];
+  for (const [rule, parts] of cases) {
+    const check = checkCompatibility(parts);
+    assert(
+      check.items.some((i: any) => i.ruleId === rule),
+      rule,
+    );
+    assertEquals(check.hasBlockingUnknowns, true, rule);
+    assertEquals(check.status, "unknown", rule);
+    assertEquals(check.valid, true, rule);
+  }
+});
+
+Deno.test("B1: below the recommended wattage still goes to review, though it isn't an unknown", () => {
+  const check = checkCompatibility({
+    CPU: cpu({ watts: "65", includes_cooler: "true", ...REVIEWED }),
+    GPU: card({
+      watts: "115",
+      recommended_psu_watts: "550",
+      pcie_6plus2_required: "1",
+      pcie_16pin_required: "0",
+      ...REVIEWED,
+    }),
+    PSU: match(
+      product("QZX Validation Power", "Computer Power Supplies", {
+        capacity_watts: "450",
+        pcie_6plus2_count: "1",
+        pcie_16pin_count: "0",
+        ...REVIEWED,
+      }),
+    ),
+  });
+  const item = check.items.find((i: any) => i.ruleId === "RULE_E_PSU_BELOW_RECOMMENDED");
+  assertEquals(item?.status, "conditional");
+  assertEquals(check.hasBlockingUnknowns, true);
+});
+
+Deno.test("B1: no check can report something unknown without sending the build to review", () => {
+  for (const parts of [
+    { CPU: cpu({}) },
+    { Motherboard: board({}), Cabinet: cabinet({}) },
+    { GPU: card({}), PSU: match(product("QZX Silent Power", "Computer Power Supplies")) },
+  ]) {
+    const check = checkCompatibility(parts);
+    if (check.items.some((i: any) => i.status === "unknown")) {
+      assertEquals(check.hasBlockingUnknowns, true);
+    }
+  }
+});
+
 const statesNothing = {
   supported_motherboards: "",
   cabinet_clearance_mm: "",
@@ -807,6 +883,43 @@ Deno.test("TITLE: a registry part isn't sent to review by its own unsourced valu
   );
   assertEquals(specConfidence(part, "ratedWattage"), "supplier_provided");
   assertEquals(unreviewedRule(part), undefined);
+});
+
+// ── Software development ─────────────────────────────────────────────────────────────────────────
+
+Deno.test("PURPOSE: software development doesn't insist on a graphics card", () => {
+  assertEquals(purposeProfile("programming").requiresDedicatedGpu, false);
+  assertEquals(purposeProfile("programming").requirement?.software, "Visual Studio");
+  assertEquals(purposeProfile("professional").requiresDedicatedGpu, true);
+});
+
+Deno.test("PURPOSE: with integrated graphics, a developer can be offered a build with no card", () => {
+  const items = FULL_CATALOGUE({ cpu: { integrated_graphics: "true" } });
+  const purposeBuilds = (purpose: string) =>
+    generateDynamicCatalogRecommendations(
+      syncBuilderCatalogWithShopify(items).componentCatalog,
+      { purpose, details: {}, brands: [], wifi: "", owned: [] },
+      { min: 0, max: 300000 },
+    );
+  assert(purposeBuilds("programming").some((build: any) => !build.parts.GPU));
+  assert(purposeBuilds("professional").every((build: any) => build.parts.GPU));
+});
+
+Deno.test("PURPOSE: a processor with no graphics still needs a card, whatever the purpose", () => {
+  const builds = generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(FULL_CATALOGUE()).componentCatalog,
+    { purpose: "programming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 0, max: 300000 },
+  );
+  assert(builds.length > 0);
+  assert(builds.every((build: any) => build.parts.GPU));
+});
+
+Deno.test("PAGE: the first screen offers software development as its own purpose", async () => {
+  const page = await Deno.readTextFile(new URL("../../../src/pages/Builder.tsx", import.meta.url));
+  assert(page.includes('id: "programming"'));
+  assert(page.includes('title: "Software Development"'));
+  assert(!page.includes("Software development, CAD"));
 });
 
 // ── D6: the report ───────────────────────────────────────────────────────────────────────────────

@@ -236,14 +236,13 @@ Deno.test("PAGE: Expert Mode keeps what the customer owns, until they buy that p
   assert(page.includes("ownedSlots: owned as any,"));
 });
 
-Deno.test("PAGE: the questions are optional and limited to parts that can be left out", () => {
-  assert(page.includes('{ slot: "GPU", label: "Graphics card" }'));
-  assert(page.includes('{ slot: "RAM", label: "RAM" }'));
-  assert(page.includes('{ slot: "Storage", label: "Storage" }'));
+Deno.test("PAGE: Find My PC asks nothing about Wi-Fi or parts the customer owns", () => {
+  assert(!page.includes("ownedOptions"));
+  assert(!page.includes("wifiOptions"));
   assert(!page.includes('"Keyboard/Mouse"'));
   assert(!page.includes("brandOptions"));
-  assert(page.includes("Do you need Wi-Fi?"));
-  assert(page.includes("Do you already own any of these?"));
+  assert(!page.includes("Do you need Wi-Fi?"));
+  assert(!page.includes("Do you already own any of these?"));
   assert(page.includes("const purposeReady = Boolean(answers.purpose);"));
 });
 

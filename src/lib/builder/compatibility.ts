@@ -176,34 +176,11 @@ export function missingConnectors(
 }
 
 /**
- * These don't make a build incompatible. They mean nobody can yet say it's compatible, so IT HUB has
- * to check it. Below the maker's recommended wattage is here because a recommendation isn't a limit.
- * Unknown physical fit is here because a part that doesn't fit is as final as a wrong socket, and an
- * unreviewed value is here because stating a value mustn't skip the check a review exists to provide.
+ * Anything nobody can yet confirm goes to review, so IT HUB checks it: an unknown doesn't make a build
+ * incompatible, but it does mean nobody can say it's compatible. These are the exceptions that aren't
+ * unknowns at all. Below the maker's recommended wattage is here because a recommendation isn't a limit.
  */
-const REVIEW_RULES = new Set([
-  "RULE_A_SOCKET_UNKNOWN",
-  "RULE_B_RAM_UNKNOWN",
-  "RULE_E_PSU_WATTAGE_UNKNOWN",
-  "RULE_E_POWER_DRAW_UNKNOWN",
-  "RULE_E_PSU_BELOW_RECOMMENDED",
-  "RULE_E_RECOMMENDED_UNKNOWN",
-  "RULE_E_CPU_PEAK_UNKNOWN",
-  "RULE_F_GPU_POWER_UNKNOWN",
-  "RULE_F_GPU_CONNECTORS_UNKNOWN",
-  "RULE_F_PCIE_POWER_UNKNOWN",
-  "RULE_F_PCIE_CONNECTORS_UNKNOWN",
-  "RULE_C_COOLER_SOCKET_UNKNOWN",
-  "RULE_C_COOLER_HEIGHT_UNKNOWN",
-  "RULE_D_GPU_CLEARANCE_UNKNOWN",
-  "RULE_G_FORM_FACTOR_UNKNOWN",
-  "RULE_K_SPEC_CONFLICT",
-  "RULE_K_SPEC_REJECTED",
-  "RULE_L_SPEC_UNREVIEWED",
-  "RULE_I_OWNED_GPU_UNCHECKED",
-  "RULE_B_OWNED_RAM_UNCHECKED",
-  "RULE_H_OWNED_STORAGE_UNCHECKED",
-]);
+const REVIEW_RULES = new Set(["RULE_E_PSU_BELOW_RECOMMENDED"]);
 
 const SPEC_PROBLEM_WORDING: Record<
   SpecProblem["kind"],
@@ -1047,7 +1024,8 @@ export function checkCompatibility(
   const hasErrors = items.some((i) => i.severity === "error");
   const hasWarnings = items.some((i) => i.severity === "warning");
   const hasBlockingUnknowns =
-    items.some((i) => REVIEW_RULES.has(i.ruleId)) || Boolean(psu && !psu.specs.ratedWattage);
+    items.some((i) => i.status === "unknown" || REVIEW_RULES.has(i.ruleId)) ||
+    Boolean(psu && !psu.specs.ratedWattage);
 
   let overallStatus: CompatibilityStatus = "compatible";
   if (hasErrors) overallStatus = "incompatible";

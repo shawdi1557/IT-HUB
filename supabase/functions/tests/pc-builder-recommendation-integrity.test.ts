@@ -1023,9 +1023,16 @@ const types = await Deno.readTextFile(
   new URL("../../../src/lib/builder/types.ts", import.meta.url),
 );
 
-Deno.test("PAGE: Find My PC asks the follow-up questions, and doesn't insist on an answer", () => {
-  assert(page.includes("followUps[answers.purpose].map("));
-  assert(page.includes("(optional)"));
+Deno.test("PAGE: Find My PC asks only the purpose and the budget", () => {
+  assert(!page.includes("followUps"));
+  for (const question of [
+    "What kind of gaming?",
+    "What resolution do you mainly want?",
+    "What type of work?",
+    "(optional)",
+  ]) {
+    assert(!page.includes(question), question);
+  }
   assert(page.includes("<Button disabled={!purposeReady}"));
   assert(page.includes("const purposeReady = Boolean(answers.purpose);"));
 });

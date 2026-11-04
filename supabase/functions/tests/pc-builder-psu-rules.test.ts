@@ -29,7 +29,8 @@ const part = (slot: string, title: string, specs: any = {}): any => ({
 });
 const rule = (parts: any, ruleId: string) =>
   checkCompatibility(parts).items.find((item: any) => item.ruleId === ruleId);
-const CPU = part("CPU", "Processor", { tdpWatts: 65 });
+// States its cooler, so that only the power rules decide these tests.
+const CPU = part("CPU", "Processor", { tdpWatts: 65, includesCooler: true });
 const CARD_8PIN = part("GPU", "Card", {
   powerWatts: 115,
   recommendedPsuWatts: 550,
@@ -243,7 +244,11 @@ Deno.test("POWER: exactly the load isn't a failure, and a card's missing recomme
 
 // ── A processor's base power isn't what it can draw ─────────────────────────────────────────────
 
-const INTEL_14600K = part("CPU", "Core i5-14600K", { tdpWatts: 125, maxTurboPowerWatts: 181 });
+const INTEL_14600K = part("CPU", "Core i5-14600K", {
+  includesCooler: true,
+  tdpWatts: 125,
+  maxTurboPowerWatts: 181,
+});
 const CARD_220W = part("GPU", "Card", {
   powerWatts: 220,
   recommendedPsuWatts: 450,

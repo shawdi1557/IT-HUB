@@ -1150,6 +1150,8 @@ Deno.test("STAGE05: a drive the motherboard can't connect is passed over", () =>
       socket: "AM4",
       ram_generation: "DDR4",
       form_factor: "ATX",
+      ram_slots: "4",
+      max_ram_gb: "128",
       m2_slots: "0",
       sata_ports: "4",
       ...REVIEWED,
