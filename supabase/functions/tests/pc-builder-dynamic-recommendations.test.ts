@@ -84,7 +84,9 @@ const mockShopifyRtx4060: any = {
   variantId: "gid://shopify/ProductVariant/4455667791",
   availableForSale: true,
   stock: 4,
-  specs: {},
+  specs: {
+    pcie_connectors: "8-pin",
+  },
 };
 
 const mockShopifyNvme1tb: any = {
@@ -255,6 +257,7 @@ Deno.test("FIND-MY-PC-3: Missing essential category produces zero fabricated bui
 
 Deno.test("FIND-MY-PC-4: User-owned category is not required in catalog", () => {
   // Catalog missing Storage, but user already owns Storage
+  // Owned parts go to a technician, so this asks the way Find My PC does.
   const productsMissingStorage = eightLiveShopifyProducts.filter(
     (p) => p.productType !== "Solid State Drive",
   );
@@ -268,7 +271,9 @@ Deno.test("FIND-MY-PC-4: User-owned category is not required in catalog", () => 
     owned: ["Storage"],
   };
 
-  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers);
+  const recs = generateDynamicCatalogRecommendations(componentCatalog, answers, undefined, {
+    allowUnverified: true,
+  });
   assertEquals(recs.length > 0, true);
 
   const build = recs[0];

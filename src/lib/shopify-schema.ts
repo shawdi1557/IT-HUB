@@ -149,16 +149,26 @@ export function parseProductSpecs(
     }
   }
 
-  // Overlay pc_builder and custom metafields
+  // Overlay metafields. A pc_builder value wins over the same key in another namespace.
   if (metafields) {
     for (const m of metafields) {
-      if (m?.key && m?.value) {
-        specs[m.key] = m.value;
-      }
+      if (m?.key && m?.value && m.namespace !== "pc_builder") specs[m.key] = m.value;
+    }
+    for (const m of metafields) {
+      if (m?.key && m?.value && m.namespace === "pc_builder") specs[m.key] = m.value;
     }
   }
 
   return specs;
+}
+
+/** The spec keys that only a tag supplied. A tag can describe a product, but never states a spec. */
+export function tagSpecKeys(
+  tags: string[],
+  metafields?: Array<ShopifyMetafield | null | undefined>,
+): string[] {
+  const fromMetafields = new Set((metafields || []).filter((m) => m?.value).map((m) => m!.key));
+  return Object.keys(parseProductSpecs(tags)).filter((key) => !fromMetafields.has(key));
 }
 
 /**
@@ -595,6 +605,7 @@ export function mapShopifyProductToCatalog(
   const productImages = rawImageUrls.length > 0 ? rawImageUrls : [primaryImage];
 
   const specs = parseProductSpecs(node.tags, node.metafields);
+  const specKeysFromTags = tagSpecKeys(node.tags, node.metafields);
 
   const isAvailable = variantNode
     ? Boolean(variantNode.availableForSale)
@@ -657,6 +668,7 @@ export function mapShopifyProductToCatalog(
     secondHand: isSecondHand,
     condition,
     conditionStated: isConditionGradeStated(node.tags, node.metafields),
+    tagSpecKeys: specKeysFromTags.length > 0 ? specKeysFromTags : undefined,
     tag: compareAtPrice > sellingPrice ? "Deal" : undefined,
     status: "Active",
     handle: node.handle,

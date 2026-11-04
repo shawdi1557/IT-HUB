@@ -165,6 +165,7 @@ const benchmarkCatalogProducts: any[] = [
     stock: 7,
     specs: {
       powerWatts: 115,
+      pcie_connectors: "8-pin",
       lengthMm: 242,
       recommendedPsuWatts: 450,
       provenance: "verified_technician",
@@ -181,6 +182,7 @@ const benchmarkCatalogProducts: any[] = [
     stock: 3,
     specs: {
       powerWatts: 140,
+      pcie_connectors: "8-pin",
       lengthMm: 260,
       recommendedPsuWatts: 550,
       provenance: "verified_technician",
@@ -211,6 +213,7 @@ const benchmarkCatalogProducts: any[] = [
     specs: {
       ratedWattage: 650,
       pciePowerConnectors: ["8-pin", "8-pin"],
+      pcie_connectors: "8-pin,8-pin",
       provenance: "verified_manufacturer",
     },
   },
@@ -340,10 +343,16 @@ Deno.test("PHASE6: 100-Scenario PC Builder Intelligence Benchmark & Quality Audi
     };
 
     const t0 = performance.now();
-    const recs = generateDynamicCatalogRecommendations(componentCatalog, answers, {
-      min: s.budgetBand.min,
-      max: s.budgetBand.max,
-    });
+    // As Find My PC asks: builds IT HUB must check, such as those with owned parts, are offered too.
+    const recs = generateDynamicCatalogRecommendations(
+      componentCatalog,
+      answers,
+      {
+        min: s.budgetBand.min,
+        max: s.budgetBand.max,
+      },
+      { allowUnverified: true },
+    );
     const t1 = performance.now();
     latencies.push(t1 - t0);
 
@@ -368,7 +377,7 @@ Deno.test("PHASE6: 100-Scenario PC Builder Intelligence Benchmark & Quality Audi
         }
 
         // 3. Check Critical Hardware Compatibility
-        const compatSummary = compatibility(r.parts);
+        const compatSummary = compatibility(r.parts, { ownedSlots: s.owned });
         if (!compatSummary.valid) {
           criticalCompatibilityErrors++;
         }
@@ -387,10 +396,15 @@ Deno.test("PHASE6: 100-Scenario PC Builder Intelligence Benchmark & Quality Audi
       suitableCount++;
     } else {
       // When 0 builds returned, check whether it is a genuine budget shortfall
-      const shortfall = getBudgetShortfallInfo(componentCatalog, answers, {
-        min: s.budgetBand.min,
-        max: s.budgetBand.max,
-      });
+      const shortfall = getBudgetShortfallInfo(
+        componentCatalog,
+        answers,
+        {
+          min: s.budgetBand.min,
+          max: s.budgetBand.max,
+        },
+        { allowUnverified: true },
+      );
 
       if (shortfall && shortfall.closestBuild.price > s.budgetBand.max) {
         // Correct behavior: honest budget shortfall accurately detected

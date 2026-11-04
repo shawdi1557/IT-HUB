@@ -31,6 +31,8 @@ export type SocketType = "AM4" | "AM5" | "LGA1700" | "LGA1851" | "LGA1200" | str
 export type RamGeneration = "DDR4" | "DDR5" | string;
 export type FormFactor = "ATX" | "Micro-ATX" | "Mini-ITX" | "E-ATX" | string;
 
+import type { SpecConfidence, SpecProblem } from "./spec-schema";
+
 /**
  * A manufacturer's published figures for one model. Compared only with the same architecture, and only
  * on the figures named in ranking.ts. These are specifications, not benchmark results.
@@ -46,6 +48,8 @@ export interface TechnicalSpecs {
   // Processor
   socket?: SocketType;
   tdpWatts?: number;
+  /** The most the processor can draw: Intel's Maximum Turbo Power. Not the same as tdpWatts. */
+  maxTurboPowerWatts?: number;
   hasIntegratedGraphics?: boolean;
   includesCooler?: boolean;
   supportedRamGen?: RamGeneration[];
@@ -75,6 +79,11 @@ export interface TechnicalSpecs {
   recommendedPsuWatts?: number;
   requiredPciePins?: string;
   requiredPcieConnectors?: string[];
+  /** Connectors the card needs. Zero is a real answer, and blank means nobody has said. */
+  pcie6Plus2Required?: number;
+  pcie16PinRequired?: number;
+  /** 8-pin plugs the 16-pin adapter in the card's box takes. Blank means no adapter is known of. */
+  pcie16PinAdapter8PinCount?: number;
 
   // Storage
   storageInterface?: "M.2 NVMe" | "SATA SSD" | "SATA HDD" | string;
@@ -86,6 +95,9 @@ export interface TechnicalSpecs {
   efficiencyRating?: string;
   psuFormFactor?: "ATX" | "SFX" | string;
   pciePowerConnectors?: string[];
+  /** Connectors the power supply provides. Zero is a real answer, and blank means nobody has said. */
+  pcie6Plus2Count?: number;
+  pcie16PinCount?: number;
 
   // Computer Case (Cabinet)
   maxGpuLengthMm?: number;
@@ -101,8 +113,10 @@ export interface TechnicalSpecs {
   // Published figures used to compare parts. Only the specification registry sets these.
   performance?: PublishedPerformanceFigures;
 
-  // Values read from the product title, tags or chip name, so nobody has stated them for this product.
-  inferredFromTitle?: (keyof TechnicalSpecs)[];
+  // Where each value came from. A value missing here is unknown.
+  fieldSources?: Partial<Record<keyof TechnicalSpecs, SpecConfidence>>;
+  // Values Shopify holds that couldn't be read, or that disagree with another source.
+  specProblems?: SpecProblem[];
 
   // Metadata & Provenance
   provenance?:
@@ -110,6 +124,8 @@ export interface TechnicalSpecs {
     | "manufacturer_verified"
     | "supplier_spec"
     | "title_derived"
+    | "it_hub_reviewed"
+    | "registry_unverified"
     | "internal_verified"
     | "unverified";
   lastVerifiedAt?: string;

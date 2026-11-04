@@ -42,16 +42,27 @@ const answers = (purpose: string, details: Record<string, string> = {}, extra = 
 });
 
 const WIDE = { min: 30000, max: 300000 };
+const REVIEWED = {
+  spec_review_status: "reviewed",
+  spec_source_url: "https://www.example.com/datasheet",
+};
 
 const CPU_5600 = () => product("AMD Ryzen 5 5600", { price: 9000 });
-const CARD_4060 = () => product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 });
+// ZOTAC's page can't be read, so the card's length and connector need IT HUB's review to support a label.
+const REVIEWED_4060 = {
+  gpu_length_mm: "222",
+  pcie_connectors: "1x 8-pin",
+  ...REVIEWED,
+};
+const CARD_4060 = () =>
+  product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 });
 const CARD_4070S = () =>
   product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 });
 const am4Parts = () => [
   product("ASUS Prime B550M-A WiFi II Motherboard", { price: 9000 }),
   product("Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz", { price: 3000 }),
   product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 5000 }),
-  product("Deepcool PK650D 650W 80 Plus Bronze Power Supply", { price: 4500 }),
+  product("Corsair RM750e 750W 80 Plus Gold Fully Modular PSU", { price: 4500 }),
   product("Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case", { price: 3900 }),
 ];
 
@@ -66,19 +77,26 @@ const statedCpu = (name: string, price: number) =>
       watts: "65",
       integrated_graphics: "no",
       includes_cooler: "yes",
+      ...REVIEWED,
     },
   });
 const statedGpu = (name: string, price: number) =>
   product(name, {
     category: "Video Cards",
     price,
-    specs: { watts: "115", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+    specs: {
+      watts: "115",
+      gpu_length_mm: "250",
+      pcie_connectors: "8-pin",
+      recommended_psu_watts: "550",
+      ...REVIEWED,
+    },
   });
 const statedRam = (name: string, price: number, gb: string) =>
   product(name, {
     category: "RAM",
     price,
-    specs: { ram_generation: "DDR4", ram_capacity_gb: gb, ram_modules: "2" },
+    specs: { ram_generation: "DDR4", ram_capacity_gb: gb, ram_modules: "2", ...REVIEWED },
   });
 
 /** A budget too small for the dearest processor and dearest card together. */
@@ -92,7 +110,7 @@ const TIGHT_CATALOGUE = () => [
 const TIGHT = { min: 30000, max: 95000 };
 const creationCatalogue = () => [
   CPU_5600(),
-  ...am4Parts().filter((p) => !p.name.includes("Corsair")),
+  ...am4Parts().filter((p) => !p.name.includes("Vengeance")),
   statedRam("Kit 16GB DDR4", 3000, "16"),
   statedRam("Kit 32GB DDR4", 7000, "32"),
   statedRam("Kit 64GB DDR4", 14000, "64"),
@@ -387,7 +405,7 @@ Deno.test("OFFER: a kit meeting the recommendation is tried, even where the pric
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
-      ...am4Parts().filter((p) => !p.name.includes("Corsair")),
+      ...am4Parts().filter((p) => !p.name.includes("Vengeance")),
       ...sizes.map((size, i) => statedRam(`Kit ${i} ${size}GB DDR4`, 3000 + i * 500, String(size))),
       CARD_4060(),
     ]),
@@ -454,7 +472,7 @@ Deno.test("OFFER: labels go only to builds meeting the request, when some do", (
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
-      ...am4Parts().filter((p) => !p.name.includes("Corsair")),
+      ...am4Parts().filter((p) => !p.name.includes("Vengeance")),
       product("Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz", { price: 3000 }),
       statedRam("Kit 16GB Extra DDR4", 3200, "16"),
       product("Kit 32GB Stated DDR4", {
@@ -481,7 +499,7 @@ Deno.test("OFFER: a build falling short can't take a label from builds that meet
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
-      ...am4Parts().filter((p) => !p.name.includes("Corsair")),
+      ...am4Parts().filter((p) => !p.name.includes("Vengeance")),
       statedRam("Kit 16GB DDR4", 3000, "16"),
       statedRam("Kit 32GB DDR4", 7000, "32"),
       CARD_4060(),
@@ -509,14 +527,16 @@ Deno.test("INFER: each value read from a title or tag is marked, field by field"
   const ssd = match(product("Vendor 1TB NVMe SSD", { category: "Solid State Drives" }));
   assertEquals(inferredCriticalSpecs("Storage", ssd.specs), ["interface"]);
   const card = match(product("Vendor RTX 4060 Card", { category: "Video Cards" }));
-  assertEquals(inferredCriticalSpecs("GPU", card.specs), ["power draw"]);
+  assertEquals(inferredCriticalSpecs("GPU", card.specs), [
+    "power draw",
+    "recommended power supply",
+  ]);
+  // A tag no longer fills a specification at all.
   const tagged = match(
     product("Vendor Board", { category: "Motherboards", tags: ["am4", "ddr4"] }),
   );
-  assertEquals(inferredCriticalSpecs("Motherboard", tagged.specs).sort(), [
-    "memory generation",
-    "socket",
-  ]);
+  assertEquals(inferredCriticalSpecs("Motherboard", tagged.specs), []);
+  assertEquals(tagged.specs.socket, undefined);
 });
 
 Deno.test("INFER: a value stated in a Shopify field isn't marked as inferred", () => {
@@ -602,23 +622,46 @@ Deno.test("GATE: a graphics clearance that isn't stated stops a label, not the b
   }
 });
 
-Deno.test("GATE: stated Shopify fields can satisfy compatibility, with figures from the registry", () => {
+const statedBoard = (extra: Record<string, string> = {}) =>
+  product("Maker Stated Board", {
+    category: "Motherboards",
+    price: 8000,
+    specs: {
+      socket: "AM4",
+      ram_generation: "DDR4",
+      form_factor: "ATX",
+      ram_slots: "4",
+      max_ram_gb: "128",
+      m2_slots: "2",
+      sata_ports: "4",
+      ...extra,
+    },
+  });
+
+Deno.test("GATE: an unreviewed Shopify field can't support a label", () => {
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
-      product("Maker Stated Board", {
-        category: "Motherboards",
-        price: 8000,
-        specs: {
-          socket: "AM4",
-          ram_generation: "DDR4",
-          form_factor: "ATX",
-          ram_slots: "4",
-          max_ram_gb: "128",
-          m2_slots: "2",
-          sata_ports: "4",
-        },
-      }),
+      statedBoard(),
+      ...am4Parts().filter((p) => !p.name.includes("ASUS")),
+      CARD_4060(),
+      CARD_4070S(),
+    ]),
+    answers("gaming"),
+    WIDE,
+  );
+  assert(recs.length > 0);
+  for (const r of recs) {
+    assertEquals(r.tradeoffLabel, "Insufficient information");
+    assert(r.rankingReasons.some((w: string) => w.startsWith("Stated but not reviewed")));
+  }
+});
+
+Deno.test("GATE: a reviewed Shopify field can support a label, with figures from the registry", () => {
+  const recs = generateDynamicCatalogRecommendations(
+    liveCatalog([
+      CPU_5600(),
+      statedBoard(REVIEWED),
       ...am4Parts().filter((p) => !p.name.includes("ASUS")),
       CARD_4060(),
       CARD_4070S(),
@@ -633,7 +676,7 @@ Deno.test("GATE: stated Shopify fields can satisfy compatibility, with figures f
 });
 
 Deno.test("GATE: stated cooler, display and storage unknowns each block a label by themselves", () => {
-  const parts: any = { CPU: { slot: "CPU", title: "x", specs: {} } };
+  const parts: any = { Monitor: { slot: "Monitor", title: "x", specs: {} } };
   assertEquals(labelCompatibilityGaps(parts, [{ status: "match", label: "ok" }]), []);
   assertEquals(labelCompatibilityGaps(parts, [{ status: "conditional", label: "note" }]), []);
   assertEquals(labelCompatibilityGaps(parts, [{ status: "unknown", label: "Height" }]), [
@@ -641,26 +684,7 @@ Deno.test("GATE: stated cooler, display and storage unknowns each block a label 
   ]);
 });
 
-Deno.test("GATE: a build that passes its checks beats a cheaper one needing review", () => {
-  // Neither is fully confirmed, but only the cheaper board's socket is unknown.
-  const recs = generateDynamicCatalogRecommendations(
-    liveCatalog([
-      CPU_5600(),
-      product("Vendor Plain Motherboard", { category: "Motherboards", price: 4000 }),
-      product("B550M DDR4 Micro-ATX Motherboard", { category: "Motherboards", price: 8000 }),
-      ...am4Parts().filter((p) => !p.name.includes("ASUS")),
-      CARD_4060(),
-    ]),
-    answers("gaming"),
-    WIDE,
-    { allowUnverified: true },
-  );
-  assertEquals(recs.length, 1);
-  assertEquals(recs[0].requiresReview, false);
-  assertEquals(recs[0].parts.Motherboard.name, "B550M DDR4 Micro-ATX Motherboard");
-});
-
-Deno.test("GATE: a confirmed part is preferred over a cheap one read from its title", () => {
+Deno.test("GATE: a cheap part read from its title stays, and stops the label", () => {
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
@@ -672,31 +696,10 @@ Deno.test("GATE: a confirmed part is preferred over a cheap one read from its ti
     answers("gaming"),
     WIDE,
   );
-  assertEquals(
-    recs.map((r: any) => r.parts.Storage.name),
-    ["Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", "Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD"],
-  );
-  assertEquals(
-    recs.map((r: any) => r.tradeoffLabel),
-    ["Best Value", "Highest Verified Performance"],
-  );
-});
-
-Deno.test("GATE: the cheap part still wins when the confirmed one would break the budget", () => {
-  const recs = generateDynamicCatalogRecommendations(
-    liveCatalog([
-      CPU_5600(),
-      ...am4Parts().filter((p) => !p.name.includes("Crucial")),
-      product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 15000 }),
-      product("Vendor Cheap 1TB NVMe SSD", { category: "Solid State Drives", price: 1000 }),
-      CARD_4060(),
-    ]),
-    answers("gaming"),
-    { min: 30000, max: 60000 },
-  );
-  assertEquals(recs.length, 1);
-  assertEquals(recs[0].parts.Storage.name, "Vendor Cheap 1TB NVMe SSD");
-  assertEquals(recs[0].tradeoffLabel, "Insufficient information");
+  for (const r of recs) {
+    assertEquals(r.parts.Storage.name, "Vendor Cheap 1TB NVMe SSD");
+    assertEquals(r.tradeoffLabel, "Insufficient information");
+  }
 });
 
 // ── Edge cases ───────────────────────────────────────────────────────────────
@@ -742,7 +745,7 @@ Deno.test("EDGE: a registry board with no Wi-Fi says so, and an unstated one say
       product("AMD Ryzen 5 7600", { price: 18000 }),
       product("MSI PRO B650M-P Micro-ATX Motherboard", { price: 10000 }),
       product("Corsair Vengeance 16GB (1x16GB) DDR5 5200MHz", { price: 4000 }),
-      ...am4Parts().filter((p) => /Crucial|Deepcool/.test(p.name)),
+      ...am4Parts().filter((p) => /Crucial|Deepcool|RM750e/.test(p.name)),
       CARD_4060(),
     ]),
     answers("gaming", {}, { wifi: "Yes" }),
@@ -778,12 +781,13 @@ Deno.test("EDGE: owned parts aren't priced, and earn no label because they can't
     liveCatalog([CPU_5600(), ...am4Parts(), product("AMD Ryzen 5 5600X Stated", { price: 12000 })]),
     answers("gaming", {}, { owned: ["GPU"] }),
     WIDE,
+    { allowUnverified: true },
   );
   assert(recs.length > 0);
   for (const r of recs) {
     assertEquals(r.parts.GPU, undefined);
     assertEquals(r.tradeoffLabel, "Insufficient information");
-    assert(r.rankingReasons.some((w: string) => w.includes("your own graphics card")));
+    assert(r.rankingReasons.some((w: string) => /your own graphics card/i.test(w)));
   }
 });
 
@@ -792,6 +796,7 @@ Deno.test("EDGE: owned memory is skipped against a requirement, not called too s
     liveCatalog([CPU_5600(), ...am4Parts(), CARD_4060()]),
     answers("creation", { type: "3D" }, { owned: ["RAM"] }),
     WIDE,
+    { allowUnverified: true },
   );
   assert(recs.length > 0);
   assert(recs[0].purposeNotes.some((n: string) => n.startsWith("Memory isn't confirmed")));

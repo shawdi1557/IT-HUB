@@ -8,5 +8,6 @@ export * from "./catalog";
 export * from "./recommendations";
 export * from "./ranking";
 export * from "./purpose";
+export * from "./spec-schema";
 export * from "./persistence";
 export * from "./checkout";

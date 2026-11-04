@@ -14,7 +14,6 @@ import type {
 import {
   calculateSystemPower,
   checkCompatibility,
-  inferredCriticalSpecs,
   labelCompatibilityGaps,
   toCanonicalComponent,
 } from "./compatibility";
@@ -77,15 +76,6 @@ function countUntriedCheckedParts(
   ).length;
 }
 
-/** Stated for this product, or on the specification registry. Not merely read from its title. */
-function hasConfirmedSpecs(item: NormalizedItem): boolean {
-  const status = item.verificationStatus || "";
-  if (status === "manufacturer_verified" || status === "verified_manufacturer") return true;
-  return (
-    status === "supplier_spec" && inferredCriticalSpecs(item.slot, item.raw?.specs).length === 0
-  );
-}
-
 /** A kit's total memory. Used only to tell builds apart, so a title is good enough where nothing states it. */
 function memoryGb(item?: NormalizedItem): number | undefined {
   if (!item) return undefined;
@@ -106,6 +96,7 @@ function uniqueById<T extends { id: string }>(items: T[]): T[] {
 /** Specification sources that mean someone checked this exact model. */
 const MANUFACTURER_CHECKED = new Set([
   "manufacturer_verified",
+  "it_hub_reviewed",
   "verified_manufacturer",
   "verified_technician",
   "internal_verified",
@@ -132,6 +123,7 @@ interface NormalizedItem {
   tdpWatts?: number;
   ratedWattage?: number;
   hasWifi?: boolean;
+  wifiStatedAbsent?: boolean;
   hasIntegratedGraphics?: boolean;
   includesCooler?: boolean;
   isLaptopSoDimm?: boolean;
@@ -164,7 +156,9 @@ function normalizeItem(raw: any, slot: ComponentSlotId): NormalizedItem {
 
   const hasWifi = isCanonical
     ? Boolean(raw.specs.hasWifi)
-    : Boolean(raw.wifi || /wifi|wi-fi/i.test(normTitle));
+    : raw.specs
+      ? Boolean(raw.specs.hasWifi)
+      : Boolean(raw.wifi || /wifi|wi-fi/i.test(normTitle));
 
   const hasIntegratedGraphics = isCanonical
     ? raw.specs.hasIntegratedGraphics
@@ -193,6 +187,7 @@ function normalizeItem(raw: any, slot: ComponentSlotId): NormalizedItem {
     tdpWatts,
     ratedWattage,
     hasWifi,
+    wifiStatedAbsent: raw.specs?.hasWifi === false,
     hasIntegratedGraphics,
     includesCooler,
     isLaptopSoDimm,
@@ -374,18 +369,10 @@ function synthesizeBuildConfigurations(
       ? 0
       : countUntriedCheckedParts("GPU", affordable(distinctGpus), triedGpus));
 
-  // Cheapest parts first. Where only some accessories have confirmed specifications, a second pass
-  // tries those first, so one cheap part read from its title can't stop a build being confirmed.
-  const accessories = [
-    ...(itemsBySlot.Storage || []),
-    ...(itemsBySlot.PSU || []),
-    ...(itemsBySlot.Cabinet || []),
-    ...(itemsBySlot.Cooler || []),
-  ];
-  const passes =
-    accessories.some(hasConfirmedSpecs) && !accessories.every(hasConfirmedSpecs)
-      ? [false, true]
-      : [false];
+  // Cheapest parts first, whatever their confidence, and the build says what isn't confirmed. A power
+  // supply is the one exception to trying only the cheapest: one with an unstated wattage can't be
+  // assumed adequate, so it's tried as a separate option that goes to review.
+  const psuPreferences = allowUnverified ? ["adequate", "unstated"] : ["adequate"];
 
   for (const cpu of triedCpus) {
     const cpuSocket = cpu.socket;
@@ -473,14 +460,7 @@ function synthesizeBuildConfigurations(
         }
 
         for (const gpu of gpuBranches)
-          for (const preferConfirmed of passes) {
-            const ordered = (items: NormalizedItem[]) =>
-              preferConfirmed
-                ? [
-                    ...items.filter(hasConfirmedSpecs),
-                    ...items.filter((item) => !hasConfirmedSpecs(item)),
-                  ]
-                : items;
+          for (const psuPreference of psuPreferences) {
             // Each remaining slot takes the first option that fits the parts already chosen, so one
             // unsuitable cheap product can't rule a build out while a suitable one is on sale.
             const chosen: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {
@@ -495,7 +475,7 @@ function synthesizeBuildConfigurations(
               );
 
             // 6. Storage
-            const storage = ordered(storageOptions).find((option) => fits("Storage", option));
+            const storage = storageOptions.find((option) => fits("Storage", option));
             if (!storage && !ownedSlots.has("Storage")) continue;
             if (storage && ownedSlots.has("Storage")) {
               // Already owned, so nothing is added to the build.
@@ -504,9 +484,7 @@ function synthesizeBuildConfigurations(
             }
 
             // 7. Cabinet and cooler. A processor that comes with a cooler doesn't have another added.
-            const allCoolers = ordered(
-              (itemsBySlot.Cooler || []).slice().sort((a, b) => a.price - b.price),
-            );
+            const allCoolers = (itemsBySlot.Cooler || []).slice().sort((a, b) => a.price - b.price);
             const needsCooler = !cpu.includesCooler && !ownedSlots.has("Cooler");
             // Needed but not sold: only a processor whose cooler is merely unstated can go ahead, and
             // only as a build marked for review.
@@ -527,7 +505,7 @@ function synthesizeBuildConfigurations(
               if (needsCooler && allCoolers.length > 0 && !cooler) continue;
             } else {
               let placed = false;
-              for (const option of ordered(allCabinets)) {
+              for (const option of allCabinets) {
                 if (!fits("Cabinet", option)) continue;
                 chosen.Cabinet = toEnginePart("Cabinet", option);
                 const fittingCooler = needsCooler
@@ -559,17 +537,20 @@ function synthesizeBuildConfigurations(
             // A power supply with no stated wattage never counts as meeting the requirement.
             const matchingPsus = allPsus
               .filter((p) => (p.ratedWattage || 0) >= recWatts)
-              .sort((a, b) => (a.ratedWattage || 0) - (b.ratedWattage || 0));
-            const unstatedPsus = allowUnverified ? allPsus.filter((p) => !p.ratedWattage) : [];
+              .sort((a, b) => a.price - b.price);
+            const unstatedPsus = allPsus
+              .filter((p) => !p.ratedWattage)
+              .sort((a, b) => a.price - b.price);
             const otherPsus = allPsus
               .filter((p) => (p.ratedWattage || 0) < recWatts && p.ratedWattage)
               .sort((a, b) => (b.ratedWattage || 0) - (a.ratedWattage || 0));
-            const lastResort = allowUnverified ? [] : allPsus.filter((p) => !p.ratedWattage);
+            const psuOrder =
+              psuPreference === "unstated"
+                ? [...unstatedPsus, ...matchingPsus, ...otherPsus]
+                : [...matchingPsus, ...otherPsus, ...unstatedPsus];
             const psu = ownedSlots.has("PSU")
               ? undefined
-              : [...ordered(matchingPsus), ...unstatedPsus, ...otherPsus, ...lastResort].find(
-                  (option) => fits("PSU", option),
-                );
+              : psuOrder.find((option) => fits("PSU", option));
             if (!psu && !ownedSlots.has("PSU")) continue;
 
             // Form parts map
@@ -596,7 +577,7 @@ function synthesizeBuildConfigurations(
             const compatSummary = checkCompatibility(canonicalPartsForCompat, {
               workload: isGaming ? "gaming" : isCreation ? "creation" : isWork ? "work" : "general",
               mode: "automated",
-              ownsGpu: ownedSlots.has("GPU"),
+              ownedSlots,
             });
 
             // Errors always rule a build out. Unknowns do too, unless the caller asked for builds that
@@ -611,11 +592,7 @@ function synthesizeBuildConfigurations(
               .filter((i) => i.status === "unknown")
               .map((i) => i.label);
             const requiresReview = !compatSummary.validForAutomatedRecommendation;
-            const labelGaps = labelCompatibilityGaps(
-              canonicalPartsForCompat,
-              compatSummary.items,
-              ownedSlots,
-            );
+            const labelGaps = labelCompatibilityGaps(canonicalPartsForCompat, compatSummary.items);
 
             // Calculate unowned total price
             let price = 0;
@@ -713,29 +690,42 @@ function synthesizeBuildConfigurations(
     const cpuName = c.parts.CPU?.name.replace(/^\[TEST\]\s*/i, "").trim() || "";
     const gpuName = c.parts.GPU?.name.replace(/^\[TEST\]\s*/i, "").trim() || "iGPU";
     const ramCap = memoryGb(c.parts.RAM) ?? "unstated";
-    const key = `${cpuName}|${gpuName}|${ramCap}`;
+    // A build that needs review stays separate from one that doesn't, so the customer sees both a
+    // cheaper option IT HUB must check and a dearer one that needs no checking.
+    const key = `${cpuName}|${gpuName}|${ramCap}|${c.requiresReview}`;
 
     if (!groupMap.has(key)) {
       groupMap.set(key, c);
     } else {
       const existing = groupMap.get(key)!;
       // The same processor, graphics card and memory: keep what fits the budget, then the requested
-      // Wi-Fi, then a build that needs no review, then one that's fully confirmed, then the lower price.
+      // Wi-Fi, then the lower price. A cheaper part isn't swapped for a dearer, better-documented one.
       const hasWifi = (config: SynthesizedConfiguration) =>
         Boolean(config.parts.Motherboard?.hasWifi);
       const inBudget = (config: SynthesizedConfiguration) =>
         !maxBudget || config.price <= maxBudget;
-      const confirmed = (config: SynthesizedConfiguration) => config.labelGaps.length === 0;
       let better = c.price < existing.price;
       if (inBudget(c) !== inBudget(existing)) better = inBudget(c);
       else if (requireWifi && hasWifi(c) !== hasWifi(existing)) better = hasWifi(c);
-      else if (c.requiresReview !== existing.requiresReview) better = !c.requiresReview;
-      else if (confirmed(c) !== confirmed(existing)) better = confirmed(c);
       if (better) groupMap.set(key, c);
     }
   }
 
-  const allDistinctCandidates = Array.from(groupMap.values()).sort((a, b) => a.price - b.price);
+  // A build needing review adds nothing if the same parts cost no more without needing it.
+  const sameParts = (config: SynthesizedConfiguration) =>
+    `${config.parts.CPU?.id}|${config.parts.GPU?.id}|${memoryGb(config.parts.RAM)}`;
+  const allDistinctCandidates = Array.from(groupMap.values())
+    .filter(
+      (config) =>
+        !config.requiresReview ||
+        !Array.from(groupMap.values()).some(
+          (other) =>
+            !other.requiresReview &&
+            sameParts(other) === sameParts(config) &&
+            other.price <= config.price,
+        ),
+    )
+    .sort((a, b) => a.price - b.price);
 
   // ── Strict Budget Ceiling Filter ──────────────────────────────────────────
   const withinBudget = maxBudget

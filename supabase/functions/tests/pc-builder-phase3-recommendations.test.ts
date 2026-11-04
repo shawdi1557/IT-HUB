@@ -130,6 +130,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 7,
     specs: {
       powerWatts: 115,
+      pcie_connectors: "8-pin",
       watts: "115",
       lengthMm: 242,
       recommendedPsuWatts: 450,
@@ -147,6 +148,7 @@ const multiTierShopifyProducts: any[] = [
     stock: 3,
     specs: {
       powerWatts: 140,
+      pcie_connectors: "8-pin",
       watts: "140",
       lengthMm: 260,
       recommendedPsuWatts: 550,
@@ -179,6 +181,7 @@ const multiTierShopifyProducts: any[] = [
       ratedWattage: 650,
       capacity_watts: "650",
       pciePowerConnectors: ["8-pin", "8-pin"],
+      pcie_connectors: "8-pin,8-pin",
       provenance: "verified_manufacturer",
     },
   },

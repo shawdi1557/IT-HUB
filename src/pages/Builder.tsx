@@ -43,6 +43,7 @@ import {
   savePendingQuotation,
   getPendingQuotation,
   clearPendingQuotation,
+  pendingMatchesBuild,
   generateWhatsAppQuotation,
   generateDynamicCatalogRecommendations,
   getBudgetShortfallInfo,
@@ -67,13 +68,21 @@ function toCanonicalRecord(
   return canonicalParts;
 }
 
+/** The sentences listing each unconfirmed value, as opposed to saying what that means for the build. */
+const isUnconfirmedDetail = (reason: string) =>
+  /^(?:Not yet confirmed|Not stated|Read from the product title|Stated but not reviewed)/.test(
+    reason,
+  );
+
 /** Why a build has its label, and what the figures behind it rest on. */
 function RankingEvidence({ build, compact = false }: { build: DetailBuild; compact?: boolean }) {
   if (!build.rankingReasons?.length && !build.specSources && !build.purposeNotes?.length) {
     return null;
   }
-  // A card has room for the main reasons. The build's own page lists every one.
-  const reasons = compact ? build.rankingReasons?.slice(0, 2) : build.rankingReasons;
+  // A customer needs the outcome first. The list of what's unconfirmed is there for anyone who wants it.
+  const reasons = (build.rankingReasons || []).filter((reason) => !isUnconfirmedDetail(reason));
+  const toConfirm = (build.rankingReasons || []).filter(isUnconfirmedDetail);
+  const shown = compact ? reasons.slice(0, 2) : reasons;
   return (
     <div className="mt-3 space-y-1.5 text-xs leading-5 text-muted-foreground">
       {build.purposeNotes?.map((note) => (
@@ -81,9 +90,23 @@ function RankingEvidence({ build, compact = false }: { build: DetailBuild; compa
           {note}
         </p>
       ))}
-      {reasons?.map((reason) => (
+      {shown.map((reason) => (
         <p key={reason}>{reason}</p>
       ))}
+      {toConfirm.length > 0 && (
+        <details className="group">
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-primary">
+            What IT HUB still has to confirm
+          </summary>
+          <div className="space-y-1.5 pb-1">
+            {toConfirm.map((reason) => (
+              <p key={reason} className="break-words">
+                {reason}
+              </p>
+            ))}
+          </div>
+        </details>
+      )}
       {build.specSources?.CPU && (
         <p>
           <strong className="text-foreground">Processor specs:</strong> {build.specSources.CPU}
@@ -131,12 +154,14 @@ function useLiveParts(initial: Record<string, ComponentOption>) {
 }
 
 /** What still has to be chosen before a quotation can be requested. */
-function missingForQuotation(parts: Record<string, ComponentOption>) {
+function missingForQuotation(parts: Record<string, ComponentOption>, owned: string[] = []) {
   const missing = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"].filter(
-    (type) => !parts[type],
+    (type) => !parts[type] && !owned.includes(type),
   );
   if (parts.CPU?.includesCooler === false && !parts.Cooler) missing.push("Cooler");
-  if (parts.CPU?.hasIntegratedGraphics === false && !parts.GPU) missing.push("GPU");
+  if (parts.CPU?.hasIntegratedGraphics === false && !parts.GPU && !owned.includes("GPU")) {
+    missing.push("GPU");
+  }
   return missing;
 }
 
@@ -216,11 +241,13 @@ const EXPERT_BUILDER_SLOTS = [
 function ExpertBuilder({
   initialParts,
   initialName,
+  initialOwned = [],
   savedId,
   onBack,
 }: {
   initialParts: Record<string, ComponentOption>;
   initialName: string;
+  initialOwned?: string[];
   savedId?: string;
   onBack: () => void;
 }) {
@@ -244,23 +271,30 @@ function ExpertBuilder({
     (sum, item) => sum + (isUnavailable(item) ? 0 : item.price),
     0,
   );
-  const { result, watts, recommended, valid, complete, summary } = compatibility(parts);
+  const [ownedAtStart, setOwnedAtStart] = useState(initialOwned);
+  // Choosing a part for a slot means the customer is no longer using their own.
+  const owned = ownedAtStart.filter((type) => !parts[type]);
+  const ownedLabel = (type: string) => (owned.includes(type) ? "Already owned" : undefined);
+  const { result, watts, recommended, valid, complete, summary } = compatibility(parts, {
+    ownedSlots: owned,
+  });
   const unavailable = Object.keys(parts).filter((type) => isUnavailable(parts[type]));
   const canRequest = complete && valid && unavailable.length === 0;
   const hasConflict = Boolean(findConflict(summary.items));
-  const missing = missingForQuotation(parts);
+  const missing = missingForQuotation(parts, owned);
 
-  // Restore any pending quotation saved before guest login
+  // After signing in, offer the build kept for it. A different build on screen is left alone.
   useEffect(() => {
     if (store.loggedIn) {
       const pending = getPendingQuotation();
-      if (pending && pending.mode === "wizard") {
-        if (pending.parts && Object.keys(pending.parts).length > 0) {
-          setParts(pending.parts);
-        }
-        if (pending.name) {
-          setName(pending.name);
-        }
+      if (pending?.mode !== "wizard") return;
+      const nothingChosenYet = Object.keys(parts).length === 0;
+      if (nothingChosenYet && Object.keys(pending.parts || {}).length > 0) {
+        setParts(pending.parts);
+        setName(pending.name || "My custom PC");
+        setOwnedAtStart(pending.ownedSlots || []);
+        setPendingRestored(true);
+      } else if (pendingMatchesBuild(pending, parts, owned)) {
         setPendingRestored(true);
       }
     }
@@ -274,7 +308,8 @@ function ExpertBuilder({
     mode: "expert",
     currency: "INR",
     components: toCanonicalRecord(parts),
-    compatibility: compatibility(parts).summary,
+    compatibility: summary,
+    ownedSlots: owned as any,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
@@ -296,6 +331,7 @@ function ExpertBuilder({
         name: canonical.name,
         parts: { ...parts },
         price: total,
+        owned,
       };
       setCurrentId(res.id);
       if (currentId && store.builds.some((item) => item.id === currentId)) {
@@ -337,6 +373,7 @@ function ExpertBuilder({
         build: canonical,
         parts,
         name: name.trim() || "My custom PC",
+        ownedSlots: owned,
       });
       store.notify(
         "Please sign in to submit your official quotation request. Your build has been saved!",
@@ -360,6 +397,7 @@ function ExpertBuilder({
         build: canonical,
         parts,
         name: name.trim() || "My custom PC",
+        ownedSlots: owned,
       });
       store.notify("Please sign in to submit your official quotation request.");
       store.setAuthOpen(true);
@@ -440,8 +478,13 @@ function ExpertBuilder({
                   0{index + 1} · {type.toUpperCase()}
                 </p>
                 <h2 className="mt-1 text-sm font-semibold">
-                  {parts[type]?.name || `Select a ${inSentence(type)}`}
+                  {parts[type]?.name || ownedLabel(type) || `Select a ${inSentence(type)}`}
                 </h2>
+                {ownedLabel(type) && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Not included in the estimate. IT HUB will check it fits.
+                  </p>
+                )}
                 {parts[type] &&
                   (isUnavailable(parts[type]) ? (
                     <p className="mt-1 text-xs font-medium text-red-600">
@@ -502,7 +545,18 @@ function ExpertBuilder({
                   <strong className="shrink-0">{money(part.price)}</strong>
                 </div>
               ))}
-              {!partList.length && (
+              {owned.map((type) => (
+                <div key={type} className="flex justify-between gap-3 text-xs">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {type}
+                    </p>
+                    <p className="mt-0.5 font-medium">Already owned</p>
+                  </div>
+                  <strong className="shrink-0">Not priced</strong>
+                </div>
+              ))}
+              {!partList.length && !owned.length && (
                 <p className="text-xs leading-6 text-muted-foreground">
                   A blank canvas for your next setup. Start with a processor.
                 </p>
@@ -757,7 +811,7 @@ function ExpertBuilder({
             }
             return filtered.map((item) => {
               const conflict = findConflict(
-                compatibility({ ...parts, [selection]: item }).summary.items,
+                compatibility({ ...parts, [selection]: item }, { ownedSlots: owned }).summary.items,
               );
               return (
                 <button
@@ -946,8 +1000,16 @@ const budgets: Budget[] = [
     max: 300000,
   },
 ];
-const brandOptions = ["AMD", "Intel", "NVIDIA"];
-const ownedOptions = ["Monitor", "GPU", "Storage", "RAM", "Keyboard/Mouse"];
+/** Only these can be left out of a build. The fit of anything else can't be checked. */
+const ownedOptions = [
+  { slot: "GPU", label: "Graphics card" },
+  { slot: "RAM", label: "RAM" },
+  { slot: "Storage", label: "Storage" },
+];
+const wifiOptions = [
+  { value: "Yes", label: "Yes" },
+  { value: "No", label: "Not needed" },
+];
 const partOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const partLabels: Record<string, string> = { Cooler: "CPU Cooler" };
 const explanations: Record<string, string> = {
@@ -1015,6 +1077,7 @@ function alternativeFor(
   catalog: Record<string, ComponentOption[]>,
   parts: Record<string, ComponentOption>,
   type: string,
+  owned: string[] = [],
 ) {
   const current = parts[type];
   if (!current) return undefined;
@@ -1023,7 +1086,7 @@ function alternativeFor(
       (item) =>
         item.id !== current.id &&
         item.stock !== 0 &&
-        compatibility({ ...parts, [type]: item }).valid,
+        compatibility({ ...parts, [type]: item }, { ownedSlots: owned }).valid,
     )
     .sort((a, b) => Math.abs(a.price - current.price) - Math.abs(b.price - current.price))[0];
 }
@@ -1119,7 +1182,7 @@ function BuildDetail({
   savedId?: string;
   startCustomizing?: boolean;
   onBack: () => void;
-  onExpert: (parts: Record<string, ComponentOption>, name: string) => void;
+  onExpert: (parts: Record<string, ComponentOption>, name: string, owned: string[]) => void;
 }) {
   const store = useStore();
   const catalog = store.componentCatalog;
@@ -1141,20 +1204,11 @@ function BuildDetail({
     buildName: string;
   } | null>(null);
 
-  // Restore any pending quotation saved before guest login
+  // After signing in, offer the build kept for it. A different build on screen is left alone.
   useEffect(() => {
     if (store.loggedIn) {
       const pending = getPendingQuotation();
-      if (pending && pending.mode === "customise") {
-        if (pending.parts && Object.keys(pending.parts).length > 0) {
-          setParts(pending.parts);
-        }
-        if (pending.name) {
-          setName(pending.name);
-        }
-        if (pending.ownedSlots) {
-          setOwned(pending.ownedSlots);
-        }
+      if (pending?.mode === "customise" && pendingMatchesBuild(pending, parts, owned)) {
         setPendingRestored(true);
       }
     }
@@ -1166,9 +1220,9 @@ function BuildDetail({
   const componentTotal = sumParts(priced);
   const assembly = store.assemblyCharge || 0;
   const total = componentTotal + assembly;
-  const checks = compatibility(parts);
+  const checks = compatibility(parts, { ownedSlots: owned });
   const canRequest = checks.valid && checks.complete && unavailable.length === 0;
-  const missing = missingForQuotation(parts);
+  const missing = missingForQuotation(parts, owned);
   const changed = JSON.stringify(parts) !== JSON.stringify(initial.parts);
   // While customizing, every slot stays on screen, so a removed part can be added back.
   const rows = customizing
@@ -1224,7 +1278,7 @@ function BuildDetail({
     mode: "guided",
     currency: "INR",
     components: toCanonicalRecord(parts),
-    compatibility: compatibility(parts).summary,
+    compatibility: checks.summary,
     designedFor: initial.designedFor,
     templateId: initial.templateId,
     ownedSlots: owned as any,
@@ -1433,7 +1487,7 @@ function BuildDetail({
               const isOwned = owned.includes(type);
               const alt =
                 part && part.stock === 0 && !isOwned
-                  ? alternativeFor(catalog, parts, type)
+                  ? alternativeFor(catalog, parts, type, owned)
                   : undefined;
               return (
                 <div key={type} className="rounded-2xl border border-border bg-white p-4 md:p-5">
@@ -1556,7 +1610,7 @@ function BuildDetail({
               </div>
               {customizing && (
                 <button
-                  onClick={() => onExpert(parts, name)}
+                  onClick={() => onExpert(parts, name, owned)}
                   className="mt-4 flex items-center gap-2 text-xs font-semibold text-primary"
                 >
                   <Wrench size={13} /> Open in Expert Mode
@@ -1672,7 +1726,7 @@ function BuildDetail({
                 {savingBuild ? "Saving to Account…" : currentId ? "Save Changes" : "Save Build"}
               </Button>
               {!customizing && (
-                <Button variant="secondary" onClick={() => onExpert(parts, name)}>
+                <Button variant="secondary" onClick={() => onExpert(parts, name, owned)}>
                   <SlidersHorizontal size={15} /> Customize in Expert Mode
                 </Button>
               )}
@@ -1789,7 +1843,7 @@ function BuildDetail({
             const slotItems = catalog[selection] || [];
             if (slotItems.length === 0) return <EmptyCatalog />;
             return slotItems.map((item) => {
-              const check = compatibility({ ...parts, [selection]: item });
+              const check = compatibility({ ...parts, [selection]: item }, { ownedSlots: owned });
               const issue = check.result.find((row) => row.state === "error");
               const unverifiedCheck = check.summary.items.find((row) => row.status === "unknown");
               const current = parts[selection];
@@ -1856,6 +1910,7 @@ function SmartBuilder() {
     parts: Record<string, ComponentOption>;
     name: string;
     savedId?: string;
+    owned?: string[];
   }>({ parts: {}, name: "My custom PC" });
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(emptyAnswers);
@@ -1901,32 +1956,44 @@ function SmartBuilder() {
     }
   }, [store.products.length, store.catalogLoading]);
 
+  // A phone can reload the page while the customer reads the code, so the kept build has to come back
+  // from here as well. It opens only from the landing page, so it never replaces a build on screen.
+  useEffect(() => {
+    if (!store.loggedIn || mode !== "landing" || detail) return;
+    const pending = getPendingQuotation();
+    if (!pending?.parts || Object.keys(pending.parts).length === 0) return;
+    if (pending.mode === "wizard") {
+      setExpertSeed({ parts: pending.parts, name: pending.name, owned: pending.ownedSlots });
+      setMode("expert");
+    } else {
+      setDetail({
+        name: pending.name,
+        designedFor: pending.build?.designedFor || "your custom configuration",
+        highlights: [],
+        parts: pending.parts,
+        owned: pending.ownedSlots || [],
+        templateId: pending.build?.templateId,
+      });
+      setMode("smart");
+    }
+  }, [store.loggedIn]);
+
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next });
   const budget = resolvedBudget(answers);
-  // Builds that pass every check come first. Only when there are none, because the catalogue doesn't
-  // state enough, are builds offered that IT HUB has to check, and each one says so.
+  // Cheaper builds IT HUB has to check are offered beside confirmed ones, and each one says so.
   const { recommendations, shortfallInfo } = useMemo(() => {
     if (step !== 2) return { recommendations: [], shortfallInfo: null };
-    const confirmed = generateDynamicCatalogRecommendations(
-      store.componentCatalog,
-      answers,
-      budget,
-    );
-    const builds =
-      confirmed.length > 0
-        ? confirmed
-        : generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget, {
-            allowUnverified: true,
-          });
+    const builds = generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget, {
+      allowUnverified: true,
+    });
     return {
       recommendations: builds,
       shortfallInfo:
         builds.length > 0
           ? null
-          : (getBudgetShortfallInfo(store.componentCatalog, answers, budget) ??
-            getBudgetShortfallInfo(store.componentCatalog, answers, budget, {
+          : getBudgetShortfallInfo(store.componentCatalog, answers, budget, {
               allowUnverified: true,
-            })),
+            }),
     };
   }, [step, store.componentCatalog, answers, budget?.min, budget?.max]);
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
@@ -1939,6 +2006,13 @@ function SmartBuilder() {
   const basedOn = [
     purposeInfo?.title,
     ...Object.values(answers.details).filter((value) => value && value !== "Not sure"),
+    answers.wifi === "Yes" ? "Wi-Fi" : "",
+    answers.owned.length > 0
+      ? `Own ${ownedOptions
+          .filter(({ slot }) => answers.owned.includes(slot))
+          .map(({ label }) => label)
+          .join(", ")}`
+      : "",
     budget?.label,
   ]
     .filter(Boolean)
@@ -1957,6 +2031,7 @@ function SmartBuilder() {
       <ExpertBuilder
         initialParts={expertSeed.parts.CPU || !saved ? expertSeed.parts : saved.parts}
         initialName={expertSeed.parts.CPU || !saved ? expertSeed.name : saved.name}
+        initialOwned={expertSeed.parts.CPU || !saved ? expertSeed.owned : saved.owned}
         savedId={expertSeed.savedId || saved?.id}
         onBack={() => {
           clearSaved();
@@ -2063,7 +2138,12 @@ function SmartBuilder() {
                       variant="secondary"
                       className="text-xs flex-1 py-1"
                       onClick={() => {
-                        setExpertSeed({ parts: b.parts, name: b.name, savedId: b.id });
+                        setExpertSeed({
+                          parts: b.parts,
+                          name: b.name,
+                          savedId: b.id,
+                          owned: b.owned,
+                        });
                         setMode("expert");
                       }}
                     >
@@ -2094,8 +2174,8 @@ function SmartBuilder() {
             }
             scrollTop();
           }}
-          onExpert={(parts, name) => {
-            setExpertSeed({ parts, name, savedId: saved?.id });
+          onExpert={(parts, name, owned) => {
+            setExpertSeed({ parts, name, savedId: saved?.id, owned });
             setMode("expert");
           }}
         />
@@ -2169,7 +2249,7 @@ function SmartBuilder() {
                             details: { ...answers.details, [key]: active ? "" : option },
                           })
                         }
-                        className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                           active
                             ? "border-primary bg-secondary text-primary"
                             : "border-border bg-white hover:border-primary"
@@ -2182,6 +2262,73 @@ function SmartBuilder() {
                 </div>
               </fieldset>
             ))}
+          {answers.purpose && (
+            <>
+              <fieldset className="mt-8">
+                <legend className="text-sm font-bold">
+                  Do you need Wi-Fi?{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {wifiOptions.map(({ value, label }) => {
+                    const active = answers.wifi === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => update({ wifi: active ? "" : value })}
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          active
+                            ? "border-primary bg-secondary text-primary"
+                            : "border-border bg-white hover:border-primary"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <fieldset className="mt-8">
+                <legend className="text-sm font-bold">
+                  Do you already own any of these?{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {ownedOptions.map(({ slot, label }) => {
+                    const active = answers.owned.includes(slot);
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          update({
+                            owned: active
+                              ? answers.owned.filter((item) => item !== slot)
+                              : [...answers.owned, slot],
+                          })
+                        }
+                        className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          active
+                            ? "border-primary bg-secondary text-primary"
+                            : "border-border bg-white hover:border-primary"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {answers.owned.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Parts you own aren't priced. IT HUB will check they fit the build.
+                  </p>
+                )}
+              </fieldset>
+            </>
+          )}
           <div className="mt-10">
             <Button disabled={!purposeReady} onClick={() => go(1)}>
               Continue <ArrowRight size={15} />

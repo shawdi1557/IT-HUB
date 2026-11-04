@@ -14,6 +14,14 @@ import type { Product, ComponentOption } from "../../data/catalog";
 import { shopifyConfig, fetchAllShopifyProducts } from "../shopify";
 import { toVariantGid } from "../shopify-schema";
 import { supabase } from "../supabase";
+import { labelCriticalFields } from "./compatibility";
+import {
+  readSpecReview,
+  readStatedSpecs,
+  sameSpecValue,
+  type SpecConfidence,
+  type SpecProblem,
+} from "./spec-schema";
 
 export interface DatabaseHardwareMapping {
   product: Partial<HardwareProductRecord>;
@@ -55,16 +63,32 @@ export async function loadDatabaseHardwareSpecs(): Promise<void> {
   }
 }
 
+export interface RegistrySource {
+  url: string;
+  checkedOn: string;
+  /** The values read on this page. Anything else on the entry isn't manufacturer-verified. */
+  fields: (keyof TechnicalSpecs)[];
+  /** Search results quoting a page aren't the page, so a "search" source verifies nothing. */
+  readVia: "direct" | "search";
+  note?: string;
+}
+
 export interface VerifiedSpecEntry {
   specs: TechnicalSpecs;
   defaultPrice: number;
   title: string;
   aliases?: string[];
+  /** Words a title must also have, because the model name alone also fits other speeds or versions. */
+  titleMustHave?: string[];
+  /** Words that mean a title is a different version of this model, with different specifications. */
+  notIfTitleHas?: string[];
+  /** Absent means no official page confirming this exact product was found. */
+  source?: RegistrySource;
 }
 
 /**
- * Verified Technical Specification Registry for hardware components.
- * Sourced from official manufacturer datasheets (AMD, Intel, ASUS, MSI, Corsair, NVIDIA, etc.)
+ * Technical specification registry. A value counts as manufacturer-verified only if the entry's source
+ * lists it. The rest, and every value on an entry with no source, stay on the list unconfirmed.
  */
 export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
   // ─── Processors ───
@@ -72,6 +96,12 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "AMD Ryzen 5 7600 (6 Cores / 12 Threads)",
     defaultPrice: 18999,
     aliases: ["ryzen 5 7600", "r5 7600", "7600"],
+    source: {
+      url: "https://www.amd.com/en/products/processors/desktops/ryzen/7000-series/amd-ryzen-5-7600.html",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["socket", "tdpWatts", "hasIntegratedGraphics", "includesCooler", "supportedRamGen"],
+    },
     specs: {
       performance: {
         architecture: "Zen 4",
@@ -91,14 +121,18 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       hasIntegratedGraphics: true,
       includesCooler: true,
       supportedRamGen: ["DDR5"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "cpu-r7-9700x": {
     title: "AMD Ryzen 7 9700X (8 Cores / 16 Threads)",
     defaultPrice: 34999,
     aliases: ["ryzen 7 9700x", "r7 9700x", "9700x"],
+    source: {
+      url: "https://www.amd.com/en/products/processors/desktops/ryzen/9000-series/amd-ryzen-7-9700x.html",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["socket", "tdpWatts", "hasIntegratedGraphics", "includesCooler", "supportedRamGen"],
+    },
     specs: {
       performance: {
         architecture: "Zen 5",
@@ -118,14 +152,18 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       hasIntegratedGraphics: true,
       includesCooler: false,
       supportedRamGen: ["DDR5"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "cpu-r5-5600": {
     title: "AMD Ryzen 5 5600 (6 Cores / 12 Threads)",
     defaultPrice: 10999,
     aliases: ["ryzen 5 5600", "r5 5600", "5600"],
+    source: {
+      url: "https://www.amd.com/en/support/downloads/drivers.html/processors/ryzen/ryzen-5000-series/amd-ryzen-5-5600.html",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["socket", "tdpWatts", "hasIntegratedGraphics", "includesCooler", "supportedRamGen"],
+    },
     specs: {
       performance: {
         architecture: "Zen 3",
@@ -137,7 +175,7 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
           cacheMb: 32,
         },
         sourceUrl:
-          "https://www.amd.com/en/products/processors/desktops/ryzen/5000-series/amd-ryzen-5-5600.html",
+          "https://www.amd.com/en/support/downloads/drivers.html/processors/ryzen/ryzen-5000-series/amd-ryzen-5-5600.html",
         checkedOn: "2026-11-03",
       },
       socket: "AM4",
@@ -145,14 +183,26 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       hasIntegratedGraphics: false,
       includesCooler: true,
       supportedRamGen: ["DDR4"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "cpu-i5-12400f": {
     title: "Intel Core i5-12400F (6 Cores / 12 Threads)",
     defaultPrice: 9499,
     aliases: ["core i5-12400f", "i5 12400f", "12400f"],
+    source: {
+      url: "https://www.intel.com/content/www/us/en/products/sku/134587/intel-core-i512400f-processor-18m-cache-up-to-4-40-ghz/specifications.html",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "socket",
+        "tdpWatts",
+        "maxTurboPowerWatts",
+        "hasIntegratedGraphics",
+        "includesCooler",
+        "supportedRamGen",
+      ],
+      note: "No graphics and the boxed cooler are from Intel's support pages.",
+    },
     specs: {
       performance: {
         architecture: "Alder Lake",
@@ -169,17 +219,29 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       },
       socket: "LGA1700",
       tdpWatts: 65,
+      maxTurboPowerWatts: 117,
       hasIntegratedGraphics: false,
       includesCooler: true,
       supportedRamGen: ["DDR4", "DDR5"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "cpu-i5-14600k": {
     title: "Intel Core i5-14600K (14 Cores / 20 Threads)",
     defaultPrice: 28499,
     aliases: ["core i5-14600k", "i5 14600k", "14600k"],
+    source: {
+      url: "https://www.intel.com/content/www/us/en/products/sku/236799/intel-core-i5-processor-14600k-24m-cache-up-to-5-30-ghz/specifications.html",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "socket",
+        "tdpWatts",
+        "maxTurboPowerWatts",
+        "hasIntegratedGraphics",
+        "supportedRamGen",
+      ],
+      note: "The page doesn't say whether a cooler is included.",
+    },
     specs: {
       performance: {
         architecture: "Raptor Lake",
@@ -196,11 +258,10 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       },
       socket: "LGA1700",
       tdpWatts: 125,
+      maxTurboPowerWatts: 181,
       hasIntegratedGraphics: true,
       includesCooler: false,
       supportedRamGen: ["DDR4", "DDR5"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -209,23 +270,53 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "MSI PRO B650M-P Micro-ATX Motherboard",
     defaultPrice: 10499,
     aliases: ["pro b650m-p", "b650m-p"],
+    notIfTitleHas: ["wifi", "wi-fi"],
+    source: {
+      url: "https://www.msi.com/Motherboard/PRO-B650M-P/Specification",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "socket",
+        "formFactor",
+        "supportedRamGeneration",
+        "ramSlots",
+        "maxRamCapacityGb",
+        "m2SlotCount",
+        "sataPortCount",
+        "hasWifi",
+      ],
+      note: "MSI lists 256GB on the current page and 128GB for V1, so the lower figure is used.",
+    },
     specs: {
       socket: "AM5",
       formFactor: "Micro-ATX",
       supportedRamGeneration: "DDR5",
       ramSlots: 4,
-      maxRamCapacityGb: 192,
+      maxRamCapacityGb: 128,
       m2SlotCount: 2,
       sataPortCount: 4,
       hasWifi: false,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "mobo-b550m": {
     title: "ASUS Prime B550M-A WiFi II Motherboard",
     defaultPrice: 8999,
-    aliases: ["prime b550m-a", "b550m-a"],
+    aliases: ["prime b550m-a wifi ii", "b550m-a wifi ii"],
+    source: {
+      url: "https://www.asus.com/motherboards-components/motherboards/prime/prime-b550m-a-wifi-ii/",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "socket",
+        "formFactor",
+        "supportedRamGeneration",
+        "ramSlots",
+        "maxRamCapacityGb",
+        "m2SlotCount",
+        "sataPortCount",
+        "hasWifi",
+      ],
+    },
     specs: {
       socket: "AM4",
       formFactor: "Micro-ATX",
@@ -235,8 +326,6 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       m2SlotCount: 2,
       sataPortCount: 4,
       hasWifi: true,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "mobo-b760m": {
@@ -248,29 +337,39 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       formFactor: "Micro-ATX",
       supportedRamGeneration: "DDR5",
       ramSlots: 2,
-      maxRamCapacityGb: 96,
       m2SlotCount: 2,
       sataPortCount: 4,
-      hasWifi: false,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "mobo-z790": {
     title: "MSI MAG Z790 Tomahawk WiFi Motherboard",
     defaultPrice: 24999,
-    aliases: ["mag z790", "z790 tomahawk"],
+    aliases: ["mag z790 tomahawk wifi", "z790 tomahawk wifi"],
+    source: {
+      url: "https://www.msi.com/Motherboard/MAG-Z790-TOMAHAWK-WIFI/Specification",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "socket",
+        "formFactor",
+        "supportedRamGeneration",
+        "ramSlots",
+        "maxRamCapacityGb",
+        "m2SlotCount",
+        "sataPortCount",
+        "hasWifi",
+      ],
+      note: "MSI lists 256GB on the spec page and 128GB on its US store, so the lower figure is used. The page names the supported Intel generations rather than a socket. Intel's pages put those on LGA1700.",
+    },
     specs: {
       socket: "LGA1700",
       formFactor: "ATX",
       supportedRamGeneration: "DDR5",
       ramSlots: 4,
-      maxRamCapacityGb: 192,
+      maxRamCapacityGb: 128,
       m2SlotCount: 4,
-      sataPortCount: 6,
+      sataPortCount: 7,
       hasWifi: true,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -278,6 +377,7 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
   "ram-16gb-ddr5": {
     title: "Corsair Vengeance 16GB (1x16GB) DDR5 5200MHz",
     defaultPrice: 4299,
+    titleMustHave: ["5200"],
     aliases: [
       "vengeance 16gb (1x16gb) ddr5",
       "16gb ddr5",
@@ -286,19 +386,26 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       "5200mhz",
       "5200",
     ],
+    source: {
+      url: "https://www.corsair.com/us/en/p/memory/cmk16gx5m1b5200c40/vengeance-16gb-1x16gb-ddr5-dram-5200mhz-c40-memory-kit-black-cmk16gx5m1b5200c40",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["ramGeneration", "capacityGb", "moduleCount", "speedMhz", "isLaptopSoDimm"],
+      note: "Corsair lists this kit for Intel 600, 700 and 800 series boards only. Nothing here checks that.",
+    },
     specs: {
       ramGeneration: "DDR5",
       capacityGb: 16,
       moduleCount: 1,
       speedMhz: 5200,
       isLaptopSoDimm: false,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "ram-32gb-ddr5": {
     title: "Corsair Vengeance 32GB (2x16GB) DDR5 6000MHz CL36",
     defaultPrice: 9499,
+    titleMustHave: ["6000"],
+    notIfTitleHas: ["cl30", "cl32", "cl34", "cl38", "cl40"],
     aliases: [
       "vengeance 32gb (2x16gb) ddr5",
       "32gb ddr5",
@@ -307,19 +414,25 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       "6000mhz",
       "6000",
     ],
+    source: {
+      url: "https://www.corsair.com/us/en/p/memory/cmk32gx5m2e6000c36/vengeance-32gb-2x16gb-ddr5-dram-6000mt-s-c36-memory-kit-black-cmk32gx5m2e6000c36",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["ramGeneration", "capacityGb", "moduleCount", "speedMhz"],
+      note: "Corsair lists this kit for Intel 700 and 800 series boards only. Nothing here checks that.",
+    },
     specs: {
       ramGeneration: "DDR5",
       capacityGb: 32,
       moduleCount: 2,
       speedMhz: 6000,
       isLaptopSoDimm: false,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "ram-16gb-ddr4": {
     title: "Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz",
     defaultPrice: 3299,
+    titleMustHave: ["3200"],
     aliases: [
       "vengeance lpx 16gb (2x8gb) ddr4",
       "16gb ddr4",
@@ -329,14 +442,18 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       "3200",
       "16d4",
     ],
+    source: {
+      url: "https://www.corsair.com/us/en/p/memory/cmk16gx4m2b3200c16/vengeancea-lpx-16gb-2-x-8gb-ddr4-dram-3200mhz-c16-memory-kit-black-cmk16gx4m2b3200c16",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["ramGeneration", "capacityGb", "moduleCount", "speedMhz", "isLaptopSoDimm"],
+    },
     specs: {
       ramGeneration: "DDR4",
       capacityGb: 16,
       moduleCount: 2,
       speedMhz: 3200,
       isLaptopSoDimm: false,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -345,6 +462,13 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge",
     defaultPrice: 28999,
     aliases: ["rtx 4060 twin edge", "rtx 4060 8gb twin edge"],
+    source: {
+      url: "https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4060-4060ti/",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["powerWatts", "recommendedPsuWatts"],
+      note: "ZOTAC's own page refuses automated reads, so only NVIDIA's chip figures are confirmed. Length, slots and connector came from search results and stay unconfirmed. NVIDIA's 550W is used, not the 500W those results quote for this card.",
+    },
     specs: {
       performance: {
         architecture: "Ada Lovelace",
@@ -355,16 +479,27 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       lengthMm: 222,
       slotWidth: 2,
       powerWatts: 115,
-      recommendedPsuWatts: 500,
+      recommendedPsuWatts: 550,
       requiredPciePins: "1x 8-pin",
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "gpu-rtx4070-super": {
     title: "Gigabyte GeForce RTX 4070 Super Windforce 12GB",
     defaultPrice: 58999,
     aliases: ["rtx 4070 super windforce"],
+    source: {
+      url: "https://www.gigabyte.com/Graphics-Card/GV-N407SWF3-12GD/sp",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [
+        "lengthMm",
+        "powerWatts",
+        "recommendedPsuWatts",
+        "requiredPciePins",
+        "pcie16PinAdapter8PinCount",
+      ],
+      note: "The OC model's page gives the same length, wattage, connector and adapter. Board power is from NVIDIA's RTX 4070 family page.",
+    },
     specs: {
       performance: {
         architecture: "Ada Lovelace",
@@ -375,16 +510,22 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
       lengthMm: 261,
       slotWidth: 2.5,
       powerWatts: 220,
-      recommendedPsuWatts: 650,
+      recommendedPsuWatts: 700,
       requiredPciePins: "1x 16-pin (12VHPWR)",
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
+      pcie16PinAdapter8PinCount: 2,
     },
   },
   "gpu-rx7600": {
     title: "ASRock AMD Radeon RX 7600 Challenger 8GB OC",
     defaultPrice: 23999,
     aliases: ["rx 7600 challenger"],
+    source: {
+      url: "https://www.asrock.com/Graphics-Card/AMD/Radeon%20RX%207600%20Challenger%208GB%20OC/index.asp",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["lengthMm", "powerWatts", "recommendedPsuWatts", "requiredPciePins"],
+      note: "ASRock lists 269.2mm, rounded up here. Board power is from AMD.",
+    },
     specs: {
       performance: {
         architecture: "RDNA 3",
@@ -393,13 +534,11 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
           "https://www.amd.com/en/products/graphics/desktops/radeon/7000-series/amd-radeon-rx-7600.html",
         checkedOn: "2026-11-03",
       },
-      lengthMm: 269,
+      lengthMm: 270,
       slotWidth: 2,
       powerWatts: 165,
       recommendedPsuWatts: 550,
       requiredPciePins: "1x 8-pin",
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -408,24 +547,33 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD",
     defaultPrice: 5499,
     aliases: ["1tb nvme", "1tb ssd", "p3 plus 1tb", "1tb m.2", "1tb"],
+    source: {
+      url: "https://www.crucial.com/ssd/p3-plus/ct1000p3pssd8",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["storageInterface", "storageFormFactor", "storageCapacityGb"],
+    },
     specs: {
       storageInterface: "M.2 NVMe",
       storageFormFactor: "M.2 2280",
       storageCapacityGb: 1000,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "ssd-500gb-nvme": {
     title: "Kingston NV2 500GB PCIe M.2 NVMe SSD",
     defaultPrice: 3299,
     aliases: ["500gb nvme", "500gb ssd", "nv2 500gb", "500gb m.2"],
+    source: {
+      url: "https://www.kingston.com/datasheets/snv2s_en.pdf",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["storageInterface", "storageFormFactor", "storageCapacityGb"],
+      note: "Kingston lists SNV2S/500G as discontinued, replaced by NV3.",
+    },
     specs: {
       storageInterface: "M.2 NVMe",
       storageFormFactor: "M.2 2280",
       storageCapacityGb: 500,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -434,38 +582,54 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "Deepcool PK550D 550W 80 Plus Bronze Power Supply",
     defaultPrice: 3499,
     aliases: ["550w", "pk550d", "550 watt", "550"],
+    source: {
+      url: "https://uk.deepcool.com/products/PowerSupplyUnits/powersupplyunits/PK550D-80-PLUS-Bronze-Power-Supply/2022/15646.shtml",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["pciePowerConnectors", "efficiencyRating"],
+      note: "The page never states the wattage, only the model name.",
+    },
     specs: {
       ratedWattage: 550,
       efficiencyRating: "80 Plus Bronze",
       psuFormFactor: "ATX",
       pciePowerConnectors: ["6+2-pin", "6+2-pin"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "psu-650w": {
     title: "Deepcool PK650D 650W 80 Plus Bronze Power Supply",
     defaultPrice: 4499,
     aliases: ["650w", "pk650d", "650 watt", "650"],
+    source: {
+      url: "https://www.deepcool.com/products/PowerSupplyUnits/powersupplyunits/PK650D-80-PLUS-Bronze-Power-Supply/2022/15619.shtml",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["pciePowerConnectors", "efficiencyRating"],
+      note: 'The page never states the wattage, only the model name. It lists "PCI-E (6+2)Pin x2" with a quantity of X2, which may mean four plugs. The smaller reading, two, is used until checked.',
+    },
     specs: {
       ratedWattage: 650,
       efficiencyRating: "80 Plus Bronze",
       psuFormFactor: "ATX",
       pciePowerConnectors: ["6+2-pin", "6+2-pin"],
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "psu-750w": {
     title: "Corsair RM750e 750W 80 Plus Gold Fully Modular PSU",
     defaultPrice: 8999,
     aliases: ["750w", "rm750e", "750 watt", "750"],
+    source: {
+      url: "https://www.corsair.com/ww/en/p/psu/cp-9020295-in/rme-series-rm750e-fully-modular-low-noise-atx-power-supply-in-cp-9020295-in",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["ratedWattage", "pciePowerConnectors"],
+      note: "From the India SKU. Its 12V-2x6 port feeds either the 16-pin cable or a dual 8-pin cable, so the smaller set is listed. Corsair's other listings differ. Corsair states Cybenetics Gold, not 80 Plus Gold, so efficiency isn't confirmed.",
+    },
     specs: {
       ratedWattage: 750,
       efficiencyRating: "80 Plus Gold",
       psuFormFactor: "ATX",
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
+      pciePowerConnectors: ["1x 12V-2x6", "1x 8-pin"],
     },
   },
 
@@ -473,27 +637,29 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
   "case-matx": {
     title: "Ant Esports ICE-100 Air Mini Mesh Micro-ATX Case",
     defaultPrice: 2899,
-    aliases: ["ice-100", "mini mesh", "matx case"],
+    aliases: ["ice-100 air mini mesh", "mini mesh", "matx case"],
     specs: {
       supportedMotherboards: ["Micro-ATX", "Mini-ITX"],
       maxGpuLengthMm: 310,
       maxCoolerHeightMm: 159,
       includedFanCount: 2,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "case-atx": {
     title: "Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case",
     defaultPrice: 3899,
-    aliases: ["cc560", "atx case", "mid-tower"],
+    aliases: ["cc560 v2"],
+    source: {
+      url: "https://www.deepcool.com/products/Cases/CC560-V2-Mid-Tower-Airflow-Case/2023/17782.shtml",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["supportedMotherboards", "maxGpuLengthMm", "maxCoolerHeightMm", "includedFanCount"],
+    },
     specs: {
       supportedMotherboards: ["ATX", "Micro-ATX", "Mini-ITX"],
       maxGpuLengthMm: 370,
-      maxCoolerHeightMm: 163,
+      maxCoolerHeightMm: 165,
       includedFanCount: 4,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
 
@@ -502,38 +668,58 @@ export const VERIFIED_HARDWARE_SPECS: Record<string, VerifiedSpecEntry> = {
     title: "Deepcool AG400 ARGB 120mm Single-Tower CPU Cooler",
     defaultPrice: 1799,
     aliases: ["ag400", "deepcool ag400"],
+    notIfTitleHas: ["digital", "plus", "pro", "led"],
+    source: {
+      url: "https://www.deepcool.com/products/Cooling/cpuaircoolers/AG400-ARGB-120mm-CPU-Cooler-1851-1700-AM5/2022/16084.shtml",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["coolerHeightMm", "supportedSockets", "maxTdpRatingWatts"],
+    },
     specs: {
       coolerHeightMm: 150,
-      supportedSockets: ["AM4", "AM5", "LGA1700", "LGA1200"],
+      supportedSockets: ["AM4", "AM5", "LGA1851", "LGA1700", "LGA1200"],
       maxTdpRatingWatts: 220,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
     },
   },
   "cooler-le520": {
     title: "Deepcool LE520 240mm ARGB AIO Liquid Cooler",
     defaultPrice: 5499,
     aliases: ["le520", "240mm aio"],
+    source: {
+      url: "https://www.deepcool.com/products/Cooling/cpuliquidcoolers/LE520-240mm-Liquid-CPU-Cooler-1851-1700-AM5/2024/16608.shtml",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: ["coolerHeightMm", "supportedSockets", "maxTdpRatingWatts"],
+    },
     specs: {
       coolerHeightMm: 52,
-      supportedSockets: ["AM4", "AM5", "LGA1700", "LGA1200"],
-      maxTdpRatingWatts: 300,
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-15",
+      supportedSockets: ["AM4", "AM5", "LGA1851", "LGA1700", "LGA1200"],
+      maxTdpRatingWatts: 220,
     },
   },
 
   // ─── Monitors ───
   "monitor-r27qe": {
-    title: "Lenovo Legion R27qe Gen 2 27-inch 180Hz 1440p Gaming Monitor",
+    title: "Lenovo Legion R27qe Gen 2 27-inch 200Hz 1440p Gaming Monitor",
     defaultPrice: 15000,
     aliases: ["r27qe", "lenovo legion r27qe", "r27qe-gen2", "lenovo legion {smartchoice} r27qe"],
-    specs: {
-      provenance: "manufacturer_verified",
-      lastVerifiedAt: "2026-01-20",
+    source: {
+      url: "https://psref.lenovo.com/Product/LenovoMonitors/Legion_R27qe_Gen_2_Monitor",
+      checkedOn: "2026-11-04",
+      readVia: "direct",
+      fields: [],
     },
+    specs: {},
   },
 };
+
+/** Registry fields that describe the entry rather than the product. */
+const METADATA_FIELDS = new Set<keyof TechnicalSpecs>([
+  "provenance",
+  "lastVerifiedAt",
+  "fieldSources",
+  "specProblems",
+]);
 
 const SPEC_ENTRY_SLOTS: Record<string, ComponentSlotId> = {
   cpu: "CPU",
@@ -569,7 +755,9 @@ function identifiesAModel(term: string, slot: ComponentSlotId): boolean {
  */
 function titleHasTerm(title: string, term: string): boolean {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])(?!\\s+(?:ti|super)\\b)`).test(title);
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])(?!\\s+(?:ti|super|xt|xtx|gre)\\b)`).test(
+    title,
+  );
 }
 
 /**
@@ -581,31 +769,6 @@ const GPU_CHIP_POWER: Array<{ chip: string; watts: number; recommendedPsuWatts: 
   { chip: "rtx 4060", watts: 115, recommendedPsuWatts: 550 },
   { chip: "rx 7600", watts: 165, recommendedPsuWatts: 550 },
 ];
-
-/** A list from a Shopify metafield, such as "ATX, Micro-ATX". */
-function statedList(value: unknown): string[] | undefined {
-  const items = String(value ?? "")
-    .split(/[,;|]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return items.length > 0 ? items : undefined;
-}
-
-/** True or false only when a Shopify metafield says so. */
-function statedBoolean(value: unknown): boolean | undefined {
-  const text = String(value ?? "")
-    .trim()
-    .toLowerCase();
-  if (["true", "yes", "1"].includes(text)) return true;
-  if (["false", "no", "0"].includes(text)) return false;
-  return undefined;
-}
-
-/** A positive number from a Shopify metafield or tag value, otherwise undefined. */
-function positiveNumber(value: unknown): number | undefined {
-  const parsed = parseInt(String(value ?? ""), 10);
-  return parsed > 0 ? parsed : undefined;
-}
 
 /**
  * Normalizes title for hardware matching by stripping test flags and bracketed prefixes.
@@ -711,7 +874,11 @@ export function detectComponentSlot(
   )
     return "Storage";
   if (/\b(?:ddr4|ddr5|desktop ram|dimm|so-dimm)\b/i.test(normTitle)) return "RAM";
-  if (/\b(?:rtx\s*\d{4}|gtx\s*\d{4}|rx\s*\d{4}|radeon|geforce|graphics card)\b/i.test(normTitle))
+  if (
+    /\b(?:rtx\s*a?\d{3,4}|gtx\s*\d{3,4}|gt\s*(?:710|730|1030)|rx\s*(?:\d{4}|[45]\d{2})|radeon|geforce|arc\s*[ab]\d{3}|intel arc|graphics card)\b/i.test(
+      normTitle,
+    )
+  )
     return "GPU";
   if (/\b(?:power supply|80\s*plus|psu|smps|550w|650w|750w)\b/i.test(normTitle)) return "PSU";
   if (/\b(?:cabinet|mid-tower|case|chassis)\b/i.test(normTitle)) return "Cabinet";
@@ -824,9 +991,12 @@ export function matchShopifyProductToComponent(
       const normalized = term.toLowerCase().replace(/-/g, term === bareModel ? " " : "-");
       return identifiesAModel(normalized, slot) && titleHasTerm(normCleaned, normalized);
     });
+    const sameVersion =
+      (entry.titleMustHave || []).every((word) => normCleaned.includes(word)) &&
+      !(entry.notIfTitleHas || []).some((word) => titleHasTerm(normCleaned, word));
     const entryGeneration = entry.specs.supportedRamGeneration || entry.specs.ramGeneration;
     if (titleGeneration && entryGeneration && titleGeneration !== entryGeneration) continue;
-    if (matches) {
+    if (matches && sameVersion) {
       matchedKey = key;
       matchedEntry = entry;
       break;
@@ -837,8 +1007,66 @@ export function matchShopifyProductToComponent(
   const usesPlatformSpecs = slot === "CPU" || slot === "Motherboard";
   const usesRamGeneration = usesPlatformSpecs || slot === "RAM";
 
+  // What Shopify states for this product. A tag never counts, and rejected values are ignored.
+  const tagKeys = new Set(product.tagSpecKeys || []);
+  const rawSpecs = Object.fromEntries(
+    Object.entries(product.specs || {}).filter(([key]) => !tagKeys.has(key)),
+  );
+  const review = readSpecReview(rawSpecs);
+  const stated =
+    review.status === "rejected"
+      ? ({ specs: {}, problems: [] } as ReturnType<typeof readStatedSpecs>)
+      : readStatedSpecs(slot, rawSpecs);
+  const statedLevel: SpecConfidence = review.isReviewed ? "it_hub_reviewed" : "supplier_provided";
+
   if (matchedEntry && matchedKey) {
-    const specs = { ...matchedEntry.specs };
+    const specs: TechnicalSpecs = { ...matchedEntry.specs };
+    const fieldSources: Partial<Record<keyof TechnicalSpecs, SpecConfidence>> = {};
+    const problems: SpecProblem[] = [...stated.problems];
+    const sourced = new Set<keyof TechnicalSpecs>(
+      matchedEntry.source?.readVia === "direct" ? matchedEntry.source.fields : [],
+    );
+    for (const field of Object.keys(specs) as (keyof TechnicalSpecs)[]) {
+      if (METADATA_FIELDS.has(field)) continue;
+      // Performance figures carry their own source.
+      fieldSources[field] =
+        sourced.has(field) || field === "performance"
+          ? "manufacturer_verified"
+          : "supplier_provided";
+    }
+    // A stated value can fill a gap in the registry, but neither side wins a disagreement.
+    for (const [key, value] of Object.entries(stated.specs)) {
+      const field = key as keyof TechnicalSpecs;
+      const known = (specs as Record<string, unknown>)[field];
+      if (known === undefined) {
+        (specs as Record<string, unknown>)[field] = value;
+        fieldSources[field] = statedLevel;
+      } else if (!sameSpecValue(known, value)) {
+        delete (specs as Record<string, unknown>)[field];
+        delete fieldSources[field];
+        problems.push({
+          field,
+          kind: "conflict",
+          detail: `Shopify says ${String(value)}, but the specification list says ${String(known)}`,
+        });
+      } else if (fieldSources[field] !== "manufacturer_verified" && review.isReviewed) {
+        fieldSources[field] = "it_hub_reviewed";
+      }
+    }
+    specs.fieldSources = fieldSources;
+    if (problems.length > 0) specs.specProblems = problems;
+    // Fully sourced only if a source confirms everything a label would rest on.
+    const criticalLevels = labelCriticalFields(slot).map((alternatives) => {
+      const field = alternatives.find((candidate) => specs[candidate] !== undefined);
+      return field === undefined ? undefined : fieldSources[field];
+    });
+    const fullySourced =
+      Boolean(matchedEntry.source) &&
+      criticalLevels.every((level) => level === "manufacturer_verified");
+    // IT HUB's review can complete what a source left open, but it never becomes the maker's word.
+    const completedByReview = criticalLevels.every(
+      (level) => level === "manufacturer_verified" || level === "it_hub_reviewed",
+    );
 
     return {
       slot,
@@ -853,7 +1081,12 @@ export function matchShopifyProductToComponent(
       imageUrl: product.image,
       specs: {
         ...specs,
-        provenance: "manufacturer_verified",
+        provenance: fullySourced
+          ? "manufacturer_verified"
+          : completedByReview
+            ? "it_hub_reviewed"
+            : "registry_unverified",
+        lastVerifiedAt: matchedEntry.source?.checkedOn,
       },
       availability:
         (product.availableForSale ?? true) && (product.stock ?? 1) > 0
@@ -867,28 +1100,18 @@ export function matchShopifyProductToComponent(
     };
   }
 
-  // Parse structured specifications from product specs or tags/title
-  const pSpecs = product.specs || {};
-  const allTags = (product.tags || []).map((t: string) => t.toLowerCase());
-  let socket = usesPlatformSpecs ? pSpecs["Socket"] || pSpecs["socket"] : undefined;
-  if (!socket && usesPlatformSpecs) {
-    if (
-      allTags.includes("am5") ||
-      normCleaned.includes("am5") ||
-      normCleaned.includes("b650") ||
-      normCleaned.includes("x670")
-    )
-      socket = "AM5";
+  // What the title can say. Tags aren't read, and a title never outranks a stated value.
+  let titleSocket: string | undefined;
+  if (usesPlatformSpecs) {
+    if (normCleaned.includes("am5") || normCleaned.includes("b650") || normCleaned.includes("x670"))
+      titleSocket = "AM5";
     else if (
-      allTags.includes("am4") ||
       normCleaned.includes("am4") ||
       normCleaned.includes("b550") ||
       normCleaned.includes("a520")
     )
-      socket = "AM4";
+      titleSocket = "AM4";
     else if (
-      allTags.includes("lga1700") ||
-      allTags.includes("1700") ||
       normCleaned.includes("lga1700") ||
       normCleaned.includes("b760") ||
       normCleaned.includes("z790") ||
@@ -896,65 +1119,41 @@ export function matchShopifyProductToComponent(
       normCleaned.includes("13400") ||
       normCleaned.includes("14400")
     )
-      socket = "LGA1700";
+      titleSocket = "LGA1700";
+  }
+  let titleRamGen: string | undefined;
+  if (usesRamGeneration) {
+    if (titleHasTerm(normCleaned, "ddr5")) titleRamGen = "DDR5";
+    else if (titleHasTerm(normCleaned, "ddr4")) titleRamGen = "DDR4";
+    else if (titleSocket === "AM5") titleRamGen = "DDR5";
+    else if (titleSocket === "AM4") titleRamGen = "DDR4";
   }
 
-  let ramGen = usesRamGeneration
-    ? pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"]
-    : undefined;
-  if (!ramGen && usesRamGeneration) {
-    if (allTags.includes("ddr5") || titleHasTerm(normCleaned, "ddr5") || socket === "AM5")
-      ramGen = "DDR5";
-    else if (allTags.includes("ddr4") || titleHasTerm(normCleaned, "ddr4") || socket === "AM4")
-      ramGen = "DDR4";
-  }
-
-  const statedTdp = positiveNumber(pSpecs["TDP"] || pSpecs["tdp_watts"] || pSpecs["watts"]);
   const chipSpecs =
     slot === "GPU" ? GPU_CHIP_POWER.find(({ chip }) => titleHasTerm(normCleaned, chip)) : undefined;
-  const chipPower = chipSpecs?.watts;
-  const tdp = statedTdp;
 
-  // Only what Shopify states for this product. Anything it doesn't state stays unknown.
   const titleWatts = normCleaned.match(/(?:^|[^a-z0-9])(\d{3,4})\s*w(?:atts?)?(?![a-z0-9])/)?.[1];
-  const ratedWattage =
-    slot === "PSU" ? positiveNumber(pSpecs["capacity_watts"] || titleWatts) : undefined;
-  const lengthMm = slot === "GPU" ? positiveNumber(pSpecs["gpu_length_mm"]) : undefined;
-  const maxGpuLengthMm =
-    slot === "Cabinet" ? positiveNumber(pSpecs["cabinet_clearance_mm"]) : undefined;
-  const storageInterface =
+  const titleInterface =
     slot !== "Storage"
       ? undefined
-      : pSpecs["storage_interface"] ||
-        (titleHasTerm(normCleaned, "nvme")
-          ? "M.2 NVMe"
-          : titleHasTerm(normCleaned, "sata")
-            ? "SATA SSD"
-            : undefined);
+      : titleHasTerm(normCleaned, "nvme")
+        ? "M.2 NVMe"
+        : titleHasTerm(normCleaned, "sata")
+          ? "SATA SSD"
+          : undefined;
+  const titleStorageSize =
+    slot === "Storage" ? normCleaned.match(/(?:^|[^0-9.])(\d{1,4})\s*(tb|gb)(?![a-z0-9])/) : null;
 
   // RAM kits state their size in the title: "16GB (2x8GB)" or "2 x 8GB".
   const ramKit =
     slot === "RAM" ? normCleaned.match(/(?:^|[^0-9])(\d)\s*x\s*(\d{1,3})\s*gb(?![a-z0-9])/) : null;
   const ramTitleSize =
     slot === "RAM" ? normCleaned.match(/(?:^|[^0-9x])(\d{1,3})\s*gb(?![a-z0-9])/)?.[1] : undefined;
-  const moduleCount =
-    slot === "RAM"
-      ? positiveNumber(pSpecs["ram_modules"] || (ramKit ? ramKit[1] : undefined))
-      : undefined;
-  const capacityGb =
-    slot === "RAM"
-      ? positiveNumber(
-          pSpecs["ram_capacity_gb"] ||
-            (ramKit ? Number(ramKit[1]) * Number(ramKit[2]) : ramTitleSize),
-        )
-      : undefined;
-  const isLaptopSoDimm =
+  const isSoDimmTitle =
     slot === "RAM" &&
     (titleHasTerm(normCleaned, "so-dimm") ||
       titleHasTerm(normCleaned, "sodimm") ||
-      titleHasTerm(normCleaned, "laptop"))
-      ? true
-      : undefined;
+      titleHasTerm(normCleaned, "laptop"));
 
   const isBoard = slot === "Motherboard";
   const titleFormFactor = !isBoard
@@ -968,106 +1167,88 @@ export function matchShopifyProductToComponent(
           : /\batx\b/.test(normCleaned)
             ? "ATX"
             : undefined;
-  const formFactor = isBoard ? pSpecs["form_factor"] || titleFormFactor : undefined;
-  const ramSlots = isBoard ? positiveNumber(pSpecs["ram_slots"]) : undefined;
-  const maxRamCapacityGb = isBoard ? positiveNumber(pSpecs["max_ram_gb"]) : undefined;
-  const m2Stated = isBoard ? String(pSpecs["m2_slots"] ?? "") : "";
-  const sataStated = isBoard ? String(pSpecs["sata_ports"] ?? "") : "";
+  // "No Wi-Fi" says the opposite of what a search for the word would suggest.
+  const titleWifi = !isBoard
+    ? undefined
+    : /\b(?:no|non|without)[\s-]*wi-?fi\b/.test(normCleaned)
+      ? false
+      : /wi-?fi/.test(normCleaned)
+        ? true
+        : undefined;
 
-  const supportedMotherboards =
-    slot === "Cabinet" ? statedList(pSpecs["supported_motherboards"]) : undefined;
-  const maxCoolerHeightMm =
-    slot === "Cabinet" ? positiveNumber(pSpecs["max_cooler_height_mm"]) : undefined;
-  const coolerHeightMm = slot === "Cooler" ? positiveNumber(pSpecs["cooler_height_mm"]) : undefined;
-  const supportedSockets = slot === "Cooler" ? statedList(pSpecs["supported_sockets"]) : undefined;
-  const pciePowerConnectors = slot === "PSU" ? statedList(pSpecs["pcie_connectors"]) : undefined;
-  const requiredPcieConnectors = slot === "GPU" ? statedList(pSpecs["pcie_connectors"]) : undefined;
-  const hasIntegratedGraphics =
-    slot === "CPU" ? statedBoolean(pSpecs["integrated_graphics"]) : undefined;
+  const fromTitle: TechnicalSpecs = {
+    socket: titleSocket,
+    supportedRamGeneration: titleRamGen,
+    ramGeneration: titleRamGen,
+    ratedWattage: slot === "PSU" && titleWatts ? Number(titleWatts) : undefined,
+    storageInterface: titleInterface,
+    storageCapacityGb: titleStorageSize
+      ? Number(titleStorageSize[1]) * (titleStorageSize[2] === "tb" ? 1000 : 1)
+      : undefined,
+    capacityGb: ramKit
+      ? Number(ramKit[1]) * Number(ramKit[2])
+      : ramTitleSize
+        ? Number(ramTitleSize)
+        : undefined,
+    moduleCount: ramKit ? Number(ramKit[1]) : undefined,
+    isLaptopSoDimm: isSoDimmTitle ? true : undefined,
+    formFactor: titleFormFactor,
+    hasWifi: titleWifi,
+  };
+
+  // A stated value is used, unless the title says otherwise. Then neither is trusted.
+  const merged: TechnicalSpecs = {};
+  const fieldSources: Partial<Record<keyof TechnicalSpecs, SpecConfidence>> = {};
+  const problems: SpecProblem[] = [...stated.problems];
+  const assign = (field: keyof TechnicalSpecs, value: unknown, level: SpecConfidence) => {
+    (merged as Record<string, unknown>)[field] = value;
+    fieldSources[field] = level;
+  };
+  for (const [key, value] of Object.entries(stated.specs)) {
+    if (value !== undefined) assign(key as keyof TechnicalSpecs, value, statedLevel);
+  }
+  for (const [key, value] of Object.entries(fromTitle)) {
+    if (value === undefined) continue;
+    const field = key as keyof TechnicalSpecs;
+    const known = (stated.specs as Record<string, unknown>)[field];
+    if (known === undefined) {
+      assign(field, value, "title_inferred");
+    } else if (!sameSpecValue(known, value)) {
+      delete (merged as Record<string, unknown>)[field];
+      delete fieldSources[field];
+      problems.push({
+        field,
+        kind: "conflict",
+        detail: `Shopify says ${String(known)}, but the title says ${String(value)}`,
+      });
+    }
+  }
+  // A chip's typical figures only fill a gap, because a maker's card can reasonably differ from them.
+  if (chipSpecs && merged.powerWatts === undefined) {
+    assign("powerWatts", chipSpecs.watts, "title_inferred");
+  }
+  if (chipSpecs && merged.recommendedPsuWatts === undefined) {
+    assign("recommendedPsuWatts", chipSpecs.recommendedPsuWatts, "title_inferred");
+  }
+
+  const statedAny = Object.values(fieldSources).some((level) => level === statedLevel);
+  const titleAny = Object.values(fieldSources).some((level) => level === "title_inferred");
+
   // Only a processor can come with a cooler. For a processor, silence stays unknown.
-  const includesCooler = slot === "CPU" ? statedBoolean(pSpecs["includes_cooler"]) : false;
-
-  // A value from a Shopify metafield or tag is stated for this exact product. A value read from the
-  // title is useful, but still shows as unverified.
-  const statedInShopify = Boolean(
-    pSpecs["Socket"] ||
-    pSpecs["socket"] ||
-    pSpecs["RAM Generation"] ||
-    pSpecs["ram_generation"] ||
-    pSpecs["Memory"] ||
-    statedTdp ||
-    pSpecs["capacity_watts"] ||
-    lengthMm ||
-    maxGpuLengthMm ||
-    pSpecs["storage_interface"] ||
-    pSpecs["form_factor"] ||
-    ramSlots ||
-    maxRamCapacityGb ||
-    supportedMotherboards ||
-    maxCoolerHeightMm ||
-    coolerHeightMm ||
-    supportedSockets ||
-    pciePowerConnectors ||
-    requiredPcieConnectors,
-  );
-  const hasMetafields = Boolean(
-    socket ||
-    ramGen ||
-    tdp ||
-    chipPower ||
-    ratedWattage ||
-    lengthMm ||
-    maxGpuLengthMm ||
-    storageInterface ||
-    formFactor ||
-    capacityGb,
-  );
-
-  // A tag counts as inference too: only a Shopify field states a value for this exact product.
-  const statedSocket = pSpecs["Socket"] || pSpecs["socket"];
-  const statedRamGen = pSpecs["RAM Generation"] || pSpecs["ram_generation"] || pSpecs["Memory"];
-  const inferredFromTitle: (keyof TechnicalSpecs)[] = [
-    ...(socket && !statedSocket ? (["socket"] as const) : []),
-    ...(ramGen && !statedRamGen ? (["supportedRamGeneration", "ramGeneration"] as const) : []),
-    ...(slot === "GPU" && chipPower && !statedTdp ? (["powerWatts"] as const) : []),
-    ...(ratedWattage && !pSpecs["capacity_watts"] ? (["ratedWattage"] as const) : []),
-    ...(storageInterface && !pSpecs["storage_interface"] ? (["storageInterface"] as const) : []),
-    ...(formFactor && !pSpecs["form_factor"] ? (["formFactor"] as const) : []),
-    ...(capacityGb && !pSpecs["ram_capacity_gb"] ? (["capacityGb"] as const) : []),
-  ];
+  if (slot !== "CPU") merged.includesCooler = false;
 
   const inferredSpecs: TechnicalSpecs = {
-    inferredFromTitle: inferredFromTitle.length > 0 ? inferredFromTitle : undefined,
-    socket: socket || undefined,
-    supportedRamGeneration: ramGen || undefined,
-    ramGeneration: ramGen || undefined,
-    tdpWatts: tdp,
-    powerWatts: slot === "GPU" ? tdp || chipPower : undefined,
-    recommendedPsuWatts: chipSpecs?.recommendedPsuWatts,
-    ratedWattage,
-    lengthMm,
-    maxGpuLengthMm,
-    maxCoolerHeightMm,
-    coolerHeightMm,
-    supportedSockets,
-    supportedMotherboards,
-    storageInterface,
-    formFactor,
-    ramSlots,
-    maxRamCapacityGb,
-    m2SlotCount: m2Stated ? Number(m2Stated) : undefined,
-    sataPortCount: sataStated ? Number(sataStated) : undefined,
-    capacityGb,
-    moduleCount,
-    isLaptopSoDimm,
-    pciePowerConnectors,
-    requiredPcieConnectors,
-    hasIntegratedGraphics,
-    hasWifi: allTags.includes("wifi") || normCleaned.includes("wifi"),
-    includesCooler,
-    // Only the registry can say a value was checked. A product can't claim that about itself. A value
-    // from a Shopify field is the supplier's statement, and one read from the title is weaker still.
-    provenance: statedInShopify ? "supplier_spec" : hasMetafields ? "title_derived" : "unverified",
+    ...merged,
+    fieldSources,
+    specProblems: problems.length > 0 ? problems : undefined,
+    // Only the registry can say a value was checked. A product can't claim that about itself.
+    provenance: statedAny
+      ? review.isReviewed
+        ? "it_hub_reviewed"
+        : "supplier_spec"
+      : titleAny
+        ? "title_derived"
+        : "unverified",
   };
 
   return {
@@ -1087,7 +1268,7 @@ export function matchShopifyProductToComponent(
     quantity: 1,
     retrievedAt: new Date().toISOString(),
     isShopifyLive: true,
-    isVerified: statedInShopify,
+    isVerified: statedAny,
   };
 }
 

@@ -143,6 +143,8 @@ export interface FitPart {
   id: string;
   capacityGb?: number;
   hasWifi?: boolean;
+  /** Stated to have no Wi-Fi, which is different from nobody saying. */
+  wifiStatedAbsent?: boolean;
   performance?: PublishedPerformanceFigures;
   verificationStatus?: string;
 }
@@ -216,7 +218,7 @@ export function assessFit(
     const board = build.parts.Motherboard;
     if (board?.hasWifi) {
       checks.push({ status: "meets", note: "Has the Wi-Fi you asked for." });
-    } else if (board?.verificationStatus === "manufacturer_verified") {
+    } else if (board?.wifiStatedAbsent) {
       checks.push({ status: "below", note: "This motherboard has no Wi-Fi, which you asked for." });
     } else {
       checks.push({ status: "unknown", note: "Wi-Fi isn't confirmed on this motherboard." });

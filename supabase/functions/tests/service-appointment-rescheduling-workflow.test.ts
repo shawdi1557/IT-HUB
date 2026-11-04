@@ -110,36 +110,80 @@ Deno.test("RESCHED-2: shouldDisplayRescheduleButton strictly checks all 5 precon
   );
 });
 
+/**
+ * Runs a check as if the local clock showed a fixed moment. The validator works in local dates, so this
+ * test must not depend on the hour or the machine's time zone. The clock is restored afterwards.
+ */
+function atLocalTime<T>(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour: number,
+  minute: number,
+  check: () => T,
+): T {
+  const RealDate = globalThis.Date;
+  const fixed = new RealDate(year, monthIndex, day, hour, minute).getTime();
+  class FixedDate extends RealDate {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(fixed);
+      else super(...(args as [number]));
+    }
+    static override now() {
+      return fixed;
+    }
+  }
+  globalThis.Date = FixedDate as DateConstructor;
+  try {
+    return check();
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
 Deno.test("RESCHED-3: validateRequestedAppointmentDate enforces future date & Sunday closure", () => {
-  const today = new Date();
-  // Past date must be rejected (use a past non-Sunday date like 2020-01-01 Wednesday)
-  const pastRes = validateRequestedAppointmentDate("2020-01-01");
-  assertEquals(pastRes.valid, false);
-  assertEquals(pastRes.error, "Requested appointment date must be in the future.");
+  const closed = "IT HUB is closed on Sundays. Please select Monday through Saturday.";
+  const notFuture = "Requested appointment date must be in the future.";
+  // Wednesday 4 November 2026, at the hours where a date converted through UTC lands on the wrong day
+  // in India, and at the ends of the day.
+  const times: [number, number][] = [
+    [0, 0],
+    [1, 0],
+    [5, 29],
+    [5, 30],
+    [12, 0],
+    [23, 59],
+  ];
+  for (const [hour, minute] of times) {
+    const at = `${hour}:${minute}`;
+    atLocalTime(2026, 10, 4, hour, minute, () => {
+      const validate = validateRequestedAppointmentDate;
+      // Past dates are rejected.
+      assertEquals(validate("2020-01-01"), { valid: false, error: notFuture }, at);
+      assertEquals(validate("2026-11-03"), { valid: false, error: notFuture }, at);
+      // Today is rejected, because a visit needs advance booking.
+      assertEquals(validate("2026-11-04"), { valid: false, error: notFuture }, at);
+      // Sundays are rejected, including the coming one and a past one.
+      assertEquals(validate("2026-11-08"), { valid: false, error: closed }, at);
+      assertEquals(validate("2026-11-15"), { valid: false, error: closed }, at);
+      assertEquals(validate("2026-11-01"), { valid: false, error: closed }, at);
+      // Every future day from Monday to Saturday is accepted: the rest of this week and next Monday.
+      for (const open of ["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-09"]) {
+        assertEquals(validate(open), { valid: true }, `${open} at ${at}`);
+      }
+    });
+  }
+});
 
-  // Today must be rejected (needs advance booking)
-  const todayStr = today.toISOString().split("T")[0];
-  const todayRes = validateRequestedAppointmentDate(todayStr);
-  assertEquals(todayRes.valid, false);
-
-  // Sunday must be rejected
-  // Find upcoming Sunday
-  const nextSunday = new Date();
-  nextSunday.setDate(today.getDate() + ((7 - today.getDay()) % 7 || 7));
-  const sundayStr = nextSunday.toISOString().split("T")[0];
-  const sundayRes = validateRequestedAppointmentDate(sundayStr);
-  assertEquals(sundayRes.valid, false);
-  assertEquals(
-    sundayRes.error,
-    "IT HUB is closed on Sundays. Please select Monday through Saturday.",
-  );
-
-  // Future Monday - Saturday must be accepted
-  const validDay = new Date(nextSunday);
-  validDay.setDate(nextSunday.getDate() + 1); // Monday
-  const validStr = validDay.toISOString().split("T")[0];
-  const validRes = validateRequestedAppointmentDate(validStr);
-  assertEquals(validRes.valid, true);
+Deno.test("RESCHED-3b: the controlled clock is restored, and the check also holds on a Sunday", () => {
+  const RealDate = globalThis.Date;
+  atLocalTime(2026, 10, 8, 10, 0, () => {
+    assertEquals(new Date().getDay(), 0);
+    // Today is a Sunday, so it's rejected for that reason. Tomorrow is the next open day.
+    assertEquals(validateRequestedAppointmentDate("2026-11-08").valid, false);
+    assertEquals(validateRequestedAppointmentDate("2026-11-09"), { valid: true });
+  });
+  assertEquals(globalThis.Date, RealDate);
 });
 
 Deno.test("RESCHED-4: formatAppointmentDisplay formats date and time cleanly", () => {

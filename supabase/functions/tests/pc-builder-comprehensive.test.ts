@@ -333,7 +333,12 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/7",
         title: "GeForce RTX 4060",
         price: 28999,
-        specs: { lengthMm: 240, powerWatts: 115, recommendedPsuWatts: 500 },
+        specs: {
+          lengthMm: 240,
+          powerWatts: 115,
+          recommendedPsuWatts: 500,
+          requiredPcieConnectors: ["8-pin"],
+        },
       },
     ],
     Storage: [
@@ -353,7 +358,7 @@ Deno.test("PC-BUILD-10: Recommendation engine respects budget and generates vali
         variantId: "gid://shopify/ProductVariant/9",
         title: "550W PSU",
         price: 3499,
-        specs: { ratedWattage: 550 },
+        specs: { ratedWattage: 550, pciePowerConnectors: ["8-pin"] },
       },
     ],
     Cabinet: [

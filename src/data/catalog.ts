@@ -80,6 +80,8 @@ export type Product = {
 
   /** True only when Shopify states the grade, rather than just that it's pre-owned */
   conditionStated?: boolean;
+  /** Specs that came from tags, kept for display and search but never treated as stated. */
+  tagSpecKeys?: string[];
 
   handle?: string;
 

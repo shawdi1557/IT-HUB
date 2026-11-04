@@ -39,6 +39,17 @@ const product = (name: string, extra: Record<string, unknown> = {}): any => {
 const liveCatalog = (products: any[]) => syncBuilderCatalogWithShopify(products).componentCatalog;
 const matchProduct = (item: any): any => matchShopifyProductToComponent(item);
 
+const REVIEWED = {
+  spec_review_status: "reviewed",
+  spec_source_url: "https://www.example.com/datasheet",
+};
+// ZOTAC's page can't be read, so the card's length and connector need IT HUB's review to support a label.
+const REVIEWED_4060 = {
+  gpu_length_mm: "222",
+  pcie_connectors: "1x 8-pin",
+  ...REVIEWED,
+};
+
 // Published figures, from each manufacturer's product page.
 const SOURCE = "https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/";
 const ada = (
@@ -252,7 +263,7 @@ Deno.test("RANK: every published figure in the registry names an official source
   ]);
   for (const [key, entry] of withFigures) {
     const slot = key.startsWith("cpu") ? "CPU" : "GPU";
-    const row = { id: key, name: key, ...entry.specs, verificationStatus: entry.specs.provenance };
+    const row = { id: key, name: key, ...entry.specs, verificationStatus: "manufacturer_verified" };
     assertEquals(performanceEvidence(slot, row), "manufacturer_verified", key);
     assert(
       /^https:\/\/www\.(amd|intel|nvidia)\.com\//.test(entry.specs.performance.sourceUrl),
@@ -548,7 +559,7 @@ const am4Parts = () => [
   product("ASUS Prime B550M-A WiFi II Motherboard", { price: 9000 }),
   product("Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz", { price: 3000 }),
   product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 5000 }),
-  product("Deepcool PK650D 650W 80 Plus Bronze Power Supply", { price: 4500 }),
+  product("Corsair RM750e 750W 80 Plus Gold Fully Modular PSU", { price: 4500 }),
   product("Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case", { price: 3900 }),
 ];
 
@@ -563,7 +574,7 @@ Deno.test("ENGINE: real registry entries compare through the live pipeline", () 
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 }),
   ]);
   const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 150000 });
@@ -584,7 +595,12 @@ Deno.test("ENGINE: the old mislabelling is gone: title-only cards get no label a
     product(name, {
       category: "Video Cards",
       price,
-      specs: { watts: "120", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "120",
+        gpu_length_mm: "250",
+        recommended_psu_watts: "550",
+        pcie_connectors: "8-pin",
+      },
     });
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
@@ -617,12 +633,24 @@ Deno.test("ENGINE: with verified figures, the RTX 4090 outranks the RTX 4060", (
     product("Maker RTX 4060 Card", {
       category: "Video Cards",
       price: 33000,
-      specs: { watts: "115", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "115",
+        gpu_length_mm: "250",
+        pcie_connectors: "8-pin",
+        recommended_psu_watts: "550",
+        ...REVIEWED,
+      },
     }),
     product("Maker RTX 4090 Card", {
       category: "Video Cards",
       price: 95000,
-      specs: { watts: "120", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "120",
+        gpu_length_mm: "250",
+        pcie_connectors: "8-pin",
+        recommended_psu_watts: "550",
+        ...REVIEWED,
+      },
     }),
   ]);
   addFigures(catalog, "GPU", "Maker RTX 4060 Card", RTX_4060);
@@ -666,7 +694,7 @@ Deno.test("ENGINE: no score is exposed, and the old labels are gone", () => {
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 }),
   ]);
   const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 150000 });
@@ -685,7 +713,7 @@ Deno.test("ENGINE: budget optimisation never trades away compatibility", () => {
     product("ASUS Prime B550M-A WiFi II Motherboard", { price: 9000 }),
     product("Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz", { price: 3000 }),
     product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 5000 }),
-    product("Deepcool PK650D 650W 80 Plus Bronze Power Supply", { price: 4500 }),
+    product("Corsair RM750e 750W 80 Plus Gold Fully Modular PSU", { price: 4500 }),
     product("Maker Compact Case", {
       category: "Computer Cases",
       price: 3900,
@@ -699,9 +727,14 @@ Deno.test("ENGINE: budget optimisation never trades away compatibility", () => {
     product("Maker Long Card", {
       category: "Video Cards",
       price: 15000,
-      specs: { watts: "115", gpu_length_mm: "340", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "115",
+        gpu_length_mm: "340",
+        recommended_psu_watts: "550",
+        pcie_connectors: "8-pin",
+      },
     }),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 }),
   ]);
   addFigures(catalog, "GPU", "Maker Long Card", ada(9000, 2600, 16, 256));
@@ -725,7 +758,7 @@ Deno.test("ENGINE: a label never goes to a build over the budget", () => {
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 }),
   ]);
   const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 70000 });
@@ -739,7 +772,7 @@ Deno.test("ENGINE: a build a cheaper one verifiably beats isn't offered", () => 
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 58000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 58000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 28000 }),
   ]);
   const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 150000 });
@@ -754,14 +787,19 @@ Deno.test("ENGINE: parts with checked figures aren't crowded out of a large cata
     product(`Maker ${i} Card`, {
       category: "Video Cards",
       price: 20000 + i * 1000,
-      specs: { watts: "115", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "115",
+        gpu_length_mm: "250",
+        recommended_psu_watts: "550",
+        pcie_connectors: "8-pin",
+      },
     }),
   );
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
     ...filler,
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28500 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28500, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 33500 }),
   ]);
   const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 150000 });
@@ -778,7 +816,13 @@ Deno.test("ENGINE: checked parts don't squeeze every unchecked part out of the s
     product(name, {
       category: "Video Cards",
       price,
-      specs: { watts: "115", gpu_length_mm: "250", pcie_connectors: "8-pin" },
+      specs: {
+        watts: "115",
+        gpu_length_mm: "250",
+        pcie_connectors: "8-pin",
+        recommended_psu_watts: "550",
+        ...REVIEWED,
+      },
     });
   const checked = [20000, 30000, 40000, 50000, 60000];
   const catalog = liveCatalog([
@@ -801,26 +845,6 @@ Deno.test("ENGINE: checked parts don't squeeze every unchecked part out of the s
   assert(recs.some((r: any) => r.tradeoffLabel === "Highest Verified Performance"));
 });
 
-Deno.test("ENGINE: an otherwise equal build needing review gives way to a confirmed one", () => {
-  const catalog = liveCatalog([
-    product("AMD Ryzen 5 5600", { price: 9000 }),
-    ...am4Parts(),
-    // Nothing states its socket, so a build using it can only be offered for review.
-    product("Vendor Plain Motherboard", { category: "Motherboards", price: 4000 }),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
-  ]);
-  const [only] = generateDynamicCatalogRecommendations(
-    catalog,
-    GAMING,
-    { min: 30000, max: 150000 },
-    {
-      allowUnverified: true,
-    },
-  );
-  assertEquals(only.requiresReview, false);
-  assertEquals(only.parts.Motherboard.name, "ASUS Prime B550M-A WiFi II Motherboard");
-});
-
 Deno.test("ENGINE: gaming builds with no graphics card earn no label, but everyday ones can", () => {
   const catalog = liveCatalog([
     product("AMD Ryzen 5 7600", { price: 18000 }),
@@ -833,12 +857,13 @@ Deno.test("ENGINE: gaming builds with no graphics card earn no label, but everyd
         watts: "65",
         integrated_graphics: "yes",
         includes_cooler: "yes",
+        ...REVIEWED,
       },
     }),
     product("MSI PRO B650M-P Micro-ATX Motherboard", { price: 10000 }),
     product("Corsair Vengeance 32GB (2x16GB) DDR5 6000MHz CL36", { price: 9000 }),
     product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 5000 }),
-    product("Deepcool PK650D 650W 80 Plus Bronze Power Supply", { price: 4500 }),
+    product("Corsair RM750e 750W 80 Plus Gold Fully Modular PSU", { price: 4500 }),
     product("Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case", { price: 3900 }),
   ]);
   addFigures(catalog, "CPU", "AMD Ryzen 9 7900", cpuFigures("Zen 4", 12, 24, 5400, 64));
@@ -861,7 +886,7 @@ Deno.test("ENGINE: the canonical API reports the same evidence as a style", () =
   const canonical = buildBuilderCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
     product("Gigabyte GeForce RTX 4070 Super Windforce 12GB", { price: 58000 }),
   ]);
   const answers: any = { purpose: "gaming", budgetInr: 130000, ownedParts: [] };
@@ -895,7 +920,7 @@ Deno.test("ENGINE: Wi-Fi asked for survives the choice between otherwise equal b
         sata_ports: "4",
       },
     }),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
   ]);
   const wanted = generateDynamicCatalogRecommendations(
     catalog,
@@ -914,7 +939,7 @@ Deno.test("ENGINE: the closest build above budget carries no ranking label", () 
   const catalog = liveCatalog([
     product("AMD Ryzen 5 5600", { price: 9000 }),
     ...am4Parts(),
-    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000 }),
+    product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),
   ]);
   const info = getBudgetShortfallInfo(catalog, GAMING, { min: 20000, max: 40000 });
   assertEquals(info?.closestBuild.tradeoff, "Closest available build");

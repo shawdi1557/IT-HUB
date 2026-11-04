@@ -107,9 +107,13 @@ function hasCompleteFigures(slot: ComparedSlot, part: RankablePart): boolean {
  */
 export function performanceEvidence(slot: ComparedSlot, part: RankablePart): EvidenceLevel {
   if (!hasCompleteFigures(slot, part)) return "missing";
+  // A registry entry can hold sourced figures even where some of its other values are unconfirmed, or
+  // were completed by IT HUB's review. Figures only ever come from the registry, with their own source.
   const fromManufacturer =
     part.verificationStatus === "manufacturer_verified" ||
-    part.verificationStatus === "verified_manufacturer";
+    part.verificationStatus === "verified_manufacturer" ||
+    part.verificationStatus === "registry_unverified" ||
+    part.verificationStatus === "it_hub_reviewed";
   return fromManufacturer && /^https:\/\/\S+$/.test(part.performance?.sourceUrl || "")
     ? "manufacturer_verified"
     : "supplier_stated";
@@ -413,6 +417,10 @@ export function describeSpecSource(slot: ComparedSlot, part: RankablePart): stri
     case "manufacturer_verified":
     case "verified_manufacturer":
       return "On IT HUB's specification list, no performance figures on file";
+    case "registry_unverified":
+      return "On IT HUB's specification list, source not confirmed for every value";
+    case "it_hub_reviewed":
+      return "Reviewed by IT HUB, with a source on file";
     case "supplier_spec":
       return "Stated by the supplier, not checked";
     case "title_derived":

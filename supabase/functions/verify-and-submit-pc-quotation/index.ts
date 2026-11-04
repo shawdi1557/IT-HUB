@@ -349,7 +349,11 @@ export async function handleQuotationVerification(
     // The compatibility result comes from the browser, so it can only add a reason to review. A
     // missing result counts as unconfirmed.
     const technicianReviewRequired =
-      priceDivergence > 100 || !hasAuthoritativeLookup || compatibility?.status !== "compatible";
+      priceDivergence > 100 ||
+      !hasAuthoritativeLookup ||
+      compatibility?.status !== "compatible" ||
+      // Nothing here can check a customer's own part, and the browser is what marked it as owned.
+      allParts.some((part) => part.owned);
 
     // 6. Generate Authoritative Reference ID
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");

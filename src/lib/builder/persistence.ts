@@ -7,6 +7,45 @@ import { checkCompatibility } from "./compatibility";
 
 const LOCAL_STORAGE_KEY = "ithub_guest_pc_builds";
 
+const OWNED_PART_NAMES: Record<string, string> = {
+  GPU: "graphics card",
+  RAM: "RAM",
+  Storage: "storage",
+};
+
+/**
+ * How a part the customer already owns is stored in a build's parts, so staff can see it. It has no
+ * product and no price, so it can't be sold or added to a total.
+ */
+export function ownedPartRecord(slot: string) {
+  const name = `Customer's own ${OWNED_PART_NAMES[slot] || slot} (not priced)`;
+  return { slot, owned: true, title: name, name, price: 0, variantId: null, isShopifyLive: false };
+}
+
+/** A build's parts as stored: what's being bought, plus a record for each part the customer owns. */
+export function partsWithOwnedRecords(build: Pick<CanonicalBuild, "components" | "ownedSlots">) {
+  const stored: Record<string, unknown> = { ...build.components };
+  for (const slot of build.ownedSlots || []) stored[slot] = ownedPartRecord(slot);
+  return stored;
+}
+
+/** Separates stored parts back into what's being bought and what the customer owns. */
+export function splitOwnedParts(stored: Record<string, any> | null | undefined): {
+  components: CanonicalBuild["components"];
+  ownedSlots: CanonicalBuild["ownedSlots"];
+} {
+  const components: Record<string, any> = {};
+  const ownedSlots: string[] = [];
+  for (const [slot, part] of Object.entries(stored || {})) {
+    if (part?.owned) ownedSlots.push(slot);
+    else if (part) components[slot] = part;
+  }
+  return {
+    components: components as CanonicalBuild["components"],
+    ownedSlots: ownedSlots as CanonicalBuild["ownedSlots"],
+  };
+}
+
 /**
  * Persists a canonical PC build to Supabase `pc_builds` table.
  * If user is authenticated, uses verified user ID enforcing RLS.
@@ -40,7 +79,7 @@ export async function saveBuild(
 
     const payload = {
       name: build.name.trim() || "My custom PC",
-      parts: build.components,
+      parts: partsWithOwnedRecords(build),
       estimated_price: calculateBuildTotal(build),
       enquiry_status: "Draft",
     };
@@ -133,7 +172,7 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
     }
 
     return data.map((row) => {
-      const parts = (row.parts || {}) as CanonicalBuild["components"];
+      const { components: parts, ownedSlots } = splitOwnedParts(row.parts as Record<string, any>);
       return {
         id: row.id,
         userId: user.id,
@@ -141,7 +180,8 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
         mode: "expert",
         currency: "INR",
         components: parts,
-        compatibility: checkCompatibility(parts),
+        compatibility: checkCompatibility(parts, { ownedSlots }),
+        ownedSlots,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
@@ -209,6 +249,8 @@ export interface QuotationSubmissionResult {
 }
 
 export const PENDING_QUOTATION_STORAGE_KEY = "ithub_pending_pc_quotation";
+/** A build kept for sign-in is only offered back for this long. Its parts and prices may have moved on. */
+export const PENDING_QUOTATION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface PendingQuotation {
   mode: "wizard" | "customise";
@@ -287,12 +329,40 @@ export function getPendingQuotation(): PendingQuotation | null {
     const storage = getStorage();
     if (storage) {
       const raw = storage.getItem(PENDING_QUOTATION_STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as PendingQuotation;
+      if (raw) {
+        const pending = JSON.parse(raw) as PendingQuotation;
+        const savedAt = Date.parse(pending.timestamp);
+        if (Number.isNaN(savedAt) || Date.now() - savedAt > PENDING_QUOTATION_MAX_AGE_MS) {
+          storage.removeItem(PENDING_QUOTATION_STORAGE_KEY);
+          return null;
+        }
+        return pending;
+      }
     }
   } catch {
     // Ignore parse error
   }
   return null;
+}
+
+/**
+ * Whether the build on screen is the one kept for sign-in. Prices are left out because they follow the
+ * live catalogue. An older kept build must never replace a different one the customer has opened.
+ */
+export function pendingMatchesBuild(
+  pending: Pick<PendingQuotation, "parts" | "ownedSlots">,
+  parts: Record<string, any>,
+  owned: string[],
+): boolean {
+  const ids = (record: Record<string, any>) =>
+    JSON.stringify(
+      Object.keys(record)
+        .filter((slot) => record[slot])
+        .sort()
+        .map((slot) => [slot, record[slot].id ?? record[slot].productId ?? record[slot].name]),
+    );
+  const sorted = (slots: string[] | undefined) => JSON.stringify([...(slots || [])].sort());
+  return ids(pending.parts || {}) === ids(parts) && sorted(pending.ownedSlots) === sorted(owned);
 }
 
 /**
@@ -337,8 +407,10 @@ export async function submitQuotationRequest(
   // Map parts into structured format containing names, Shopify product/variant IDs, and prices
   const partsPayload: Record<string, any> = {};
   const ownedSlots = new Set<string>(build.ownedSlots || []);
+  // A part the customer owns reaches the technician as a record with no product and no price.
+  for (const slot of ownedSlots) partsPayload[slot] = ownedPartRecord(slot);
   for (const [slot, comp] of Object.entries(build.components)) {
-    if (comp) {
+    if (comp && !ownedSlots.has(slot)) {
       partsPayload[slot] = {
         slot,
         productId: comp.productId,
@@ -348,12 +420,12 @@ export async function submitQuotationRequest(
         price: comp.price,
         isShopifyLive: comp.isShopifyLive ?? Boolean(comp.variantId),
         specs: comp.specs || {},
-        ...(ownedSlots.has(slot) ? { owned: true } : {}),
       };
     }
   }
 
-  const compatibilityPayload = build.compatibility || checkCompatibility(build.components);
+  const compatibilityPayload =
+    build.compatibility || checkCompatibility(build.components, { ownedSlots });
 
   try {
     if (activeSupabase) {

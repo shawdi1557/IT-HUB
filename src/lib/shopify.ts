@@ -385,6 +385,7 @@ const PRODUCTS_QUERY = `
               { namespace: "pc_builder", key: "socket" }
               { namespace: "pc_builder", key: "ram_generation" }
               { namespace: "pc_builder", key: "watts" }
+              { namespace: "pc_builder", key: "cpu_max_power_watts" }
               { namespace: "pc_builder", key: "capacity_watts" }
               { namespace: "pc_builder", key: "gpu_length_mm" }
               { namespace: "pc_builder", key: "cabinet_clearance_mm" }
@@ -405,6 +406,21 @@ const PRODUCTS_QUERY = `
               { namespace: "pc_builder", key: "pcie_connectors" }
               { namespace: "pc_builder", key: "integrated_graphics" }
               { namespace: "pc_builder", key: "includes_cooler" }
+              { namespace: "pc_builder", key: "supported_ram_generations" }
+              { namespace: "pc_builder", key: "ram_speed_mhz" }
+              { namespace: "pc_builder", key: "ram_module_type" }
+              { namespace: "pc_builder", key: "recommended_psu_watts" }
+              { namespace: "pc_builder", key: "pcie_6plus2_required" }
+              { namespace: "pc_builder", key: "pcie_16pin_required" }
+              { namespace: "pc_builder", key: "pcie_16pin_adapter_8pin_count" }
+              { namespace: "pc_builder", key: "pcie_6plus2_count" }
+              { namespace: "pc_builder", key: "pcie_16pin_count" }
+              { namespace: "pc_builder", key: "storage_capacity_gb" }
+              { namespace: "pc_builder", key: "spec_source" }
+              { namespace: "pc_builder", key: "spec_review_status" }
+              { namespace: "pc_builder", key: "spec_source_url" }
+              { namespace: "pc_builder", key: "spec_reviewed_on" }
+              { namespace: "pc_builder", key: "exact_model" }
             ]
           ) {
             namespace

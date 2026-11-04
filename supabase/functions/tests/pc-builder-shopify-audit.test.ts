@@ -85,7 +85,9 @@ const mockShopifyRtx4060: any = {
   variantId: "gid://shopify/ProductVariant/4455667791",
   availableForSale: true,
   stock: 4,
-  specs: {},
+  specs: {
+    pcie_connectors: "8-pin",
+  },
 };
 
 const mockShopifyNvme1tb: any = {

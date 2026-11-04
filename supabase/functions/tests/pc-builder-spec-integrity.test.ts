@@ -121,11 +121,11 @@ Deno.test("SPEC: the builder's badges follow that status, not just the absence o
 
 // ── Cabinets ──────────────────────────────────────────────────────────────────────────────────
 
-Deno.test("SPEC: the named Ant Esports cabinet keeps its verified specifications", () => {
+Deno.test("SPEC: the named Ant Esports cabinet keeps its entry, unconfirmed because no page was found", () => {
   const comp = matchShopifyProductToComponent(product("Ant Esports ICE-100 Air Mini Mesh Case"))!;
   assertEquals(comp.slot, "Cabinet");
   assertEquals(comp.matchedModelKey, "case-matx");
-  assertEquals(comp.specs.provenance, "manufacturer_verified");
+  assertEquals(comp.specs.provenance, "registry_unverified");
   assertEquals(comp.specs.maxGpuLengthMm, 310);
 });
 
@@ -259,7 +259,11 @@ Deno.test("SPEC: every registry entry still matches its own product title", () =
     const comp = matchShopifyProductToComponent(product(entry.title))!;
     assert(comp, `${key} wasn't classified`);
     assertEquals(comp.matchedModelKey, key, entry.title);
-    assertEquals(comp.specs.provenance, "manufacturer_verified", entry.title);
+    assert(
+      comp.specs.provenance === "manufacturer_verified" ||
+        comp.specs.provenance === "registry_unverified",
+      entry.title,
+    );
     assertEquals(comp.isVerified, true, entry.title);
   }
 });

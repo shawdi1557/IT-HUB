@@ -45,7 +45,7 @@ const VERIFIED = {
   RAM: "Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz",
   GPU: "ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge",
   Storage: "Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD",
-  PSU: "Deepcool PK650D 650W 80 Plus Bronze Power Supply",
+  PSU: "Corsair RM750e 750W 80 Plus Gold Fully Modular PSU",
   Cabinet: "Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case",
   Cooler: "Deepcool AG400 ARGB 120mm Single-Tower CPU Cooler",
 };
@@ -104,7 +104,8 @@ Deno.test("WORKFLOW: a memory kit can't exceed the motherboard's slots or capaci
   const twoSlotBoard = option("MSI B760M Bomber DDR5 Motherboard");
   const bigKit = option("Generic 512GB (8x64GB) DDR5 Desktop RAM", { category: "RAM" });
   assert(hasRule({ Motherboard: twoSlotBoard, RAM: bigKit }, "RULE_B_RAM_SLOTS_EXCEEDED"));
-  assert(hasRule({ Motherboard: twoSlotBoard, RAM: bigKit }, "RULE_B_RAM_CAPACITY_EXCEEDED"));
+  const limitedBoard = option("MSI MAG Z790 Tomahawk WiFi Motherboard");
+  assert(hasRule({ Motherboard: limitedBoard, RAM: bigKit }, "RULE_B_RAM_CAPACITY_EXCEEDED"));
   assert(hasRule(verifiedParts(), "RULE_B_RAM_LIMITS_OK"));
 });
 
@@ -127,7 +128,7 @@ Deno.test("WORKFLOW: a cooler must fit the socket and the cabinet", () => {
 Deno.test("WORKFLOW: a long graphics card is refused by a small cabinet", () => {
   const longCard = option("Big Card Graphics Card", {
     category: "Video Cards",
-    specs: { gpu_length_mm: "340", watts: "200" },
+    specs: { gpu_length_mm: "340", recommended_psu_watts: "550", watts: "200" },
   });
   assert(
     hasRule(
@@ -249,7 +250,10 @@ Deno.test("WORKFLOW: a card with no stated power isn't told it runs from the slo
 });
 
 Deno.test("WORKFLOW: wattage alone doesn't confirm a power supply's PCIe cables", () => {
-  const parts = { GPU: option(VERIFIED.GPU), PSU: option("Corsair RM750e 750W Fully Modular PSU") };
+  const parts = {
+    GPU: option(VERIFIED.GPU),
+    PSU: option("Vendor 750W Fully Modular PSU", { category: "Computer Power Supplies" }),
+  };
   assert(!ruleIds(parts).includes("RULE_F_PCIE_POWER_ADVISORY"));
   assert(hasRule(parts, "RULE_F_PCIE_CONNECTORS_UNKNOWN"));
 });
@@ -294,7 +298,7 @@ Deno.test("WORKFLOW: a chipset name doesn't give a motherboard one model's speci
   assertEquals(board.specs.formFactor, undefined);
   assertEquals(board.specs.ramSlots, undefined);
   assertEquals(board.specs.m2SlotCount, undefined);
-  assertEquals(board.specs.hasWifi, false);
+  assertEquals(board.specs.hasWifi, undefined);
 });
 
 Deno.test("WORKFLOW: a chip name gives a graphics card its power draw, and nothing else", () => {
@@ -313,7 +317,7 @@ Deno.test("WORKFLOW: a chip name gives a graphics card its power draw, and nothi
   assertEquals(ti.specs.powerWatts, undefined);
 });
 
-Deno.test("WORKFLOW: a 400W supply is only limited for a card whose maker asks for 550W", () => {
+Deno.test("WORKFLOW: a 400W supply goes to a technician for a card whose maker asks for 550W", () => {
   const parts = {
     CPU: option("AMD Ryzen 5 5600"),
     GPU: option("NVIDIA RTX 4060 8GB", { category: "Video Cards & Adapters" }),
@@ -322,7 +326,7 @@ Deno.test("WORKFLOW: a 400W supply is only limited for a card whose maker asks f
       specs: { capacity_watts: "400" },
     }),
   };
-  assert(hasRule(parts, "RULE_E_PSU_HEADROOM_LIMITED"));
+  assert(hasRule(parts, "RULE_E_PSU_BELOW_RECOMMENDED"));
   assert(!hasRule(parts, "RULE_E_PSU_HEADROOM_ADEQUATE"));
 });
 
@@ -557,7 +561,18 @@ Deno.test("WORKFLOW: a catalogue missing a wattage isn't confirmed, but can stil
 });
 
 Deno.test("WORKFLOW: fully confirmed builds don't ask for review", () => {
-  const catalog = liveCatalog(Object.values(VERIFIED).map((name) => product(name)));
+  // ZOTAC's page can't be read, so its card needs IT HUB's review before a build counts as confirmed.
+  const reviewed = {
+    gpu_length_mm: "222",
+    pcie_connectors: "1x 8-pin",
+    spec_review_status: "reviewed",
+    spec_source_url: "https://www.example.com/datasheet",
+  };
+  const catalog = liveCatalog(
+    Object.values(VERIFIED).map((name) =>
+      product(name, name === VERIFIED.GPU ? { specs: reviewed } : {}),
+    ),
+  );
   const [build] = generateDynamicCatalogRecommendations(catalog, GAMING, {
     min: 30000,
     max: 80000,
@@ -849,7 +864,7 @@ Deno.test("QUOTE: Shopify's name and price replace what the browser sent", async
   assertEquals(row.customer_phone, "919800000001");
 });
 
-Deno.test("QUOTE: a part the customer owns isn't priced, or flagged as tampering", async () => {
+Deno.test("QUOTE: a part the customer owns isn't priced, and always goes to a technician", async () => {
   const harness = quotationHarness();
   const res = await submit(
     {
@@ -867,7 +882,8 @@ Deno.test("QUOTE: a part the customer owns isn't priced, or flagged as tampering
   const body = await res.json();
   assertEquals(body.authoritativePrice, 9000);
   assertEquals(body.priceDivergence, 0);
-  assertEquals(body.technicianReviewRequired, false);
+  // The browser says the build is compatible and the part is owned. Neither can be taken on trust.
+  assertEquals(body.technicianReviewRequired, true);
   assertEquals(harness.inserted[0].parts.GPU.owned, true);
 });
 
@@ -983,7 +999,7 @@ const statedGpu = (name: string, price: number, watts = "120") =>
   product(name, {
     category: "Video Cards",
     price,
-    specs: { watts, gpu_length_mm: "250", pcie_connectors: "8-pin" },
+    specs: { watts, gpu_length_mm: "250", recommended_psu_watts: "550", pcie_connectors: "8-pin" },
   });
 const am4Parts = () => [
   product("ASUS Prime B550M-A WiFi II Motherboard", { price: 9000 }),
@@ -1174,7 +1190,12 @@ Deno.test("STAGE05: a power supply that lacks the cables is passed over", () => 
   const dualCable = product("Big Maker Card", {
     category: "Video Cards",
     price: 40000,
-    specs: { watts: "300", gpu_length_mm: "250", pcie_connectors: "8-pin,8-pin" },
+    specs: {
+      watts: "300",
+      gpu_length_mm: "250",
+      recommended_psu_watts: "550",
+      pcie_connectors: "8-pin,8-pin",
+    },
   });
   const oneCable = product("Small 750W Power Supply", {
     category: "Computer Power Supplies",
@@ -1229,7 +1250,8 @@ Deno.test("STAGE05: a title naming the other memory generation isn't the verifie
 
   const same = matchShopifyProductToComponent(product("MSI B760M Bomber DDR5 Motherboard"))!;
   assertEquals(same.matchedModelKey, "mobo-b760m");
-  assertEquals(same.specs.provenance, "manufacturer_verified");
+  // No official page for this exact model was found, so its entry stays unconfirmed.
+  assertEquals(same.specs.provenance, "registry_unverified");
 
   const kit = matchShopifyProductToComponent(
     product("Corsair Vengeance LPX 16GB (2x8GB) DDR5", { category: "RAM" }),
