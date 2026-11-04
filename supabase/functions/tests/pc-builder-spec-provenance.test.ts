@@ -18,6 +18,7 @@ const {
   normalizeStorageInterface,
   parseIntegerValue,
   parseListValue,
+  PC_BUILDER_DEFINITIONS_TO_CREATE,
   PC_BUILDER_METAFIELDS,
   readSpecReview,
   readStatedSpecs,
@@ -725,13 +726,14 @@ const validDefinition = (field: any) => ({
   validations: [
     ...(field.min !== undefined ? [{ name: "min", value: String(field.min) }] : []),
     ...(field.max !== undefined ? [{ name: "max", value: String(field.max) }] : []),
+    ...(field.maxLength !== undefined ? [{ name: "max", value: String(field.maxLength) }] : []),
     ...(field.choices ? [{ name: "choices", value: JSON.stringify(field.choices) }] : []),
   ],
 });
 
 Deno.test("ADMIN AUDIT: nothing defined means everything is missing", () => {
   const findings = compareDefinitions([]);
-  assertEquals(findings.length, PC_BUILDER_METAFIELDS.length);
+  assertEquals(findings.length, PC_BUILDER_DEFINITIONS_TO_CREATE.length);
   assert(findings.every((f: any) => f.status === "missing"));
 });
 

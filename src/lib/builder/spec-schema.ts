@@ -46,7 +46,11 @@ export interface MetafieldDefinition {
   storefront: "public" | "none";
   /** Read so existing data isn't lost, but new entries should use the keys that replace it. */
   legacy?: boolean;
+  /** Why this key is read if present, but isn't created in Shopify. */
+  notCreated?: string;
 }
+
+export const PC_BUILDER_NAMESPACE = "pc_builder";
 
 const integer = (key: string, min: number, max: number, unit?: string): MetafieldDefinition => ({
   key,
@@ -77,7 +81,13 @@ export const PC_BUILDER_METAFIELDS: MetafieldDefinition[] = [
   { key: "spec_source_url", type: "url", storefront: "public" },
   { key: "spec_reviewed_on", type: "date", storefront: "public" },
   { key: "spec_reviewed_by", type: "single_line_text_field", maxLength: 20, storefront: "none" },
-  { key: "exact_model", type: "single_line_text_field", maxLength: 120, storefront: "public" },
+  {
+    key: "exact_model",
+    type: "single_line_text_field",
+    maxLength: 120,
+    storefront: "public",
+    notCreated: "nothing uses it yet, so filling it in would change nothing",
+  },
   // Processor and motherboard.
   choice("socket", SOCKETS),
   list("supported_ram_generations", RAM_GENERATIONS),
@@ -108,7 +118,11 @@ export const PC_BUILDER_METAFIELDS: MetafieldDefinition[] = [
   integer("capacity_watts", 100, 3000, "W"),
   integer("pcie_6plus2_count", 0, 12),
   integer("pcie_16pin_count", 0, 4),
-  { ...list("pcie_connectors"), legacy: true },
+  {
+    ...list("pcie_connectors"),
+    legacy: true,
+    notCreated: "it exists only to read older data, and the store holds none",
+  },
   // Cabinet.
   list("supported_motherboards", FORM_FACTORS),
   integer("cabinet_clearance_mm", 100, 600, "mm"),
@@ -122,6 +136,156 @@ export const PC_BUILDER_METAFIELDS: MetafieldDefinition[] = [
 ];
 
 const definition = (key: string) => PC_BUILDER_METAFIELDS.find((field) => field.key === key)!;
+
+/** The definitions Shopify should hold. A definition's type and key can't be changed once created. */
+export const PC_BUILDER_DEFINITIONS_TO_CREATE = PC_BUILDER_METAFIELDS.filter(
+  (field) => !field.notCreated,
+);
+
+/** What staff see in Shopify Admin for each definition. */
+const FIELD_LABELS: Record<string, { name: string; description: string }> = {
+  spec_source: {
+    name: "Spec source",
+    description: "Where these specifications came from.",
+  },
+  spec_review_status: {
+    name: "Spec review status",
+    description: "Reviewed means someone at IT HUB checked these values against the source link.",
+  },
+  spec_source_url: {
+    name: "Spec source link",
+    description: "The https page the values were checked against. Required for a review to count.",
+  },
+  spec_reviewed_on: { name: "Spec reviewed on", description: "The date of the review." },
+  spec_reviewed_by: {
+    name: "Spec reviewed by",
+    description: "The reviewer's initials. Not shown publicly.",
+  },
+  socket: { name: "CPU socket", description: "For a processor or motherboard." },
+  supported_ram_generations: {
+    name: "Supported RAM generations",
+    description: "For a processor. Choose each generation it supports.",
+  },
+  ram_generation: {
+    name: "RAM generation",
+    description: "For a memory kit, or the generation a motherboard takes.",
+  },
+  watts: {
+    name: "Power (W)",
+    description: "A processor's base power, or a graphics card's board power, in watts.",
+  },
+  cpu_max_power_watts: {
+    name: "CPU maximum power (W)",
+    description: "The most a processor can draw, in watts, if the maker states it.",
+  },
+  integrated_graphics: {
+    name: "Has integrated graphics",
+    description: "For a processor.",
+  },
+  includes_cooler: { name: "Includes a cooler", description: "For a boxed processor." },
+  form_factor: { name: "Motherboard size", description: "For a motherboard." },
+  ram_slots: { name: "RAM slots", description: "For a motherboard." },
+  max_ram_gb: { name: "Maximum RAM (GB)", description: "For a motherboard, in GB." },
+  m2_slots: { name: "M.2 slots", description: "For a motherboard." },
+  sata_ports: { name: "SATA ports", description: "For a motherboard." },
+  wifi: { name: "Has built-in Wi-Fi", description: "For a motherboard." },
+  bios_update_required: {
+    name: "May need a BIOS update",
+    description: "For a motherboard that may need an update to boot a newer processor.",
+  },
+  ram_capacity_gb: { name: "RAM kit capacity (GB)", description: "The whole kit's size, in GB." },
+  ram_modules: { name: "RAM sticks in kit", description: "How many sticks are in the kit." },
+  ram_speed_mhz: { name: "RAM speed (MHz)", description: "The kit's rated speed." },
+  ram_module_type: {
+    name: "RAM module type",
+    description: "DIMM for desktops. SO-DIMM is for laptops.",
+  },
+  gpu_length_mm: { name: "Graphics card length (mm)", description: "Rounded up to a whole mm." },
+  recommended_psu_watts: {
+    name: "Recommended PSU (W)",
+    description: "The wattage the graphics card's maker recommends.",
+  },
+  pcie_6plus2_required: {
+    name: "8-pin plugs the card needs",
+    description: "6+2-pin or 8-pin PCIe plugs. Enter 0 if none.",
+  },
+  pcie_16pin_required: {
+    name: "16-pin plugs the card needs",
+    description: "16-pin, 12VHPWR or 12V-2x6 plugs. Enter 0 if none.",
+  },
+  pcie_16pin_adapter_8pin_count: {
+    name: "8-pin plugs on the card's adapter",
+    description: "Only if the card's box includes a 16-pin adapter. Otherwise leave blank.",
+  },
+  capacity_watts: { name: "PSU wattage (W)", description: "The power supply's rated wattage." },
+  pcie_6plus2_count: {
+    name: "PSU 8-pin plugs",
+    description: "How many 6+2-pin PCIe plugs the power supply has. Enter 0 if none.",
+  },
+  pcie_16pin_count: {
+    name: "PSU 16-pin plugs",
+    description: "How many 16-pin, 12VHPWR or 12V-2x6 plugs it has. Enter 0 if none.",
+  },
+  supported_motherboards: {
+    name: "Supported motherboard sizes",
+    description: "For a cabinet. Choose each size it fits.",
+  },
+  cabinet_clearance_mm: {
+    name: "Graphics card clearance (mm)",
+    description: "The longest graphics card a cabinet fits.",
+  },
+  max_cooler_height_mm: {
+    name: "Cooler height limit (mm)",
+    description: "The tallest CPU cooler a cabinet fits.",
+  },
+  storage_interface: { name: "Storage connection", description: "How a drive connects." },
+  storage_capacity_gb: { name: "Storage capacity (GB)", description: "The drive's size, in GB." },
+  supported_sockets: {
+    name: "Cooler supported sockets",
+    description: "For a CPU cooler. Choose each socket it fits.",
+  },
+  cooler_height_mm: { name: "Cooler height (mm)", description: "For a CPU cooler." },
+};
+
+export interface DefinitionCreateInput {
+  name: string;
+  namespace: string;
+  key: string;
+  description: string;
+  type: MetafieldType;
+  ownerType: "PRODUCT";
+  pin: false;
+  validations: { name: string; value: string }[];
+  access: { storefront: "PUBLIC_READ" | "NONE" };
+}
+
+/**
+ * What Shopify's metafieldDefinitionCreate is given for a field. Admin access is left out, because Shopify
+ * refuses it on merchant-owned definitions. Unpinned, so these don't crowd every product's page.
+ */
+export function definitionCreateInput(field: MetafieldDefinition): DefinitionCreateInput {
+  const validations: { name: string; value: string }[] = [];
+  if (field.min !== undefined) validations.push({ name: "min", value: String(field.min) });
+  if (field.max !== undefined) validations.push({ name: "max", value: String(field.max) });
+  if (field.maxLength !== undefined) {
+    validations.push({ name: "max", value: String(field.maxLength) });
+  }
+  if (field.choices) {
+    validations.push({ name: "choices", value: JSON.stringify([...field.choices]) });
+  }
+  const label = FIELD_LABELS[field.key];
+  return {
+    name: label.name,
+    namespace: PC_BUILDER_NAMESPACE,
+    key: field.key,
+    description: label.description,
+    type: field.type,
+    ownerType: "PRODUCT",
+    pin: false,
+    validations,
+    access: { storefront: field.storefront === "public" ? "PUBLIC_READ" : "NONE" },
+  };
+}
 
 export function normalizeSocket(value: unknown): string | undefined {
   const compact = String(value ?? "")
@@ -520,12 +684,15 @@ export interface DefinitionFinding {
  * Compares the definitions Shopify's Admin API reports with this schema. Read-only: it only reports.
  */
 export function compareDefinitions(actual: AdminMetafieldDefinition[]): DefinitionFinding[] {
-  const inNamespace = actual.filter((item) => item.namespace === "pc_builder");
+  const inNamespace = actual.filter((item) => item.namespace === PC_BUILDER_NAMESPACE);
   const findings: DefinitionFinding[] = [];
   for (const wanted of PC_BUILDER_METAFIELDS) {
     const found = inNamespace.find((item) => item.key === wanted.key);
     if (!found) {
-      findings.push({ key: wanted.key, status: "missing", detail: `needs ${wanted.type}` });
+      // A key that isn't created isn't missing. If someone has created it, it's still checked below.
+      if (!wanted.notCreated) {
+        findings.push({ key: wanted.key, status: "missing", detail: `needs ${wanted.type}` });
+      }
       continue;
     }
     if (found.type !== wanted.type) {
@@ -552,6 +719,8 @@ export function compareDefinitions(actual: AdminMetafieldDefinition[]): Definiti
       different.push("min");
     if (wanted.max !== undefined && String(validations.max) !== String(wanted.max))
       different.push("max");
+    if (wanted.maxLength !== undefined && String(validations.max) !== String(wanted.maxLength))
+      different.push("max length");
     if (wanted.choices) {
       let choices: string[] = [];
       try {

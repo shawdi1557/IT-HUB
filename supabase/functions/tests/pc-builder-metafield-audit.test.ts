@@ -15,7 +15,8 @@ const {
   SHOPIFY_MAX_QUERY_COST,
   validStoreDomain,
 } = await import("../../../scripts/shopify-admin-metafield-audit.ts");
-const { PC_BUILDER_METAFIELDS } = await import("../../../src/lib/builder/spec-schema.ts");
+const { PC_BUILDER_DEFINITIONS_TO_CREATE: EXPECTED } =
+  await import("../../../src/lib/builder/spec-schema.ts");
 
 const TOKEN = "stand-in-credential-value";
 const source = await Deno.readTextFile(
@@ -216,12 +217,12 @@ Deno.test("AUDIT: sorts each definition into existing, incompatible, missing or 
     "different_validation",
   );
   assertEquals(keys(report.unexpected), ["old_key"]);
-  assertEquals(report.missing.length, PC_BUILDER_METAFIELDS.length - 4);
+  assertEquals(report.missing.length, EXPECTED.length - 4);
   assert(report.missing.some((finding: any) => finding.key === "cpu_max_power_watts"));
   // Every key of the schema lands in exactly one group.
   assertEquals(
     report.existing.length + report.incompatible.length + report.missing.length,
-    PC_BUILDER_METAFIELDS.length,
+    EXPECTED.length,
   );
 });
 
@@ -229,7 +230,7 @@ Deno.test("AUDIT: the printed report has clear sections", async () => {
   const { lines } = await audit();
   const text = lines.join("\n");
   assert(text.includes("INCOMPATIBLE, needs a decision before 1H (3)"));
-  assert(text.includes(`MISSING, would be created in 1H (${PC_BUILDER_METAFIELDS.length - 4})`));
+  assert(text.includes(`MISSING, would be created in 1H (${EXPECTED.length - 4})`));
   assert(text.includes("EXISTING and matching (1)"));
   assert(text.includes("EXISTING, not in the schema (1)"));
   assert(text.includes("Read-only: nothing was changed in Shopify."));

@@ -16,6 +16,7 @@
 
 import {
   compareDefinitions,
+  PC_BUILDER_DEFINITIONS_TO_CREATE,
   PC_BUILDER_METAFIELDS,
   type AdminMetafieldDefinition,
   type DefinitionFinding,
@@ -185,7 +186,7 @@ export async function runAudit(deps: AuditDeps): Promise<AuditReport> {
   const missing = withStatus("missing");
   const existing = withStatus("matches");
   const unexpected = withStatus("unexpected");
-  log(`\nAgainst the pc_builder schema (${PC_BUILDER_METAFIELDS.length} keys):`);
+  log(`\nAgainst the pc_builder schema (${PC_BUILDER_DEFINITIONS_TO_CREATE.length} keys):`);
   const section = (title: string, group: DefinitionFinding[]) => {
     log(`\n${title} (${group.length})`);
     for (const finding of group) log(`  ${finding.key}: [${finding.status}] ${finding.detail}`);
