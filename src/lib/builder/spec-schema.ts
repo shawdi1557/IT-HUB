@@ -721,7 +721,13 @@ export function compareDefinitions(actual: AdminMetafieldDefinition[]): Definiti
       different.push("max");
     if (wanted.maxLength !== undefined && String(validations.max) !== String(wanted.maxLength))
       different.push("max length");
-    if (wanted.choices) {
+    // Shopify only documents choices for text, so a list may have to go without them. That's accepted,
+    // because the builder still refuses any value outside the list.
+    const listWithoutChoices =
+      Boolean(wanted.choices) &&
+      wanted.type.startsWith("list.") &&
+      validations.choices === undefined;
+    if (wanted.choices && !listWithoutChoices) {
       let choices: string[] = [];
       try {
         choices = JSON.parse(validations.choices ?? "[]");
@@ -737,7 +743,13 @@ export function compareDefinitions(actual: AdminMetafieldDefinition[]): Definiti
             status: "different_validation",
             detail: `differs on ${different.join(", ")}`,
           }
-        : { key: wanted.key, status: "matches", detail: "as proposed" },
+        : {
+            key: wanted.key,
+            status: "matches",
+            detail: listWithoutChoices
+              ? "as proposed, without choices. The builder checks these values"
+              : "as proposed",
+          },
     );
   }
   for (const item of inNamespace) {

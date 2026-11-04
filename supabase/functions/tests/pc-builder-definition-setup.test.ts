@@ -23,6 +23,7 @@ const {
   definitionCreateInput,
   PC_BUILDER_DEFINITIONS_TO_CREATE: TO_CREATE,
   PC_BUILDER_METAFIELDS: ALL_KEYS,
+  readStatedSpecs,
 } = await import("../../../src/lib/builder/spec-schema.ts");
 const { matchShopifyProductToComponent, syncBuilderCatalogWithShopify } =
   await import("../../../src/lib/builder/catalog.ts");
@@ -158,6 +159,8 @@ interface StandInOptions {
   pilotValues?: Record<string, string>;
   title?: string;
   rejectListChoices?: boolean;
+  listRefusalCode?: string;
+  refuseListOutright?: boolean;
   failCreateOn?: string;
   dropValidationOn?: string;
   scopesRefused?: boolean;
@@ -247,8 +250,12 @@ function standIn(options: StandInOptions = {}) {
       if (input.access?.admin) return refuse("ADMIN_ACCESS_INPUT_NOT_ALLOWED", "Not allowed");
       if (definitions.has(input.key)) return refuse("TAKEN", "Already in use");
       if (options.failCreateOn === input.key) return refuse("INVALID", "Stand-in refusal");
-      if (options.rejectListChoices && input.type.startsWith("list.")) {
-        return refuse("INVALID_OPTION", "choices isn't supported");
+      const hasChoices = input.validations.some((v: any) => v.name === "choices");
+      if (options.rejectListChoices && input.type.startsWith("list.") && hasChoices) {
+        return refuse(options.listRefusalCode ?? "INVALID_OPTION", "choices isn't supported");
+      }
+      if (options.refuseListOutright && input.type.startsWith("list.")) {
+        return refuse("INVALID_OPTION", "not this time either");
       }
       definitions.set(input.key, {
         ...input,
@@ -655,12 +662,123 @@ Deno.test("CREATE: a run stopped halfway can be finished safely", async () => {
   assertEquals(outcome.created.length, 38 - partial);
 });
 
-Deno.test("CREATE: if Shopify refuses choices on lists, nothing else has been created", async () => {
+const LISTS = ["supported_motherboards", "supported_ram_generations", "supported_sockets"];
+
+Deno.test("CREATE: if Shopify refuses choices on lists, they're created without them", async () => {
   const shopify = standIn({ rejectListChoices: true });
-  const message = await stopped("definitions", shopify);
-  assert(message.includes("INVALID_OPTION"));
+  const { outcome, lines } = await go("definitions", shopify);
+  assertEquals(shopify.definitions.size, 38);
+  assertEquals(outcome.created.length, 38);
+  assertEquals([...outcome.createdWithoutChoices].sort(), LISTS);
+  for (const key of LISTS) {
+    assertEquals(shopify.definitions.get(key).validations, []);
+    assertEquals(shopify.definitions.get(key).type, LIST);
+    assertEquals(shopify.definitions.get(key).access.storefront, "PUBLIC_READ");
+  }
+  assert(lines.some((line: string) => line.includes("Created without choices")));
+  // Only the lists lose them.
+  const socket = shopify.definitions.get("socket");
+  assert(socket.validations.some((v: any) => v.name === "choices"));
+});
+
+Deno.test("CREATE: lists Shopify accepts keep their choices", async () => {
+  const shopify = standIn();
+  const { outcome } = await go("definitions", shopify);
+  assertEquals(outcome.createdWithoutChoices, []);
+  for (const key of LISTS) {
+    assert(shopify.definitions.get(key).validations.some((v: any) => v.name === "choices"));
+  }
+});
+
+Deno.test("CREATE: a run with lists created without choices can be run again safely", async () => {
+  const shopify = standIn({ rejectListChoices: true });
+  await go("definitions", shopify);
+  const before = mutations(shopify).length;
+  const { outcome } = await go("definitions", shopify);
+  assertEquals(mutations(shopify).length, before);
+  assertEquals(outcome.skipped.length, 38);
+});
+
+Deno.test("CREATE: any other refusal on a list still stops the run", async () => {
+  for (const code of ["TAKEN", "LIMIT_EXCEEDED", "RESOURCE_TYPE_LIMIT_EXCEEDED", "TOO_LONG"]) {
+    const shopify = standIn({ rejectListChoices: true, listRefusalCode: code });
+    const message = await stopped("definitions", shopify);
+    assert(message.includes(code), message);
+    assertEquals(shopify.definitions.size, 0, code);
+    assertEquals(mutations(shopify).length, 1, code);
+  }
+});
+
+Deno.test("CREATE: a text definition never loses its choices", async () => {
+  const shopify = standIn({ failCreateOn: "socket" });
+  await stopped("definitions", shopify);
+  const creates = mutations(shopify).filter((r) => r.variables.definition.key === "socket");
+  assertEquals(creates.length, 1, "no second attempt");
+  assert(!shopify.definitions.has("socket"));
+});
+
+Deno.test("CREATE: if a list is refused without choices too, the run stops", async () => {
+  const shopify = standIn({ rejectListChoices: true, refuseListOutright: true });
+  assert((await stopped("definitions", shopify)).includes("not this time either"));
   assertEquals(shopify.definitions.size, 0);
-  assertEquals(mutations(shopify).length, 1, "it stops at the first refusal");
+  assertEquals(mutations(shopify).length, 2, "one attempt with choices and one without");
+});
+
+Deno.test("AUDIT: a list without choices matches, and says so", () => {
+  const list = TO_CREATE.find((f: any) => f.key === "supported_sockets")!;
+  const row = (validations: any[]) =>
+    compareDefinitions([
+      {
+        namespace: "pc_builder",
+        key: list.key,
+        type: LIST,
+        storefrontAccess: "PUBLIC_READ",
+        validations,
+      },
+    ]).find((f: any) => f.key === list.key);
+  const without = row([]);
+  assertEquals(without?.status, "matches");
+  assert(without?.detail.includes("without choices"));
+  // Choices that are there must be the right ones.
+  assertEquals(row([{ name: "choices", value: '["AM4"]' }])?.status, "different_validation");
+  assertEquals(row([{ name: "choices", value: JSON.stringify(SOCKETS) }])?.detail, "as proposed");
+});
+
+Deno.test("AUDIT: text with its choices missing is still a difference", () => {
+  const status = compareDefinitions([
+    {
+      namespace: "pc_builder",
+      key: "socket",
+      type: TEXT,
+      storefrontAccess: "PUBLIC_READ",
+      validations: [],
+    },
+  ]).find((f: any) => f.key === "socket")?.status;
+  assertEquals(status, "different_validation");
+});
+
+Deno.test("BUILDER: without Shopify's choices, a value outside a list still isn't used", () => {
+  const cases: [string, string, string, string][] = [
+    ["CPU", "supported_ram_generations", "DDR3", "supportedRamGen"],
+    ["Cabinet", "supported_motherboards", "Nano-ITX", "supportedMotherboards"],
+    ["Cooler", "supported_sockets", "TR5", "supportedSockets"],
+  ];
+  for (const [slot, key, bad, field] of cases) {
+    const { specs, problems } = readStatedSpecs(slot as any, { [key]: JSON.stringify([bad]) });
+    assertEquals((specs as any)[field], undefined, key);
+    assert(
+      problems.some((p: any) => p.kind === "invalid"),
+      key,
+    );
+  }
+});
+
+Deno.test("PILOT: still works on lists created without choices", async () => {
+  const shopify = standIn({ rejectListChoices: true });
+  await go("definitions", shopify);
+  const { outcome } = await go(PILOT_OPTIONS, shopify);
+  assertEquals(outcome.pilotSet, true);
+  assertEquals(shopify.pilot.get("supported_ram_generations"), '["DDR4"]');
 });
 
 Deno.test("CREATE: stops before writing if an existing definition differs", async () => {

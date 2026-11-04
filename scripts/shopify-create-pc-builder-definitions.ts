@@ -229,8 +229,12 @@ const BLOCKING: DefinitionFinding["status"][] = [
   "unexpected",
 ];
 
+/** The refusals that can mean Shopify won't take choices on a list. Anything else still stops the run. */
+const CHOICES_REFUSAL_CODES = new Set(["INVALID_OPTION", "INVALID", "INCLUSION"]);
+
 export interface Outcome {
   created: string[];
+  createdWithoutChoices: string[];
   skipped: string[];
   deleted: string[];
   pilotSet: boolean;
@@ -242,7 +246,13 @@ export async function run(deps: Deps): Promise<Outcome> {
   const wait = deps.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
   const { mode } = deps.options;
   const writes = mode !== "plan";
-  const outcome: Outcome = { created: [], skipped: [], deleted: [], pilotSet: false };
+  const outcome: Outcome = {
+    created: [],
+    createdWithoutChoices: [],
+    skipped: [],
+    deleted: [],
+    pilotSet: false,
+  };
 
   assertStore(deps.domain);
 
@@ -379,8 +389,25 @@ export async function run(deps: Deps): Promise<Outcome> {
     for (const field of order) {
       let data: any;
       try {
-        data = await send(CREATE_MUTATION, { definition: definitionCreateInput(field) });
-        stopOnUserErrors(data.metafieldDefinitionCreate.userErrors, `to create ${field.key}`);
+        const input = definitionCreateInput(field);
+        data = await send(CREATE_MUTATION, { definition: input });
+        const errors: any[] = data.metafieldDefinitionCreate.userErrors || [];
+        const isList = field.type.startsWith("list.") && Boolean(field.choices);
+        if (isList && errors.length > 0 && errors.every((e) => CHOICES_REFUSAL_CODES.has(e.code))) {
+          log(
+            `  Shopify refused choices on ${field.key} (${errors[0].code}). Creating it without them.`,
+          );
+          data = await send(CREATE_MUTATION, {
+            definition: {
+              ...input,
+              validations: input.validations.filter((rule) => rule.name !== "choices"),
+            },
+          });
+          stopOnUserErrors(data.metafieldDefinitionCreate.userErrors, `to create ${field.key}`);
+          outcome.createdWithoutChoices.push(field.key);
+        } else {
+          stopOnUserErrors(errors, `to create ${field.key}`);
+        }
       } catch (error) {
         log(`Created ${outcome.created.length} before stopping. Running again skips those.`);
         throw error;
@@ -399,6 +426,9 @@ export async function run(deps: Deps): Promise<Outcome> {
       );
     }
     log(`\nCreated ${outcome.created.length}, already there ${outcome.skipped.length}. All match.`);
+    if (outcome.createdWithoutChoices.length > 0) {
+      log(`Created without choices: ${outcome.createdWithoutChoices.join(", ")}.`);
+    }
     return outcome;
   }
 
