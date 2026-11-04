@@ -796,6 +796,14 @@ function synthesizeBuildConfigurations(
         )
       : undefined;
   const shown = ranked.filter((build) => build.label !== INSUFFICIENT_INFORMATION);
+  // A developer may not need a graphics card, so a build without one is never crowded out of the offer.
+  const noCardPick =
+    purpose === "programming" && !ownedSlots.has("GPU")
+      ? (meeting.length > 0 ? meeting : eligible).find((build) => !build.parts.GPU)
+      : undefined;
+  if (noCardPick && !shown.includes(noCardPick) && shown.length < MAX_RECOMMENDATIONS) {
+    shown.push(noCardPick);
+  }
   if (priorityPick && !shown.includes(priorityPick) && shown.length < MAX_RECOMMENDATIONS) {
     shown.push(priorityPick);
   }

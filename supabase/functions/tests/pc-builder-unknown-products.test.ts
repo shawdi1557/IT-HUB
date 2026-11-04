@@ -905,6 +905,54 @@ Deno.test("PURPOSE: with integrated graphics, a developer can be offered a build
   assert(purposeBuilds("professional").every((build: any) => build.parts.GPU));
 });
 
+Deno.test("PURPOSE: a no-card build isn't crowded out by dearer ones with a card", () => {
+  const cards = [10000, 30000, 50000, 70000, 90000].map((price, i) =>
+    product(
+      `QZX Validation Card ${i}`,
+      "Video Cards",
+      {
+        watts: "130",
+        gpu_length_mm: "200",
+        recommended_psu_watts: "550",
+        pcie_6plus2_required: "1",
+        pcie_16pin_required: "0",
+        ...REVIEWED,
+      },
+      { price },
+    ),
+  );
+  const items = [
+    ...FULL_CATALOGUE({ cpu: { integrated_graphics: "true" } }).filter(
+      (p) => p.category !== "Video Cards",
+    ),
+    // Without a processor that needs a card, the cheapest two builds would otherwise take the places.
+    product(
+      "QZX Validation Processor 55",
+      "Computer Processors",
+      {
+        socket: "AM4",
+        watts: "65",
+        cpu_max_power_watts: "76",
+        integrated_graphics: "false",
+        includes_cooler: "true",
+        supported_ram_generations: '["DDR4"]',
+        ...REVIEWED,
+      },
+      { price: 100 },
+    ),
+    ...cards,
+  ];
+  const offered = (purpose: string) =>
+    generateDynamicCatalogRecommendations(
+      syncBuilderCatalogWithShopify(items).componentCatalog,
+      { purpose, details: {}, brands: [], wifi: "", owned: [] },
+      { min: 0, max: 300000 },
+    );
+  assert(offered("programming").some((build: any) => !build.parts.GPU));
+  assertEquals(offered("programming").length, 3);
+  assert(offered("professional").every((build: any) => build.parts.GPU));
+});
+
 Deno.test("PURPOSE: a processor with no graphics still needs a card, whatever the purpose", () => {
   const builds = generateDynamicCatalogRecommendations(
     syncBuilderCatalogWithShopify(FULL_CATALOGUE()).componentCatalog,
