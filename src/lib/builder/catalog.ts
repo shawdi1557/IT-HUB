@@ -16,9 +16,11 @@ import { toVariantGid } from "../shopify-schema";
 import { supabase } from "../supabase";
 import { labelCriticalFields } from "./compatibility";
 import {
+  keysChangedSinceReview,
   readSpecReview,
   readStatedSpecs,
   sameSpecValue,
+  specFieldName,
   type SpecConfidence,
   type SpecProblem,
 } from "./spec-schema";
@@ -719,6 +721,7 @@ const METADATA_FIELDS = new Set<keyof TechnicalSpecs>([
   "lastVerifiedAt",
   "fieldSources",
   "specProblems",
+  "unreviewedSpecs",
 ]);
 
 const SPEC_ENTRY_SLOTS: Record<string, ComponentSlotId> = {
@@ -788,6 +791,21 @@ const NOT_A_PC_COMPONENT =
 /** Storage that plugs in from outside the case. */
 const EXTERNAL_STORAGE =
   /\b(?:external|portable|usb|pen\s?drive|flash\s?drive|memory\s?card|micro\s?sd|sd\s?card)\b/;
+
+const REJECTED_SPECS: SpecProblem = {
+  field: "spec_review_status",
+  kind: "rejected",
+  label: "This product's specifications",
+  detail: "IT HUB has marked them as wrong, so they aren't being used",
+};
+
+/** What Shopify states for a product. A tag can describe a product, but never states a specification. */
+export function shopifyStatedValues(product: Product): Record<string, string> {
+  const tagKeys = new Set(product.tagSpecKeys || []);
+  return Object.fromEntries(
+    Object.entries(product.specs || {}).filter(([key]) => !tagKeys.has(key)),
+  );
+}
 
 /**
  * Detects target component slot based on tags, productType, category, or title patterns.
@@ -908,6 +926,10 @@ export function matchShopifyProductToComponent(
   // Ensure authentic variant ID
   const variantId = product.variantId ? toVariantGid(product.variantId) : "";
 
+  // What Shopify states for this product. A tag never counts, and rejected values are ignored.
+  const rawSpecs = shopifyStatedValues(product);
+  const review = readSpecReview(rawSpecs);
+
   // 1. Check Database Specification Registry
   if (variantId && registeredDatabaseSpecs.has(variantId)) {
     const { product: dbProd, variant: dbVar } = registeredDatabaseSpecs.get(variantId)!;
@@ -944,6 +966,7 @@ export function matchShopifyProductToComponent(
       speedMhz: dbVar.speed_mhz,
       provenance: dbVar.verification_status as any,
       lastVerifiedAt: dbVar.last_verified_at || dbProd.last_verified_at,
+      specProblems: review.status === "rejected" ? [REJECTED_SPECS] : undefined,
     };
 
     return {
@@ -1007,17 +1030,23 @@ export function matchShopifyProductToComponent(
   const usesPlatformSpecs = slot === "CPU" || slot === "Motherboard";
   const usesRamGeneration = usesPlatformSpecs || slot === "RAM";
 
-  // What Shopify states for this product. A tag never counts, and rejected values are ignored.
-  const tagKeys = new Set(product.tagSpecKeys || []);
-  const rawSpecs = Object.fromEntries(
-    Object.entries(product.specs || {}).filter(([key]) => !tagKeys.has(key)),
-  );
-  const review = readSpecReview(rawSpecs);
-  const stated =
+  const stated: ReturnType<typeof readStatedSpecs> =
     review.status === "rejected"
-      ? ({ specs: {}, problems: [] } as ReturnType<typeof readStatedSpecs>)
+      ? { specs: {}, fieldKeys: {}, problems: [REJECTED_SPECS] }
       : readStatedSpecs(slot, rawSpecs);
-  const statedLevel: SpecConfidence = review.isReviewed ? "it_hub_reviewed" : "supplier_provided";
+  const changedKeys = keysChangedSinceReview(review, product.specUpdatedAt);
+  // Each value has its own standing: one changed after the review no longer counts as reviewed.
+  const statedLevel = (field: keyof TechnicalSpecs): SpecConfidence =>
+    review.isReviewed && !changedKeys.has(stated.fieldKeys[field] ?? "")
+      ? "it_hub_reviewed"
+      : "supplier_provided";
+  /** What Shopify states that nobody has reviewed, among the fields a part ended up using. */
+  const unreviewedNames = (sources: Partial<Record<keyof TechnicalSpecs, SpecConfidence>>) => {
+    const names = (Object.keys(stated.specs) as (keyof TechnicalSpecs)[])
+      .filter((field) => sources[field] === "supplier_provided")
+      .map((field) => specFieldName(stated.fieldKeys[field] ?? ""));
+    return names.length > 0 ? [...new Set(names)] : undefined;
+  };
 
   if (matchedEntry && matchedKey) {
     const specs: TechnicalSpecs = { ...matchedEntry.specs };
@@ -1040,21 +1069,33 @@ export function matchShopifyProductToComponent(
       const known = (specs as Record<string, unknown>)[field];
       if (known === undefined) {
         (specs as Record<string, unknown>)[field] = value;
-        fieldSources[field] = statedLevel;
+        fieldSources[field] = statedLevel(field);
       } else if (!sameSpecValue(known, value)) {
         delete (specs as Record<string, unknown>)[field];
         delete fieldSources[field];
         problems.push({
           field,
           kind: "conflict",
+          label: specFieldName(stated.fieldKeys[field] ?? ""),
           detail: `Shopify says ${String(value)}, but the specification list says ${String(known)}`,
         });
-      } else if (fieldSources[field] !== "manufacturer_verified" && review.isReviewed) {
+      } else if (
+        fieldSources[field] !== "manufacturer_verified" &&
+        statedLevel(field) === "it_hub_reviewed"
+      ) {
         fieldSources[field] = "it_hub_reviewed";
       }
     }
     specs.fieldSources = fieldSources;
     if (problems.length > 0) specs.specProblems = problems;
+    // A value matching the registry adds nothing to check, so only a value that fills a gap counts.
+    const filledUnreviewed = Object.fromEntries(
+      Object.entries(stated.specs)
+        .filter(([field]) => (matchedEntry!.specs as Record<string, unknown>)[field] === undefined)
+        .map(([field]) => [field, fieldSources[field as keyof TechnicalSpecs]]),
+    );
+    const unreviewedSpecs = unreviewedNames(filledUnreviewed);
+    if (unreviewedSpecs) specs.unreviewedSpecs = unreviewedSpecs;
     // Fully sourced only if a source confirms everything a label would rest on.
     const criticalLevels = labelCriticalFields(slot).map((alternatives) => {
       const field = alternatives.find((candidate) => specs[candidate] !== undefined);
@@ -1205,7 +1246,8 @@ export function matchShopifyProductToComponent(
     fieldSources[field] = level;
   };
   for (const [key, value] of Object.entries(stated.specs)) {
-    if (value !== undefined) assign(key as keyof TechnicalSpecs, value, statedLevel);
+    const field = key as keyof TechnicalSpecs;
+    if (value !== undefined) assign(field, value, statedLevel(field));
   }
   for (const [key, value] of Object.entries(fromTitle)) {
     if (value === undefined) continue;
@@ -1219,6 +1261,7 @@ export function matchShopifyProductToComponent(
       problems.push({
         field,
         kind: "conflict",
+        label: specFieldName(stated.fieldKeys[field] ?? ""),
         detail: `Shopify says ${String(known)}, but the title says ${String(value)}`,
       });
     }
@@ -1231,19 +1274,33 @@ export function matchShopifyProductToComponent(
     assign("recommendedPsuWatts", chipSpecs.recommendedPsuWatts, "title_inferred");
   }
 
-  const statedAny = Object.values(fieldSources).some((level) => level === statedLevel);
+  const statedAny = Object.keys(stated.specs).some(
+    (field) =>
+      fieldSources[field as keyof TechnicalSpecs] !== undefined &&
+      fieldSources[field as keyof TechnicalSpecs] !== "title_inferred",
+  );
   const titleAny = Object.values(fieldSources).some((level) => level === "title_inferred");
 
   // Only a processor can come with a cooler. For a processor, silence stays unknown.
   if (slot !== "CPU") merged.includesCooler = false;
 
+  // One reviewed value can't vouch for the rest: the part stands only if every value a label rests on
+  // was itself reviewed. A value missing, or only read from the title, leaves it unconfirmed.
+  const everyCriticalValueReviewed =
+    review.isReviewed &&
+    labelCriticalFields(slot).every((alternatives) => {
+      const field = alternatives.find((candidate) => merged[candidate] !== undefined);
+      return field !== undefined && fieldSources[field] === "it_hub_reviewed";
+    });
+
   const inferredSpecs: TechnicalSpecs = {
     ...merged,
     fieldSources,
     specProblems: problems.length > 0 ? problems : undefined,
+    unreviewedSpecs: unreviewedNames(fieldSources),
     // Only the registry can say a value was checked. A product can't claim that about itself.
     provenance: statedAny
-      ? review.isReviewed
+      ? everyCriticalValueReviewed
         ? "it_hub_reviewed"
         : "supplier_spec"
       : titleAny
@@ -1268,7 +1325,8 @@ export function matchShopifyProductToComponent(
     quantity: 1,
     retrievedAt: new Date().toISOString(),
     isShopifyLive: true,
-    isVerified: statedAny,
+    // Stating a value doesn't verify a part, for the same reason one reviewed value doesn't confirm it.
+    isVerified: statedAny && everyCriticalValueReviewed,
   };
 }
 

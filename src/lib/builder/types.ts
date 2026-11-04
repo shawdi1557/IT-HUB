@@ -117,6 +117,8 @@ export interface TechnicalSpecs {
   fieldSources?: Partial<Record<keyof TechnicalSpecs, SpecConfidence>>;
   // Values Shopify holds that couldn't be read, or that disagree with another source.
   specProblems?: SpecProblem[];
+  // What Shopify states for this part that nobody has reviewed, named for people to read.
+  unreviewedSpecs?: string[];
 
   // Metadata & Provenance
   provenance?:

@@ -106,7 +106,8 @@ Deno.test("SPEC: a build is only called compatible when nothing is unknown", () 
 
   assertEquals(checkCompatibility(build()).status, "compatible");
   assertEquals(checkCompatibility(build({ PSU: ANT_PSU })).status, "unknown");
-  assertEquals(checkCompatibility(build({ Cabinet: ZEBRONICS })).status, "conditional");
+  // A cabinet stating nothing leaves physical fit unknown, which is as final as a socket if it's wrong.
+  assertEquals(checkCompatibility(build({ Cabinet: ZEBRONICS })).status, "unknown");
 });
 
 Deno.test("SPEC: the builder's badges follow that status, not just the absence of errors", () => {

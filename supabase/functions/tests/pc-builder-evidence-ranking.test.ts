@@ -40,8 +40,10 @@ const liveCatalog = (products: any[]) => syncBuilderCatalogWithShopify(products)
 const matchProduct = (item: any): any => matchShopifyProductToComponent(item);
 
 const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
   spec_review_status: "reviewed",
   spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
 };
 // ZOTAC's page can't be read, so the card's length and connector need IT HUB's review to support a label.
 const REVIEWED_4060 = {
@@ -609,11 +611,17 @@ Deno.test("ENGINE: the old mislabelling is gone: title-only cards get no label a
     gpu("Vendor RTX 4060 Card", 33000),
     gpu("Vendor RTX 4090 Card", 95000),
   ]);
-  const recs = generateDynamicCatalogRecommendations(catalog, GAMING, { min: 30000, max: 150000 });
+  const recs = generateDynamicCatalogRecommendations(
+    catalog,
+    GAMING,
+    { min: 30000, max: 150000 },
+    { allowUnverified: true },
+  );
   assertEquals(recs.length, 3);
   for (const r of recs) {
+    assertEquals(r.requiresReview, true);
     assertEquals(r.tradeoffLabel, "Insufficient information");
-    assert(r.rankingReasons[0].includes(r.parts.GPU.name));
+    assert(r.rankingReasons.some((w: string) => w.includes(r.parts.GPU.name)));
     assertEquals(r.specSources.GPU, "Stated by the supplier, not checked");
   }
   // In price order, because nothing here says one is better.
@@ -792,6 +800,7 @@ Deno.test("ENGINE: parts with checked figures aren't crowded out of a large cata
         gpu_length_mm: "250",
         recommended_psu_watts: "550",
         pcie_connectors: "8-pin",
+        ...REVIEWED,
       },
     }),
   );
@@ -918,6 +927,7 @@ Deno.test("ENGINE: Wi-Fi asked for survives the choice between otherwise equal b
         max_ram_gb: "128",
         m2_slots: "2",
         sata_ports: "4",
+        ...REVIEWED,
       },
     }),
     product("ZOTAC Gaming GeForce RTX 4060 8GB Twin Edge", { price: 28000, specs: REVIEWED_4060 }),

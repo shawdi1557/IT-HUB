@@ -390,7 +390,8 @@ Deno.test("WORKFLOW: specifications from a title alone still show as unverified"
     }),
   )!;
   assertEquals(stated.specs.ratedWattage, 400);
-  assertEquals(stated.isVerified, true);
+  // Stating a value doesn't verify the part. It has to be reviewed.
+  assertEquals(stated.isVerified, false);
   assertNotEquals(stated.specs.provenance, "manufacturer_verified");
 });
 
@@ -565,8 +566,10 @@ Deno.test("WORKFLOW: fully confirmed builds don't ask for review", () => {
   const reviewed = {
     gpu_length_mm: "222",
     pcie_connectors: "1x 8-pin",
+    spec_source: "manufacturer_datasheet",
     spec_review_status: "reviewed",
     spec_source_url: "https://www.example.com/datasheet",
+    spec_reviewed_on: "2026-11-01",
   };
   const catalog = liveCatalog(
     Object.values(VERIFIED).map((name) =>
@@ -989,17 +992,36 @@ Deno.test("QUOTE: the browser marks owned parts in what it sends", async () => {
 
 // ── Stage 0.5: the search reaches the whole catalogue ───────────────────────────────────────────
 
+// A review that holds up. Tests about searching or pricing use it, so that review doesn't decide them.
+const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
+  spec_review_status: "reviewed",
+  spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
+};
 const statedCpu = (name: string, price: number) =>
   product(name, {
     category: "Computer Processors",
     price,
-    specs: { socket: "AM4", watts: "65", integrated_graphics: "no", includes_cooler: "yes" },
+    specs: {
+      socket: "AM4",
+      watts: "65",
+      integrated_graphics: "no",
+      includes_cooler: "yes",
+      ...REVIEWED,
+    },
   });
 const statedGpu = (name: string, price: number, watts = "120") =>
   product(name, {
     category: "Video Cards",
     price,
-    specs: { watts, gpu_length_mm: "250", recommended_psu_watts: "550", pcie_connectors: "8-pin" },
+    specs: {
+      watts,
+      gpu_length_mm: "250",
+      recommended_psu_watts: "550",
+      pcie_connectors: "8-pin",
+      ...REVIEWED,
+    },
   });
 const am4Parts = () => [
   product("ASUS Prime B550M-A WiFi II Motherboard", { price: 9000 }),
@@ -1094,17 +1116,23 @@ Deno.test("STAGE05: a cooler too tall for the cabinet is passed over for one tha
   const coolerCpu = product("Vendor Coolerless Processor", {
     category: "Computer Processors",
     price: 9000,
-    specs: { socket: "AM4", watts: "65", integrated_graphics: "yes", includes_cooler: "no" },
+    specs: {
+      socket: "AM4",
+      watts: "65",
+      integrated_graphics: "yes",
+      includes_cooler: "no",
+      ...REVIEWED,
+    },
   });
   const tall = product("Tall Cheap CPU Cooler", {
     category: "CPU Coolers",
     price: 500,
-    specs: { supported_sockets: "AM4", cooler_height_mm: "200" },
+    specs: { supported_sockets: "AM4", cooler_height_mm: "200", ...REVIEWED },
   });
   const short = product("Short CPU Cooler", {
     category: "CPU Coolers",
     price: 1500,
-    specs: { supported_sockets: "AM4", cooler_height_mm: "120" },
+    specs: { supported_sockets: "AM4", cooler_height_mm: "120", ...REVIEWED },
   });
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([...am4Parts(), coolerCpu, statedGpu("Maker Budget Card", 15000), tall, short]),
@@ -1118,14 +1146,25 @@ Deno.test("STAGE05: a drive the motherboard can't connect is passed over", () =>
   const noM2 = product("Old Board Motherboard", {
     category: "Motherboards",
     price: 5000,
-    specs: { socket: "AM4", ram_generation: "DDR4", m2_slots: "0", sata_ports: "4" },
+    specs: {
+      socket: "AM4",
+      ram_generation: "DDR4",
+      form_factor: "ATX",
+      m2_slots: "0",
+      sata_ports: "4",
+      ...REVIEWED,
+    },
   });
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       noM2,
       product("Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz", { price: 3000 }),
       product("Crucial P3 Plus 1TB PCIe M.2 2280 NVMe SSD", { price: 5000 }),
-      product("Samsung 870 EVO 500GB SATA SSD", { category: "Solid State Drives", price: 4000 }),
+      product("Samsung 870 EVO 500GB SATA SSD", {
+        category: "Solid State Drives",
+        price: 4000,
+        specs: { storage_interface: "SATA SSD", ...REVIEWED },
+      }),
       product("Deepcool PK650D 650W 80 Plus Bronze Power Supply", { price: 4500 }),
       product("Deepcool CC560 V2 High-Airflow Mid-Tower ATX Case", { price: 3900 }),
       statedCpu("Vendor Value Processor", 8000),
@@ -1195,17 +1234,18 @@ Deno.test("STAGE05: a power supply that lacks the cables is passed over", () => 
       gpu_length_mm: "250",
       recommended_psu_watts: "550",
       pcie_connectors: "8-pin,8-pin",
+      ...REVIEWED,
     },
   });
   const oneCable = product("Small 750W Power Supply", {
     category: "Computer Power Supplies",
     price: 3000,
-    specs: { pcie_connectors: "8-pin" },
+    specs: { capacity_watts: "750", pcie_connectors: "8-pin", ...REVIEWED },
   });
   const twoCables = product("Large 850W Power Supply", {
     category: "Computer Power Supplies",
     price: 6000,
-    specs: { pcie_connectors: "8-pin,8-pin" },
+    specs: { capacity_watts: "850", pcie_connectors: "8-pin,8-pin", ...REVIEWED },
   });
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([

@@ -8,6 +8,7 @@ import {
   readPcieConnectors,
   type PcieConnectors,
   type SpecConfidence,
+  type SpecProblem,
 } from "./spec-schema";
 import type {
   CanonicalBuildComponent,
@@ -177,6 +178,8 @@ export function missingConnectors(
 /**
  * These don't make a build incompatible. They mean nobody can yet say it's compatible, so IT HUB has
  * to check it. Below the maker's recommended wattage is here because a recommendation isn't a limit.
+ * Unknown physical fit is here because a part that doesn't fit is as final as a wrong socket, and an
+ * unreviewed value is here because stating a value mustn't skip the check a review exists to provide.
  */
 const REVIEW_RULES = new Set([
   "RULE_A_SOCKET_UNKNOWN",
@@ -190,11 +193,48 @@ const REVIEW_RULES = new Set([
   "RULE_F_GPU_CONNECTORS_UNKNOWN",
   "RULE_F_PCIE_POWER_UNKNOWN",
   "RULE_F_PCIE_CONNECTORS_UNKNOWN",
+  "RULE_C_COOLER_SOCKET_UNKNOWN",
+  "RULE_C_COOLER_HEIGHT_UNKNOWN",
+  "RULE_D_GPU_CLEARANCE_UNKNOWN",
+  "RULE_G_FORM_FACTOR_UNKNOWN",
   "RULE_K_SPEC_CONFLICT",
+  "RULE_K_SPEC_REJECTED",
+  "RULE_L_SPEC_UNREVIEWED",
   "RULE_I_OWNED_GPU_UNCHECKED",
   "RULE_B_OWNED_RAM_UNCHECKED",
   "RULE_H_OWNED_STORAGE_UNCHECKED",
 ]);
+
+const SPEC_PROBLEM_WORDING: Record<
+  SpecProblem["kind"],
+  { ruleId: string; label: string; consequence: string }
+> = {
+  invalid: {
+    ruleId: "RULE_K_SPEC_INVALID",
+    label: "unreadable specification",
+    consequence: "This value isn't being used.",
+  },
+  conflict: {
+    ruleId: "RULE_K_SPEC_CONFLICT",
+    label: "conflicting specification",
+    consequence: "This value isn't being used.",
+  },
+  review: {
+    ruleId: "RULE_K_REVIEW_INCOMPLETE",
+    label: "review record incomplete",
+    consequence: "Its specifications count as unreviewed.",
+  },
+  rejected: {
+    ruleId: "RULE_K_SPEC_REJECTED",
+    label: "specifications rejected",
+    consequence: "IT HUB must check this part before it can be confirmed.",
+  },
+};
+
+/** IT HUB has marked this product's Shopify values as wrong. */
+export function hasRejectedSpecs(specs?: TechnicalSpecs): boolean {
+  return Boolean(specs?.specProblems?.some((problem) => problem.kind === "rejected"));
+}
 
 /** Compares motherboard sizes whichever way a supplier spells them. */
 function normalizeFormFactor(value: string): string {
@@ -965,19 +1005,40 @@ export function checkCompatibility(
   // ───────────────────────────────────────────────────────────────────────────
   for (const component of Object.values(components)) {
     for (const problem of component?.specs?.specProblems || []) {
+      const wording = SPEC_PROBLEM_WORDING[problem.kind];
       items.push({
-        ruleId: problem.kind === "conflict" ? "RULE_K_SPEC_CONFLICT" : "RULE_K_SPEC_INVALID",
+        ruleId: wording.ruleId,
         severity: "warning",
         status: "unknown",
         affectedSlots: [component!.slot],
-        label:
-          problem.kind === "conflict"
-            ? `${component!.title}: conflicting specification`
-            : `${component!.title}: unreadable specification`,
-        explanation: `${problem.field}: ${problem.detail}. This value isn't being used.`,
+        label: `${component!.title}: ${wording.label}`,
+        explanation: `${problem.label ?? "A specification"}: ${problem.detail}. ${wording.consequence}`,
         suggestedResolution: "IT HUB will correct this product's specifications.",
       });
     }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Rule L — Specifications Nobody Has Reviewed
+  // ───────────────────────────────────────────────────────────────────────────
+  // Values stated in Shopify, and any critical value that was only read from a title. The registry's
+  // unsourced values limit a build's labels instead, and don't send it to review by themselves.
+  for (const component of Object.values(components)) {
+    if (!component) continue;
+    const names = [
+      ...(component.specs?.unreviewedSpecs || []),
+      ...inferredCriticalSpecs(component.slot, component.specs),
+    ];
+    if (names.length === 0) continue;
+    items.push({
+      ruleId: "RULE_L_SPEC_UNREVIEWED",
+      severity: "warning",
+      status: "unknown",
+      affectedSlots: [component.slot],
+      label: `${component.title}: specifications not yet reviewed`,
+      explanation: `IT HUB hasn't yet checked these against a source: ${names.join(", ")}.`,
+      suggestedResolution: "IT HUB will check these before confirming the build.",
+    });
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -1099,6 +1160,15 @@ export function inferredCriticalSpecs(slot: string, specs?: TechnicalSpecs): str
   );
 }
 
+/** The critical specifications on this part that nobody has stated. */
+export function missingCriticalSpecs(
+  part: Pick<CanonicalBuildComponent, "slot" | "specs">,
+): string[] {
+  return (LABEL_CRITICAL_SPECS[part.slot] || [])
+    .filter(({ fields }) => fields.every((field) => part.specs?.[field] === undefined))
+    .map(({ name }) => name);
+}
+
 /**
  * What stops a compatible build earning a recommendation label. This doesn't make it incompatible, and
  * it can still be offered: a mismatch rules a build out, while these mean only that nobody can yet say
@@ -1115,9 +1185,7 @@ export function labelCompatibilityGaps(
     criticalSpecsAt(part, level).map((name) => `${name} of ${part.title}`);
   const present = Object.values(parts).filter(Boolean) as CanonicalBuildComponent[];
   const missing = present.flatMap((part) =>
-    (LABEL_CRITICAL_SPECS[part.slot] || [])
-      .filter(({ fields }) => fields.every((field) => part.specs?.[field] === undefined))
-      .map(({ name }) => `${name} of ${part.title}`),
+    missingCriticalSpecs(part).map((name) => `${name} of ${part.title}`),
   );
   if (missing.length > 0) gaps.push(`Not stated: ${missing.join("; ")}.`);
   const inferred = present.flatMap((part) => describe(part, (level) => level === "title_inferred"));

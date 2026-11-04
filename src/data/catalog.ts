@@ -82,6 +82,8 @@ export type Product = {
   conditionStated?: boolean;
   /** Specs that came from tags, kept for display and search but never treated as stated. */
   tagSpecKeys?: string[];
+  /** When each pc_builder value last changed, to tell whether it changed after its review. */
+  specUpdatedAt?: Record<string, string>;
 
   handle?: string;
 

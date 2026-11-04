@@ -36,6 +36,7 @@ import GooeyNav, { type GooeyNavItem } from "./GooeyNav";
 import MobileHeader from "./MobileHeader";
 import MobileBottomNav from "./MobileBottomNav";
 import MobileNavDrawer from "./MobileNavDrawer";
+import { searchableSpecs } from "../lib/builder/spec-schema";
 
 const nav = [
   { name: "Products", to: "/products" },
@@ -119,10 +120,7 @@ export default function Layout() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
   const matches = store.products.filter((product) => {
-    const specText =
-      product.specs && typeof product.specs === "object"
-        ? Object.values(product.specs).join(" ")
-        : "";
+    const specText = Object.values(searchableSpecs(product.specs)).join(" ");
     return `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${specText}`
       .toLowerCase()
       .includes(query.toLowerCase());

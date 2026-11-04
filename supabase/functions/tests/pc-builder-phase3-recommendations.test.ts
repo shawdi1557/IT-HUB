@@ -11,6 +11,49 @@ const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
 const { syncBuilderCatalogWithShopify } = await import("../../../src/lib/builder/catalog.ts");
 
 // Realistic multi-tier catalog fixture
+// What Shopify would state for these parts. The tests are about ranking and price, not review.
+const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
+  spec_review_status: "reviewed",
+  spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
+};
+const STATED: Record<string, Record<string, string>> = {
+  "gid://shopify/Product/mobo-b550m": {
+    socket: "AM4",
+    ram_generation: "DDR4",
+    form_factor: "Micro-ATX",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/mobo-b650m": {
+    socket: "AM5",
+    ram_generation: "DDR5",
+    form_factor: "Micro-ATX",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/gpu-4060": {
+    gpu_length_mm: "242",
+    recommended_psu_watts: "450",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/gpu-5050": {
+    gpu_length_mm: "260",
+    recommended_psu_watts: "550",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/ssd-1tb": { storage_interface: "M.2 NVMe", ...REVIEWED },
+  "gid://shopify/Product/case-mid": {
+    supported_motherboards: "ATX,Micro-ATX,Mini-ITX",
+    cabinet_clearance_mm: "360",
+    max_cooler_height_mm: "165",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/cooler-am4": {
+    supported_sockets: "AM4,AM5",
+    cooler_height_mm: "145",
+    ...REVIEWED,
+  },
+};
 const multiTierShopifyProducts: any[] = [
   // CPUs
   {
@@ -217,7 +260,10 @@ const multiTierShopifyProducts: any[] = [
       provenance: "verified_manufacturer",
     },
   },
-];
+].map((item: any) => ({
+  ...item,
+  specs: { ...item.specs, ...REVIEWED, ...STATED[item.id] },
+}));
 
 Deno.test("PHASE3-1: Multi-branch synthesizer returns distinct builds with 100% diversity", () => {
   const { componentCatalog } = syncBuilderCatalogWithShopify(multiTierShopifyProducts);

@@ -3,6 +3,7 @@
 // IT HUB — Kerala, India
 
 import type { Product, ProductCondition } from "../data/catalog";
+import { searchableSpecs } from "./builder/spec-schema";
 
 const PRE_OWNED_CONDITIONS: readonly ProductCondition[] = ["Like New", "Good", "Fair", "For Parts"];
 
@@ -183,7 +184,8 @@ function calculateRelevanceScore(target: Product, candidate: Product): number {
   // 4. Similar specifications
   if (target.specs && candidate.specs) {
     let specMatches = 0;
-    for (const [key, val] of Object.entries(target.specs)) {
+    // A shared socket says two products are alike. A shared review record doesn't.
+    for (const [key, val] of Object.entries(searchableSpecs(target.specs))) {
       if (
         val &&
         candidate.specs[key] &&

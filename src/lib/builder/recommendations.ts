@@ -14,6 +14,7 @@ import type {
 import {
   calculateSystemPower,
   checkCompatibility,
+  hasRejectedSpecs,
   labelCompatibilityGaps,
   toCanonicalComponent,
 } from "./compatibility";
@@ -321,9 +322,12 @@ function synthesizeBuildConfigurations(
   // Candidate pool
   const candidatePool: SynthesizedConfiguration[] = [];
 
-  // Filter CPUs: prefer in-stock & live products
+  // Filter CPUs: prefer in-stock & live products. A part whose specifications IT HUB has rejected is
+  // never recommended, though a customer can still choose it in the manual builder, where it's marked.
   for (const slot of Object.keys(itemsBySlot) as ComponentSlotId[]) {
-    itemsBySlot[slot] = (itemsBySlot[slot] || []).filter((c) => c.availability !== "unavailable");
+    itemsBySlot[slot] = (itemsBySlot[slot] || []).filter(
+      (c) => c.availability !== "unavailable" && !hasRejectedSpecs(c.raw?.specs),
+    );
   }
   const cpus = itemsBySlot.CPU || [];
   if (cpus.length === 0) return { recommendations: [], allValidCandidates: [] };

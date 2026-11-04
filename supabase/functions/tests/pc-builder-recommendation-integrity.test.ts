@@ -43,8 +43,10 @@ const answers = (purpose: string, details: Record<string, string> = {}, extra = 
 
 const WIDE = { min: 30000, max: 300000 };
 const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
   spec_review_status: "reviewed",
   spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
 };
 
 const CPU_5600 = () => product("AMD Ryzen 5 5600", { price: 9000 });
@@ -576,7 +578,7 @@ Deno.test("GATE: a mismatch rules a build out, whatever else is confirmed", () =
   assertEquals(recs.length, 0);
 });
 
-Deno.test("GATE: a board read from its title is offered, but earns no label", () => {
+Deno.test("GATE: a board read from its title goes to review, and earns no label", () => {
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
@@ -587,11 +589,13 @@ Deno.test("GATE: a board read from its title is offered, but earns no label", ()
     ]),
     answers("gaming"),
     WIDE,
+    { allowUnverified: true },
   );
   assertEquals(recs.length, 2);
   for (const r of recs) {
-    // Not called incompatible, and not sent to review for this alone.
-    assertEquals(r.requiresReview, false);
+    // Not called incompatible, but a title isn't enough to confirm a build.
+    assertEquals(r.requiresReview, true);
+    assert(r.reviewItems.some((w: string) => w.includes("specifications not yet reviewed")));
     assertEquals(compatibility(r.parts).valid, true);
     assertEquals(r.tradeoffLabel, "Insufficient information");
     assert(r.rankingReasons.some((w: string) => w.includes("Read from the product title")));
@@ -599,7 +603,7 @@ Deno.test("GATE: a board read from its title is offered, but earns no label", ()
   }
 });
 
-Deno.test("GATE: a graphics clearance that isn't stated stops a label, not the build", () => {
+Deno.test("GATE: a graphics clearance that isn't stated stops a label, and sends the build to review", () => {
   const recs = generateDynamicCatalogRecommendations(
     liveCatalog([
       CPU_5600(),
@@ -607,16 +611,23 @@ Deno.test("GATE: a graphics clearance that isn't stated stops a label, not the b
       product("Maker Silent Cabinet", {
         category: "Computer Cases",
         price: 3000,
-        specs: { supported_motherboards: "ATX,Micro-ATX", max_cooler_height_mm: "160" },
+        specs: {
+          supported_motherboards: "ATX,Micro-ATX",
+          max_cooler_height_mm: "160",
+          ...REVIEWED,
+        },
       }),
       CARD_4060(),
       CARD_4070S(),
     ]),
     answers("gaming"),
     WIDE,
+    { allowUnverified: true },
   );
   assertEquals(recs.length, 2);
   for (const r of recs) {
+    assertEquals(r.requiresReview, true);
+    assert(r.reviewItems.includes("Chassis GPU clearance unverified"));
     assertEquals(r.tradeoffLabel, "Insufficient information");
     assert(r.rankingReasons.some((w: string) => w.startsWith("Not yet confirmed:")));
   }
@@ -649,9 +660,11 @@ Deno.test("GATE: an unreviewed Shopify field can't support a label", () => {
     ]),
     answers("gaming"),
     WIDE,
+    { allowUnverified: true },
   );
   assert(recs.length > 0);
   for (const r of recs) {
+    assertEquals(r.requiresReview, true);
     assertEquals(r.tradeoffLabel, "Insufficient information");
     assert(r.rankingReasons.some((w: string) => w.startsWith("Stated but not reviewed")));
   }
@@ -716,6 +729,7 @@ const plainBoard = (price: number) =>
       max_ram_gb: "128",
       m2_slots: "2",
       sata_ports: "4",
+      ...REVIEWED,
     },
   });
 

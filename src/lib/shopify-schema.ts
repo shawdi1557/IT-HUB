@@ -54,6 +54,7 @@ export interface ShopifyMetafield {
   key: string;
   value: string;
   type: string;
+  updatedAt?: string;
 }
 
 export interface ShopifyProductOption {
@@ -169,6 +170,16 @@ export function tagSpecKeys(
 ): string[] {
   const fromMetafields = new Set((metafields || []).filter((m) => m?.value).map((m) => m!.key));
   return Object.keys(parseProductSpecs(tags)).filter((key) => !fromMetafields.has(key));
+}
+
+/** When each pc_builder value last changed, or undefined if Shopify didn't say. */
+export function specUpdatedTimes(
+  metafields?: Array<ShopifyMetafield | null | undefined>,
+): Record<string, string> | undefined {
+  const entries = (metafields || [])
+    .filter((m) => m?.namespace === "pc_builder" && m.value && m.updatedAt)
+    .map((m) => [m!.key, m!.updatedAt!]);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 /**
@@ -669,6 +680,7 @@ export function mapShopifyProductToCatalog(
     condition,
     conditionStated: isConditionGradeStated(node.tags, node.metafields),
     tagSpecKeys: specKeysFromTags.length > 0 ? specKeysFromTags : undefined,
+    specUpdatedAt: specUpdatedTimes(node.metafields),
     tag: compareAtPrice > sellingPrice ? "Deal" : undefined,
     status: "Active",
     handle: node.handle,

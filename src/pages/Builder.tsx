@@ -47,6 +47,7 @@ import {
   generateWhatsAppQuotation,
   generateDynamicCatalogRecommendations,
   getBudgetShortfallInfo,
+  hasRejectedSpecs,
   RANKING_BASIS,
   reconcileBuildParts,
   toCanonicalComponent,
@@ -837,10 +838,16 @@ function ExpertBuilder({
                           In-Store Quote
                         </span>
                       )}
-                      {item.isVerified === false && (
-                        <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                          Unverified Specs
+                      {hasRejectedSpecs(item.specs) ? (
+                        <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                          Specs Rejected
                         </span>
+                      ) : (
+                        item.isVerified === false && (
+                          <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                            Unverified Specs
+                          </span>
+                        )
                       )}
                       {item.stock === 0 && (
                         <span className="inline-flex items-center rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
@@ -1845,7 +1852,12 @@ function BuildDetail({
             return slotItems.map((item) => {
               const check = compatibility({ ...parts, [selection]: item }, { ownedSlots: owned });
               const issue = check.result.find((row) => row.state === "error");
-              const unverifiedCheck = check.summary.items.find((row) => row.status === "unknown");
+              // Only what concerns this option, so that one part's gap doesn't mark every other choice.
+              const unverifiedCheck = check.summary.items.find(
+                (row) =>
+                  row.status === "unknown" &&
+                  row.affectedSlots.includes(selection as ComponentSlotId),
+              );
               const current = parts[selection];
               const diff =
                 current && !owned.includes(selection) ? item.price - current.price : item.price;
@@ -1873,11 +1885,13 @@ function BuildDetail({
                           ? issue.label
                           : item.stock === 0
                             ? "Currently unavailable"
-                            : item.isVerified === false
-                              ? "Specifications unverified"
-                              : unverifiedCheck
-                                ? `Needs checking: ${unverifiedCheck.label}`
-                                : "Compatible with this build"}
+                            : hasRejectedSpecs(item.specs)
+                              ? "IT HUB rejected these specifications, and must check this part"
+                              : item.isVerified === false
+                                ? "Specifications unverified"
+                                : unverifiedCheck
+                                  ? `Needs checking: ${unverifiedCheck.label}`
+                                  : "Compatible with this build"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -2000,7 +2014,8 @@ function SmartBuilder() {
   const missingSlots = essentialSlots.filter(
     (slot) =>
       !answers.owned.includes(slot) &&
-      (!store.componentCatalog[slot] || store.componentCatalog[slot].length === 0),
+      // A rejected part is never recommended, so a slot with only those is as good as empty.
+      !(store.componentCatalog[slot] || []).some((part) => !hasRejectedSpecs(part.specs)),
   );
   const purposeInfo = purposes.find((item) => item.id === answers.purpose);
   const basedOn = [

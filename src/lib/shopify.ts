@@ -283,7 +283,7 @@ export async function checkShopifyStorefrontHealth(): Promise<{
 // Storefront GraphQL Operations: Products & Collections
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PRODUCTS_QUERY = `
+export const PRODUCTS_QUERY = `
   query getProducts(
     $first: Int!
     $after: String
@@ -427,6 +427,7 @@ const PRODUCTS_QUERY = `
             key
             value
             type
+            updatedAt
           }
         }
       }
@@ -1859,7 +1860,10 @@ export function diffCatalogProducts(current: Product[], incoming: Product[]): Ca
       prev.category !== next.category ||
       prev.brand !== next.brand ||
       prev.description !== next.description ||
-      (prev.variants?.length ?? 0) !== (next.variants?.length ?? 0)
+      (prev.variants?.length ?? 0) !== (next.variants?.length ?? 0) ||
+      // A stock update rebuilds the builder from these products, so they can't keep old specifications.
+      JSON.stringify(prev.specs) !== JSON.stringify(next.specs) ||
+      JSON.stringify(prev.specUpdatedAt) !== JSON.stringify(next.specUpdatedAt)
     ) {
       hasStructural = true;
       updatedCount++;

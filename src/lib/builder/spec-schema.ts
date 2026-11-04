@@ -14,7 +14,13 @@ export type SpecConfidence =
 
 export interface SpecProblem {
   field: string;
-  kind: "invalid" | "conflict";
+  /**
+   * invalid: a value couldn't be read. conflict: two sources disagree. review: the review record doesn't
+   * hold up, so the values count as unreviewed. rejected: IT HUB marked this product's values as wrong.
+   */
+  kind: "invalid" | "conflict" | "review" | "rejected";
+  /** Wording a customer can read. The field is an internal key and stays out of customer text. */
+  label?: string;
   detail: string;
 }
 
@@ -161,6 +167,12 @@ const FIELD_LABELS: Record<string, { name: string; description: string }> = {
     name: "Spec reviewed by",
     description: "The reviewer's initials. Not shown publicly.",
   },
+  // Read if present, though never created. Named here because a value can still need describing.
+  pcie_connectors: {
+    name: "PCIe power connectors",
+    description: "Older wording for a part's PCIe power connectors.",
+  },
+  exact_model: { name: "Exact model", description: "The maker's exact model name." },
   socket: { name: "CPU socket", description: "For a processor or motherboard." },
   supported_ram_generations: {
     name: "Supported RAM generations",
@@ -246,6 +258,46 @@ const FIELD_LABELS: Record<string, { name: string; description: string }> = {
   },
   cooler_height_mm: { name: "Cooler height (mm)", description: "For a CPU cooler." },
 };
+
+/** A metafield's staff-facing name, for text a customer or staff member reads. */
+export function specFieldName(key: string): string {
+  return FIELD_LABELS[key]?.name ?? "A specification";
+}
+
+const INTERNAL_SPEC_KEYS = new Set(PC_BUILDER_METAFIELDS.map((field) => field.key));
+
+/**
+ * A product's specifications without the builder's internal fields. Anything shown to a customer, or
+ * searched on their behalf, reads this. The builder keeps reading the full set.
+ */
+export function customerVisibleSpecs(specs: unknown): Record<string, string> {
+  if (!specs || typeof specs !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(specs as Record<string, string>).filter(([key]) => !INTERNAL_SPEC_KEYS.has(key)),
+  );
+}
+
+/** Builder values that describe the product itself, unlike its review record or plain numbers. */
+const DESCRIPTIVE_SPEC_KEYS = [
+  "socket",
+  "ram_generation",
+  "supported_ram_generations",
+  "form_factor",
+  "storage_interface",
+  "supported_sockets",
+  "supported_motherboards",
+];
+
+/**
+ * What search and related products may use: everything a customer sees, plus the builder's descriptive
+ * values, so that searching "AM5" still finds an AM5 board. The review record stays out, as do numbers,
+ * which would match almost any search.
+ */
+export function searchableSpecs(specs: unknown): Record<string, string> {
+  const all = (specs && typeof specs === "object" ? specs : {}) as Record<string, string>;
+  const descriptive = DESCRIPTIVE_SPEC_KEYS.filter((key) => all[key]).map((key) => [key, all[key]]);
+  return { ...customerVisibleSpecs(all), ...Object.fromEntries(descriptive) };
+}
 
 export interface DefinitionCreateInput {
   name: string;
@@ -437,21 +489,100 @@ function connectorCount(part: string): number | undefined {
 
 export interface SpecReview {
   status: (typeof REVIEW_STATUSES)[number];
+  source?: (typeof SPEC_SOURCES)[number];
   sourceUrl?: string;
-  /** Marked reviewed, with a source to check it against. */
+  /** YYYY-MM-DD. */
+  reviewedOn?: string;
+  /** Marked reviewed, and the record holds up: see readSpecReview. */
   isReviewed: boolean;
+  /** Why a product marked reviewed doesn't count as reviewed. */
+  issues: SpecProblem[];
 }
 
-export function readSpecReview(raw: Record<string, unknown>): SpecReview {
+/** IT HUB works in India, so a review dated today there must count, even while it's yesterday in UTC. */
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const istDate = (time: number) => new Date(time + IST_OFFSET_MS).toISOString().slice(0, 10);
+
+function readHttpsUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.includes(".") ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A real calendar date in Shopify's format, or nothing. */
+function readDate(value: string): string | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+    ? value
+    : undefined;
+}
+
+/**
+ * A review counts only with a source that isn't a supplier's own claim, a link to check it against, and
+ * a real date that isn't in the future. Nothing here can tell whether the link really backs the values:
+ * that remains the reviewer's job.
+ */
+export function readSpecReview(raw: Record<string, unknown>, now: number = Date.now()): SpecReview {
   const status = String(raw["spec_review_status"] ?? "")
     .trim()
     .toLowerCase();
   const known = (REVIEW_STATUSES as readonly string[]).includes(status)
     ? (status as SpecReview["status"])
     : "unreviewed";
-  const url = String(raw["spec_source_url"] ?? "").trim();
-  const sourceUrl = /^https:\/\/\S+\.\S+$/.test(url) ? url : undefined;
-  return { status: known, sourceUrl, isReviewed: known === "reviewed" && Boolean(sourceUrl) };
+  const sourceText = String(raw["spec_source"] ?? "")
+    .trim()
+    .toLowerCase();
+  const source = (SPEC_SOURCES as readonly string[]).includes(sourceText)
+    ? (sourceText as SpecReview["source"])
+    : undefined;
+  const sourceUrl = readHttpsUrl(String(raw["spec_source_url"] ?? "").trim());
+  const reviewedOn = readDate(String(raw["spec_reviewed_on"] ?? "").trim());
+
+  const issues: SpecProblem[] = [];
+  if (known === "reviewed") {
+    const issue = (field: string, detail: string) =>
+      issues.push({ field, kind: "review", label: specFieldName(field), detail });
+    if (!source) issue("spec_source", "marked reviewed, but no valid source is set");
+    else if (source === "supplier") {
+      issue("spec_source", "marked reviewed, but its source is only the supplier's claim");
+    }
+    if (!sourceUrl) {
+      issue("spec_source_url", "marked reviewed, but no valid https source link is set");
+    }
+    if (!reviewedOn) issue("spec_reviewed_on", "marked reviewed, but no valid review date is set");
+    else if (reviewedOn > istDate(now)) {
+      issue("spec_reviewed_on", "marked reviewed, but the review date is in the future");
+    }
+  }
+  return {
+    status: known,
+    source,
+    sourceUrl,
+    reviewedOn,
+    isReviewed: known === "reviewed" && issues.length === 0,
+    issues,
+  };
+}
+
+/**
+ * The metafield keys changed after their review, which so count as unreviewed. A review has only a date,
+ * so a value changed later on that same day can't be told apart.
+ */
+export function keysChangedSinceReview(
+  review: SpecReview,
+  updatedAt: Record<string, string> = {},
+): Set<string> {
+  if (!review.isReviewed || !review.reviewedOn) return new Set();
+  const reviewDayEnds = Date.parse(`${review.reviewedOn}T23:59:59.999+05:30`);
+  return new Set(
+    Object.entries(updatedAt)
+      .filter(([, time]) => Date.parse(time) > reviewDayEnds)
+      .map(([key]) => key),
+  );
 }
 
 const firstStated = (raw: Record<string, unknown>, keys: string[]): unknown => {
@@ -465,17 +596,29 @@ const firstStated = (raw: Record<string, unknown>, keys: string[]): unknown => {
 export interface StatedSpecs {
   specs: TechnicalSpecs;
   problems: SpecProblem[];
+  /** The metafield each value was read from. */
+  fieldKeys: Partial<Record<keyof TechnicalSpecs, string>>;
 }
 
 /**
  * Reads what Shopify's fields state for a product of this kind. A blank field gives no value. A value
  * that can't be read, or falls outside its range, gives no value and a problem for staff to fix.
  */
-export function readStatedSpecs(slot: ComponentSlotId, raw: Record<string, unknown>): StatedSpecs {
+export function readStatedSpecs(
+  slot: ComponentSlotId,
+  raw: Record<string, unknown>,
+  now: number = Date.now(),
+): StatedSpecs {
   const specs: TechnicalSpecs = {};
   const problems: SpecProblem[] = [];
+  const fieldKeys: StatedSpecs["fieldKeys"] = {};
   const invalid = (field: string, value: unknown) =>
-    problems.push({ field, kind: "invalid", detail: `"${String(value)}" isn't a valid ${field}` });
+    problems.push({
+      field,
+      kind: "invalid",
+      label: specFieldName(field),
+      detail: `"${String(value)}" can't be read`,
+    });
 
   const read = <T>(
     keys: string[],
@@ -485,8 +628,16 @@ export function readStatedSpecs(slot: ComponentSlotId, raw: Record<string, unkno
     const value = firstStated(raw, keys);
     if (value === undefined) return;
     const parsed = parse(value);
-    if (parsed === undefined) invalid(keys[keys.length - 1], value);
-    else assign(parsed);
+    if (parsed === undefined) {
+      invalid(keys[keys.length - 1], value);
+      return;
+    }
+    const known = new Set(Object.keys(specs));
+    assign(parsed);
+    const statedKey = keys.find((key) => firstStated(raw, [key]) !== undefined)!;
+    for (const field of Object.keys(specs) as (keyof TechnicalSpecs)[]) {
+      if (!known.has(field)) fieldKeys[field] = statedKey;
+    }
   };
   const number = (key: string, aliases: string[], assign: (value: number) => void) =>
     read([...aliases, key], (value) => parseIntegerValue(key, value), assign);
@@ -612,15 +763,8 @@ export function readStatedSpecs(slot: ComponentSlotId, raw: Record<string, unkno
     number("cooler_height_mm", [], (value) => (specs.coolerHeightMm = value));
   }
 
-  const review = readSpecReview(raw);
-  if (review.status === "reviewed" && !review.isReviewed) {
-    problems.push({
-      field: "spec_source_url",
-      kind: "invalid",
-      detail: "marked reviewed, but no valid https source link is set",
-    });
-  }
-  return { specs, problems };
+  problems.push(...readSpecReview(raw, now).issues);
+  return { specs, problems, fieldKeys };
 }
 
 /** Whether two values of a specification say the same thing. */

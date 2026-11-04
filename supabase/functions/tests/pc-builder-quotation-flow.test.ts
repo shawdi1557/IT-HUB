@@ -27,6 +27,20 @@ const { prepareShopifyCheckout } = await import("../../../src/lib/builder/checko
 // 8 Authentic Shopify Test Products Fixture
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Tests here are about prices and variants, so these parts state what review would otherwise ask about.
+const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
+  spec_review_status: "reviewed",
+  spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
+};
+const CABINET_FIT = {
+  supported_motherboards: "ATX,Micro-ATX,Mini-ITX",
+  cabinet_clearance_mm: "360",
+  max_cooler_height_mm: "165",
+  ...REVIEWED,
+};
+
 const mockShopifyRyzen5600: any = {
   id: "gid://shopify/Product/test-cpu-5600",
   name: "[TEST] AMD Ryzen 5 5600",
@@ -88,6 +102,10 @@ const mockShopifyRtx4060: any = {
   stock: 4,
   specs: {
     pcie_connectors: "8-pin",
+    gpu_length_mm: "280",
+    watts: "115",
+    recommended_psu_watts: "550",
+    ...REVIEWED,
   },
 };
 
@@ -103,7 +121,7 @@ const mockShopifyNvme1tb: any = {
   variantId: "gid://shopify/ProductVariant/4455667792",
   availableForSale: true,
   stock: 8,
-  specs: {},
+  specs: { storage_interface: "M.2 NVMe", ...REVIEWED },
 };
 
 const mockShopifyPsu550: any = {
@@ -133,7 +151,7 @@ const mockShopifyCase: any = {
   variantId: "gid://shopify/ProductVariant/4455667794",
   availableForSale: true,
   stock: 7,
-  specs: {},
+  specs: CABINET_FIT,
 };
 
 const mockShopifyCooler: any = {

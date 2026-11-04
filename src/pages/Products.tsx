@@ -56,6 +56,7 @@ import {
   fieldClass,
   Select,
 } from "../components/ui";
+import { searchableSpecs } from "../lib/builder/spec-schema";
 
 export function Products() {
   const store = useStore();
@@ -129,11 +130,9 @@ export function Products() {
               (product.availableForSale !== undefined
                 ? product.availableForSale
                 : product.stock > 0)) &&
-            `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${
-              product.specs && typeof product.specs === "object"
-                ? Object.values(product.specs).join(" ")
-                : ""
-            }`
+            `${product.name || ""} ${product.brand || ""} ${product.category || ""} ${Object.values(
+              searchableSpecs(product.specs),
+            ).join(" ")}`
               .toLowerCase()
               .includes(query.toLowerCase()) &&
             Object.entries(specs).every(

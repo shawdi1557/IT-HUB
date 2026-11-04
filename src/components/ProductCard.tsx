@@ -4,6 +4,7 @@ import { Heart, Plus, Eye, Cpu, ShieldCheck, RefreshCw } from "lucide-react";
 import { useStore } from "../app/store";
 import { bestOffer, money, offerHeadline, type Product } from "../data/catalog";
 import { Badge, Button, Modal, ActionLink } from "./ui";
+import { customerVisibleSpecs } from "../lib/builder/spec-schema";
 
 export function ProductImage({
   product,
@@ -208,14 +209,12 @@ export default function ProductCard({ product }: { product: Product }) {
           </Badge>
         </div>
         <div className="mb-6 grid grid-cols-2 gap-3">
-          {product.specs && typeof product.specs === "object"
-            ? Object.entries(product.specs).map(([key, value]) => (
-                <div key={key}>
-                  <p className="text-xs text-muted-foreground">{key}</p>
-                  <p className="text-sm font-medium">{value}</p>
-                </div>
-              ))
-            : null}
+          {Object.entries(customerVisibleSpecs(product.specs)).map(([key, value]) => (
+            <div key={key}>
+              <p className="text-xs text-muted-foreground">{key}</p>
+              <p className="text-sm font-medium">{value}</p>
+            </div>
+          ))}
         </div>
         <div className="flex flex-wrap gap-3">
           <Button

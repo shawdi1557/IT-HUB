@@ -42,8 +42,10 @@ const product = (name: string, category: string, specs: any = {}, extra: any = {
 });
 const match = (item: any): any => matchShopifyProductToComponent(item);
 const REVIEWED = {
+  spec_source: "manufacturer_datasheet",
   spec_review_status: "reviewed",
   spec_source_url: "https://www.example.com/datasheet",
+  spec_reviewed_on: "2026-11-01",
 };
 
 // ── Shopify's value shapes ───────────────────────────────────────────────────
@@ -291,7 +293,17 @@ Deno.test("LEVEL: a reviewed value with a source is it_hub_reviewed, never manuf
     }),
   );
   assertEquals(specConfidence(board, "socket"), "it_hub_reviewed");
-  assertEquals(board.specs.provenance, "it_hub_reviewed");
+  // The value is reviewed, but the part isn't confirmed until every value a label rests on is.
+  assertEquals(board.specs.provenance, "supplier_spec");
+  const complete = match(
+    product("Vendor Board", "Motherboards", {
+      socket: "AM4",
+      ram_generation: "DDR4",
+      form_factor: "ATX",
+      ...REVIEWED,
+    }),
+  );
+  assertEquals(complete.specs.provenance, "it_hub_reviewed");
 });
 
 Deno.test("LEVEL: no Shopify input can reach manufacturer_verified", () => {
@@ -354,7 +366,10 @@ Deno.test("LEVEL: rejected values are ignored, and the title still counts", () =
   assertEquals(board.specs.socket, "AM4");
   assertEquals(specConfidence(board, "socket"), "title_inferred");
   assertEquals(board.specs.formFactor, undefined);
-  assertEquals(board.specs.specProblems, undefined);
+  assertEquals(
+    board.specs.specProblems.map((p: any) => p.kind),
+    ["rejected"],
+  );
   assertEquals(board.isVerified, false);
 });
 
