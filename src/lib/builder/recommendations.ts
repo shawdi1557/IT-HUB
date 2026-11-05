@@ -16,6 +16,7 @@ import {
   checkCompatibility,
   hasRejectedSpecs,
   labelCompatibilityGaps,
+  reachesReview,
   toCanonicalComponent,
 } from "./compatibility";
 import { assessFit, prefersForPriority, priorityNote, purposeProfile } from "./purpose";
@@ -259,8 +260,12 @@ export interface SynthesizedConfiguration {
   specSources: Partial<Record<ComparedSlot, string>>;
   highlights: string[];
   designedFor: string;
-  confidenceBadge: "certified" | "high" | "review";
+  confidenceBadge: "certified" | "advisory" | "high" | "review";
   confidenceLabel: string;
+  /** Advice about a build that doesn't need review, with the reason, for the customer to read. */
+  advisories: { label: string; explanation: string }[];
+  /** Whether review is needed because a specification is missing, and not only because of a warning. */
+  hasUnknownSpecs: boolean;
   /** Some compatibility can't be confirmed from the catalogue, so IT HUB must check it. */
   requiresReview: boolean;
   /** What the check couldn't confirm, for the customer to read. */
@@ -594,9 +599,14 @@ function synthesizeBuildConfigurations(
             ) {
               continue;
             }
-            const reviewItems = compatSummary.items
-              .filter((i) => i.status === "unknown")
-              .map((i) => i.label);
+            const reviewItems = compatSummary.items.filter(reachesReview).map((i) => i.label);
+            const hasUnknownSpecs = compatSummary.items.some((i) => i.status === "unknown");
+            const advisories = compatSummary.items
+              .filter((i) => i.status === "conditional" && !reachesReview(i))
+              .map((i) => ({
+                label: i.label,
+                explanation: [i.explanation, i.suggestedResolution].filter(Boolean).join(" "),
+              }));
             const requiresReview = !compatSummary.validForAutomatedRecommendation;
             const labelGaps = labelCompatibilityGaps(canonicalPartsForCompat, compatSummary.items);
 
@@ -651,19 +661,24 @@ function synthesizeBuildConfigurations(
                   p.verificationStatus === "verified_technician",
               );
 
-            const confidenceBadge: "certified" | "high" | "review" = requiresReview
+            // Confirmed means every check passed, not only that the specifications are on file.
+            const confidenceBadge: SynthesizedConfiguration["confidenceBadge"] = requiresReview
               ? "review"
               : allVerified
-                ? "certified"
+                ? compatSummary.status === "compatible"
+                  ? "certified"
+                  : "advisory"
                 : coreVerified
                   ? "high"
                   : "review";
             const confidenceLabel =
               confidenceBadge === "certified"
                 ? "Specifications confirmed"
-                : confidenceBadge === "high"
-                  ? "Some specifications unconfirmed"
-                  : "Review Required";
+                : confidenceBadge === "advisory"
+                  ? "Specifications on file, with advice"
+                  : confidenceBadge === "high"
+                    ? "Some specifications unconfirmed"
+                    : "Review Required";
 
             candidatePool.push({
               parts: candidateParts,
@@ -683,6 +698,8 @@ function synthesizeBuildConfigurations(
               confidenceLabel,
               requiresReview,
               reviewItems,
+              advisories,
+              hasUnknownSpecs,
               psuKnownAdequate: Boolean(psu?.ratedWattage && psu.ratedWattage >= recWatts),
             });
           }
@@ -1059,6 +1076,8 @@ export function generateDynamicCatalogRecommendations(
       confidenceLabel: config.confidenceLabel,
       requiresReview: config.requiresReview,
       reviewItems: config.reviewItems,
+      advisories: config.advisories,
+      hasUnknownSpecs: config.hasUnknownSpecs,
     };
   });
 }

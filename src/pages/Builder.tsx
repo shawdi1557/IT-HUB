@@ -650,7 +650,9 @@ function ExpertBuilder({
                     ? "In progress"
                     : summary.status === "compatible"
                       ? "Compatible"
-                      : "Needs checking"}
+                      : summary.status === "conditional"
+                        ? "See Advice"
+                        : "Needs checking"}
               </Badge>
             </div>
             {summary.items.some((item) => item.status === "unknown") && (
@@ -678,7 +680,12 @@ function ExpertBuilder({
                     }`}
                   >
                     <Icon size={15} className="mt-0.5 shrink-0" />
-                    {check.label}
+                    <span>
+                      {check.label}
+                      {check.advice && (
+                        <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+                      )}
+                    </span>
                   </p>
                 );
               })}
@@ -687,6 +694,11 @@ function ExpertBuilder({
                   Checks appear as you choose your components.
                 </p>
               )}
+              {(summary.notes || []).map((note) => (
+                <p key={note} className="text-xs leading-5 text-muted-foreground">
+                  {note}
+                </p>
+              ))}
             </div>
             <div className="mt-5 flex items-start gap-3 border-t border-border pt-5">
               <Zap size={20} className="text-primary" />
@@ -1002,6 +1014,10 @@ type DetailBuild = {
   inBudget?: boolean;
   /** Compatibility can't be confirmed from the catalogue, so IT HUB must check this build. */
   requiresReview?: boolean;
+  /** Review is needed because a specification is missing, and not only because of a warning. */
+  hasUnknownSpecs?: boolean;
+  /** Advice about a build that doesn't need review, with the reason. */
+  advisories?: { label: string; explanation: string }[];
   /** Why this build has its label, or what's missing. Applies only to the parts as recommended. */
   rankingReasons?: string[];
   /** How this build relates to what the customer said they need. */
@@ -1526,7 +1542,9 @@ function BuildDetail({
                     ? "Needs attention"
                     : checks.summary.status === "compatible"
                       ? "Compatible"
-                      : "Needs checking"}
+                      : checks.summary.status === "conditional"
+                        ? "See Advice"
+                        : "Needs checking"}
                 </Badge>
               </div>
               {checks.summary.items.some((item) => item.status === "unknown") && (
@@ -1553,7 +1571,17 @@ function BuildDetail({
                     ) : (
                       <AlertTriangle size={14} />
                     )}
-                    {check.label}
+                    <span>
+                      {check.label}
+                      {check.advice && (
+                        <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+                      )}
+                    </span>
+                  </p>
+                ))}
+                {(checks.summary.notes || []).map((note) => (
+                  <p key={note} className="text-xs leading-5 text-muted-foreground">
+                    {note}
                   </p>
                 ))}
               </div>
@@ -2258,7 +2286,16 @@ function SmartBuilder() {
                             <CheckCircle2 size={11} className="text-emerald-600" /> Specs Confirmed
                           </span>
                         )}
-                        {build.confidenceBadge === "high" && (
+                        {build.confidenceBadge === "advisory" && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                            title="Every component's specifications are on file. Read the advice on this build."
+                          >
+                            <AlertTriangle size={11} className="text-amber-600" /> See Advice
+                          </span>
+                        )}
+                        {(build.confidenceBadge === "high" ||
+                          (build.confidenceBadge === "review" && !build.requiresReview)) && (
                           <span
                             className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
                             title="Core components have stated specifications. IT HUB confirms the rest."
@@ -2307,8 +2344,20 @@ function SmartBuilder() {
                       )}
                       {build.requiresReview && (
                         <p className="mt-2 text-xs leading-5 text-amber-800">
-                          {UNVERIFIED_NOTICE} IT HUB will check this build before confirming it.
+                          {build.hasUnknownSpecs ? `${UNVERIFIED_NOTICE} ` : ""}IT HUB will check
+                          this build before confirming it.
                         </p>
+                      )}
+                      {(build.advisories || []).map(
+                        (advice: { label: string; explanation: string }) => (
+                          <div
+                            key={advice.label}
+                            className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"
+                          >
+                            <p className="font-semibold">{advice.label}</p>
+                            <p>{advice.explanation}</p>
+                          </div>
+                        ),
                       )}
                       {unavailable && (
                         <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">

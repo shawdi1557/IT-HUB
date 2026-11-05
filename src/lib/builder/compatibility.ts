@@ -178,9 +178,15 @@ export function missingConnectors(
 /**
  * Anything nobody can yet confirm goes to review, so IT HUB checks it: an unknown doesn't make a build
  * incompatible, but it does mean nobody can say it's compatible. These are the exceptions that aren't
- * unknowns at all. Below the maker's recommended wattage is here because a recommendation isn't a limit.
+ * unknowns at all. Below the maker's recommended wattage is here because a recommendation isn't a limit,
+ * and a possible BIOS update because nobody here can say whether this processor needs one.
  */
-const REVIEW_RULES = new Set(["RULE_E_PSU_BELOW_RECOMMENDED"]);
+const REVIEW_RULES = new Set(["RULE_E_PSU_BELOW_RECOMMENDED", "RULE_A_BIOS_UPDATE"]);
+
+/** Whether a result sends a build to IT HUB, as opposed to being advice the customer can read. */
+export function reachesReview(item: Pick<CompatibilityItem, "status" | "ruleId">): boolean {
+  return item.status === "unknown" || REVIEW_RULES.has(item.ruleId);
+}
 
 const SPEC_PROBLEM_WORDING: Record<
   SpecProblem["kind"],
@@ -220,6 +226,103 @@ function normalizeFormFactor(value: string): string {
   if (compact === "ITX" || compact === "MINIITX") return "MINI-ITX";
   if (compact === "EATX") return "E-ATX";
   return compact;
+}
+
+type MismatchInput = { slot: ComponentSlotId; fields: (keyof TechnicalSpecs)[]; name: string };
+const input = (
+  slot: ComponentSlotId,
+  name: string,
+  ...fields: (keyof TechnicalSpecs)[]
+): MismatchInput => ({ slot, fields, name });
+
+/** The values each blocking rule compares, so a result resting on a title can say so. */
+const MISMATCH_INPUTS: Record<string, MismatchInput[]> = {
+  RULE_A_SOCKET_MISMATCH: [
+    input("CPU", "socket", "socket"),
+    input("Motherboard", "socket", "socket"),
+  ],
+  RULE_B_RAM_SODIMM_ERROR: [input("RAM", "module type", "isLaptopSoDimm")],
+  RULE_B_RAM_MISMATCH: [
+    input("Motherboard", "memory generation", "supportedRamGeneration"),
+    input("RAM", "memory generation", "ramGeneration"),
+  ],
+  RULE_B_RAM_SLOTS_EXCEEDED: [
+    input("Motherboard", "memory slots", "ramSlots"),
+    input("RAM", "module count", "moduleCount"),
+  ],
+  RULE_B_RAM_CAPACITY_EXCEEDED: [
+    input("Motherboard", "memory limit", "maxRamCapacityGb"),
+    input("RAM", "capacity", "capacityGb"),
+  ],
+  RULE_B_CPU_RAM_MISMATCH: [
+    input("CPU", "memory support", "supportedRamGen"),
+    input("RAM", "memory generation", "ramGeneration"),
+  ],
+  RULE_C_COOLER_SOCKET_MISMATCH: [
+    input("CPU", "socket", "socket"),
+    input("Cooler", "supported sockets", "supportedSockets"),
+  ],
+  RULE_C_COOLER_HEIGHT_EXCEEDED: [
+    input("Cooler", "height", "coolerHeightMm"),
+    input("Cabinet", "cooler limit", "maxCoolerHeightMm"),
+  ],
+  RULE_D_GPU_LENGTH_EXCEEDED: [
+    input("GPU", "length", "lengthMm"),
+    input("Cabinet", "graphics card limit", "maxGpuLengthMm"),
+  ],
+  RULE_E_PSU_WATTAGE_DEFICIT: [
+    input("PSU", "wattage", "ratedWattage"),
+    input("CPU", "power draw", "maxTurboPowerWatts", "tdpWatts"),
+    input("GPU", "power draw", "powerWatts", "tdpWatts"),
+  ],
+  RULE_F_PCIE_POWER_INSUFFICIENT: [
+    input("PSU", "power connectors", "pcie6Plus2Count", "pcie16PinCount", "pciePowerConnectors"),
+    input(
+      "GPU",
+      "power connectors",
+      "pcie6Plus2Required",
+      "pcie16PinRequired",
+      "requiredPcieConnectors",
+      "requiredPciePins",
+    ),
+    input("GPU", "power draw", "powerWatts", "tdpWatts"),
+  ],
+  RULE_G_FORM_FACTOR_MISMATCH: [
+    input("Motherboard", "size", "formFactor"),
+    input("Cabinet", "motherboard sizes", "supportedMotherboards"),
+  ],
+  RULE_H_STORAGE_SLOT_MISSING: [
+    input("Storage", "interface", "storageInterface"),
+    input("Motherboard", "M.2 slots", "m2SlotCount"),
+  ],
+  RULE_H_STORAGE_PORT_MISSING: [
+    input("Storage", "interface", "storageInterface"),
+    input("Motherboard", "SATA ports", "sataPortCount"),
+  ],
+  RULE_I_GPU_MANDATORY_NO_IGPU: [input("CPU", "integrated graphics", "hasIntegratedGraphics")],
+};
+
+/**
+ * A mismatch blocks a build whatever it rests on, but one resting on a value only read from a product
+ * title has to say so, because nobody has confirmed that value. The label is what a customer sees.
+ */
+function noteTitleInferredBasis(
+  items: CompatibilityItem[],
+  components: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
+) {
+  for (const item of items) {
+    if (item.severity !== "error") continue;
+    const inferred = (MISMATCH_INPUTS[item.ruleId] || []).filter(({ slot, fields }) => {
+      const part = components[slot];
+      const field = part && fields.find((candidate) => part.specs?.[candidate] !== undefined);
+      return Boolean(part && field && specConfidence(part, field) === "title_inferred");
+    });
+    if (inferred.length === 0) continue;
+    const names = inferred.map(({ slot, name }) => `the ${name} of ${components[slot]!.title}`);
+    item.label = `${item.label} (from a product title, not confirmed)`;
+    item.explanation = `${item.explanation} This rests on ${names.join(" and ")}, read from the product title and not from a confirmed specification.`;
+    item.dataProvenance = "title_inferred";
+  }
 }
 
 /**
@@ -286,19 +389,17 @@ export function checkCompatibility(
         suggestedResolution: `Select a motherboard that supports the ${cpuSocket} socket, or choose a ${moboSocket}-compatible processor.`,
       });
     } else {
-      // Sockets match! Check BIOS update requirements
-      if (
-        mobo.specs.requiresBiosUpdateForRyzen5000 ||
-        mobo.specs.requiresBiosUpdateForIntel13_14th
-      ) {
+      // The flag belongs to the motherboard and names no processor family, so it can't be narrowed to one
+      // here. Nothing in the catalogue says which processors a board supports.
+      if (mobo.specs.requiresBiosUpdateForRyzen5000) {
         items.push({
           ruleId: "RULE_A_BIOS_UPDATE",
           severity: "warning",
           status: "conditional",
           affectedSlots: ["CPU", "Motherboard"],
           label: "Motherboard BIOS update may be required",
-          explanation: `This motherboard may need an updated BIOS version to boot with ${cpu.title}.`,
-          suggestedResolution: "Confirm the BIOS version with IT HUB before ordering.",
+          explanation: `${mobo.title} is flagged as possibly needing a BIOS update, without saying for which processors, so ${cpu.title} may need one to boot.`,
+          suggestedResolution: "IT HUB will confirm the BIOS version before ordering.",
         });
       } else {
         items.push({
@@ -306,8 +407,8 @@ export function checkCompatibility(
           severity: "info",
           status: "compatible",
           affectedSlots: ["CPU", "Motherboard"],
-          label: `CPU & Motherboard compatible (${cpuSocket})`,
-          explanation: `Processor and motherboard both support the ${cpuSocket} interface.`,
+          label: `Socket matches (${cpuSocket})`,
+          explanation: `Processor and motherboard both use the ${cpuSocket} socket. Chipset, processor generation and BIOS support aren't checked here.`,
         });
       }
     }
@@ -326,6 +427,16 @@ export function checkCompatibility(
         label: "Incompatible SO-DIMM laptop memory",
         explanation: `${ram.title} is designed for laptops (SO-DIMM) and cannot be installed in desktop motherboards.`,
         suggestedResolution: "Select standard desktop unbuffered DIMM memory modules.",
+      });
+    } else if (ram.specs.isLaptopSoDimm === undefined) {
+      items.push({
+        ruleId: "RULE_B_RAM_TYPE_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["RAM"],
+        label: "Memory module type unverified",
+        explanation: `Unable to confirm that ${ram.title} is desktop memory (DIMM) and not laptop memory (SO-DIMM).`,
+        suggestedResolution: "IT HUB will confirm the memory type.",
       });
     }
 
@@ -459,10 +570,9 @@ export function checkCompatibility(
         severity: "warning",
         status: "conditional",
         affectedSlots: ["CPU", "Cooler"],
-        label: "Dedicated CPU cooler recommended",
+        label: "CPU cooler required",
         explanation: `${cpu.title} does not include a stock heatsink/fan in the retail package. An aftermarket air or liquid cooler is required.`,
-        suggestedResolution:
-          "Add an aftermarket CPU cooler to ensure safe operational temperatures.",
+        suggestedResolution: "Add a CPU cooler to complete this build.",
       });
     }
 
@@ -558,6 +668,15 @@ export function checkCompatibility(
           label: "Graphics card too long for cabinet",
           explanation: `${gpu.title} is ${gpuLength}mm long, exceeding the case's internal clearance limit of ${caseMaxGpu}mm.`,
           suggestedResolution: `Choose a more spacious cabinet or a dual-fan graphics card under ${caseMaxGpu}mm.`,
+        });
+      } else if (gpuLength === caseMaxGpu) {
+        items.push({
+          ruleId: "RULE_D_GPU_CLEARANCE_OK",
+          severity: "info",
+          status: "compatible",
+          affectedSlots: ["GPU", "Cabinet"],
+          label: `Tight fit: GPU fits case clearance (${gpuLength}mm / ${caseMaxGpu}mm)`,
+          explanation: `${gpu.title}'s stated length equals ${cabinet.title}'s stated clearance, so it fits with no margin.`,
         });
       } else {
         items.push({
@@ -681,10 +800,10 @@ export function checkCompatibility(
       const need = gpuConnectorNeeds(gpu.specs);
       const have = psuConnectors(psu.specs);
       // A PCIe slot supplies at most 75W, so a card drawing more needs a cable whatever else is unknown.
+      // Drawing less doesn't show the reverse: some low-power cards still have a connector, so only a
+      // stated answer of zero means no cable.
       const needsNoCable = need ? totalConnectors(need) === 0 : false;
-      const slotPowerIsEnough = needsNoCable
-        ? gpuWatts <= 75
-        : !need && gpuWatts > 0 && gpuWatts <= 75;
+      const slotPowerIsEnough = needsNoCable && gpuWatts <= 75;
 
       if (needsNoCable && !slotPowerIsEnough) {
         items.push({
@@ -703,7 +822,7 @@ export function checkCompatibility(
           status: "compatible",
           affectedSlots: ["GPU"],
           label: "PCIe slot power sufficient (≤75W)",
-          explanation: `${gpu.title} draws ≤75W and does not require dedicated auxiliary PCIe power cables.`,
+          explanation: `${gpu.title} is stated as needing no PCIe power cable, and runs from the ≤75W a slot supplies.`,
         });
       } else if (!need && !gpuWatts) {
         items.push({
@@ -742,7 +861,7 @@ export function checkCompatibility(
         // Zero connectors can't power a card that needs more than the slot gives, whatever its type.
         const missing = need
           ? missingConnectors(need, have, gpu.specs.pcie16PinAdapter8PinCount)
-          : totalConnectors(have) === 0
+          : gpuWatts > 75 && totalConnectors(have) === 0
             ? "any PCIe power connector"
             : undefined;
         if (missing) {
@@ -763,7 +882,10 @@ export function checkCompatibility(
             status: "unknown",
             affectedSlots: ["GPU", "PSU"],
             label: "Graphics card connector type unverified",
-            explanation: `${gpu.title} needs PCIe power, but its connector type isn't stated, so it can't be matched to ${psu.title}.`,
+            explanation:
+              gpuWatts > 75
+                ? `${gpu.title} needs PCIe power, but its connector type isn't stated, so it can't be matched to ${psu.title}.`
+                : `${gpu.title} draws ${gpuWatts}W, which a slot could supply, but its connector isn't stated, and some low-power cards still need a cable, so it can't be matched to ${psu.title}.`,
             suggestedResolution: "IT HUB will confirm the power cables for this card.",
           });
         } else {
@@ -828,6 +950,8 @@ export function checkCompatibility(
     const storageType = storage.specs.storageInterface?.toUpperCase() || "";
     const usesM2 = storageType.includes("M.2") || storageType.includes("NVME");
     const usesSata = storageType.includes("SATA");
+    // An M.2 slot may take NVMe drives only, and nothing in the catalogue says whether a board's take SATA.
+    const usesM2Sata = usesM2 && usesSata;
     const slotCount = usesM2
       ? mobo.specs.m2SlotCount
       : usesSata
@@ -841,9 +965,19 @@ export function checkCompatibility(
         status: "incompatible",
         affectedSlots: ["Storage", "Motherboard"],
         label: "Motherboard lacks required M.2 slot",
-        explanation: `${storage.title} is an M.2 NVMe SSD, but ${mobo.title} has 0 M.2 slots.`,
+        explanation: `${storage.title} is an M.2 drive, but ${mobo.title} has 0 M.2 slots.`,
         suggestedResolution:
           "Select a 2.5-inch SATA SSD or upgrade to a motherboard with M.2 NVMe slots.",
+      });
+    } else if (usesM2Sata) {
+      items.push({
+        ruleId: "RULE_H_M2_SATA_UNKNOWN",
+        severity: "warning",
+        status: "unknown",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: "M.2 SATA support unverified",
+        explanation: `${storage.title} is an M.2 SATA drive. Some M.2 slots take NVMe drives only, and nothing here says whether ${mobo.title}'s take SATA.`,
+        suggestedResolution: "IT HUB will confirm the storage connection.",
       });
     } else if (usesSata && slotCount === 0) {
       items.push({
@@ -1018,6 +1152,16 @@ export function checkCompatibility(
     });
   }
 
+  noteTitleInferredBasis(items, components);
+
+  // Not a check, so it has no result: the boxed cooler's height is deliberately not compared.
+  const notes: string[] = [];
+  if (cpu && cabinet && !cooler && !owned.has("Cooler") && cpu.specs.includesCooler === true) {
+    notes.push(
+      "This build uses the processor's boxed cooler. Its height isn't separately checked against the cabinet.",
+    );
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // Build Completeness & Overall Validity
   // ───────────────────────────────────────────────────────────────────────────
@@ -1045,6 +1189,7 @@ export function checkCompatibility(
   return {
     status: overallStatus,
     items,
+    notes,
     estimatedSystemLoadWatts: power.estimatedSystemLoadWatts,
     recommendedPsuWatts: power.recommendedPsuWatts,
     powerHeadroomWatts: power.powerHeadroomWatts,
@@ -1154,10 +1299,12 @@ export function missingCriticalSpecs(
  */
 export function labelCompatibilityGaps(
   parts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
-  items: { status: string; label: string }[],
+  items: { status: string; label: string; ruleId?: string }[],
 ): string[] {
   const gaps: string[] = [];
-  const unknown = items.filter((item) => item.status === "unknown").map((item) => item.label);
+  const unknown = items
+    .filter((item) => item.status === "unknown" || REVIEW_RULES.has(item.ruleId ?? ""))
+    .map((item) => item.label);
   if (unknown.length > 0) gaps.push(`Not yet confirmed: ${unknown.join(", ")}.`);
   const describe = (part: CanonicalBuildComponent, level: (l: SpecConfidence) => boolean) =>
     criticalSpecsAt(part, level).map((name) => `${name} of ${part.title}`);
@@ -1195,8 +1342,8 @@ export function toCanonicalComponent(
         powerWatts: part.watts,
         ratedWattage: part.capacity,
         lengthMm: part.length,
+        // A selection this old holds only a graphics card clearance, so its cooler limit stays unknown.
         maxGpuLengthMm: part.clearance,
-        maxCoolerHeightMm: part.clearance,
         coolerHeightMm: part.height,
         hasWifi: part.wifi,
         requiresBiosUpdateForRyzen5000: part.bios,
@@ -1249,6 +1396,8 @@ export function compatibility(
           : item.severity === "warning"
             ? ("warning" as const)
             : ("ok" as const),
+      // Advice is the customer's to read. Anything needing review is IT HUB's to resolve.
+      advice: item.status === "conditional" && !reachesReview(item) ? item.explanation : undefined,
     })),
     watts: summary.estimatedSystemLoadWatts,
     recommended: summary.recommendedPsuWatts,

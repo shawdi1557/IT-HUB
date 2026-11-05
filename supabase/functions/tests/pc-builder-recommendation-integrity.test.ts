@@ -98,7 +98,13 @@ const statedRam = (name: string, price: number, gb: string) =>
   product(name, {
     category: "RAM",
     price,
-    specs: { ram_generation: "DDR4", ram_capacity_gb: gb, ram_modules: "2", ...REVIEWED },
+    specs: {
+      ram_generation: "DDR4",
+      ram_capacity_gb: gb,
+      ram_modules: "2",
+      ram_module_type: "DIMM",
+      ...REVIEWED,
+    },
   });
 
 /** A budget too small for the dearest processor and dearest card together. */

@@ -150,9 +150,14 @@ Deno.test("RULES: zero connectors fail any card drawing more than the slot gives
   );
 });
 
-Deno.test("RULES: zero connectors are fine for a card the slot can power", () => {
+Deno.test("RULES: zero connectors are fine only for a card stated as needing none", () => {
+  // Low power alone doesn't show this: some low-power cards still have a connector.
   const low = part("GPU", "Low Power Card", { powerWatts: 70 });
-  assert(rule({ CPU, GPU: low, PSU: psu(450, ["none"]) }, "RULE_F_PCIE_POWER_NOT_REQUIRED"));
+  const unconfirmed = { CPU, GPU: low, PSU: psu(450, ["none"]) };
+  assert(!rule(unconfirmed, "RULE_F_PCIE_POWER_NOT_REQUIRED"));
+  assert(!rule(unconfirmed, "RULE_F_PCIE_POWER_INSUFFICIENT"));
+  assert(rule(unconfirmed, "RULE_F_GPU_CONNECTORS_UNKNOWN"));
+  assertEquals(checkCompatibility(unconfirmed).hasBlockingUnknowns, true);
   const stated = part("GPU", "Slot Card", {
     pcie6Plus2Required: 0,
     pcie16PinRequired: 0,

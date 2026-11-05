@@ -46,16 +46,16 @@ Deno.test("PHASE2-1: Rule F — GPU requiring auxiliary PCIe power triggers erro
   assertEquals(pcieError?.status, "incompatible");
 });
 
-Deno.test("PHASE2-2: Rule F — Low-power GPU (<=75W) passes without requiring auxiliary PCIe power", () => {
+Deno.test("PHASE2-2: Rule F — A low-power GPU stated as needing no cable passes, and an unstated one does not", () => {
   const parts: any = {
     GPU: {
       slot: "GPU",
       productId: "gpu-gtx1650",
       variantId: "gid://shopify/ProductVariant/1650",
-      title: "GeForce GTX 1650 4GB",
+      title: "Low Power Validation Card",
       price: 12000,
       currency: "INR",
-      specs: { powerWatts: 75 },
+      specs: { powerWatts: 75, pcie6Plus2Required: 0, pcie16PinRequired: 0 },
       availability: "available",
       quantity: 1,
     },
@@ -76,6 +76,15 @@ Deno.test("PHASE2-2: Rule F — Low-power GPU (<=75W) passes without requiring a
   const notRequiredInfo = result.items.find((i) => i.ruleId === "RULE_F_PCIE_POWER_NOT_REQUIRED");
   assertEquals(Boolean(notRequiredInfo), true);
   assertEquals(notRequiredInfo?.status, "compatible");
+
+  // The same card with its connector unstated can't be told it needs no cable.
+  parts.GPU.specs = { powerWatts: 75 };
+  const unstated = checkCompatibility(parts);
+  assertEquals(
+    unstated.items.some((i) => i.ruleId === "RULE_F_PCIE_POWER_NOT_REQUIRED"),
+    false,
+  );
+  assertEquals(unstated.hasBlockingUnknowns, true);
 });
 
 Deno.test("PHASE2-3: UNKNOWN is never treated as PASS — Automated mode rejects blocking unknowns", () => {

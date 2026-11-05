@@ -39,8 +39,18 @@ const STATED: Record<string, Record<string, string>> = {
     sata_ports: "4",
     ...REVIEWED,
   },
-  "gid://shopify/Product/ram-ddr4-16": { ram_capacity_gb: "16", ram_modules: "2", ...REVIEWED },
-  "gid://shopify/Product/ram-ddr5-32": { ram_capacity_gb: "32", ram_modules: "2", ...REVIEWED },
+  "gid://shopify/Product/ram-ddr4-16": {
+    ram_capacity_gb: "16",
+    ram_modules: "2",
+    ram_module_type: "DIMM",
+    ...REVIEWED,
+  },
+  "gid://shopify/Product/ram-ddr5-32": {
+    ram_capacity_gb: "32",
+    ram_modules: "2",
+    ram_module_type: "DIMM",
+    ...REVIEWED,
+  },
   "gid://shopify/Product/gpu-4060": {
     gpu_length_mm: "242",
     recommended_psu_watts: "450",

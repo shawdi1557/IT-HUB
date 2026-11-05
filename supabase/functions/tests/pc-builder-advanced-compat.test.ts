@@ -6,7 +6,7 @@
 import { assert, assertEquals, assertMatch } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 const { syncBuilderCatalogWithShopify } = await import("../../../src/lib/builder/catalog.ts");
-const { checkCompatibility, toCanonicalComponent } =
+const { checkCompatibility, compatibility, toCanonicalComponent } =
   await import("../../../src/lib/builder/compatibility.ts");
 const { generateDynamicCatalogRecommendations } =
   await import("../../../src/lib/builder/recommendations.ts");
@@ -324,6 +324,16 @@ const CASES: Case[] = [
     overall: "unknown",
   })),
   {
+    rule: "RULE_B_RAM_TYPE_UNKNOWN",
+    kind: "unknown",
+    name: "the kit's module type is blank",
+    over: { RAM: { ram_module_type: undefined } },
+    also: RAM_FITS,
+    explains: /desktop memory \(DIMM\)/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
     rule: "RULE_B_CPU_RAM_MISMATCH",
     kind: "negative",
     name: "the processor doesn't support the kit",
@@ -440,6 +450,15 @@ const CASES: Case[] = [
     explains: /fit cleanly/,
     overall: "compatible",
     source: { slot: "Cabinet", field: "maxGpuLengthMm", level: "it_hub_reviewed" },
+  },
+  {
+    rule: "RULE_D_GPU_CLEARANCE_OK",
+    kind: "positive",
+    name: "exactly the limit",
+    over: { GPU: { gpu_length_mm: "300" } },
+    explains: /fits with no margin/,
+    overall: "compatible",
+    valid: true,
   },
   {
     rule: "RULE_D_GPU_LENGTH_EXCEEDED",
@@ -572,6 +591,60 @@ const CASES: Case[] = [
     over: { GPU: { watts: "76", pcie_6plus2_required: undefined, pcie_16pin_required: undefined } },
     explains: /connector type isn't stated/,
     overall: "unknown",
+  },
+  {
+    rule: "RULE_F_GPU_CONNECTORS_UNKNOWN",
+    kind: "unknown",
+    name: "75W, with its connector blank, isn't assumed to need no cable",
+    over: { GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined } },
+    explains: /some low-power cards still need a cable/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
+    rule: "RULE_F_GPU_CONNECTORS_UNKNOWN",
+    kind: "unknown",
+    name: "75W, connector blank, supply stating none, isn't a pass or a mismatch",
+    over: {
+      GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined },
+      PSU: { pcie_6plus2_count: "0" },
+    },
+    explains: /some low-power cards still need a cable/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
+    rule: "RULE_F_PCIE_CONNECTORS_UNKNOWN",
+    kind: "unknown",
+    name: "75W, with the connectors of both card and supply blank",
+    over: {
+      GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined },
+      PSU: { pcie_6plus2_count: undefined, pcie_16pin_count: undefined },
+    },
+    explains: /no stated PCIe power cables/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
+    rule: "RULE_F_PCIE_POWER_INSUFFICIENT",
+    kind: "negative",
+    name: "76W, connector blank, supply stating none, needs what it doesn't have",
+    over: {
+      GPU: { watts: "76", pcie_6plus2_required: undefined, pcie_16pin_required: undefined },
+      PSU: { pcie_6plus2_count: "0" },
+    },
+    explains: /short of any PCIe power connector/,
+    overall: "incompatible",
+    valid: false,
+  },
+  {
+    rule: "RULE_F_PCIE_POWER_INSUFFICIENT",
+    kind: "negative",
+    name: "75W, stated as needing a connector the supply doesn't have",
+    over: { GPU: { watts: "75" }, PSU: { pcie_6plus2_count: "0" } },
+    explains: /short of 1 8-pin/,
+    overall: "incompatible",
+    valid: false,
   },
   {
     rule: "RULE_F_GPU_POWER_UNKNOWN",
@@ -716,6 +789,33 @@ const CASES: Case[] = [
     over: { Storage: { storage_interface: undefined } },
     explains: /free connection/,
     overall: "unknown",
+  },
+  {
+    rule: "RULE_H_M2_SATA_UNKNOWN",
+    kind: "unknown",
+    name: "an M.2 SATA drive isn't assumed to fit an M.2 slot",
+    over: { Storage: { storage_interface: "M.2 SATA" } },
+    explains: /NVMe drives only/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
+    rule: "RULE_H_M2_SATA_UNKNOWN",
+    kind: "unknown",
+    name: "an M.2 SATA drive, with the M.2 count blank",
+    over: { Storage: { storage_interface: "M.2 SATA" }, Motherboard: { m2_slots: undefined } },
+    explains: /NVMe drives only/,
+    overall: "unknown",
+    valid: true,
+  },
+  {
+    rule: "RULE_H_STORAGE_SLOT_MISSING",
+    kind: "negative",
+    name: "an M.2 SATA drive and no M.2 slot",
+    over: { Storage: { storage_interface: "M.2 SATA" }, Motherboard: { m2_slots: "0" } },
+    explains: /0 M\.2 slots/,
+    overall: "incompatible",
+    valid: false,
   },
   {
     rule: "RULE_H_OWNED_STORAGE_UNCHECKED",
@@ -1145,6 +1245,326 @@ Deno.test("ADV provenance: a value changed after its review stops counting as re
   assertEquals(part.specs.fieldSources.maxCoolerHeightMm, "it_hub_reviewed");
 });
 
+// ── State integrity ──────────────────────────────────────────────────────────────────────────────
+
+const itemFor = (check: any, rule: string) => check.items.find((item: any) => item.ruleId === rule);
+const NO_CONNECTOR_STATED: Specs = {
+  pcie_6plus2_required: undefined,
+  pcie_16pin_required: undefined,
+};
+
+Deno.test("ADV state: a low-power card with an unstated connector is never told it needs no cable", () => {
+  for (const watts of ["1", "50", "75"]) {
+    for (const psu of [{}, { pcie_6plus2_count: "0" }, { pcie_6plus2_count: undefined }]) {
+      const check = checkCompatibility(
+        partsFor({ GPU: { watts, ...NO_CONNECTOR_STATED }, PSU: psu }),
+      );
+      assert(!itemFor(check, "RULE_F_PCIE_POWER_NOT_REQUIRED"), `${watts}W`);
+      assert(!itemFor(check, "RULE_F_PCIE_POWER_MATCH"), `${watts}W`);
+      assert(!itemFor(check, "RULE_F_PCIE_POWER_INSUFFICIENT"), `${watts}W`);
+      assertEquals(check.hasBlockingUnknowns, true);
+      assertEquals(check.status, "unknown");
+    }
+  }
+});
+
+Deno.test("ADV state: a BIOS warning needs review, and never reads as confirmed", () => {
+  const over: Overrides = { Motherboard: { bios_update_required: "true" } };
+  const check = checkCompatibility(partsFor(over));
+  assertEquals(check.hasBlockingUnknowns, true);
+  assertEquals(check.status, "unknown");
+  assertEquals(check.valid, true);
+  const [build] = offer(over);
+  assertEquals(build.requiresReview, true);
+  assertEquals(build.confidenceBadge, "review");
+  assert(build.reviewItems.includes("Motherboard BIOS update may be required"));
+  assertEquals(build.hasUnknownSpecs, false, "no specification is missing");
+  assert(build.rankingReasons.join(" ").includes("Motherboard BIOS update may be required"));
+});
+
+Deno.test("ADV state: advice alone stays non-blocking, but isn't described as confirmed", () => {
+  const over: Overrides = { GPU: { recommended_psu_watts: "300" }, PSU: { capacity_watts: "350" } };
+  const check = checkCompatibility(partsFor(over));
+  assertEquals(check.status, "conditional");
+  assertEquals(check.hasBlockingUnknowns, false);
+  const [build] = offer(over);
+  assertEquals(build.requiresReview, false);
+  assertEquals(build.confidenceBadge, "advisory");
+  assert(!/confirmed/i.test(build.confidenceLabel));
+  assertEquals(build.advisories.length, 1);
+  assertEquals(build.advisories[0].label, "Limited power supply headroom");
+  assertMatch(build.advisories[0].explanation, /350W.*less than the recommended 35% safety margin/);
+  assertMatch(build.advisories[0].explanation, /Consider a 400W unit/);
+  assertEquals(build.reviewItems, []);
+  const strict = generateDynamicCatalogRecommendations(
+    catalogueFor(over),
+    { purpose: "gaming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 0, max: 900000 },
+  ) as any[];
+  assertEquals(strict.length, 1, "advice doesn't stop a build being offered");
+});
+
+Deno.test("ADV state: the checks list explains advice, but not what IT HUB has to resolve", () => {
+  const rowFor = (over: Overrides, label: RegExp): any =>
+    compatibility(partsFor(over)).result.find((row: any) => label.test(row.label));
+  const advice = rowFor(
+    { GPU: { recommended_psu_watts: "300" }, PSU: { capacity_watts: "350" } },
+    /Limited power supply headroom/,
+  );
+  assertMatch(advice.advice, /less than the recommended 35% safety margin/);
+  const bios = rowFor({ Motherboard: { bios_update_required: "true" } }, /BIOS update/);
+  assertEquals(bios.advice, undefined);
+  const passed = rowFor({}, /Socket matches/);
+  assertEquals(passed.advice, undefined);
+});
+
+Deno.test("ADV state: only a build whose every check passed is certified", () => {
+  const [build] = offer();
+  assertEquals(build.confidenceBadge, "certified");
+  assertEquals(build.confidenceLabel, "Specifications confirmed");
+  assertEquals(build.advisories, []);
+  assertEquals(build.hasUnknownSpecs, false);
+});
+
+Deno.test("ADV state: the page shows each state, and never leaves a warning unmarked", async () => {
+  const page = await Deno.readTextFile(new URL("../../../src/pages/Builder.tsx", import.meta.url));
+  assert(page.includes('build.confidenceBadge === "advisory"'));
+  assert(page.includes('build.confidenceBadge === "review" && !build.requiresReview'));
+  assert(page.includes("build.advisories || []"));
+  assert(page.includes("{advice.explanation}"));
+  assertEquals(page.split("{check.advice}").length - 1, 2, "both pages show the advice");
+  assert(page.includes('summary.status === "conditional"'));
+  assert(page.includes('checks.summary.status === "conditional"'));
+  assert(page.includes("build.hasUnknownSpecs ?"));
+});
+
+Deno.test("ADV wording: a socket match claims only the socket, with the real value", () => {
+  for (const socket of ["AM4", "AM5"]) {
+    const check = checkCompatibility(partsFor({ CPU: { socket }, Motherboard: { socket } }));
+    const item = itemFor(check, "RULE_A_SOCKET_MATCH");
+    assertEquals(item.label, `Socket matches (${socket})`);
+    assert(!/compatible/i.test(item.label));
+    assertMatch(item.explanation, /Chipset, processor generation and BIOS support aren't checked/);
+  }
+});
+
+Deno.test("ADV wording: a required cooler is called required, in every part of the result", () => {
+  const over: Overrides = { CPU: { includes_cooler: "false" } };
+  const check = checkCompatibility(partsFor(over));
+  const item = itemFor(check, "RULE_C_COOLER_REQUIRED");
+  assertEquals(item.label, "CPU cooler required");
+  for (const text of [item.label, item.explanation, item.suggestedResolution]) {
+    assert(!/recommend/i.test(text), text);
+  }
+  assertEquals(check.complete, false);
+  const added = checkCompatibility(partsFor({ ...over, Cooler: {} }));
+  assert(!itemFor(added, "RULE_C_COOLER_REQUIRED"));
+  assertEquals(added.complete, true);
+});
+
+Deno.test("ADV BIOS: the flag names no processor family, and neither does the warning", async () => {
+  const check = checkCompatibility(
+    partsFor({
+      CPU: { socket: "LGA1700" },
+      Motherboard: { socket: "LGA1700", bios_update_required: "true" },
+    }),
+  );
+  const item = itemFor(check, "RULE_A_BIOS_UPDATE");
+  for (const text of [item.label, item.explanation, item.suggestedResolution]) {
+    assert(!/intel|ryzen|13th|14th|5000/i.test(text), text);
+  }
+  assertMatch(item.explanation, /without saying for which processors/);
+  const source = await Deno.readTextFile(
+    new URL("../../../src/lib/builder/compatibility.ts", import.meta.url),
+  );
+  assert(!source.includes("requiresBiosUpdateForIntel13_14th"));
+});
+
+Deno.test("ADV BIOS: no warning without the flag, or across different sockets", () => {
+  const off = checkCompatibility(partsFor({ Motherboard: { bios_update_required: "false" } }));
+  assert(!itemFor(off, "RULE_A_BIOS_UPDATE"));
+  assert(itemFor(off, "RULE_A_SOCKET_MATCH"));
+  const different = checkCompatibility(
+    partsFor({ CPU: { socket: "AM5" }, Motherboard: { bios_update_required: "true" } }),
+  );
+  assert(!itemFor(different, "RULE_A_BIOS_UPDATE"));
+  assert(itemFor(different, "RULE_A_SOCKET_MISMATCH"));
+});
+
+Deno.test("ADV saved: a stored clearance is a graphics card limit, never a cooler limit", () => {
+  const legacy = {
+    CPU: { id: "cpu", name: "Saved Processor", price: 1, socket: "AM4", includesCooler: false },
+    GPU: { id: "gpu", name: "Saved Card", price: 1, length: 240 },
+    Cabinet: { id: "case", name: "Saved Case", price: 1, clearance: 350 },
+    Cooler: { id: "cooler", name: "Saved Tower", price: 1, height: 400 },
+  };
+  const { summary } = compatibility(legacy);
+  assert(summary.items.some((item: any) => item.ruleId === "RULE_D_GPU_CLEARANCE_OK"));
+  assert(summary.items.some((item: any) => item.ruleId === "RULE_C_COOLER_HEIGHT_UNKNOWN"));
+  assert(!summary.items.some((item: any) => item.ruleId === "RULE_C_COOLER_HEIGHT_EXCEEDED"));
+  assert(!summary.items.some((item: any) => item.ruleId === "RULE_C_COOLER_HEIGHT_OK"));
+  assertEquals(summary.hasBlockingUnknowns, true);
+  assertEquals(toCanonicalComponent("Cabinet", legacy.Cabinet).specs.maxCoolerHeightMm, undefined);
+  const tooLong = compatibility({ ...legacy, GPU: { ...legacy.GPU, length: 351 } }).summary;
+  assert(tooLong.items.some((item: any) => item.ruleId === "RULE_D_GPU_LENGTH_EXCEEDED"));
+});
+
+// ── Owner decisions ──────────────────────────────────────────────────────────────────────────────
+
+const TITLE_READ_BOARD = { Motherboard: "MSI B550M PRO-VDH WIFI" };
+const NOTHING_STATED: Specs = Object.fromEntries(
+  Object.keys(SLOT_PRODUCTS.Motherboard.specs).map((key) => [key, undefined]),
+);
+
+Deno.test("ADV D1: a mismatch read from a title blocks the build, and says where it came from", () => {
+  const parts = partsFor({ CPU: { socket: "AM5" }, Motherboard: NOTHING_STATED }, TITLE_READ_BOARD);
+  assertEquals(parts.Motherboard.specs.fieldSources.socket, "title_inferred");
+  const check = checkCompatibility(parts);
+  const item = itemFor(check, "RULE_A_SOCKET_MISMATCH");
+  assertEquals(item.status, "incompatible");
+  assertEquals(item.severity, "error");
+  assertEquals(check.valid, false);
+  assertEquals(check.status, "incompatible");
+  assertEquals(item.dataProvenance, "title_inferred");
+  assertMatch(item.label, /from a product title, not confirmed/);
+  assertMatch(
+    item.explanation,
+    /the socket of MSI B550M PRO-VDH WIFI, read from the product title/,
+  );
+  assert(!/manufacturer/i.test(item.label + item.explanation));
+});
+
+Deno.test("ADV D1: only the title-read value is named, and the label reaches the page", () => {
+  const legacyShape = compatibility(
+    partsFor({ CPU: { socket: "AM5" }, Motherboard: NOTHING_STATED }, TITLE_READ_BOARD),
+  );
+  assert(legacyShape.result.some((row: any) => /from a product title/.test(row.label)));
+  const item = itemFor(
+    checkCompatibility(
+      partsFor({ CPU: { socket: "AM5" }, Motherboard: NOTHING_STATED }, TITLE_READ_BOARD),
+    ),
+    "RULE_A_SOCKET_MISMATCH",
+  );
+  assert(!item.explanation.includes("the socket of QZX Validation Processor 77"));
+});
+
+Deno.test("ADV D1: a mismatch between stated values doesn't mention a title", () => {
+  for (const { rule, over } of MISMATCHES) {
+    const item = itemFor(checkCompatibility(partsFor(over)), rule);
+    assert(item, rule);
+    assertEquals(item.dataProvenance, undefined, rule);
+    assert(!/title/i.test(item.label), rule);
+    assert(!/product title/i.test(item.explanation), rule);
+  }
+});
+
+Deno.test("ADV D1: a wattage read from a title blocks a build it can't power, and says so", () => {
+  const check = checkCompatibility(
+    partsFor(
+      {
+        GPU: { watts: "700", recommended_psu_watts: "1000" },
+        PSU: {
+          ...NOT_REVIEWED,
+          capacity_watts: undefined,
+          pcie_6plus2_count: undefined,
+          pcie_16pin_count: undefined,
+        },
+      },
+      { PSU: "Corsair CV550 550W" },
+    ),
+  );
+  const item = itemFor(check, "RULE_E_PSU_WATTAGE_DEFICIT");
+  assertEquals(check.valid, false);
+  assertEquals(item.dataProvenance, "title_inferred");
+  assertMatch(item.explanation, /the wattage of Corsair CV550 550W, read from the product title/);
+});
+
+Deno.test("ADV D1: Find My PC never offers a mismatch read from a title", () => {
+  const items = productsFor(
+    { CPU: { socket: "AM5", supported_ram_generations: '["DDR4"]' }, Motherboard: NOTHING_STATED },
+    TITLE_READ_BOARD,
+  );
+  const builds = generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(items).componentCatalog,
+    { purpose: "gaming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 0, max: 900000 },
+    { allowUnverified: true },
+  );
+  assertEquals(builds, []);
+});
+
+const BOXED_NOTE =
+  "This build uses the processor's boxed cooler. Its height isn't separately checked against the cabinet.";
+
+Deno.test("ADV D2: a boxed cooler is noted, with no height check and no effect on the status", () => {
+  for (const cabinetHeight of [undefined, "50", "160"]) {
+    const check = checkCompatibility(
+      partsFor({ Cabinet: { max_cooler_height_mm: cabinetHeight } }),
+    );
+    assertEquals(check.notes, [BOXED_NOTE]);
+    assertEquals(rulesIn(check, "RULE_C_"), []);
+    assertEquals(check.status, "compatible");
+    assertEquals(check.hasBlockingUnknowns, false);
+  }
+});
+
+Deno.test("ADV D2: no note when a boxed cooler isn't what's being used", () => {
+  const cases: [string, Overrides, Record<string, unknown>][] = [
+    ["an added cooler", { Cooler: {} }, {}],
+    ["no cooler in the box", { CPU: { includes_cooler: "false" } }, {}],
+    ["not stated", { CPU: { includes_cooler: undefined } }, {}],
+    ["no cabinet to compare", { Cabinet: null }, {}],
+    ["the customer's own cooler", {}, { ownedSlots: ["Cooler"] }],
+  ];
+  for (const [name, over, options] of cases) {
+    assertEquals(checkCompatibility(partsFor(over), options as any).notes, [], name);
+  }
+});
+
+Deno.test("ADV D2: an added cooler is still checked, whatever the box holds", () => {
+  const rule = (cooler: Specs, cabinet: Specs = {}) =>
+    rulesIn(
+      checkCompatibility(partsFor({ Cooler: cooler, Cabinet: cabinet })),
+      "RULE_C_COOLER_HEIGHT",
+    );
+  assertEquals(rule({ cooler_height_mm: "160" }), ["RULE_C_COOLER_HEIGHT_OK"]);
+  assertEquals(rule({ cooler_height_mm: "161" }), ["RULE_C_COOLER_HEIGHT_EXCEEDED"]);
+  assertEquals(rule({ cooler_height_mm: undefined }), ["RULE_C_COOLER_HEIGHT_UNKNOWN"]);
+  assertEquals(rule({}, { max_cooler_height_mm: undefined }), ["RULE_C_COOLER_HEIGHT_UNKNOWN"]);
+});
+
+Deno.test("ADV D2: the note reaches both pages, and doesn't pass as a check", async () => {
+  const page = await Deno.readTextFile(new URL("../../../src/pages/Builder.tsx", import.meta.url));
+  assert(page.includes("summary.notes || []"));
+  assert(page.includes("checks.summary.notes || []"));
+  const { result } = compatibility(partsFor());
+  assert(!result.some((row: any) => /boxed cooler/.test(row.label)));
+});
+
+const clearanceLabel = (length: string | undefined, limit: string | undefined) =>
+  itemFor(
+    checkCompatibility(
+      partsFor({ GPU: { gpu_length_mm: length }, Cabinet: { cabinet_clearance_mm: limit } }),
+    ),
+    length && limit
+      ? Number(length) > Number(limit)
+        ? "RULE_D_GPU_LENGTH_EXCEEDED"
+        : "RULE_D_GPU_CLEARANCE_OK"
+      : "RULE_D_GPU_CLEARANCE_UNKNOWN",
+  ).label as string;
+
+Deno.test("ADV D3: exactly the limit passes as a tight fit, and only exactly the limit", () => {
+  assertEquals(clearanceLabel("300", "300"), "Tight fit: GPU fits case clearance (300mm / 300mm)");
+  assertEquals(clearanceLabel("272", "272"), "Tight fit: GPU fits case clearance (272mm / 272mm)");
+  assertEquals(clearanceLabel("299", "300"), "GPU fits case clearance (299mm / 300mm)");
+  assertEquals(clearanceLabel("301", "300"), "Graphics card too long for cabinet");
+  assertEquals(clearanceLabel(undefined, "300"), "Chassis GPU clearance unverified");
+  assertEquals(clearanceLabel("300", undefined), "Chassis GPU clearance unverified");
+  const check = checkCompatibility(partsFor({ GPU: { gpu_length_mm: "300" } }));
+  assertEquals(check.valid, true);
+  assertEquals(check.status, "compatible");
+});
+
 // ── Find My PC follows the rules ─────────────────────────────────────────────────────────────────
 
 const offer = (over?: Overrides, purpose = "gaming") =>
@@ -1202,6 +1622,20 @@ for (const { rule, over } of MISMATCHES) {
 
 const UNKNOWNS: { rule: string; over: Overrides }[] = [
   { rule: "RULE_A_SOCKET_UNKNOWN", over: { CPU: { socket: undefined } } },
+  { rule: "RULE_A_BIOS_UPDATE", over: { Motherboard: { bios_update_required: "true" } } },
+  { rule: "RULE_B_RAM_TYPE_UNKNOWN", over: { RAM: { ram_module_type: undefined } } },
+  {
+    rule: "RULE_F_GPU_CONNECTORS_UNKNOWN",
+    over: { GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined } },
+  },
+  {
+    rule: "RULE_F_GPU_CONNECTORS_UNKNOWN, on a supply stating none",
+    over: {
+      GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined },
+      PSU: { pcie_6plus2_count: "0" },
+    },
+  },
+  { rule: "RULE_H_M2_SATA_UNKNOWN", over: { Storage: { storage_interface: "M.2 SATA" } } },
   { rule: "RULE_B_RAM_LIMITS_UNKNOWN", over: { RAM: { ram_modules: undefined } } },
   { rule: "RULE_D_GPU_CLEARANCE_UNKNOWN", over: { GPU: { gpu_length_mm: undefined } } },
   { rule: "RULE_E_PSU_WATTAGE_UNKNOWN", over: { PSU: { capacity_watts: undefined } } },

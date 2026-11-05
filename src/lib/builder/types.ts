@@ -59,8 +59,8 @@ export interface TechnicalSpecs {
   ramSlots?: number;
   supportedRamGeneration?: RamGeneration;
   maxRamCapacityGb?: number;
+  /** Read from Shopify's `bios_update_required`, which names no processor family, despite this name. */
   requiresBiosUpdateForRyzen5000?: boolean;
-  requiresBiosUpdateForIntel13_14th?: boolean;
   m2SlotCount?: number;
   sataPortCount?: number;
   hasWifi?: boolean;
@@ -173,6 +173,8 @@ export interface CompatibilityItem {
 export interface CompatibilitySummary {
   status: CompatibilityStatus;
   items: CompatibilityItem[];
+  /** Plain statements about what wasn't checked. They have no result, and never change the status. */
+  notes?: string[];
   estimatedSystemLoadWatts: number;
   recommendedPsuWatts: number;
   powerHeadroomWatts: number;
