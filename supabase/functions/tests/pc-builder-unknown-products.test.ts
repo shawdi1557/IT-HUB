@@ -963,6 +963,66 @@ Deno.test("PURPOSE: a processor with no graphics still needs a card, whatever th
   assert(builds.every((build: any) => build.parts.GPU));
 });
 
+// The board's size is left out, so every build here goes to review whichever power supply it has.
+const REVIEW_CATALOGUE = (powerSupplies: any[]) => [
+  ...FULL_CATALOGUE({ board: { form_factor: "" } }).filter(
+    (p) => p.category !== "Computer Power Supplies",
+  ),
+  ...powerSupplies,
+];
+const UNKNOWN_POWER = product("QZX Validation Power Unknown", "Computer Power Supplies", REVIEWED, {
+  price: 1000,
+});
+const STATED_POWER = (watts: string) =>
+  product(
+    `QZX Validation Power Stated ${watts}`,
+    "Computer Power Supplies",
+    { capacity_watts: watts, pcie_6plus2_count: "2", pcie_16pin_count: "0", ...REVIEWED },
+    { price: 5000 },
+  );
+const powerSupplyOffered = (items: any[], max = 300000) =>
+  generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(items).componentCatalog,
+    { purpose: "gaming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 0, max },
+    { allowUnverified: true },
+  );
+
+Deno.test("POWER: a supply known to be enough beats a cheaper unknown one in a build for review", () => {
+  const builds = powerSupplyOffered(REVIEW_CATALOGUE([UNKNOWN_POWER, STATED_POWER("650")]));
+  assertEquals(builds.length, 1);
+  assert(builds[0].requiresReview);
+  assertEquals(builds[0].parts.PSU.name, "QZX Validation Power Stated 650");
+  assertEquals(builds[0].price, 35000);
+});
+
+Deno.test("POWER: the budget still comes first, so a build isn't lost to a dearer supply", () => {
+  const builds = powerSupplyOffered(REVIEW_CATALOGUE([UNKNOWN_POWER, STATED_POWER("650")]), 32000);
+  assertEquals(builds.length, 1);
+  assert(builds[0].requiresReview);
+  assertEquals(builds[0].parts.PSU.name, "QZX Validation Power Unknown");
+  assertEquals(builds[0].price, 31000);
+});
+
+Deno.test("POWER: a stated wattage that falls short earns no preference", () => {
+  const builds = powerSupplyOffered(REVIEW_CATALOGUE([UNKNOWN_POWER, STATED_POWER("400")]));
+  assertEquals(builds.length, 1);
+  assertEquals(builds[0].parts.PSU.name, "QZX Validation Power Unknown");
+});
+
+Deno.test("WORDING: a build below the range doesn't claim to cover the customer's needs", () => {
+  const builds = generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(FULL_CATALOGUE()).componentCatalog,
+    { purpose: "gaming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 100000, max: 300000 },
+  );
+  assert(builds.length > 0);
+  for (const build of builds) {
+    assertEquals(build.inBudget, false);
+    assertEquals(build.note, "This costs less than the range you selected.");
+  }
+});
+
 Deno.test("PAGE: the first screen offers software development as its own purpose", async () => {
   const page = await Deno.readTextFile(new URL("../../../src/pages/Builder.tsx", import.meta.url));
   assert(page.includes('id: "programming"'));

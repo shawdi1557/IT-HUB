@@ -265,6 +265,8 @@ export interface SynthesizedConfiguration {
   requiresReview: boolean;
   /** What the check couldn't confirm, for the customer to read. */
   reviewItems: string[];
+  /** The build includes a power supply whose stated wattage meets what this build needs. */
+  psuKnownAdequate: boolean;
 }
 
 /**
@@ -681,6 +683,7 @@ function synthesizeBuildConfigurations(
               confidenceLabel,
               requiresReview,
               reviewItems,
+              psuKnownAdequate: Boolean(psu?.ratedWattage && psu.ratedWattage >= recWatts),
             });
           }
       }
@@ -703,7 +706,8 @@ function synthesizeBuildConfigurations(
     } else {
       const existing = groupMap.get(key)!;
       // The same processor, graphics card and memory: keep what fits the budget, then the requested
-      // Wi-Fi, then the lower price. A cheaper part isn't swapped for a dearer, better-documented one.
+      // Wi-Fi, then a power supply known to be enough, then the lower price. An unknown power supply
+      // would otherwise win on price alone, and the price shown would rest on a part that may not work.
       const hasWifi = (config: SynthesizedConfiguration) =>
         Boolean(config.parts.Motherboard?.hasWifi);
       const inBudget = (config: SynthesizedConfiguration) =>
@@ -711,6 +715,7 @@ function synthesizeBuildConfigurations(
       let better = c.price < existing.price;
       if (inBudget(c) !== inBudget(existing)) better = inBudget(c);
       else if (requireWifi && hasWifi(c) !== hasWifi(existing)) better = hasWifi(c);
+      else if (c.psuKnownAdequate !== existing.psuKnownAdequate) better = c.psuKnownAdequate;
       if (better) groupMap.set(key, c);
     }
   }
@@ -1032,7 +1037,7 @@ export function generateDynamicCatalogRecommendations(
     const inBudget = config.price >= minBudget && config.price <= maxBudget;
     let note: string | undefined = undefined;
     if (config.price < minBudget) {
-      note = "Below your selected range — covers your needs without overspending.";
+      note = "This costs less than the range you selected.";
     }
 
     return {
