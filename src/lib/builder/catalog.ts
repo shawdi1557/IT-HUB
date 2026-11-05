@@ -1136,7 +1136,8 @@ export function matchShopifyProductToComponent(
       quantity: 1,
       retrievedAt: new Date().toISOString(),
       isShopifyLive: true,
-      isVerified: true,
+      // Being on the list isn't evidence. Each value the build rests on needs a source or a review.
+      isVerified: completedByReview,
       matchedModelKey: matchedKey,
     };
   }

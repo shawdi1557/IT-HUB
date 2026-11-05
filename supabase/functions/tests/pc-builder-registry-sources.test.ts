@@ -137,7 +137,9 @@ Deno.test("LEVEL: an entry with no source is downgraded throughout", () => {
 Deno.test("LEVEL: an unconfirmed value still works as data, and the rules still use it", () => {
   const psu = match("Deepcool PK650D 650W 80 Plus Bronze Power Supply");
   assertEquals(psu.specs.ratedWattage, 650);
-  assertEquals(psu.isVerified, true);
+  // Being on the list states the value, but it doesn't verify it.
+  assertEquals(psu.isVerified, false);
+  assertEquals(specConfidence(psu, "ratedWattage"), "supplier_provided");
 });
 
 Deno.test("LEVEL: a processor's page that doesn't mention a cooler leaves that value unconfirmed", () => {

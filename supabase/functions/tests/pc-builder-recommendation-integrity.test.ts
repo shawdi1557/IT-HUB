@@ -703,21 +703,35 @@ Deno.test("GATE: stated cooler, display and storage unknowns each block a label 
   ]);
 });
 
-Deno.test("GATE: a cheap part read from its title stays, and stops the label", () => {
-  const recs = generateDynamicCatalogRecommendations(
+Deno.test("GATE: a cheap part read from its title stays, stops the label, and hides no confirmed build", () => {
+  const cheapDrive = "Vendor Cheap 1TB NVMe SSD";
+  const catalog = () =>
     liveCatalog([
       CPU_5600(),
       ...am4Parts(),
-      product("Vendor Cheap 1TB NVMe SSD", { category: "Solid State Drives", price: 1000 }),
+      product(cheapDrive, { category: "Solid State Drives", price: 1000 }),
       CARD_4060(),
       CARD_4070S(),
-    ]),
-    answers("gaming"),
-    WIDE,
-  );
-  for (const r of recs) {
-    assertEquals(r.parts.Storage.name, "Vendor Cheap 1TB NVMe SSD");
+    ]);
+  const recs = generateDynamicCatalogRecommendations(catalog(), answers("gaming"), WIDE, {
+    allowUnverified: true,
+  });
+  const usingIt = recs.filter((r: any) => r.parts.Storage.name === cheapDrive);
+  assert(usingIt.length > 0, "the cheap part stays on offer");
+  for (const r of usingIt) {
     assertEquals(r.tradeoffLabel, "Insufficient information");
+    assertEquals(r.requiresReview, true);
+  }
+  const confirmed = recs.filter((r: any) => !r.requiresReview);
+  assert(confirmed.length > 0, "a confirmed build is offered beside it");
+  for (const r of confirmed) assert(r.parts.Storage.name !== cheapDrive);
+
+  // Where only confirmed builds may be offered, the cheap part can't stop one being found.
+  const strict = generateDynamicCatalogRecommendations(catalog(), answers("gaming"), WIDE);
+  assert(strict.length > 0);
+  for (const r of strict) {
+    assert(r.parts.Storage.name !== cheapDrive);
+    assertEquals(r.requiresReview, false);
   }
 });
 

@@ -265,7 +265,8 @@ Deno.test("SPEC: every registry entry still matches its own product title", () =
         comp.specs.provenance === "registry_unverified",
       entry.title,
     );
-    assertEquals(comp.isVerified, true, entry.title);
+    // Only evidence for the values a label rests on makes a part verified, not its place on the list.
+    assertEquals(comp.isVerified, comp.specs.provenance === "manufacturer_verified", entry.title);
   }
 });
 

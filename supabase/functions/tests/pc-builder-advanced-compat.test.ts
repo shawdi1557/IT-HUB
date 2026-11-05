@@ -5,7 +5,8 @@
 
 import { assert, assertEquals, assertMatch } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-const { syncBuilderCatalogWithShopify } = await import("../../../src/lib/builder/catalog.ts");
+const { VERIFIED_HARDWARE_SPECS, matchShopifyProductToComponent, syncBuilderCatalogWithShopify } =
+  await import("../../../src/lib/builder/catalog.ts");
 const { checkCompatibility, compatibility, toCanonicalComponent } =
   await import("../../../src/lib/builder/compatibility.ts");
 const { generateDynamicCatalogRecommendations } =
@@ -1581,6 +1582,394 @@ Deno.test("ADV search: the fully stated fixture is offered, and needs no review"
   assertEquals(builds[0].requiresReview, false);
 });
 
+// ── A confirmed build beside a cheaper one that needs review ─────────────────────────────────────
+
+/** A product with no values at all, cheaper than anything in the fixture, to tempt the search. */
+const rival = (slot: Slot, name: string, price: number, specs: Specs = {}) => {
+  const id = nextId++;
+  return {
+    id: `gid://shopify/Product/${id}`,
+    name,
+    handle: `rival-${id}`,
+    price,
+    tags: [],
+    variantId: `gid://shopify/ProductVariant/${id}`,
+    availableForSale: true,
+    stock: 5,
+    specs,
+    category: SLOT_PRODUCTS[slot].category,
+  };
+};
+const WIDE_BAND = { min: 0, max: 900000 };
+const search = (
+  items: any[],
+  options: any = { allowUnverified: true },
+  purpose = "gaming",
+  band = WIDE_BAND,
+) =>
+  generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(items).componentCatalog,
+    { purpose, details: {}, brands: [], wifi: "", owned: [] },
+    band,
+    options,
+  ) as any[];
+const NEEDS_COOLER: Overrides = { CPU: { includes_cooler: "false" }, Cooler: {} };
+const CHEAP_RIVALS: { slot: Slot; over?: Overrides; name: string; price: number }[] = [
+  { slot: "Cabinet", name: "QZX Blank Enclosure", price: 1000 },
+  { slot: "Storage", name: "QZX Blank Drive", price: 1000 },
+  { slot: "PSU", name: "QZX Blank Power", price: 1000 },
+  { slot: "Cooler", over: NEEDS_COOLER, name: "QZX Blank Tower", price: 100 },
+];
+
+for (const { slot, over, name, price } of CHEAP_RIVALS) {
+  Deno.test(`ADV confirmed: a cheaper unknown ${slot} doesn't hide the confirmed build`, () => {
+    const items = [...productsFor(over), rival(slot, name, price)];
+    const builds = search(items);
+    assertEquals(builds.length, 2);
+    const [review, confirmed] = builds;
+    assert(review.price < confirmed.price);
+    assertEquals(review.parts[slot].name, name);
+    assertEquals(review.requiresReview, true);
+    assertEquals(review.confidenceBadge, "review");
+    assertEquals(confirmed.parts[slot].name, SLOT_PRODUCTS[slot].name);
+    assertEquals(confirmed.requiresReview, false);
+    assertEquals(confirmed.confidenceBadge, "certified");
+  });
+
+  Deno.test(`ADV confirmed: strict mode still finds it past a cheaper unknown ${slot}`, () => {
+    const builds = search([...productsFor(over), rival(slot, name, price)], {});
+    assertEquals(builds.length, 1);
+    assertEquals(builds[0].parts[slot].name, SLOT_PRODUCTS[slot].name);
+    assertEquals(builds[0].confidenceBadge, "certified");
+  });
+
+  Deno.test(`ADV confirmed: each build says how it differs, for a cheaper unknown ${slot}`, () => {
+    const [review, confirmed] = search([...productsFor(over), rival(slot, name, price)]);
+    const notes = (build: any) => build.purposeNotes.join(" ");
+    assert(notes(review).includes(`build in: `), notes(review));
+    assert(notes(review).includes(`${name} rather than ${SLOT_PRODUCTS[slot].name}`));
+    assert(notes(confirmed).includes(`${SLOT_PRODUCTS[slot].name} rather than ${name}`));
+    assert(notes(review).includes(`₹${confirmed.price.toLocaleString("en-IN")}`));
+  });
+}
+
+Deno.test("ADV confirmed: builds that don't share parts aren't described as differing", () => {
+  const [build] = search(productsFor());
+  assert(!build.purposeNotes.join(" ").includes("Differs from"));
+});
+
+Deno.test("ADV confirmed: a title-read power supply doesn't hide a reviewed one", () => {
+  const titled = rival("PSU", "Corsair CV550 550W", 1000);
+  const builds = search([...productsFor(), titled]);
+  const confirmed = builds.find((build) => !build.requiresReview);
+  assert(confirmed, "the reviewed power supply makes a confirmed build");
+  assertEquals(confirmed.parts.PSU.name, SLOT_PRODUCTS.PSU.name);
+  assertEquals(confirmed.confidenceBadge, "certified");
+  const strict = search([...productsFor(), titled], {});
+  assertEquals(strict.length, 1);
+  assertEquals(strict[0].parts.PSU.name, SLOT_PRODUCTS.PSU.name);
+});
+
+Deno.test("ADV evidence: a build needing review anyway keeps the cheaper supply known to be enough", () => {
+  const titled = rival("PSU", "Corsair CV550 550W", 1000);
+  const builds = search([...productsFor({ Cabinet: NOT_REVIEWED }), titled]);
+  assertEquals(builds.length, 1);
+  assertEquals(builds[0].requiresReview, true);
+  assertEquals(builds[0].parts.PSU.name, "Corsair CV550 550W");
+  assertEquals(builds[0].price, 31000);
+});
+
+const LISTED_NO_WATTAGE_SOURCE = "Deepcool PK650D 650W 80 Plus Bronze Power Supply";
+
+Deno.test("ADV evidence: being on the list isn't evidence, without a source for that value", () => {
+  const part: any = syncBuilderCatalogWithShopify(
+    productsFor({ PSU: null }).concat(rival("PSU", LISTED_NO_WATTAGE_SOURCE, 1000)),
+  ).componentCatalog.PSU[0];
+  assert(part.matchedModelKey, "it's on the specification list");
+  assertEquals(part.specs.ratedWattage, 650);
+  assertEquals(part.specs.fieldSources.ratedWattage, "supplier_provided");
+  assert(part.specs.provenance !== "manufacturer_verified");
+  assert(part.specs.provenance !== "it_hub_reviewed");
+  assertEquals(part.isVerified, false);
+});
+
+Deno.test("ADV evidence: exactly the list entries without evidence lose the verified status", () => {
+  const unverified = Object.entries(VERIFIED_HARDWARE_SPECS)
+    .filter(
+      ([, entry]) =>
+        !matchShopifyProductToComponent({
+          ...rival("PSU", entry.title, 1000),
+          category: "",
+        } as any)!.isVerified,
+    )
+    .map(([key]) => key)
+    .sort();
+  assertEquals(unverified, [
+    "case-matx",
+    "cpu-i5-14600k",
+    "gpu-rtx4060",
+    "mobo-b760m",
+    "psu-550w",
+    "psu-650w",
+  ]);
+});
+
+Deno.test("ADV evidence: an unsourced list entry changes the labels, not the compatibility result", () => {
+  const parts = Object.fromEntries(
+    Object.entries({
+      ...SLOT_PRODUCTS,
+      PSU: rival("PSU", LISTED_NO_WATTAGE_SOURCE, 1000),
+    }).map(([slot, item]: [string, any]) => [slot, matchShopifyProductToComponent(item)!]),
+  );
+  const report = checkCompatibility(parts as any);
+  assert(!report.items.some((item: any) => item.ruleId === "RULE_J_SPEC_UNVERIFIED"));
+  const missing = matchShopifyProductToComponent(rival("PSU", "QZX Blank Power", 1000) as any)!;
+  const incomplete = checkCompatibility({ ...parts, PSU: missing } as any);
+  assert(incomplete.items.some((item: any) => item.ruleId === "RULE_J_SPEC_UNVERIFIED"));
+});
+
+Deno.test("ADV evidence: a listed entry with no source at all isn't verified", () => {
+  const part: any = syncBuilderCatalogWithShopify(
+    productsFor({ Cabinet: null }).concat(
+      rival("Cabinet", "Ant Esports ICE-100 Air Mini Mesh Micro-ATX Case", 1000),
+    ),
+  ).componentCatalog.Cabinet[0];
+  assert(part.matchedModelKey, "it's on the specification list");
+  assertEquals(part.specs.provenance, "registry_unverified");
+  assertEquals(part.isVerified, false);
+});
+
+Deno.test("ADV evidence: a wattage with a recorded source counts, for that model only", () => {
+  const catalog = (name: string): any =>
+    syncBuilderCatalogWithShopify(productsFor({ PSU: null }).concat(rival("PSU", name, 1000)))
+      .componentCatalog.PSU[0];
+  const sourced = catalog("Corsair RM750e 750W");
+  assertEquals(sourced.specs.fieldSources.ratedWattage, "manufacturer_verified");
+  assertEquals(sourced.isVerified, true);
+  for (const other of ["Corsair RM750x 750W", "Generic 750W Power Supply"]) {
+    const part = catalog(other);
+    assertEquals(part.matchedModelKey, undefined, other);
+    assertEquals(part.specs.fieldSources.ratedWattage, "title_inferred", other);
+    assertEquals(part.isVerified, false, other);
+  }
+});
+
+Deno.test("ADV evidence: an unsourced listed wattage can't make a build confirmed", () => {
+  const [build] = search(
+    productsFor({ PSU: null }).concat(rival("PSU", LISTED_NO_WATTAGE_SOURCE, 1000)),
+  );
+  assertEquals(build.parts.PSU.name, LISTED_NO_WATTAGE_SOURCE);
+  assertEquals(build.requiresReview, false);
+  assertEquals(build.confidenceBadge, "high");
+  assertEquals(build.confidenceLabel, "Some specifications unconfirmed");
+});
+
+Deno.test("ADV evidence: it doesn't hide a dearer supply that can, and both are offered", () => {
+  const builds = search([...productsFor(), rival("PSU", LISTED_NO_WATTAGE_SOURCE, 1000)]);
+  assertEquals(builds.length, 2);
+  const [cheaper, confirmed] = builds;
+  assertEquals(cheaper.parts.PSU.name, LISTED_NO_WATTAGE_SOURCE);
+  assert(cheaper.confidenceBadge !== "certified");
+  assertEquals(confirmed.parts.PSU.name, SLOT_PRODUCTS.PSU.name);
+  assertEquals(confirmed.confidenceBadge, "certified");
+  assert(cheaper.purposeNotes.join(" ").includes("Differs from"));
+});
+
+Deno.test("ADV evidence: the confirmed search won't take a title-read or unknown wattage", () => {
+  const items = productsFor({ PSU: null }).concat(
+    rival("PSU", "Corsair CV550 550W", 1000),
+    rival("PSU", "QZX Blank Power", 500),
+  );
+  for (const build of search(items)) {
+    assertEquals(build.requiresReview, true);
+    assert(build.confidenceBadge !== "certified");
+  }
+  assertEquals(search(items, {}), []);
+});
+
+Deno.test("ADV evidence: a title-read wattage beats an unknown one, and is never called verified", () => {
+  const titled = rival("PSU", "Corsair CV550 550W", 3000);
+  const unknown = rival("PSU", "QZX Blank Power", 1000);
+  const items = [...productsFor({ PSU: null, Cabinet: NOT_REVIEWED }), titled, unknown];
+  const [build] = search(items);
+  assertEquals(build.parts.PSU.name, "Corsair CV550 550W");
+  assertEquals(build.requiresReview, true);
+  assert(build.confidenceBadge !== "certified");
+  const part: any = syncBuilderCatalogWithShopify(items).componentCatalog.PSU.find(
+    (candidate: any) => candidate.name === "Corsair CV550 550W",
+  );
+  assertEquals(part.specs.fieldSources.ratedWattage, "title_inferred");
+});
+
+Deno.test("ADV evidence: the budget still comes first, with the review warning explicit", () => {
+  // The fixture costs 35,000. With the 1,000 supply it's 31,000, and 32,000 only allows that one.
+  const items = [...productsFor(), rival("PSU", "QZX Blank Power", 1000)];
+  const builds = search(items, { allowUnverified: true }, "gaming", { min: 0, max: 32000 });
+  assertEquals(builds.length, 1);
+  assertEquals(builds[0].parts.PSU.name, "QZX Blank Power");
+  assertEquals(builds[0].requiresReview, true);
+  assertEquals(builds[0].confidenceBadge, "review");
+  assert(builds[0].reviewItems.length > 0);
+});
+
+Deno.test("ADV evidence: a confirmed wattage that falls short earns no preference", () => {
+  const short = rival("PSU", "QZX Short Power", 3000, {
+    capacity_watts: "400",
+    pcie_6plus2_count: "2",
+    pcie_16pin_count: "0",
+    ...REVIEWED,
+  });
+  const unknown = rival("PSU", "QZX Blank Power", 1000);
+  const [build] = search([...productsFor({ PSU: null, Cabinet: NOT_REVIEWED }), short, unknown]);
+  assertEquals(build.parts.PSU.name, "QZX Blank Power");
+  assertEquals(build.requiresReview, true);
+});
+
+Deno.test("ADV evidence: in a build for review, the budget beats a better-evidenced supply", () => {
+  // The fixture costs 35,000, or 31,000 with the unknown supply, and the cabinet needs review either way.
+  const items = [...productsFor({ Cabinet: NOT_REVIEWED }), rival("PSU", "QZX Blank Power", 1000)];
+  const builds = search(items, { allowUnverified: true }, "gaming", { min: 0, max: 32000 });
+  assertEquals(builds.length, 1);
+  assertEquals(builds[0].parts.PSU.name, "QZX Blank Power");
+  assertEquals(builds[0].requiresReview, true);
+});
+
+Deno.test("ADV confirmed: the cheaper version for review is offered, even where the spread misses it", () => {
+  // The two blank cards are the cheapest and dearest builds, so the price spread alone would take those.
+  const items = [
+    ...productsFor(),
+    rival("Cabinet", "QZX Blank Enclosure", 1000),
+    rival("GPU", "QZX Blank Cheap Card", 100),
+    rival("GPU", "QZX Blank Dear Card", 90000),
+  ];
+  const builds = search(items);
+  const confirmed = builds.find((build) => !build.requiresReview);
+  assert(confirmed, "the confirmed build is offered");
+  assertEquals(confirmed.parts.GPU.name, SLOT_PRODUCTS.GPU.name);
+  const cheaper = builds.find(
+    (build) => build.requiresReview && build.parts.GPU.name === SLOT_PRODUCTS.GPU.name,
+  );
+  assert(cheaper, "and so is the cheaper version of it");
+  assertEquals(cheaper.parts.Cabinet.name, "QZX Blank Enclosure");
+  assert(cheaper.price < confirmed.price);
+});
+
+Deno.test("ADV confirmed: offered when it's within budget, and not when it isn't", () => {
+  const items = [...productsFor(), rival("Cabinet", "QZX Blank Enclosure", 1000)];
+  const within = search(items, { allowUnverified: true }, "gaming", { min: 0, max: 35000 });
+  assert(within.some((build) => !build.requiresReview));
+  const beyond = search(items, { allowUnverified: true }, "gaming", { min: 0, max: 34999 });
+  assertEquals(beyond.length, 1);
+  assertEquals(beyond[0].requiresReview, true);
+});
+
+Deno.test("ADV confirmed: never fabricated when the catalogue lacks the evidence", () => {
+  const cases: Overrides[] = [
+    { Cabinet: NOT_REVIEWED },
+    { Storage: { storage_interface: undefined } },
+    { PSU: { capacity_watts: undefined } },
+    { GPU: { gpu_length_mm: undefined } },
+    { Motherboard: { form_factor: undefined } },
+    { RAM: { ram_module_type: undefined } },
+    { CPU: { socket: undefined } },
+    { Motherboard: { bios_update_required: "true" } },
+    { Storage: { storage_interface: "M.2 SATA" } },
+    { GPU: { watts: "75", pcie_6plus2_required: undefined, pcie_16pin_required: undefined } },
+  ];
+  for (const over of cases) {
+    const builds = offer(over);
+    assert(builds.length > 0, JSON.stringify(over));
+    for (const build of builds) {
+      assertEquals(build.requiresReview, true, JSON.stringify(over));
+      assert(build.confidenceBadge !== "certified", JSON.stringify(over));
+    }
+    assertEquals(search(productsFor(over), {}), [], JSON.stringify(over));
+  }
+});
+
+Deno.test("ADV confirmed: a build called confirmed really has nothing left to review", () => {
+  for (const { slot, over, name, price } of CHEAP_RIVALS) {
+    for (const build of search([...productsFor(over), rival(slot, name, price)])) {
+      if (build.requiresReview) continue;
+      const check = compatibility(build.parts).summary;
+      assertEquals(check.status, "compatible");
+      assertEquals(check.hasBlockingUnknowns, false);
+      assertEquals(build.reviewItems, []);
+    }
+  }
+});
+
+Deno.test("ADV confirmed: a known mismatch is never chosen to avoid an unknown", () => {
+  const tooShort = rival("Cabinet", "QZX Short Enclosure", 500, {
+    supported_motherboards: '["Micro-ATX"]',
+    cabinet_clearance_mm: "150",
+    max_cooler_height_mm: "160",
+    ...REVIEWED,
+  });
+  const blank = rival("Cabinet", "QZX Blank Enclosure", 1000);
+  const builds = search([...productsFor({ GPU: { gpu_length_mm: "200" } }), tooShort, blank]);
+  assert(builds.length > 0);
+  for (const build of builds) assert(build.parts.Cabinet.name !== "QZX Short Enclosure");
+  assert(builds.some((build) => !build.requiresReview));
+  const onlyMismatch = search([...productsFor({ Cabinet: null }), tooShort]);
+  assertEquals(onlyMismatch, []);
+});
+
+Deno.test("ADV confirmed: not crowded out when many cards need review", () => {
+  const cards = [10000, 30000, 50000, 70000, 90000, 110000].map((price, i) =>
+    rival("GPU", `QZX Blank Card ${i}`, price),
+  );
+  const items = [...productsFor({ GPU: {} }), ...cards];
+  const builds = search(items);
+  assertEquals(builds.length, 3);
+  assert(builds.some((build) => !build.requiresReview));
+});
+
+Deno.test("ADV confirmed: the software development build with no card keeps its place", () => {
+  const items = [
+    ...productsFor({
+      CPU: { integrated_graphics: "true" },
+      GPU: null,
+    }),
+    rival("Cabinet", "QZX Blank Enclosure", 1000),
+    ...[10000, 30000, 50000, 70000, 90000].map((price, i) =>
+      rival("GPU", `QZX Blank Card ${i}`, price),
+    ),
+    rival("CPU", "QZX Blank Processor", 100, { socket: "AM4", integrated_graphics: "false" }),
+  ];
+  const builds = search(items, { allowUnverified: true }, "programming");
+  assert(
+    builds.some((build) => !build.parts.GPU),
+    "a build with no card stays",
+  );
+  assert(
+    builds.some((build) => !build.parts.GPU && !build.requiresReview),
+    "and it can be the confirmed one",
+  );
+  assert(builds.length <= 3);
+});
+
+const SAMPLED: { slot: Slot; count: number; prefix: string }[] = [
+  { slot: "CPU", count: 12, prefix: "Processor" },
+  { slot: "GPU", count: 12, prefix: "Card" },
+  { slot: "Motherboard", count: 9, prefix: "Board" },
+  { slot: "RAM", count: 9, prefix: "Memory" },
+];
+for (const { slot, count, prefix } of SAMPLED) {
+  Deno.test(`ADV confirmed: the search tries the one ${slot} that can confirm a build`, () => {
+    // Evenly spaced sampling wouldn't reach the second cheapest of this many.
+    const specs: Specs = { ...SLOT_PRODUCTS[slot].specs, spec_review_status: undefined };
+    for (const key of Object.keys(specs)) if (specs[key] === undefined) delete specs[key];
+    const blanks = Array.from({ length: count }, (_, i) =>
+      rival(slot, `QZX Blank ${prefix} ${i}`, i === 0 ? 1000 : 6000 + i * 1000, specs),
+    );
+    const builds = search([...productsFor(), ...blanks]);
+    const confirmed = builds.find((build) => !build.requiresReview);
+    assert(confirmed, "a confirmed build is found");
+    assertEquals(confirmed.parts[slot].name, SLOT_PRODUCTS[slot].name);
+  });
+}
+
 const NO_COOLER = { includes_cooler: "false" };
 const MISMATCHES: { rule: string; over: Overrides }[] = [
   { rule: "RULE_A_SOCKET_MISMATCH", over: { CPU: { socket: "AM5" } } },
@@ -1663,3 +2052,28 @@ for (const { rule, over } of UNKNOWNS) {
     );
   });
 }
+
+Deno.test("ADV evidence: the customer's own supply isn't held against a confirmed build", () => {
+  // The two blank cards are the cheapest and dearest builds, so the price spread alone would take those.
+  const builds = generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify([
+      ...productsFor({ PSU: null }),
+      rival("Cabinet", "QZX Blank Enclosure", 1000),
+      rival("GPU", "QZX Blank Cheap Card", 100),
+      rival("GPU", "QZX Blank Dear Card", 90000),
+    ]).componentCatalog,
+    { purpose: "gaming", details: {}, brands: [], wifi: "", owned: ["PSU"] },
+    WIDE_BAND,
+    { allowUnverified: true },
+  );
+  const confirmed = builds.find((build: any) => !build.requiresReview);
+  assert(confirmed, "the confirmed build is offered");
+  assertEquals(confirmed.parts.PSU, undefined);
+  assertEquals(confirmed.parts.GPU.name, SLOT_PRODUCTS.GPU.name);
+  assertEquals(confirmed.confidenceBadge, "certified");
+  const cheaper = builds.find(
+    (build: any) => build.requiresReview && build.parts.GPU.name === SLOT_PRODUCTS.GPU.name,
+  );
+  assert(cheaper, "and so is the cheaper version of it");
+  assertEquals(cheaper.parts.Cabinet.name, "QZX Blank Enclosure");
+});

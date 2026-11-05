@@ -1070,7 +1070,9 @@ export function checkCompatibility(
   const unverifiedParts = Object.values(components).filter(
     (c) =>
       c &&
-      (c.isVerified === false ||
+      // The specification list states an unsourced entry's values, so this rule, which is about values
+      // missing from the catalogue, doesn't apply. Those values limit the build's labels instead.
+      ((c.isVerified === false && c.specs?.provenance !== "registry_unverified") ||
         c.specs?.provenance === "unverified" ||
         (c.specs?.provenance as any) === "ambiguous_unverified"),
   );
