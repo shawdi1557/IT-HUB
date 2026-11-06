@@ -408,7 +408,9 @@ export default function Layout() {
       <main id="main-content" tabIndex={-1} className="min-h-[60vh] overflow-x-clip pb-24 md:pb-0">
         <Outlet />
       </main>
-      <footer className="relative mt-10 overflow-hidden rounded-t-[2.5rem] border-t border-border bg-muted">
+      {/* On a phone the bottom navigation covers the end of the page, so the footer ends with room for it:
+          its 3.5rem of height plus its own bottom padding, which includes the safe area. */}
+      <footer className="relative mt-10 overflow-hidden rounded-t-[2.5rem] border-t border-border bg-muted pb-[calc(3.5rem+max(0.5rem,env(safe-area-inset-bottom)))] md:pb-0">
         <div
           className={`${containerClass} grid grid-cols-2 gap-10 py-14 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr]`}
         >
