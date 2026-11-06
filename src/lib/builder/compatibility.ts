@@ -26,7 +26,11 @@ export interface CheckCompatibilityOptions {
   workload?: "gaming" | "creation" | "work" | "general";
   budgetInr?: number;
   mode?: "automated" | "manual";
-  /** Leaves out which values each Unknown is waiting for, in a search that only reads the results. */
+  /**
+   * Leaves out the wording that depends on the whole build: which values each Unknown is waiting for, and
+   * whether a part's missing values are ones the build uses. Results and statuses are the same either way,
+   * so a search that only reads them can skip it.
+   */
   withoutMissingInputs?: boolean;
 }
 
@@ -689,6 +693,30 @@ export function checkInputsMissing(
     (requirement) =>
       requirement.slot === part.slot && !requirement.stated(specs) && requirement.needed(view),
   ).map(({ slot, name, ruleIds }) => ({ slot, title: part.title, name, ruleIds }));
+}
+
+/**
+ * Whether everything a part lacks is a value this build never reads, such as a supply's cables in a build
+ * with no graphics card. A part with any value stated but unconfirmed, or missing for another reason, doesn't.
+ */
+function lacksOnlyUnusedValues(
+  part: CanonicalBuildComponent,
+  build: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
+  ownedSlots: Iterable<string>,
+): boolean {
+  const missing = missingCriticalSpecs(part);
+  if (missing.length === 0 || part.specs?.unreviewedSpecs?.length) return false;
+  if (criticalSpecsAt(part, (level) => !isConfirmedLevel(level)).length > 0) return false;
+  const view = viewOfBuild(build, { ownedSlots });
+  return missing.every((name) =>
+    INPUT_REQUIREMENTS.some(
+      (requirement) =>
+        requirement.slot === part.slot &&
+        requirement.name === name &&
+        requirement.onlyWhen &&
+        !requirement.needed(view),
+    ),
+  );
 }
 
 /** The same, for every part in a build. */
@@ -1493,15 +1521,39 @@ export function checkCompatibility(
         (c.specs?.provenance as any) === "ambiguous_unverified"),
   );
   if (unverifiedParts.length > 0) {
-    items.push({
-      ruleId: "RULE_J_SPEC_UNVERIFIED",
-      severity: "warning",
-      status: "conditional",
-      affectedSlots: unverifiedParts.map((p) => p.slot),
-      label: "Component specifications preliminary / unverified",
-      explanation: `${unverifiedParts.length} component(s) don't have their full specifications stated in the catalogue.`,
-      suggestedResolution: "Confirm these specifications with IT HUB before ordering.",
-    });
+    // The result and its status are the same whatever is missing. Only the wording differs: a customer
+    // isn't asked to confirm values this build never reads.
+    const unused = options.withoutMissingInputs
+      ? []
+      : unverifiedParts.filter((part) => lacksOnlyUnusedValues(part, components, owned));
+    const relevant = unverifiedParts.filter((part) => !unused.includes(part));
+    const unusedValues = unused
+      .map((part) => `${missingCriticalSpecs(part).join(", ")} of ${part.title}`)
+      .join("; ");
+    items.push(
+      relevant.length > 0
+        ? {
+            ruleId: "RULE_J_SPEC_UNVERIFIED",
+            severity: "warning",
+            status: "conditional",
+            affectedSlots: unverifiedParts.map((p) => p.slot),
+            label: "Component specifications preliminary / unverified",
+            explanation:
+              `${relevant.length} component(s) don't have their full specifications stated in the catalogue.` +
+              (unused.length > 0
+                ? ` Also not on file, but not used by this build: ${unusedValues}.`
+                : ""),
+            suggestedResolution: "Confirm these specifications with IT HUB before ordering.",
+          }
+        : {
+            ruleId: "RULE_J_SPEC_UNVERIFIED",
+            severity: "warning",
+            status: "conditional",
+            affectedSlots: unverifiedParts.map((p) => p.slot),
+            label: "Some specifications aren't on file",
+            explanation: `Not on file: ${unusedValues}. This build doesn't use them, so its compatibility doesn't depend on them.`,
+          },
+    );
   }
 
   if (owned.has("RAM") && !ram) {

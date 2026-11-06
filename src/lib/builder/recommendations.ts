@@ -6,6 +6,7 @@
 import type {
   CanonicalBuild,
   CanonicalBuildComponent,
+  CompatibilityItem,
   ComponentSlotId,
   GuidedAnswers,
   PublishedPerformanceFigures,
@@ -248,6 +249,16 @@ function toEnginePart(slot: string, item: NormalizedItem): CanonicalBuildCompone
   };
 }
 
+/** Advice the customer can read, as opposed to anything IT HUB has to check. */
+function advisoriesOf(items: CompatibilityItem[]): SynthesizedConfiguration["advisories"] {
+  return reportedItems(items)
+    .filter((i) => i.status === "conditional" && !reachesReview(i))
+    .map((i) => ({
+      label: i.label,
+      explanation: [i.explanation, i.suggestedResolution].filter(Boolean).join(" "),
+    }));
+}
+
 export interface SynthesizedConfiguration {
   parts: Partial<Record<ComponentSlotId, NormalizedItem>>;
   price: number;
@@ -367,7 +378,11 @@ function synthesizeBuildConfigurations(
 
   // Candidate pool
   const candidatePool: SynthesizedConfiguration[] = [];
-  const gapReaders = new Map<SynthesizedConfiguration, () => string[]>();
+  // The wording that depends on the whole build, filled in for the builds that survive the comparison.
+  const wordingReaders = new Map<
+    SynthesizedConfiguration,
+    () => Pick<SynthesizedConfiguration, "labelGaps" | "advisories">
+  >();
 
   // Filter CPUs: prefer in-stock & live products. A part whose specifications IT HUB has rejected is
   // never recommended, though a customer can still choose it in the manual builder, where it's marked.
@@ -752,12 +767,7 @@ function synthesizeBuildConfigurations(
             }
             const reviewItems = compatSummary.items.filter(reachesReview).map((i) => i.label);
             const hasUnknownSpecs = compatSummary.items.some((i) => i.status === "unknown");
-            const advisories = reportedItems(compatSummary.items)
-              .filter((i) => i.status === "conditional" && !reachesReview(i))
-              .map((i) => ({
-                label: i.label,
-                explanation: [i.explanation, i.suggestedResolution].filter(Boolean).join(" "),
-              }));
+            const advisories = advisoriesOf(compatSummary.items);
             const requiresReview = !compatSummary.validForAutomatedRecommendation;
             // This search exists only to find a build nothing has to be checked on.
             if (seekingConfirmed && requiresReview) continue;
@@ -860,13 +870,13 @@ function synthesizeBuildConfigurations(
                     ? 2
                     : 1,
             });
-            gapReaders.set(candidatePool[candidatePool.length - 1], () =>
-              labelCompatibilityGaps(
-                canonicalPartsForCompat,
-                checkCompatibility(canonicalPartsForCompat, compatOptions).items,
-                { ownedSlots },
-              ),
-            );
+            wordingReaders.set(candidatePool[candidatePool.length - 1], () => {
+              const { items } = checkCompatibility(canonicalPartsForCompat, compatOptions);
+              return {
+                labelGaps: labelCompatibilityGaps(canonicalPartsForCompat, items, { ownedSlots }),
+                advisories: advisoriesOf(items),
+              };
+            });
           }
       }
     }
@@ -906,7 +916,8 @@ function synthesizeBuildConfigurations(
       if (better) groupMap.set(key, c);
     }
   }
-  for (const survivor of groupMap.values()) survivor.labelGaps = gapReaders.get(survivor)!();
+  for (const survivor of groupMap.values())
+    Object.assign(survivor, wordingReaders.get(survivor)!());
 
   // A build needing review adds nothing if the same parts cost no more without needing it.
   const sameParts = (config: SynthesizedConfiguration) =>

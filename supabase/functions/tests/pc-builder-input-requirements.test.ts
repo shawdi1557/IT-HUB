@@ -1176,3 +1176,135 @@ Deno.test("SCREENS: the build detail doesn't repeat the checks in its evidence",
     "the card keeps its full list",
   );
 });
+
+// ── The general notice, when a part's missing values aren't used by the build ───────────────────
+
+const notOnFile = (slot: string, specs: Specs) => ({ ...part(slot, specs), isVerified: false });
+const NO_CARD = { GPU: null, CPU: { hasIntegratedGraphics: true } } as Record<string, Specs | null>;
+const NO_CABLES: Specs = { ratedWattage: 650 };
+
+Deno.test("NOTICE: a part missing only values this build doesn't use isn't something to confirm", () => {
+  const parts = { ...buildWith(NO_CARD), PSU: notOnFile("PSU", NO_CABLES) };
+  const summary = report(parts);
+  const notice = ruleOf(summary, "RULE_J_SPEC_UNVERIFIED");
+  assertEquals(notice.status, "conditional");
+  assertEquals(notice.severity, "warning");
+  assertEquals(notice.label, "Some specifications aren't on file");
+  assertEquals(
+    notice.explanation,
+    "Not on file: power connectors of QZX Supply. This build doesn't use them, so its compatibility doesn't depend on them.",
+  );
+  assertEquals(notice.suggestedResolution, undefined);
+  assertEquals(summary.status, "conditional");
+  const advice = row(parts).result.find((r: any) => r.label === notice.label);
+  assert(!/confirm/i.test(advice.advice), advice.advice);
+});
+
+Deno.test("NOTICE: the same part in a build that uses the value keeps the warning", () => {
+  const parts = { ...buildWith(), PSU: notOnFile("PSU", NO_CABLES) };
+  const notice = ruleOf(report(parts), "RULE_J_SPEC_UNVERIFIED");
+  assertEquals(notice.label, "Component specifications preliminary / unverified");
+  assertEquals(
+    notice.explanation,
+    "1 component(s) don't have their full specifications stated in the catalogue.",
+  );
+  assertEquals(
+    notice.suggestedResolution,
+    "Confirm these specifications with IT HUB before ordering.",
+  );
+  assert(
+    ruleOf(report(parts), "RULE_F_PCIE_CONNECTORS_UNKNOWN"),
+    "and the missing value is still checked",
+  );
+});
+
+Deno.test("NOTICE: only the parts that matter are counted, and the others are named apart", () => {
+  const parts = {
+    ...buildWith(NO_CARD),
+    PSU: notOnFile("PSU", NO_CABLES),
+    Cabinet: notOnFile("Cabinet", { maxGpuLengthMm: 300, maxCoolerHeightMm: 160 }),
+  };
+  const notice = ruleOf(report(parts), "RULE_J_SPEC_UNVERIFIED");
+  assertEquals(notice.label, "Component specifications preliminary / unverified");
+  assertEquals(
+    notice.explanation,
+    "1 component(s) don't have their full specifications stated in the catalogue. Also not on file, but not used by this build: power connectors of QZX Supply.",
+  );
+  assertEquals(notice.affectedSlots, ["PSU", "Cabinet"]);
+});
+
+Deno.test("NOTICE: a part with values stated but unconfirmed keeps the warning", () => {
+  const titled = notOnFile("PSU", {
+    ratedWattage: 650,
+    fieldSources: { ratedWattage: "title_inferred" },
+  });
+  const unreviewed = notOnFile("PSU", { ratedWattage: 650, unreviewedSpecs: ["Wattage"] });
+  for (const supply of [titled, unreviewed]) {
+    const notice = ruleOf(report({ ...buildWith(NO_CARD), PSU: supply }), "RULE_J_SPEC_UNVERIFIED");
+    assertEquals(notice.label, "Component specifications preliminary / unverified");
+  }
+});
+
+Deno.test("NOTICE: a part with nothing stated keeps the warning", () => {
+  const blank = { ...part("PSU", {}), isVerified: false, specs: { provenance: "unverified" } };
+  const notice = ruleOf(report({ ...buildWith(NO_CARD), PSU: blank }), "RULE_J_SPEC_UNVERIFIED");
+  assertEquals(notice.label, "Component specifications preliminary / unverified");
+});
+
+Deno.test("NOTICE: the wording never changes a result or a status", () => {
+  const random = randomFrom(4242);
+  for (let run = 0; run < 400; run++) {
+    const changes: Record<string, Specs | null> = {};
+    for (const slot of Object.keys(COMPLETE)) {
+      if (random() < 0.15) {
+        changes[slot] = null;
+        continue;
+      }
+      const blanks: Specs = {};
+      for (const key of Object.keys(COMPLETE[slot])) if (random() < 0.2) blanks[key] = undefined;
+      changes[slot] = blanks;
+    }
+    const parts = buildWith(changes);
+    for (const slot of Object.keys(parts))
+      if (random() < 0.3) parts[slot] = { ...parts[slot], isVerified: false };
+    const full = report(parts);
+    const plain = report(parts, { withoutMissingInputs: true });
+    const shape = (summary: any) =>
+      summary.items.map((i: any) => [i.ruleId, i.status, i.severity, i.affectedSlots.join()]);
+    assertEquals(shape(full), shape(plain), JSON.stringify(changes));
+    assertEquals(full.status, plain.status);
+    assertEquals(full.validForAutomatedRecommendation, plain.validForAutomatedRecommendation);
+  }
+});
+
+Deno.test("NOTICE: Find My PC's card says the same, for a build with no card", () => {
+  const items = LISTINGS({
+    CPU: { integrated_graphics: "true" },
+    PSU: { pcie_6plus2_count: "", pcie_16pin_count: "" },
+  }).map((item: any) => ({
+    ...item,
+    specs: Object.fromEntries(Object.entries(item.specs).filter(([, v]) => v !== "")),
+  }));
+  const builds = generateDynamicCatalogRecommendations(
+    syncBuilderCatalogWithShopify(items).componentCatalog,
+    { purpose: "programming", details: {}, brands: [], wifi: "", owned: [] },
+    { min: 0, max: 500000 },
+    { allowUnverified: true },
+  );
+  const noCard = builds.find((build: any) => !build.parts.GPU);
+  assert(noCard, "a build with no card is offered");
+  assertEquals(noCard.requiresReview, false);
+  assertEquals(
+    noCard.advisories.map((a: any) => a.label),
+    ["Some specifications aren't on file"],
+  );
+  assert(!/confirm/i.test(noCard.advisories[0].explanation), noCard.advisories[0].explanation);
+  assert(
+    noCard.rankingReasons.some((reason: string) => reason.startsWith("No recommendation label")),
+    noCard.rankingReasons.join(" | "),
+  );
+  const expert = expertCheckOf(noCard);
+  assertEquals(expert.summary.status, "conditional");
+  const advice = expert.result.find((r: any) => r.label === "Some specifications aren't on file");
+  assertEquals(advice.advice, noCard.advisories[0].explanation);
+});
