@@ -83,7 +83,11 @@ function RankingEvidence({ build, compact = false }: { build: DetailBuild; compa
   }
   // A customer needs the outcome first. The list of what's unconfirmed is there for anyone who wants it.
   const reasons = (build.rankingReasons || []).filter((reason) => !isUnconfirmedDetail(reason));
-  const toConfirm = (build.rankingReasons || []).filter(isUnconfirmedDetail);
+  const toConfirm = (build.rankingReasons || [])
+    .filter(isUnconfirmedDetail)
+    // The full version is on the build's page, beside the checks list, which already names each check
+    // still to confirm and the values it's waiting for. The card has no checks list, so it keeps them.
+    .filter((reason) => compact || !reason.startsWith("Not yet confirmed"));
   const shown = compact ? reasons.slice(0, 2) : reasons;
   return (
     <div className="mt-3 space-y-1.5 text-xs leading-5 text-muted-foreground">
@@ -684,6 +688,11 @@ function ExpertBuilder({
                       {check.label}
                       {check.advice && (
                         <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+                      )}
+                      {check.missing && (
+                        <span className="mt-0.5 block break-words text-muted-foreground">
+                          {check.missing}
+                        </span>
                       )}
                     </span>
                   </p>
@@ -1564,17 +1573,23 @@ function BuildDetail({
                           : "text-amber-700"
                     }`}
                   >
+                    {/* A check whose text wraps mustn't squeeze its icon. */}
                     {check.state === "ok" ? (
-                      <CheckCircle2 size={14} />
+                      <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
                     ) : check.state === "error" ? (
-                      <XCircle size={14} />
+                      <XCircle size={14} className="mt-0.5 shrink-0" />
                     ) : (
-                      <AlertTriangle size={14} />
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                     )}
                     <span>
                       {check.label}
                       {check.advice && (
                         <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+                      )}
+                      {check.missing && (
+                        <span className="mt-0.5 block break-words text-muted-foreground">
+                          {check.missing}
+                        </span>
                       )}
                     </span>
                   </p>

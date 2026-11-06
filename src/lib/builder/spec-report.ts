@@ -8,7 +8,7 @@ import {
   matchShopifyProductToComponent,
   shopifyStatedValues,
 } from "./catalog";
-import { inferredCriticalSpecs, missingCriticalSpecs } from "./compatibility";
+import { inferredCriticalSpecs, inputsNeededByPart } from "./compatibility";
 import {
   customerVisibleSpecs,
   keysChangedSinceReview,
@@ -28,8 +28,10 @@ export interface PartReport {
   standing: string;
   /** Whether a customer can be offered it: in stock, priced, and with a variant to sell. */
   offered: boolean;
-  /** Values a label needs that nobody has stated. */
+  /** Values a label or every build's checks need that nobody has stated. */
   missing: string[];
+  /** Values only some builds' checks read, each saying which builds. */
+  neededInSomeBuilds: { name: string; when: string }[];
   /** Values a label needs that were only read from the title. */
   readFromTitle: string[];
   /** Values stated in Shopify that nobody has reviewed. */
@@ -82,13 +84,15 @@ export function buildSpecReport(products: Product[]): SpecReport {
     const changed = [
       ...keysChangedSinceReview(readSpecReview(statedSpecs), product.specUpdatedAt),
     ].filter((key) => readKeys.has(key));
+    const needs = inputsNeededByPart(part);
     parts.push({
       title: product.name,
       slot,
       registryKey: part.matchedModelKey,
       standing: part.specs.provenance ?? "unknown",
       offered: part.availability === "available" && Boolean(part.variantId) && part.price > 0,
-      missing: missingCriticalSpecs(part),
+      missing: needs.always,
+      neededInSomeBuilds: needs.sometimes,
       readFromTitle: inferredCriticalSpecs(slot, part.specs),
       unreviewed: part.specs.unreviewedSpecs || [],
       changedSinceReview: changed.map(specFieldName),
@@ -121,6 +125,10 @@ export function formatSpecReport(report: SpecReport): string {
     );
     lines.push(`    Registry match: ${part.registryKey ?? "none"}`);
     section("Not stated", part.missing);
+    section(
+      "Not stated, needed in some builds",
+      part.neededInSomeBuilds.map(({ name, when }) => `${name} (when ${when})`),
+    );
     section("Only read from the title", part.readFromTitle);
     section("Not reviewed", part.unreviewed);
     section("Changed after review", part.changedSinceReview);

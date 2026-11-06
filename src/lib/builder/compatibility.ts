@@ -16,6 +16,7 @@ import type {
   CompatibilityItem,
   CompatibilityStatus,
   CompatibilitySummary,
+  MissingInput,
   TechnicalSpecs,
 } from "./types";
 
@@ -25,6 +26,8 @@ export interface CheckCompatibilityOptions {
   workload?: "gaming" | "creation" | "work" | "general";
   budgetInr?: number;
   mode?: "automated" | "manual";
+  /** Leaves out which values each Unknown is waiting for, in a search that only reads the results. */
+  withoutMissingInputs?: boolean;
 }
 
 /**
@@ -183,6 +186,18 @@ export function missingConnectors(
  */
 const REVIEW_RULES = new Set(["RULE_E_PSU_BELOW_RECOMMENDED", "RULE_A_BIOS_UPDATE"]);
 
+/**
+ * What a screen lists. The general notice that specifications are incomplete only repeats what the
+ * individual checks already say, so it's shown when it's the only thing saying it. The result stays in
+ * the summary, and doesn't change the build's status.
+ */
+export function reportedItems<T extends Pick<CompatibilityItem, "status" | "ruleId">>(
+  items: T[],
+): T[] {
+  if (!items.some((item) => item.status === "unknown")) return items;
+  return items.filter((item) => item.ruleId !== "RULE_J_SPEC_UNVERIFIED");
+}
+
 /** Whether a result sends a build to IT HUB, as opposed to being advice the customer can read. */
 export function reachesReview(item: Pick<CompatibilityItem, "status" | "ruleId">): boolean {
   return item.status === "unknown" || REVIEW_RULES.has(item.ruleId);
@@ -325,6 +340,413 @@ function noteTitleInferredBasis(
   }
 }
 
+/** How Rule H reads a drive's connection, so the rule and the input list can't disagree. */
+function storageConnection(specs: TechnicalSpecs) {
+  const type = specs.storageInterface?.toUpperCase() || "";
+  const usesM2 = type.includes("M.2") || type.includes("NVME");
+  const usesSata = type.includes("SATA");
+  return { usesM2, usesSata };
+}
+
+/** The other parts of a build, as the input list reads them. */
+interface BuildView {
+  components: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>;
+  ownsGpu: boolean;
+  cpu?: TechnicalSpecs;
+  board?: TechnicalSpecs;
+  ram?: TechnicalSpecs;
+  gpu?: TechnicalSpecs;
+  storage?: TechnicalSpecs;
+  psu?: TechnicalSpecs;
+  cabinet?: TechnicalSpecs;
+  cooler?: TechnicalSpecs;
+}
+
+interface InputRequirement {
+  slot: ComponentSlotId;
+  name: string;
+  /** The rules that return Unknown without this value. */
+  ruleIds: string[];
+  /** Read the way the rule reads it: a blank count or a half-filled pair of connector counts isn't a value. */
+  stated: (specs: TechnicalSpecs) => boolean;
+  /** Whether this build's rules read it. */
+  needed: (build: BuildView) => boolean;
+  /** Set when a build can legitimately do without it, saying which builds can't. */
+  onlyWhen?: string;
+  /** A question no specification field can answer yet, so a part report names it on the part that raises it. */
+  reportedOn?: { slot: ComponentSlotId; when: (specs: TechnicalSpecs) => boolean };
+}
+
+// The power rules stop at the first thing they can't answer, and the connector rules likewise, so whichever
+// one is reported is waiting for all the values in its group.
+const POWER_UNKNOWNS = [
+  "RULE_E_PSU_WATTAGE_UNKNOWN",
+  "RULE_E_POWER_DRAW_UNKNOWN",
+  "RULE_E_RECOMMENDED_UNKNOWN",
+  "RULE_E_CPU_PEAK_UNKNOWN",
+];
+const CONNECTOR_UNKNOWNS = [
+  "RULE_F_GPU_POWER_UNKNOWN",
+  "RULE_F_GPU_CONNECTORS_UNKNOWN",
+  "RULE_F_PCIE_CONNECTORS_UNKNOWN",
+  "RULE_F_PCIE_POWER_UNKNOWN",
+];
+
+const hasText = (value?: string) => Boolean(value?.trim());
+const hasNumber = (value?: number) => Boolean(value);
+const hasEntries = (value?: unknown[]) => Boolean(value?.length);
+const answered = (value: unknown) => value !== undefined;
+
+/** A card stated as needing no cable, and drawing what a slot can supply, doesn't use the supply's cables. */
+function runsFromSlotPower(gpu: TechnicalSpecs): boolean {
+  const need = gpuConnectorNeeds(gpu);
+  return Boolean(
+    need && totalConnectors(need) === 0 && (gpu.powerWatts || gpu.tdpWatts || 0) <= 75,
+  );
+}
+
+/**
+ * Every value a compatibility rule can return Unknown without, and when it does. This is the one list:
+ * the engine marks its results from it, and the labels, the checks list and the staff report all read it.
+ * It only says what's missing. It never decides a result, so a value being stated never makes a build match.
+ */
+const INPUT_REQUIREMENTS: InputRequirement[] = [
+  // Processor and motherboard
+  {
+    slot: "CPU",
+    name: "socket",
+    ruleIds: ["RULE_A_SOCKET_UNKNOWN", "RULE_C_COOLER_SOCKET_UNKNOWN"],
+    stated: (specs) => hasText(specs.socket),
+    needed: ({ cpu, board, cooler }) => Boolean(cpu && (board || cooler)),
+  },
+  {
+    slot: "Motherboard",
+    name: "socket",
+    ruleIds: ["RULE_A_SOCKET_UNKNOWN"],
+    stated: (specs) => hasText(specs.socket),
+    needed: ({ cpu, board }) => Boolean(cpu && board),
+  },
+  // Memory
+  {
+    slot: "RAM",
+    name: "module type",
+    ruleIds: ["RULE_B_RAM_TYPE_UNKNOWN"],
+    stated: (specs) => answered(specs.isLaptopSoDimm),
+    needed: ({ ram }) => Boolean(ram),
+  },
+  {
+    slot: "Motherboard",
+    name: "memory generation",
+    ruleIds: ["RULE_B_RAM_UNKNOWN"],
+    stated: (specs) => hasText(specs.supportedRamGeneration),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  {
+    slot: "RAM",
+    name: "memory generation",
+    ruleIds: ["RULE_B_RAM_UNKNOWN"],
+    stated: (specs) => hasText(specs.ramGeneration),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  {
+    slot: "RAM",
+    name: "module count",
+    ruleIds: ["RULE_B_RAM_LIMITS_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.moduleCount),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  {
+    slot: "RAM",
+    name: "capacity",
+    ruleIds: ["RULE_B_RAM_LIMITS_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.capacityGb),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  {
+    slot: "Motherboard",
+    name: "memory slots",
+    ruleIds: ["RULE_B_RAM_LIMITS_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.ramSlots),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  {
+    slot: "Motherboard",
+    name: "memory limit",
+    ruleIds: ["RULE_B_RAM_LIMITS_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.maxRamCapacityGb),
+    needed: ({ ram, board }) => Boolean(ram && board),
+  },
+  // Cooling. A boxed cooler has no height to check, so none of the height values apply to it.
+  {
+    slot: "CPU",
+    name: "included cooler",
+    ruleIds: ["RULE_C_STOCK_COOLER_UNKNOWN"],
+    stated: (specs) => answered(specs.includesCooler),
+    needed: ({ cpu, cooler }) => Boolean(cpu && !cooler),
+    onlyWhen: "no separate cooler is chosen",
+  },
+  {
+    slot: "Cooler",
+    name: "supported sockets",
+    ruleIds: ["RULE_C_COOLER_SOCKET_UNKNOWN"],
+    stated: (specs) => hasEntries(specs.supportedSockets),
+    needed: ({ cpu, cooler }) => Boolean(cpu && cooler),
+  },
+  {
+    slot: "Cooler",
+    name: "height",
+    ruleIds: ["RULE_C_COOLER_HEIGHT_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.coolerHeightMm),
+    needed: ({ cpu, cooler, cabinet }) => Boolean(cpu && cooler && cabinet),
+  },
+  {
+    slot: "Cabinet",
+    name: "cooler height limit",
+    ruleIds: ["RULE_C_COOLER_HEIGHT_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.maxCoolerHeightMm),
+    needed: ({ cpu, cooler, cabinet }) => Boolean(cpu && cooler && cabinet),
+    onlyWhen: "a separate cooler is chosen",
+  },
+  // Graphics card clearance
+  {
+    slot: "GPU",
+    name: "length",
+    ruleIds: ["RULE_D_GPU_CLEARANCE_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.lengthMm),
+    needed: ({ gpu, cabinet }) => Boolean(gpu && cabinet),
+  },
+  {
+    slot: "Cabinet",
+    name: "graphics card clearance",
+    ruleIds: ["RULE_D_GPU_CLEARANCE_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.maxGpuLengthMm),
+    needed: ({ gpu, cabinet }) => Boolean(gpu && cabinet),
+    onlyWhen: "a graphics card is chosen",
+  },
+  // Power
+  {
+    slot: "PSU",
+    name: "wattage",
+    ruleIds: [...POWER_UNKNOWNS, "RULE_F_PCIE_POWER_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.ratedWattage),
+    needed: ({ psu }) => Boolean(psu),
+  },
+  {
+    slot: "CPU",
+    name: "power draw",
+    ruleIds: POWER_UNKNOWNS,
+    stated: (specs) => hasNumber(specs.tdpWatts),
+    needed: ({ cpu, psu }) => Boolean(cpu && psu),
+  },
+  {
+    slot: "CPU",
+    name: "maximum power",
+    ruleIds: POWER_UNKNOWNS,
+    stated: (specs) => hasNumber(specs.maxTurboPowerWatts),
+    needed: ({ cpu, psu, components, ownsGpu }) => {
+      if (!cpu || !psu?.ratedWattage) return false;
+      const power = calculateSystemPower(components, { ownsGpu });
+      // Below the card's recommendation is reported first, and IT HUB checks the supply anyway.
+      const belowRecommended = psu.ratedWattage < (power.manufacturerRecommendedPsuWatts || 0);
+      return power.powerHeadroomStatus === "limited" && !belowRecommended;
+    },
+    onlyWhen: "the power supply has limited headroom",
+  },
+  {
+    slot: "GPU",
+    name: "power draw",
+    ruleIds: [...POWER_UNKNOWNS, "RULE_F_GPU_POWER_UNKNOWN"],
+    stated: (specs) => hasNumber(specs.powerWatts) || hasNumber(specs.tdpWatts),
+    needed: ({ gpu, psu }) => Boolean(gpu && psu),
+  },
+  {
+    slot: "GPU",
+    name: "recommended power supply",
+    ruleIds: POWER_UNKNOWNS,
+    stated: (specs) => hasNumber(specs.recommendedPsuWatts),
+    needed: ({ gpu, psu }) => Boolean(gpu && psu),
+  },
+  {
+    slot: "GPU",
+    name: "power connectors",
+    ruleIds: CONNECTOR_UNKNOWNS,
+    stated: (specs) => gpuConnectorNeeds(specs) !== undefined,
+    needed: ({ gpu, psu }) => Boolean(gpu && psu),
+  },
+  {
+    slot: "PSU",
+    name: "power connectors",
+    ruleIds: CONNECTOR_UNKNOWNS,
+    stated: (specs) => psuConnectors(specs) !== undefined,
+    needed: ({ gpu, psu }) => Boolean(gpu && psu && !runsFromSlotPower(gpu)),
+    onlyWhen: "a graphics card that needs a power cable is chosen",
+  },
+  // Motherboard and cabinet
+  {
+    slot: "Motherboard",
+    name: "form factor",
+    ruleIds: ["RULE_G_FORM_FACTOR_UNKNOWN"],
+    stated: (specs) => Boolean(specs.formFactor),
+    needed: ({ board, cabinet }) => Boolean(board && cabinet),
+  },
+  {
+    slot: "Cabinet",
+    name: "supported motherboards",
+    ruleIds: ["RULE_G_FORM_FACTOR_UNKNOWN"],
+    stated: (specs) => hasEntries(specs.supportedMotherboards),
+    needed: ({ board, cabinet }) => Boolean(board && cabinet),
+  },
+  // Storage connection
+  {
+    slot: "Storage",
+    name: "interface",
+    ruleIds: ["RULE_H_STORAGE_UNKNOWN"],
+    stated: (specs) => {
+      const { usesM2, usesSata } = storageConnection(specs);
+      return usesM2 || usesSata;
+    },
+    needed: ({ storage, board }) => Boolean(storage && board),
+  },
+  {
+    slot: "Motherboard",
+    name: "M.2 slots",
+    ruleIds: ["RULE_H_STORAGE_UNKNOWN", "RULE_H_M2_SATA_UNKNOWN"],
+    stated: (specs) => answered(specs.m2SlotCount),
+    needed: ({ storage, board }) => Boolean(storage && board && storageConnection(storage).usesM2),
+    onlyWhen: "an M.2 drive is chosen",
+  },
+  {
+    slot: "Motherboard",
+    name: "SATA ports",
+    ruleIds: ["RULE_H_STORAGE_UNKNOWN"],
+    stated: (specs) => answered(specs.sataPortCount),
+    needed: ({ storage, board }) => {
+      if (!storage || !board) return false;
+      const { usesM2, usesSata } = storageConnection(storage);
+      return usesSata && !usesM2;
+    },
+    onlyWhen: "a SATA drive is chosen",
+  },
+  {
+    slot: "Motherboard",
+    name: "M.2 SATA support",
+    ruleIds: ["RULE_H_M2_SATA_UNKNOWN"],
+    stated: () => false,
+    needed: ({ storage, board }) => {
+      if (!storage || !board || board.m2SlotCount === 0) return false;
+      const { usesM2, usesSata } = storageConnection(storage);
+      return usesM2 && usesSata;
+    },
+    onlyWhen: "an M.2 SATA drive is chosen",
+    reportedOn: {
+      slot: "Storage",
+      when: (specs) => {
+        const { usesM2, usesSata } = storageConnection(specs);
+        return usesM2 && usesSata;
+      },
+    },
+  },
+  // Display output
+  {
+    slot: "CPU",
+    name: "integrated graphics",
+    ruleIds: ["RULE_I_DISPLAY_OUTPUT_UNKNOWN"],
+    stated: (specs) => answered(specs.hasIntegratedGraphics),
+    needed: ({ cpu, gpu, ownsGpu }) => Boolean(cpu && !gpu && !ownsGpu),
+    onlyWhen: "no graphics card is chosen",
+  },
+];
+
+function viewOfBuild(
+  components: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
+  options: Pick<CheckCompatibilityOptions, "ownedSlots">,
+): BuildView {
+  const owned = new Set(options.ownedSlots || []);
+  return {
+    components,
+    // Choosing a part for a slot means the customer isn't using their own there.
+    ownsGpu: owned.has("GPU") && !components.GPU,
+    cpu: components.CPU && (components.CPU.specs || {}),
+    board: components.Motherboard && (components.Motherboard.specs || {}),
+    ram: components.RAM && (components.RAM.specs || {}),
+    gpu: components.GPU && (components.GPU.specs || {}),
+    storage: components.Storage && (components.Storage.specs || {}),
+    psu: components.PSU && (components.PSU.specs || {}),
+    cabinet: components.Cabinet && (components.Cabinet.specs || {}),
+    cooler: components.Cooler && (components.Cooler.specs || {}),
+  };
+}
+
+/** The values a part lacks that the rules for this build read. */
+export function checkInputsMissing(
+  part: Pick<CanonicalBuildComponent, "slot" | "title" | "specs">,
+  build: Partial<Record<ComponentSlotId, CanonicalBuildComponent>> = {},
+  options: Pick<CheckCompatibilityOptions, "ownedSlots"> = {},
+): MissingInput[] {
+  const view = viewOfBuild({ ...build, [part.slot]: part }, options);
+  const specs = part.specs || {};
+  return INPUT_REQUIREMENTS.filter(
+    (requirement) =>
+      requirement.slot === part.slot && !requirement.stated(specs) && requirement.needed(view),
+  ).map(({ slot, name, ruleIds }) => ({ slot, title: part.title, name, ruleIds }));
+}
+
+/** The same, for every part in a build. */
+export function buildInputsMissing(
+  build: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
+  options: Pick<CheckCompatibilityOptions, "ownedSlots"> = {},
+): MissingInput[] {
+  // Always in the same part order, so every screen lists the same values the same way.
+  return INPUT_SLOT_ORDER.flatMap((slot) =>
+    build[slot] ? checkInputsMissing(build[slot]!, build, options) : [],
+  );
+}
+
+const INPUT_SLOT_ORDER: ComponentSlotId[] = [
+  "CPU",
+  "Motherboard",
+  "RAM",
+  "GPU",
+  "Storage",
+  "PSU",
+  "Cabinet",
+  "Cooler",
+];
+
+export const describeMissingInputs = (inputs: MissingInput[]) =>
+  inputs.map(({ name, title }) => `${name} of ${title}`).join("; ");
+
+/**
+ * What a part lacks before any build exists, for a report on the catalogue: values every build reads, and
+ * values only some builds read, each saying which. Empty on both means no build can return Unknown for a
+ * value missing from this part.
+ */
+export function inputsNeededByPart(part: Pick<CanonicalBuildComponent, "slot" | "specs">): {
+  always: string[];
+  sometimes: { name: string; when: string }[];
+} {
+  const specs = part.specs || {};
+  const own = INPUT_REQUIREMENTS.filter(
+    (requirement) => requirement.slot === part.slot && !requirement.reportedOn,
+  );
+  const unanswerable = INPUT_REQUIREMENTS.filter(
+    ({ reportedOn }) => reportedOn?.slot === part.slot && reportedOn.when(specs),
+  );
+  const conditional = new Set(own.filter(({ onlyWhen }) => onlyWhen).map(({ name }) => name));
+  const always = [
+    ...own
+      .filter((requirement) => !requirement.onlyWhen && !requirement.stated(specs))
+      .map(({ name }) => name),
+    ...missingCriticalSpecs(part).filter((name) => !conditional.has(name)),
+  ];
+  return {
+    always: [...new Set(always)],
+    sometimes: [...own.filter((requirement) => requirement.onlyWhen), ...unanswerable]
+      .filter((requirement) => !requirement.stated(specs))
+      .map(({ name, onlyWhen }) => ({ name, when: onlyWhen! })),
+  };
+}
+
 /**
  * Comprehensive compatibility validator evaluating Rules A through J.
  */
@@ -373,10 +795,6 @@ export function checkCompatibility(
         explanation: `Unable to verify CPU socket (${cpuSocket || "unspecified"}) against motherboard socket (${moboSocket || "unspecified"}).`,
         suggestedResolution:
           "Check manufacturer specifications or request manual confirmation from IT HUB.",
-        missingFields: [
-          !cpuSocket ? "CPU.socket" : "",
-          !moboSocket ? "Motherboard.socket" : "",
-        ].filter(Boolean),
       });
     } else if (cpuSocket !== moboSocket) {
       items.push({
@@ -947,9 +1365,7 @@ export function checkCompatibility(
   // Rule H — Storage Interface
   // ───────────────────────────────────────────────────────────────────────────
   if (storage && mobo) {
-    const storageType = storage.specs.storageInterface?.toUpperCase() || "";
-    const usesM2 = storageType.includes("M.2") || storageType.includes("NVME");
-    const usesSata = storageType.includes("SATA");
+    const { usesM2, usesSata } = storageConnection(storage.specs);
     // An M.2 slot may take NVMe drives only, and nothing in the catalogue says whether a board's take SATA.
     const usesM2Sata = usesM2 && usesSata;
     const slotCount = usesM2
@@ -1156,6 +1572,15 @@ export function checkCompatibility(
 
   noteTitleInferredBasis(items, components);
 
+  // Each Unknown says which values it's waiting for, from the same list every report reads.
+  if (!options.withoutMissingInputs && items.some((item) => item.status === "unknown")) {
+    const missing = buildInputsMissing(components, { ownedSlots: owned });
+    for (const item of items) {
+      const inputs = missing.filter(({ ruleIds }) => ruleIds.includes(item.ruleId));
+      if (inputs.length > 0) item.missingInputs = inputs;
+    }
+  }
+
   // Not a check, so it has no result: the boxed cooler's height is deliberately not compared.
   const notes: string[] = [];
   if (cpu && cabinet && !cooler && !owned.has("Cooler") && cpu.specs.includesCooler === true) {
@@ -1301,20 +1726,74 @@ export function missingCriticalSpecs(
  */
 export function labelCompatibilityGaps(
   parts: Partial<Record<ComponentSlotId, CanonicalBuildComponent>>,
-  items: { status: string; label: string; ruleId?: string }[],
+  items: {
+    status: string;
+    label: string;
+    ruleId?: string;
+    affectedSlots?: ComponentSlotId[];
+    missingInputs?: MissingInput[];
+  }[],
+  options: Pick<CheckCompatibilityOptions, "ownedSlots"> = {},
 ): string[] {
   const gaps: string[] = [];
-  const unknown = items
-    .filter((item) => item.status === "unknown" || REVIEW_RULES.has(item.ruleId ?? ""))
-    .map((item) => item.label);
+  const present = Object.values(parts).filter(Boolean) as CanonicalBuildComponent[];
+  const reviewing = items.filter(
+    (item) => item.status === "unknown" || REVIEW_RULES.has(item.ruleId ?? ""),
+  );
+  // Each check names the values it's waiting for, so they aren't listed a second time below.
+  const named = new Set(
+    reviewing.flatMap((item) =>
+      (item.missingInputs || []).map(({ slot, name }) => `${slot}|${name}`),
+    ),
+  );
+  const needed = buildInputsMissing(parts, options);
+  const unnamed = needed.filter(({ slot, name }) => !named.has(`${slot}|${name}`));
+  const unknown = reviewing
+    // A part's title-read values are listed below, so a line saying only that adds nothing.
+    .filter((item) => {
+      if (item.ruleId !== "RULE_L_SPEC_UNREVIEWED") return true;
+      const part = parts[item.affectedSlots?.[0] as ComponentSlotId];
+      return !part || Boolean(part.specs?.unreviewedSpecs?.length);
+    })
+    .map((item) =>
+      item.missingInputs?.length
+        ? `${item.label} (${describeMissingInputs(item.missingInputs)})`
+        : item.label,
+    );
   if (unknown.length > 0) gaps.push(`Not yet confirmed: ${unknown.join(", ")}.`);
   const describe = (part: CanonicalBuildComponent, level: (l: SpecConfidence) => boolean) =>
     criticalSpecsAt(part, level).map((name) => `${name} of ${part.title}`);
-  const present = Object.values(parts).filter(Boolean) as CanonicalBuildComponent[];
-  const missing = present.flatMap((part) =>
-    missingCriticalSpecs(part).map((name) => `${name} of ${part.title}`),
+  // A label still needs every critical value, but one this build doesn't read isn't something to check.
+  const unused = (part: CanonicalBuildComponent, name: string) =>
+    INPUT_REQUIREMENTS.some(
+      (requirement) =>
+        requirement.slot === part.slot && requirement.name === name && requirement.onlyWhen,
+    );
+  const criticalMissing = present.flatMap((part) =>
+    missingCriticalSpecs(part).map((name) => ({ part, name })),
   );
+  const isNeeded = ({ part, name }: { part: CanonicalBuildComponent; name: string }) =>
+    needed.some((input) => input.slot === part.slot && input.name === name);
+  const missing = [
+    ...unnamed.map(({ name, title }) => `${name} of ${title}`),
+    ...criticalMissing
+      .filter(
+        (entry) =>
+          !isNeeded(entry) &&
+          !unused(entry.part, entry.name) &&
+          !named.has(`${entry.part.slot}|${entry.name}`),
+      )
+      .map(({ part, name }) => `${name} of ${part.title}`),
+  ];
   if (missing.length > 0) gaps.push(`Not stated: ${missing.join("; ")}.`);
+  const notRead = criticalMissing
+    .filter((entry) => !isNeeded(entry) && unused(entry.part, entry.name))
+    .map(({ part, name }) => `${name} of ${part.title}`);
+  if (notRead.length > 0) {
+    gaps.push(
+      `No recommendation label, because these aren't on file, though this build doesn't rely on them: ${notRead.join("; ")}.`,
+    );
+  }
   const inferred = present.flatMap((part) => describe(part, (level) => level === "title_inferred"));
   if (inferred.length > 0) {
     gaps.push(`Read from the product title, not confirmed: ${inferred.join("; ")}.`);
@@ -1390,7 +1869,7 @@ export function compatibility(
 
   const summary = checkCompatibility(canonicalParts, options);
   return {
-    result: summary.items.map((item) => ({
+    result: reportedItems(summary.items).map((item) => ({
       label: item.label,
       state:
         item.severity === "error"
@@ -1400,6 +1879,8 @@ export function compatibility(
             : ("ok" as const),
       // Advice is the customer's to read. Anything needing review is IT HUB's to resolve.
       advice: item.status === "conditional" && !reachesReview(item) ? item.explanation : undefined,
+      // The values this check is waiting for, so every screen names the same ones.
+      missing: item.missingInputs && `Not stated: ${describeMissingInputs(item.missingInputs)}.`,
     })),
     watts: summary.estimatedSystemLoadWatts,
     recommended: summary.recommendedPsuWatts,

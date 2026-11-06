@@ -158,6 +158,16 @@ export interface CanonicalBuildComponent {
 export type CompatibilityStatus = "compatible" | "incompatible" | "conditional" | "unknown";
 export type CompatibilitySeverity = "error" | "warning" | "info";
 
+/** A value the compatibility rules for a build read, and that a part doesn't state. */
+export interface MissingInput {
+  slot: ComponentSlotId;
+  /** The part lacking it. */
+  title: string;
+  name: string;
+  /** The rules that return Unknown without it. */
+  ruleIds: string[];
+}
+
 export interface CompatibilityItem {
   ruleId: string;
   severity: CompatibilitySeverity;
@@ -167,7 +177,8 @@ export interface CompatibilityItem {
   explanation: string;
   suggestedResolution?: string;
   dataProvenance?: string;
-  missingFields?: string[];
+  /** The values this result is waiting for. Only an Unknown has them. */
+  missingInputs?: MissingInput[];
 }
 
 export interface CompatibilitySummary {

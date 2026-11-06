@@ -1068,7 +1068,12 @@ Deno.test("D6: the report says what each part lacks", () => {
   assertEquals(boardRow.slot, "Motherboard");
   assertEquals(boardRow.registryKey, undefined);
   assertEquals(boardRow.readFromTitle, ["socket", "memory generation"]);
-  assertEquals(boardRow.missing, ["form factor"]);
+  // Every build's memory check reads the slots and the limit, so a report leaving them out would call a
+  // board complete while the engine still returned Unknown. This board's slot count can't be read.
+  assertEquals(boardRow.missing, ["memory slots", "memory limit", "form factor"]);
+  assertEquals(boardRow.neededInSomeBuilds, [
+    { name: "SATA ports", when: "a SATA drive is chosen" },
+  ]);
   assertEquals(boardRow.unreviewed, ["M.2 slots"]);
   assertEquals(boardRow.problems[0].kind, "invalid");
   assertEquals(boardRow.variantCount, 2);
@@ -1082,7 +1087,7 @@ Deno.test("D6: the report says what each part lacks", () => {
 
   const text = formatSpecReport(report);
   assert(text.includes("[Motherboard] QZX B550M DDR4 Board"));
-  assert(text.includes("Not stated: form factor"));
+  assert(text.includes("Not stated: memory slots, memory limit, form factor"));
   assert(text.includes("2 variants share one set of values"));
   assert(text.includes("not offered to customers"));
 });

@@ -18,8 +18,10 @@ import {
   isConfirmedLevel,
   labelCompatibilityGaps,
   reachesReview,
+  reportedItems,
   specConfidence,
   toCanonicalComponent,
+  type CheckCompatibilityOptions,
 } from "./compatibility";
 import { assessFit, prefersForPriority, priorityNote, purposeProfile } from "./purpose";
 import {
@@ -365,6 +367,7 @@ function synthesizeBuildConfigurations(
 
   // Candidate pool
   const candidatePool: SynthesizedConfiguration[] = [];
+  const gapReaders = new Map<SynthesizedConfiguration, () => string[]>();
 
   // Filter CPUs: prefer in-stock & live products. A part whose specifications IT HUB has rejected is
   // never recommended, though a customer can still choose it in the manual builder, where it's marked.
@@ -399,7 +402,10 @@ function synthesizeBuildConfigurations(
   const hasCleanOwnValues = (slot: ComponentSlotId, item: NormalizedItem) => {
     const known = ownValuesClean.get(item.id);
     if (known !== undefined) return known;
-    const clean = !checkCompatibility({ [slot]: toEnginePart(slot, item) }).items.some(
+    const clean = !checkCompatibility(
+      { [slot]: toEnginePart(slot, item) },
+      { withoutMissingInputs: true },
+    ).items.some(
       (check) => reachesReview(check) && check.affectedSlots.every((affected) => affected === slot),
     );
     ownValuesClean.set(item.id, clean);
@@ -583,7 +589,7 @@ function synthesizeBuildConfigurations(
             // Something already chosen needs review, so no choice below can make this build confirmed.
             if (
               seekingConfirmed &&
-              checkCompatibility(chosen, { ownedSlots }).items.some(
+              checkCompatibility(chosen, { ownedSlots, withoutMissingInputs: true }).items.some(
                 (check) =>
                   reachesReview(check) &&
                   check.affectedSlots.every((affected) => chosen[affected] !== undefined),
@@ -594,7 +600,7 @@ function synthesizeBuildConfigurations(
             const fits = (slot: ComponentSlotId, item: NormalizedItem) =>
               !checkCompatibility(
                 { ...chosen, [slot]: toEnginePart(slot, item) },
-                { ownedSlots },
+                { ownedSlots, withoutMissingInputs: true },
               ).items.some(
                 (check) =>
                   check.affectedSlots.includes(slot) &&
@@ -726,10 +732,14 @@ function synthesizeBuildConfigurations(
                 canonicalPartsForCompat[s as ComponentSlotId] = toEnginePart(s, item);
               }
             }
-            const compatSummary = checkCompatibility(canonicalPartsForCompat, {
+            const compatOptions: CheckCompatibilityOptions = {
               workload: isGaming ? "gaming" : isCreation ? "creation" : isWork ? "work" : "general",
               mode: "automated",
               ownedSlots,
+            };
+            const compatSummary = checkCompatibility(canonicalPartsForCompat, {
+              ...compatOptions,
+              withoutMissingInputs: true,
             });
 
             // Errors always rule a build out. Unknowns do too, unless the caller asked for builds that
@@ -742,7 +752,7 @@ function synthesizeBuildConfigurations(
             }
             const reviewItems = compatSummary.items.filter(reachesReview).map((i) => i.label);
             const hasUnknownSpecs = compatSummary.items.some((i) => i.status === "unknown");
-            const advisories = compatSummary.items
+            const advisories = reportedItems(compatSummary.items)
               .filter((i) => i.status === "conditional" && !reachesReview(i))
               .map((i) => ({
                 label: i.label,
@@ -751,7 +761,6 @@ function synthesizeBuildConfigurations(
             const requiresReview = !compatSummary.validForAutomatedRecommendation;
             // This search exists only to find a build nothing has to be checked on.
             if (seekingConfirmed && requiresReview) continue;
-            const labelGaps = labelCompatibilityGaps(canonicalPartsForCompat, compatSummary.items);
 
             // Calculate unowned total price
             let price = 0;
@@ -830,7 +839,8 @@ function synthesizeBuildConfigurations(
               label: INSUFFICIENT_INFORMATION,
               rankingReasons: [],
               purposeNotes: [],
-              labelGaps,
+              // Filled in below for the builds that survive the comparison, which are few.
+              labelGaps: [],
               specSources: {
                 CPU: describeSpecSource("CPU", cpu),
                 ...(gpu ? { GPU: describeSpecSource("GPU", gpu) } : {}),
@@ -850,6 +860,13 @@ function synthesizeBuildConfigurations(
                     ? 2
                     : 1,
             });
+            gapReaders.set(candidatePool[candidatePool.length - 1], () =>
+              labelCompatibilityGaps(
+                canonicalPartsForCompat,
+                checkCompatibility(canonicalPartsForCompat, compatOptions).items,
+                { ownedSlots },
+              ),
+            );
           }
       }
     }
@@ -889,6 +906,7 @@ function synthesizeBuildConfigurations(
       if (better) groupMap.set(key, c);
     }
   }
+  for (const survivor of groupMap.values()) survivor.labelGaps = gapReaders.get(survivor)!();
 
   // A build needing review adds nothing if the same parts cost no more without needing it.
   const sameParts = (config: SynthesizedConfiguration) =>
