@@ -12,6 +12,7 @@ const { syncBuilderCatalogWithShopify, buildBuilderCatalog } =
 const {
   generateRecommendations,
   generateDynamicCatalogRecommendations,
+  generateCatalogOffer,
   getMissingCatalogCategories,
 } = await import("../../../src/lib/builder/recommendations.ts");
 
@@ -230,8 +231,11 @@ Deno.test("FIND-MY-PC-2: Recommends a valid build from the 8 live Shopify test p
   assertEquals(recs.length, 1); // Exactly 1 authentic build, no fake filler builds
 
   const build = recs[0];
-  // One build has nothing to be compared with, so it earns no label.
-  assertEquals(build.tradeoff, "Insufficient information");
+  // One build has nothing to be compared with, so it earns no label. Its chip is its offer role, the
+  // lowest-priced suitable build (Stage 3 contract 11.3); the label itself is kept.
+  assertEquals(build.tradeoffLabel, "Insufficient information");
+  assertEquals(build.offerRole, "Value Choice");
+  assertEquals(build.tradeoff, "Value Choice");
   assertEquals(build.parts.CPU.name, "[TEST] AMD Ryzen 5 5600");
   assertEquals(build.parts.Motherboard.name, "[TEST] ASUS Prime B550M-A WiFi II");
   assertEquals(build.parts.RAM.name, "[TEST] Corsair Vengeance LPX 16GB (2x8GB) DDR4 3200MHz");
@@ -517,7 +521,8 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
   const price2 = recs2[0].price;
   assertEquals(price2, 61694);
 
-  // Query 3: Custom budget Around ₹1,00,000 (covers ₹61,694)
+  // Query 3: Custom budget Around ₹1,00,000. The ₹61,694 build is below its ₹85,000 minimum, so under the
+  // strict range (the owner's ruling, 7 November 2026) it isn't offered: only its unchanged price is said.
   const answers3 = {
     purpose: "gaming",
     budgetId: "custom",
@@ -527,9 +532,9 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
     owned: [],
   };
   const override3 = { min: 85000, max: 100000, label: "Around ₹1,00,000" };
-  const recs3 = generateDynamicCatalogRecommendations(componentCatalog, answers3, override3);
-  assertEquals(recs3.length, 1);
-  const price3 = recs3[0].price;
+  const offer3 = generateCatalogOffer(componentCatalog, answers3, override3);
+  assertEquals(offer3.builds.length, 0);
+  const price3 = offer3.cheaperFrom;
   assertEquals(price3, 61694);
 
   // The estimated price must be 100% identical and never change across queries
@@ -539,5 +544,4 @@ Deno.test("FIND-MY-PC-9: Build price is deterministic and NEVER mutates between 
   // No extra cooler in any query, because this processor comes with one
   assertEquals(recs1[0].parts.Cooler, undefined);
   assertEquals(recs2[0].parts.Cooler, undefined);
-  assertEquals(recs3[0].parts.Cooler, undefined);
 });

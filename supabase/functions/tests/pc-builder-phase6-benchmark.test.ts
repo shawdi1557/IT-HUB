@@ -6,7 +6,7 @@
 
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
+const { generateDynamicCatalogRecommendations, generateCatalogOffer, getBudgetShortfallInfo } =
   await import("../../../src/lib/builder/recommendations.ts");
 
 const { checkCompatibility, compatibility } =
@@ -364,6 +364,10 @@ Deno.test("PHASE6: 100-Scenario PC Builder Intelligence Benchmark & Quality Audi
         if (r.price > s.budgetBand.max) {
           budgetViolations++;
         }
+        // The strict range: nothing below the minimum, unless owned parts cost the customer nothing.
+        if (s.owned.length === 0 && r.price < s.budgetBand.min) {
+          budgetViolations++;
+        }
 
         // 2. Check Shopify Price Accuracy
         let expectedPrice = 0;
@@ -408,6 +412,17 @@ Deno.test("PHASE6: 100-Scenario PC Builder Intelligence Benchmark & Quality Audi
 
       if (shortfall && shortfall.closestBuild.price > s.budgetBand.max) {
         // Correct behavior: honest budget shortfall accurately detected
+        suitableCount++;
+      } else if (
+        generateCatalogOffer(
+          componentCatalog,
+          answers,
+          { min: s.budgetBand.min, max: s.budgetBand.max },
+          { allowUnverified: true },
+        ).cheaperFrom !== undefined
+      ) {
+        // Also correct under the strict range: every suitable build costs less than the range, and the
+        // customer is told so instead of being offered one (the owner's ruling, 7 November 2026).
         suitableCount++;
       }
     }

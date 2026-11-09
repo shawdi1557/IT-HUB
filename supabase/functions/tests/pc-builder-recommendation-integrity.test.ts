@@ -326,9 +326,23 @@ Deno.test("OFFER: AAA and competitive customers are offered different builds", (
   );
   const neutral = pair(generateDynamicCatalogRecommendations(catalog, answers("gaming"), band));
   assert(aaa.includes("Budget Processor + Premium Card"), aaa.join());
-  assert(!competitive.includes("Budget Processor + Premium Card"), competitive.join());
   assert(competitive.includes("Premium Processor + Budget Card"), competitive.join());
-  assert(!aaa.includes("Premium Processor + Budget Card"), aaa.join());
+  // Balanced Choice and Another Option can now offer either customer a build of any pair, by price (rulings
+  // P2-1 and P2-2), but the build that leans on a part still leans on the one each customer's use needs.
+  const leaning = (recs: any[]) =>
+    pair(recs.filter((r: any) => r.offerRole === "Performance Priority"));
+  const aaaRecs = generateDynamicCatalogRecommendations(
+    catalog,
+    answers("gaming", { type: "AAA Games" }),
+    band,
+  );
+  const competitiveRecs = generateDynamicCatalogRecommendations(
+    catalog,
+    answers("gaming", { type: "Competitive / Esports" }),
+    band,
+  );
+  assertEquals(leaning(aaaRecs), ["Budget Processor + Premium Card"]);
+  assertEquals(leaning(competitiveRecs), ["Premium Processor + Budget Card"]);
   assert(!neutral.includes("Budget Processor + Premium Card"), neutral.join());
   // Without an answer, nothing leans either way.
   assert(neutral.join() !== aaa.join());
@@ -340,7 +354,9 @@ Deno.test("OFFER: no priority note when every build has the same part", () => {
     answers("creation", { type: "3D" }),
     WIDE,
   );
-  assert(recs.length > 1);
+  // One processor and one card: one build per pair (Stage 3 contract 5.3), so there's nothing to lean on.
+  assert(recs.length >= 1);
+  assertEquals(new Set(shown(recs, "GPU")).size, 1);
   assertEquals(
     allNotes(recs).filter((n: string) => n.includes("leans on")),
     [],
@@ -366,8 +382,12 @@ Deno.test("OFFER: a priority picked on published figures says so", () => {
     answers("gaming", { type: "AAA Games" }),
     WIDE,
   );
-  const note = allNotes(recs).find((n: string) => n.includes("You asked for AAA games"));
-  assert(note?.includes("higher published figures"), note);
+  // Both builds carry evidence labels, and Performance Priority never takes a build already shown (Stage 3
+  // contract 11.2), so the published figures are stated by the label, never as a price lean.
+  const top = recs.find((r: any) => r.tradeoffLabel === "Highest Verified Performance");
+  assert(top, recs.map((r: any) => r.tradeoffLabel).join());
+  assert(top.parts.GPU.name.includes("4070"), top.parts.GPU.name);
+  assert(!allNotes(recs).some((n: string) => n.includes("That's price")));
 });
 
 Deno.test("OFFER: no answer gives the same neutral spread as before", () => {
@@ -447,7 +467,9 @@ Deno.test("OFFER: a 64GB kit isn't merged with a 16GB one as a near-duplicate", 
     answers("creation", { type: "3D" }),
     WIDE,
   );
-  assert(shown(recs, "RAM").includes("Kit 64GB DDR4"), shown(recs, "RAM").join());
+  // One build per processor and card pair (Stage 3 contract 5.3): the kit kept is the cheapest that meets
+  // Blender's recommendation, never the 16GB one that falls short.
+  assertEquals(shown(recs, "RAM"), ["Kit 32GB DDR4"]);
 });
 
 Deno.test("OFFER: photography asks for less memory than 3D, so the cheaper kit qualifies", () => {

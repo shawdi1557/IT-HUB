@@ -973,9 +973,13 @@ Deno.test("PAGE: no invented score remains in the engine", () => {
     "gpuRaster",
     "sWorkload",
     "Best Performance",
-    "Balanced Choice",
   ]) {
     assert(!engine.includes(banned), banned);
+  }
+  // "Balanced Choice" is now an approved offer role (Stage 3 decision S3-D3), chosen by the median price
+  // rule, never by a score: it appears only as a role name.
+  for (const line of engine.split(/\r?\n/).filter((l: string) => l.includes("Balanced Choice"))) {
+    assert(!/score|weight|benchmark/i.test(line), line);
   }
 });
 

@@ -1016,11 +1016,10 @@ Deno.test("WORDING: a build below the range doesn't claim to cover the customer'
     { purpose: "gaming", details: {}, brands: [], wifi: "", owned: [] },
     { min: 100000, max: 300000 },
   );
-  assert(builds.length > 0);
-  for (const build of builds) {
-    assertEquals(build.inBudget, false);
-    assertEquals(build.note, "This costs less than the range you selected.");
-  }
+  // Under the strict range (the owner's ruling, 7 November 2026) nothing below ₹1,00,000 is offered, so
+  // nothing can claim to cover the customer's needs from below the range.
+  assertEquals(builds.length, 0);
+  for (const build of builds) assert(build.price >= 100000);
 });
 
 Deno.test("PAGE: the first screen offers software development as its own purpose", async () => {

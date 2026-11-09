@@ -11,3 +11,6 @@ export * from "./purpose";
 export * from "./spec-schema";
 export * from "./persistence";
 export * from "./checkout";
+export * from "./pricing";
+export * from "./completeness";
+export * from "./completeness-wording";

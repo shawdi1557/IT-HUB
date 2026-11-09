@@ -10,6 +10,7 @@ import {
   requireCheckoutAssociation,
 } from "../shopify-orders";
 import { money } from "../../data/catalog";
+import { summariseBuildPrice } from "./pricing";
 
 export interface PrepareCheckoutResult {
   success: boolean;
@@ -140,7 +141,10 @@ export function generateWhatsAppQuotation(
   const owned = new Set(build.ownedSlots || []);
 
   const partsList: string[] = [];
-  let total = 0;
+  // Priced as every screen prices it: owned and unavailable parts left out, quantity counted.
+  const total = summariseBuildPrice(build.components, {
+    ownedSlots: build.ownedSlots,
+  }).componentTotal;
 
   for (const [slot, comp] of Object.entries(build.components)) {
     if (!comp) continue;
@@ -149,7 +153,6 @@ export function generateWhatsAppQuotation(
       partsList.push(`• ${slot}: ${comp.title} (Already Owned)`);
     } else {
       partsList.push(`• ${slot}: ${comp.title} — ${money(comp.price)}`);
-      total += comp.price * (comp.quantity || 1);
     }
   }
 

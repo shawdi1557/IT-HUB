@@ -1,0 +1,3719 @@
+{
+ "recordedFrom": "Stage 3 Phase 2 working tree on dd475a6, after the owner's rulings P2-1 to P2-7",
+ "catalogues": {
+  "sparse": {
+   "listings": 14,
+   "metrics": {
+    "searches": 32,
+    "empty": 0,
+    "shown": 60,
+    "belowBand": 27,
+    "belowBandShare": 0.45,
+    "utilisation": 0.757,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 60,
+    "reviewShare": 1
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 67500,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|60000-80000": [
+     {
+      "price": 61900,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 67500,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 75400,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|80000-100000": [
+     {
+      "price": 61900,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 75400,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|100000-150000": [
+     {
+      "price": 61900,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 75400,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "work|{}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "work|{}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "work|{}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "general|{}|40000-60000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ],
+    "general|{}|60000-80000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 72300,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 77900,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|80000-100000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     },
+     {
+      "price": 81000,
+      "parts": "CPU=gid://shopify/Product/sparse-0002,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0008,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0006,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "general|{}|100000-150000": [
+     {
+      "price": 58800,
+      "parts": "CPU=gid://shopify/Product/sparse-0001,Cabinet=gid://shopify/Product/sparse-0013,Cooler=gid://shopify/Product/sparse-0014,GPU=gid://shopify/Product/sparse-0007,Motherboard=gid://shopify/Product/sparse-0004,PSU=gid://shopify/Product/sparse-0011,RAM=gid://shopify/Product/sparse-0005,Storage=gid://shopify/Product/sparse-0009",
+      "review": true,
+      "badge": "review",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": null
+     }
+    ]
+   }
+  },
+  "evidenceRich": {
+   "listings": 28,
+   "metrics": {
+    "searches": 32,
+    "empty": 0,
+    "shown": 92,
+    "belowBand": 25,
+    "belowBandShare": 0.272,
+    "utilisation": 0.785,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 0,
+    "reviewShare": 0
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|60000-80000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 71500,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78900,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|80000-100000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|100000-150000": [
+     {
+      "price": 112700,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 128200,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 62500,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0025,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "high",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 72600,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0025,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "high",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 87800,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 93600,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0010,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [
+     {
+      "price": 112700,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 93600,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0010,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|40000-60000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|60000-80000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 71500,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78900,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|80000-100000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|100000-150000": [
+     {
+      "price": 112700,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 128200,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|40000-60000": [
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|60000-80000": [
+     {
+      "price": 60200,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 65600,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0025,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "high",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 69500,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|80000-100000": [
+     {
+      "price": 60200,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 96700,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0010,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|100000-150000": [
+     {
+      "price": 114700,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0010,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 60200,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 96700,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0010,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "work|{}|40000-60000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|60000-80000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 67200,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78200,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|80000-100000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|100000-150000": [
+     {
+      "price": 104800,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 115800,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|40000-60000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "No graphics card"
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|60000-80000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "No graphics card"
+     },
+     {
+      "price": 67200,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78200,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|80000-100000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "No graphics card"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|100000-150000": [
+     {
+      "price": 104800,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 115800,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "No graphics card"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 67200,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78200,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [
+     {
+      "price": 104800,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 115800,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|40000-60000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 57100,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 59400,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0024,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0006,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|60000-80000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 67200,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 78200,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|80000-100000": [
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 90600,
+      "parts": "CPU=gid://shopify/Product/rich-0020,Cabinet=gid://shopify/Product/rich-0016,Cooler=gid://shopify/Product/rich-0028,GPU=gid://shopify/Product/rich-0008,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0023,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 97800,
+      "parts": "CPU=gid://shopify/Product/rich-0001,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|100000-150000": [
+     {
+      "price": 104800,
+      "parts": "CPU=gid://shopify/Product/rich-0002,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 115800,
+      "parts": "CPU=gid://shopify/Product/rich-0003,Cabinet=gid://shopify/Product/rich-0016,GPU=gid://shopify/Product/rich-0026,Motherboard=gid://shopify/Product/rich-0004,PSU=gid://shopify/Product/rich-0027,RAM=gid://shopify/Product/rich-0007,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     },
+     {
+      "price": 47000,
+      "parts": "CPU=gid://shopify/Product/rich-0019,Cabinet=gid://shopify/Product/rich-0016,Motherboard=gid://shopify/Product/rich-0021,PSU=gid://shopify/Product/rich-0014,RAM=gid://shopify/Product/rich-0022,Storage=gid://shopify/Product/rich-0012",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ]
+   }
+  },
+  "large": {
+   "listings": 2400,
+   "metrics": {
+    "searches": 32,
+    "empty": 0,
+    "shown": 68,
+    "belowBand": 38,
+    "belowBandShare": 0.559,
+    "utilisation": 0.507,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 0,
+    "reviewShare": 0
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 47263,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1051,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 47263,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1051,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "work|{}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "work|{}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|40000-60000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 49927,
+      "parts": "CPU=gid://shopify/Product/large-0076,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1125,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 58252,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|60000-80000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 63802,
+      "parts": "CPU=gid://shopify/Product/large-0151,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 69315,
+      "parts": "CPU=gid://shopify/Product/large-0300,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-1200,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|80000-100000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|100000-150000": [
+     {
+      "price": 14000,
+      "parts": "CPU=gid://shopify/Product/large-0001,Cabinet=gid://shopify/Product/large-1801,GPU=gid://shopify/Product/large-0901,Motherboard=gid://shopify/Product/large-0301,PSU=gid://shopify/Product/large-1501,RAM=gid://shopify/Product/large-0601,Storage=gid://shopify/Product/large-1201",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ]
+   }
+  },
+  "singlePerSlot": {
+   "listings": 8,
+   "metrics": {
+    "searches": 32,
+    "empty": 0,
+    "shown": 32,
+    "belowBand": 24,
+    "belowBandShare": 0.75,
+    "utilisation": 0.686,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 0,
+    "reviewShare": 0
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "work|{}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "work|{}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "work|{}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "work|{}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|40000-60000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|60000-80000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|80000-100000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|100000-150000": [
+     {
+      "price": 59900,
+      "parts": "CPU=gid://shopify/Product/single-0001,Cabinet=gid://shopify/Product/single-0007,GPU=gid://shopify/Product/single-0004,Motherboard=gid://shopify/Product/single-0002,PSU=gid://shopify/Product/single-0006,RAM=gid://shopify/Product/single-0003,Storage=gid://shopify/Product/single-0005",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ]
+   }
+  },
+  "missingCategory": {
+   "listings": 7,
+   "metrics": {
+    "searches": 32,
+    "empty": 32,
+    "shown": 0,
+    "belowBand": 0,
+    "belowBandShare": 0,
+    "utilisation": 0,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 0,
+    "reviewShare": 0
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [],
+    "gaming|{}|60000-80000": [],
+    "gaming|{}|80000-100000": [],
+    "gaming|{}|100000-150000": [],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [],
+    "creation|{\"type\":\"Video\"}|40000-60000": [],
+    "creation|{\"type\":\"Video\"}|60000-80000": [],
+    "creation|{\"type\":\"Video\"}|80000-100000": [],
+    "creation|{\"type\":\"Video\"}|100000-150000": [],
+    "creation|{\"type\":\"3D\"}|40000-60000": [],
+    "creation|{\"type\":\"3D\"}|60000-80000": [],
+    "creation|{\"type\":\"3D\"}|80000-100000": [],
+    "creation|{\"type\":\"3D\"}|100000-150000": [],
+    "work|{}|40000-60000": [],
+    "work|{}|60000-80000": [],
+    "work|{}|80000-100000": [],
+    "work|{}|100000-150000": [],
+    "programming|{}|40000-60000": [],
+    "programming|{}|60000-80000": [],
+    "programming|{}|80000-100000": [],
+    "programming|{}|100000-150000": [],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [],
+    "general|{}|40000-60000": [],
+    "general|{}|60000-80000": [],
+    "general|{}|80000-100000": [],
+    "general|{}|100000-150000": []
+   }
+  },
+  "budgetEdge": {
+   "listings": 10,
+   "metrics": {
+    "searches": 32,
+    "empty": 0,
+    "shown": 74,
+    "belowBand": 26,
+    "belowBandShare": 0.351,
+    "utilisation": 0.782,
+    "repeatedPairs": 0,
+    "labelled": 0,
+    "review": 0,
+    "reviewShare": 0
+   },
+   "offers": {
+    "gaming|{}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "gaming|{}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "gaming|{\"resolution\":\"1440p\"}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"Video\"}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "creation|{\"type\":\"3D\"}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Performance Priority",
+      "role": "Performance Priority",
+      "guarantee": null
+     }
+    ],
+    "work|{}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "work|{}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "work|{}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "programming|{}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "programming|{}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "professional|{\"type\":\"Software Development\"}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ],
+    "general|{}|40000-60000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     }
+    ],
+    "general|{}|60000-80000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 60000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0007,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|80000-100000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     },
+     {
+      "price": 80000,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0009,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Balanced Choice",
+      "role": "Balanced Choice",
+      "guarantee": null
+     },
+     {
+      "price": 80001,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0010,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Another Option",
+      "role": "Another Option",
+      "guarantee": null
+     }
+    ],
+    "general|{}|100000-150000": [
+     {
+      "price": 59999,
+      "parts": "CPU=gid://shopify/Product/edge-0001,Cabinet=gid://shopify/Product/edge-0006,GPU=gid://shopify/Product/edge-0008,Motherboard=gid://shopify/Product/edge-0002,PSU=gid://shopify/Product/edge-0005,RAM=gid://shopify/Product/edge-0003,Storage=gid://shopify/Product/edge-0004",
+      "review": false,
+      "badge": "certified",
+      "label": "Insufficient information",
+      "chip": "Value Choice",
+      "role": "Value Choice",
+      "guarantee": "Confirmed specifications"
+     }
+    ]
+   }
+  }
+ }
+}

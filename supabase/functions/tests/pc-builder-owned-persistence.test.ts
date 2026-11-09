@@ -268,8 +268,11 @@ Deno.test("SIGN-IN: the page doesn't replace an open build, and a reload finds t
   assert(page.includes("owned: pending.ownedSlots || [],"));
 });
 
-Deno.test("PAGE: Expert Mode shows what's owned, and doesn't price it", () => {
-  assert(page.includes("Not included in the estimate. IT HUB will check it fits."));
+Deno.test("PAGE: Expert Mode shows what's owned, and doesn't price it", async () => {
+  // Stage 4A-3: the sentence now comes from the shared wording, on both screens (W23).
+  const { OWNED_PART_NOTE } = await import("../../../src/lib/builder/completeness-wording.ts");
+  assertEquals(OWNED_PART_NOTE, "Not included in the estimate. IT HUB will check it fits.");
+  assert(page.includes('<p className="mt-1 text-xs text-muted-foreground">{OWNED_PART_NOTE}</p>'));
   assert(page.includes("{owned.map((type) => ("));
   assert(page.includes("Not priced"));
 });

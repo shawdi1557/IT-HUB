@@ -7,6 +7,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+/** The most of one part a build can hold: four memory modules. More can't be priced here, so it goes to review. */
+const MAX_UNITS_PER_PART = 4;
 
 export interface QuotationVerificationDeps {
   supabaseClient?: any;
@@ -215,6 +217,12 @@ export async function handleQuotationVerification(
     const shopifyApiVersion = Deno.env.get("VITE_SHOPIFY_API_VERSION") || "2025-10";
     // A part with no variant can't be priced by Shopify, so the total can't be verified.
     const everyPartHasVariant = partsArray.length > 0 && variantGids.length === partsArray.length;
+    // Priced as the browser prices it: unit price times quantity, one when none is given. A quantity that isn't
+    // a whole number from 1 to 4 can't be priced, so the quotation goes to a technician with no verified price.
+    const quantities = partsArray.map((part) => (part.quantity === undefined ? 1 : part.quantity));
+    const quantitiesValid = quantities.every(
+      (quantity) => Number.isInteger(quantity) && quantity >= 1 && quantity <= MAX_UNITS_PER_PART,
+    );
     const unavailableParts: string[] = [];
 
     if (everyPartHasVariant && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
@@ -260,7 +268,7 @@ export async function handleQuotationVerification(
           for (const [index, node] of shopifyData.data.nodes.entries()) {
             if (node && node.price?.amount) {
               const price = Math.round(parseFloat(node.price.amount));
-              authoritativePrice += price;
+              authoritativePrice += price * (quantitiesValid ? quantities[index] : 1);
               foundNodes++;
               // What's stored is what Shopify says, whatever name and price the browser sent.
               const part = partsArray[index];
@@ -274,7 +282,7 @@ export async function handleQuotationVerification(
               }
             }
           }
-          if (foundNodes === variantGids.length && variantGids.length > 0) {
+          if (foundNodes === variantGids.length && variantGids.length > 0 && quantitiesValid) {
             hasAuthoritativeLookup = true;
           }
         }

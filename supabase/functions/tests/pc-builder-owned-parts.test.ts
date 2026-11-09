@@ -222,8 +222,13 @@ Deno.test("PAGE: every compatibility check on the page knows about owned parts",
 });
 
 Deno.test("PAGE: a quotation doesn't demand a part the customer owns", () => {
-  assert(page.includes("missingForQuotation(parts, owned)"));
-  assert(!page.includes("missingForQuotation(parts)"));
+  // Stage 4A-3: what a quotation still needs comes from assessBuild, given the owned parts on both pages.
+  assert(page.includes("assessParts(parts, summary, owned)"));
+  assert(page.includes("assessParts(parts, checks.summary, owned, initial.purpose)"));
+  const calls = page.match(/assessParts\(parts[^)]*\)/g) || [];
+  assertEquals(calls.length, 2, calls.join(" | "));
+  for (const call of calls) assert(call.includes("owned"), call);
+  assert(page.includes("ownedSlots: owned,\n    ...(purpose ? { purpose } : {}),"));
 });
 
 Deno.test("PAGE: Expert Mode keeps what the customer owns, until they buy that part", () => {
@@ -248,7 +253,8 @@ Deno.test("PAGE: Find My PC asks nothing about Wi-Fi or parts the customer owns"
 
 Deno.test("PAGE: Find My PC offers review builds beside confirmed ones", () => {
   assert(!page.includes("confirmed.length > 0"));
-  const start = page.indexOf("const builds = generateDynamicCatalogRecommendations(");
+  // The page asks for the whole offer, its builds and notices, since the strict range (7 November 2026).
+  const start = page.indexOf("const offer = generateCatalogOffer(");
   assert(start > 0);
   assert(page.slice(start, start + 200).includes("allowUnverified: true"));
 });

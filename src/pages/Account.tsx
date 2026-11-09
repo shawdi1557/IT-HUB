@@ -38,6 +38,8 @@ import {
   formatDate,
   type Build,
 } from "../data/catalog";
+import { summariseBuildPrice } from "../lib/builder/pricing";
+import { ASSEMBLY_NOT_SET } from "../lib/builder/completeness-wording";
 import { fetchUserSellRequests } from "../lib/sellRequests";
 import { updateCustomerProfile } from "../lib/auth";
 import { updateShopifyCartDiscountCodes } from "../lib/shopify";
@@ -1681,6 +1683,9 @@ function PcBuilds() {
   const [compare, setCompare] = useState<string[]>([]);
   const [viewing, setViewing] = useState<Build | null>(null);
   const assembly = store.assemblyCharge || 0;
+  // Priced as every builder screen prices it: owned parts never priced, the assembly charge added.
+  const estimate = (build: Build) =>
+    summariseBuildPrice(build.parts, { ownedSlots: build.owned, assembly }).total;
   const compared = compare
     .map((id) => store.builds.find((build) => build.id === id))
     .filter((build): build is Build => Boolean(build));
@@ -1707,7 +1712,7 @@ function PcBuilds() {
       ...["CPU", "GPU", "RAM", "Storage", "Motherboard", "PSU", "Cabinet", "Cooler"].map(
         (type) => `${type === "Cooler" ? "CPU Cooler" : type}:\n${buildPartName(build, type)}`,
       ),
-      `Estimated Price:\n${money(build.price + assembly)}`,
+      `Estimated Price:\n${money(estimate(build))}`,
       "Please confirm availability and provide the final quotation.",
     ].join("\n\n");
     store.log(`PC enquiry sent via WhatsApp: ${build.name}`);
@@ -1755,7 +1760,7 @@ function PcBuilds() {
             {compared.map((build) => (
               <div key={build.id} className="min-w-0 rounded-xl bg-white p-3">
                 <p className="truncate text-sm font-bold">{build.name}</p>
-                <p className="mt-1 font-semibold text-primary">{money(build.price + assembly)}</p>
+                <p className="mt-1 font-semibold text-primary">{money(estimate(build))}</p>
                 {build.designedFor && (
                   <p className="mt-1 text-muted-foreground">For {build.designedFor}</p>
                 )}
@@ -1822,7 +1827,7 @@ function PcBuilds() {
                   </p>
                 )}
               </div>
-              <strong className="text-primary">{money(build.price + assembly)}</strong>
+              <strong className="text-primary">{money(estimate(build))}</strong>
             </div>
             <p className="mt-3 text-xs leading-6 text-muted-foreground">
               {buildPartOrder
@@ -1929,13 +1934,16 @@ function PcBuilds() {
                   </p>
                 ))}
               <p className="flex justify-between gap-3 border-t border-border pt-2">
-                <span className="text-muted-foreground">Assembly / Service</span>
-                <strong>{assembly ? money(assembly) : "Free"}</strong>
+                <span className="text-muted-foreground">Assembly / Service Charge</span>
+                {/* Never "Free": IT HUB's assembly policy isn't confirmed (W31). */}
+                <strong className="text-right">
+                  {assembly ? money(assembly) : ASSEMBLY_NOT_SET}
+                </strong>
               </p>
             </div>
             <div className="mt-4 flex items-center justify-between">
               <span className="text-sm">Estimated Total</span>
-              <strong className="text-2xl text-primary">{money(viewing.price + assembly)}</strong>
+              <strong className="text-2xl text-primary">{money(estimate(viewing))}</strong>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
               Component prices and availability may change. Final pricing will be confirmed by IT

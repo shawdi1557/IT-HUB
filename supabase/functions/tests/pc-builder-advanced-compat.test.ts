@@ -1329,13 +1329,29 @@ Deno.test("ADV state: only a build whose every check passed is certified", () =>
 
 Deno.test("ADV state: the page shows each state, and never leaves a warning unmarked", async () => {
   const page = await Deno.readTextFile(new URL("../../../src/pages/Builder.tsx", import.meta.url));
-  assert(page.includes('build.confidenceBadge === "advisory"'));
+  // Stage 4A-3 (D10, W30): an advisory build has no chip. Its advice is on the card, and "See Advice" is gone.
+  assert(!page.includes("See Advice"));
   assert(page.includes('build.confidenceBadge === "review" && !build.requiresReview'));
   assert(page.includes("build.advisories || []"));
   assert(page.includes("{advice.explanation}"));
-  assertEquals(page.split("{check.advice}").length - 1, 2, "both pages show the advice");
-  assert(page.includes('summary.status === "conditional"'));
-  assert(page.includes('checks.summary.status === "conditional"'));
+  // Both pages show the advice under its own heading (W6), from one component.
+  assertEquals(page.split("{check.advice}").length - 1, 1, "the advice is written in one place");
+  // Stage 4A-3 closure (decision 2): from the same rows, less a check a part still to choose already explains.
+  assert(
+    page.includes("const shownChecks = customerChecks(result, summary, assessment);"),
+    "Expert Mode advises from its own rows",
+  );
+  assert(
+    page.includes("const shownChecks = customerChecks(checks.result, checks.summary, assessment);"),
+    "Find My PC advises from its own rows",
+  );
+  assertEquals(
+    page.split("<AdviceList checks={shownChecks} />").length - 1,
+    2,
+    "both pages show the advice",
+  );
+  // Each page's badge comes from the completeness state, which reads the engine's status (W1 to W6).
+  assertEquals(page.split("STATE_BADGE[assessment.state]").length - 1, 2, "both pages' badges");
   assert(page.includes("build.hasUnknownSpecs ?"));
 });
 

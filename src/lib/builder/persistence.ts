@@ -4,6 +4,7 @@
 import { supabase } from "../supabase";
 import type { CanonicalBuild } from "./types";
 import { checkCompatibility } from "./compatibility";
+import { partQuantity, summariseBuildPrice } from "./pricing";
 
 const LOCAL_STORAGE_KEY = "ithub_guest_pc_builds";
 
@@ -219,15 +220,9 @@ export async function deleteSavedBuild(buildId: string): Promise<boolean> {
   return true;
 }
 
+/** The parts being bought, as the quotation server prices them: owned and unavailable parts left out, no assembly. */
 export function calculateBuildTotal(build: CanonicalBuild): number {
-  const owned = new Set(build.ownedSlots || []);
-  let total = 0;
-  for (const [slot, comp] of Object.entries(build.components)) {
-    if (comp && !owned.has(slot as any)) {
-      total += comp.price * (comp.quantity || 1);
-    }
-  }
-  return total;
+  return summariseBuildPrice(build.components, { ownedSlots: build.ownedSlots }).componentTotal;
 }
 
 export interface CustomerContactInfo {
@@ -418,6 +413,8 @@ export async function submitQuotationRequest(
         title: comp.title,
         name: comp.title,
         price: comp.price,
+        // The server multiplies its own price by this, so both sides total the same.
+        quantity: partQuantity(comp),
         isShopifyLive: comp.isShopifyLive ?? Boolean(comp.variantId),
         specs: comp.specs || {},
       };

@@ -300,7 +300,8 @@ Deno.test("PHASE3-1: Multi-branch synthesizer returns distinct builds with 100% 
     min: 100000,
     max: 150000,
   });
-  assertEquals(recs.length >= 2, true);
+  // The strict range (7 November 2026) leaves out builds below ₹1,00,000, so fewer may qualify.
+  assertEquals(recs.length >= 1, true);
 
   // Verify 100% Diversity Metric D: Unique (CPU, GPU, RAM) triples
   const triples = recs.map((r) => `${r.parts.CPU?.name}|${r.parts.GPU?.name}|${r.parts.RAM?.name}`);
@@ -310,6 +311,7 @@ Deno.test("PHASE3-1: Multi-branch synthesizer returns distinct builds with 100% 
   // Verify all builds are strictly within budget
   for (const r of recs) {
     assertEquals(r.price <= 150000, true);
+    assertEquals(r.price >= 100000, true);
     assertEquals(Boolean(r.confidenceBadge), true);
   }
 });

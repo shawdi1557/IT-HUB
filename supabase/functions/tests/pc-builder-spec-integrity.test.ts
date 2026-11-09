@@ -112,9 +112,18 @@ Deno.test("SPEC: a build is only called compatible when nothing is unknown", () 
 
 Deno.test("SPEC: the builder's badges follow that status, not just the absence of errors", () => {
   const page = Deno.readTextFileSync("src/pages/Builder.tsx");
-  assert(page.includes("const { result, watts, recommended, valid, complete, summary } ="));
-  assertEquals(page.split('summary.status === "compatible"').length - 1, 5);
-  assertEquals(page.split('"Needs checking"').length - 1, 2);
+  // Stage 4A-3 (D10): each badge is the completeness state, which reads the engine's summary (W1 to W6).
+  assert(page.includes("const { result, watts, recommended, summary } ="));
+  assert(page.includes("const assessment = assessParts(parts, summary, owned);"));
+  assert(
+    page.includes("const assessment = assessParts(parts, checks.summary, owned, initial.purpose);"),
+  );
+  assertEquals(page.split("const badge = STATE_BADGE[assessment.state];").length - 1, 2);
+  assertEquals(page.split("<Badge tone={badge.tone}>{badge.label}</Badge>").length - 1, 2);
+  // Only the "why we recommend" list still reads the status itself, and only to claim nothing unless compatible.
+  assertEquals(page.split('summary.status === "compatible"').length - 1, 1);
+  assert(!page.includes('summary.status === "conditional"'));
+  assert(!page.includes("Needs checking") && !page.includes("See Advice"));
   assert(page.includes('"Specifications unverified"'));
   assert(!page.includes('{checks.valid ? "Compatible" : "Needs attention"}'));
   assert(!page.includes('complete ? "Compatible" : "In progress"'));

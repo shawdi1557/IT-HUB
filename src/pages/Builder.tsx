@@ -46,12 +46,31 @@ import {
   clearPendingQuotation,
   pendingMatchesBuild,
   generateWhatsAppQuotation,
-  generateDynamicCatalogRecommendations,
   getBudgetShortfallInfo,
+  generateCatalogOffer,
   hasRejectedSpecs,
   RANKING_BASIS,
   reconcileBuildParts,
+  summariseBuildPrice,
+  isUnavailablePart,
   toCanonicalComponent,
+  assessBuild,
+  blockerLines,
+  blockerMessage,
+  reviewNotes,
+  STATE_BADGE,
+  REVIEW_MESSAGE,
+  ADVICE_NOTE,
+  OWNED_PART_NOTE,
+  NO_LONGER_AVAILABLE,
+  ASSEMBLY_NOT_SET,
+  CARD_NEEDED_FOR_PURPOSE,
+  NO_CARD_AVAILABLE,
+  pickerReviewLabel,
+  cardStatus,
+  customerChecks,
+  purposeProfile,
+  type BuildAssessment,
   type CanonicalBuild,
   type CanonicalBuildComponent,
   type ComponentSlotId,
@@ -127,13 +146,17 @@ function RankingEvidence({ build, compact = false }: { build: DetailBuild; compa
   );
 }
 
+/** The roles on a card are selection rules, not labels: labels compare published specifications only. */
+const ROLE_BASIS =
+  "A choice that isn't a label, such as Value Choice, is a selection rule, explained on its build. It doesn't measure performance.";
+
 const UNVERIFIED_NOTICE =
   "Compatibility cannot be verified because required specifications are unavailable.";
 
 /** CPU, GPU, RAM and PSU stay in capitals in a sentence. */
 const inSentence = (type: string) => (/^[A-Z]{2,}$/.test(type) ? type : type.toLowerCase());
 
-const isUnavailable = (part?: ComponentOption) => part?.stock === 0;
+const isUnavailable = (part?: ComponentOption) => isUnavailablePart(part);
 
 /**
  * Parts that clash. A processor needing a graphics card that hasn't been picked yet is an unfinished
@@ -159,16 +182,96 @@ function useLiveParts(initial: Record<string, ComponentOption>) {
   return [parts, setParts] as const;
 }
 
-/** What still has to be chosen before a quotation can be requested. */
-function missingForQuotation(parts: Record<string, ComponentOption>, owned: string[] = []) {
-  const missing = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"].filter(
-    (type) => !parts[type] && !owned.includes(type),
+/**
+ * Whether a build can be quoted, and why not, from `assessBuild` (Stage 4A-3). Expert Mode and saved drafts
+ * pass no purpose and stay purpose-neutral; Find My PC passes the purpose its builds were found for (D6).
+ */
+function assessParts(
+  parts: Record<string, ComponentOption>,
+  summary: CompatibilitySummary,
+  owned: string[],
+  purpose?: string,
+): BuildAssessment {
+  return assessBuild(toCanonicalRecord(parts), summary, {
+    ownedSlots: owned,
+    ...(purpose ? { purpose } : {}),
+  });
+}
+
+/** Everything stopping a quotation or a save, one line each: Incompatible, Still to choose, unavailable. */
+function Blockers({ assessment, className }: { assessment: BuildAssessment; className: string }) {
+  const lines = blockerLines(assessment);
+  if (lines.length === 0) return null;
+  return (
+    <div className={className}>
+      {lines.map((line) => (
+        <div key={line.kind}>
+          <p>{line.text}</p>
+          {line.details?.map((detail) => (
+            <p key={detail}>{detail}</p>
+          ))}
+        </div>
+      ))}
+    </div>
   );
-  if (parts.CPU?.includesCooler === false && !parts.Cooler) missing.push("Cooler");
-  if (parts.CPU?.hasIntegratedGraphics === false && !parts.GPU && !owned.includes("GPU")) {
-    missing.push("GPU");
-  }
-  return missing;
+}
+
+/**
+ * Why IT HUB has to check the build: missing specifications, then the review sentence once, then each part
+ * whose need can't be confirmed or that the customer owns. The checks themselves are listed beside it.
+ */
+function ReviewNotice({
+  assessment,
+  hasUnknown,
+  className,
+}: {
+  assessment: BuildAssessment;
+  hasUnknown: boolean;
+  className: string;
+}) {
+  const review = assessment.state === "needs_review";
+  const notes = reviewNotes(assessment);
+  if (!hasUnknown && !review && notes.length === 0) return null;
+  const lead = [hasUnknown ? UNVERIFIED_NOTICE : "", review ? REVIEW_MESSAGE : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div
+      className={`rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 ${className}`}
+    >
+      {lead && <p>{lead}</p>}
+      {notes.length > 0 && (
+        <ul className={`${lead ? "mt-1 " : ""}list-disc space-y-0.5 pl-4`}>
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Conditional results the customer can read. They never change the badge or block a quotation (D3). */
+function AdviceList({ checks }: { checks: { label: string; advice?: string }[] }) {
+  const advice = checks.filter((check) => check.advice);
+  if (advice.length === 0) return null;
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <p className="text-xs font-semibold">Advice</p>
+      <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">{ADVICE_NOTE}</p>
+      <div className="mt-2 space-y-2">
+        {advice.map((check) => (
+          <p key={check.label} className="flex gap-2 text-xs leading-5 text-amber-700">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              {check.label}
+              <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+            </span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function PartThumb({ part }: { part?: ComponentOption }) {
@@ -273,21 +376,25 @@ function ExpertBuilder({
     parts: Array<{ type: string; name: string; price: number }>;
     buildName: string;
   } | null>(null);
-  const total = Object.values(parts).reduce(
-    (sum, item) => sum + (isUnavailable(item) ? 0 : item.price),
-    0,
-  );
   const [ownedAtStart, setOwnedAtStart] = useState(initialOwned);
   // Choosing a part for a slot means the customer is no longer using their own.
   const owned = ownedAtStart.filter((type) => !parts[type]);
+  // Priced as every screen prices it: owned and unavailable parts left out, the assembly charge added.
+  const pricing = summariseBuildPrice(parts, {
+    ownedSlots: owned,
+    assembly: store.assemblyCharge || 0,
+  });
+  const { componentTotal, assembly, total } = pricing;
   const ownedLabel = (type: string) => (owned.includes(type) ? "Already owned" : undefined);
-  const { result, watts, recommended, valid, complete, summary } = compatibility(parts, {
+  const { result, watts, recommended, summary } = compatibility(parts, {
     ownedSlots: owned,
   });
-  const unavailable = Object.keys(parts).filter((type) => isUnavailable(parts[type]));
-  const canRequest = complete && valid && unavailable.length === 0;
-  const hasConflict = Boolean(findConflict(summary.items));
-  const missing = missingForQuotation(parts, owned);
+  // Purpose-neutral (D6). Incompatible, Incomplete and unavailable builds can't be quoted or saved (D7).
+  const assessment = assessParts(parts, summary, owned);
+  const canRequest = assessment.quotationReady;
+  const badge = STATE_BADGE[assessment.state];
+  // Less the checks a part still to choose already explains (closure decision 2).
+  const shownChecks = customerChecks(result, summary, assessment);
 
   // After signing in, offer the build kept for it. A different build on screen is left alone.
   useEffect(() => {
@@ -336,7 +443,7 @@ function ExpertBuilder({
         id: res.id,
         name: canonical.name,
         parts: { ...parts },
-        price: total,
+        price: componentTotal,
         owned,
       };
       setCurrentId(res.id);
@@ -364,11 +471,7 @@ function ExpertBuilder({
   const handleRequestQuotation = async () => {
     if (submittingQuote) return;
     if (!canRequest) {
-      store.notify(
-        unavailable.length > 0
-          ? `Please replace what's no longer available: ${unavailable.join(", ")}.`
-          : "Please select all essential components and resolve any compatibility issues.",
-      );
+      store.notify(blockerMessage(assessment));
       return;
     }
 
@@ -415,7 +518,7 @@ function ExpertBuilder({
       setPendingRestored(false);
       setQuoteResult({
         referenceId: res.referenceId,
-        estimatedPrice: res.estimatedPrice ?? total,
+        estimatedPrice: (res.estimatedPrice ?? componentTotal) + assembly,
         parts: partList,
         buildName: name.trim() || "My custom PC",
       });
@@ -425,7 +528,7 @@ function ExpertBuilder({
             id: res.referenceId!,
             summary: name.trim() || "My custom PC",
             parts: partList,
-            estimate: total,
+            estimate: (res.estimatedPrice ?? componentTotal) + assembly,
             date: new Date().toISOString(),
             status: "New",
           },
@@ -487,9 +590,7 @@ function ExpertBuilder({
                   {parts[type]?.name || ownedLabel(type) || `Select a ${inSentence(type)}`}
                 </h2>
                 {ownedLabel(type) && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Not included in the estimate. IT HUB will check it fits.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{OWNED_PART_NOTE}</p>
                 )}
                 {parts[type] &&
                   (isUnavailable(parts[type]) ? (
@@ -548,7 +649,12 @@ function ExpertBuilder({
                     </p>
                     <p className="mt-0.5 font-medium">{part.name}</p>
                   </div>
-                  <strong className="shrink-0">{money(part.price)}</strong>
+                  {/* An unavailable part's price isn't in the total, so it isn't shown (W21). */}
+                  {assessment.unavailableSlots.includes(part.type as ComponentSlotId) ? (
+                    <strong className="shrink-0 text-red-600">{NO_LONGER_AVAILABLE}</strong>
+                  ) : (
+                    <strong className="shrink-0">{money(part.price)}</strong>
+                  )}
                 </div>
               ))}
               {owned.map((type) => (
@@ -568,10 +674,21 @@ function ExpertBuilder({
                 </p>
               )}
             </div>
-            <div className="flex items-end justify-between gap-3 border-t border-border pt-5">
+            {/* The same breakdown as Find My PC (W32). */}
+            <div className="space-y-2 border-t border-border pt-5 text-xs">
+              <p className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Component Total</span>
+                <span>{money(componentTotal)}</span>
+              </p>
+              <p className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Assembly / Service Charge</span>
+                <span className="text-right">{assembly ? money(assembly) : ASSEMBLY_NOT_SET}</span>
+              </p>
+            </div>
+            <div className="mt-4 flex items-end justify-between gap-3">
               <div>
                 <Badge>ESTIMATED PRICE</Badge>
-                <p className="mt-2 text-sm">Estimated Build Price</p>
+                <p className="mt-2 text-sm">Estimated Total</p>
               </div>
               <strong className="text-2xl">{money(total)}</strong>
             </div>
@@ -625,79 +742,55 @@ function ExpertBuilder({
               </Button>
             </div>
             {!canRequest && (
-              <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
-                {unavailable.length > 0
-                  ? `Replace what's no longer available: ${unavailable.join(", ")}.`
-                  : !complete
-                    ? `Still to choose: ${missing.join(", ")}.`
-                    : "Resolve compatibility errors before requesting a quotation."}
-              </p>
+              <Blockers
+                assessment={assessment}
+                className="mt-3 space-y-1 text-[10px] leading-5 text-muted-foreground"
+              />
             )}
           </div>
           <div className="rounded-lg bg-muted p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold">Compatibility</h3>
-              <Badge
-                tone={
-                  hasConflict
-                    ? "red"
-                    : !complete
-                      ? "gray"
-                      : summary.status === "compatible"
-                        ? "green"
-                        : "amber"
-                }
-              >
-                {hasConflict
-                  ? "Incompatible"
-                  : !complete
-                    ? "In progress"
-                    : summary.status === "compatible"
-                      ? "Compatible"
-                      : summary.status === "conditional"
-                        ? "See Advice"
-                        : "Needs checking"}
-              </Badge>
+              <Badge tone={badge.tone}>{badge.label}</Badge>
             </div>
-            {summary.items.some((item) => item.status === "unknown") && (
-              <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                {UNVERIFIED_NOTICE}
-              </p>
-            )}
+            <ReviewNotice
+              assessment={assessment}
+              hasUnknown={summary.items.some((item) => item.status === "unknown")}
+              className="mb-3"
+            />
             <div className="space-y-3">
-              {result.map((check, index) => {
-                const Icon =
-                  check.state === "ok"
-                    ? CheckCircle2
-                    : check.state === "error"
-                      ? XCircle
-                      : AlertTriangle;
-                return (
-                  <p
-                    key={index}
-                    className={`flex gap-2 text-xs leading-5 ${
-                      check.state === "ok"
-                        ? "text-emerald-700"
-                        : check.state === "error"
-                          ? "text-red-600"
-                          : "text-amber-700"
-                    }`}
-                  >
-                    <Icon size={15} className="mt-0.5 shrink-0" />
-                    <span>
-                      {check.label}
-                      {check.advice && (
-                        <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
-                      )}
-                      {check.missing && (
-                        <span className="mt-0.5 block break-words text-muted-foreground">
-                          {check.missing}
-                        </span>
-                      )}
-                    </span>
-                  </p>
-                );
-              })}
+              {shownChecks
+                .filter((check) => !check.advice)
+                .map((check, index) => {
+                  const Icon =
+                    check.state === "ok"
+                      ? CheckCircle2
+                      : check.state === "error"
+                        ? XCircle
+                        : AlertTriangle;
+                  return (
+                    <p
+                      key={index}
+                      className={`flex gap-2 text-xs leading-5 ${
+                        check.state === "ok"
+                          ? "text-emerald-700"
+                          : check.state === "error"
+                            ? "text-red-600"
+                            : "text-amber-700"
+                      }`}
+                    >
+                      <Icon size={15} className="mt-0.5 shrink-0" />
+                      <span>
+                        {check.label}
+                        {check.missing && (
+                          <span className="mt-0.5 block break-words text-muted-foreground">
+                            {check.missing}
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  );
+                })}
               {!result.length && (
                 <p className="text-xs leading-6 text-muted-foreground">
                   Checks appear as you choose your components.
@@ -709,6 +802,7 @@ function ExpertBuilder({
                 </p>
               ))}
             </div>
+            <AdviceList checks={shownChecks} />
             <div className="mt-5 flex items-start gap-3 border-t border-border pt-5">
               <Zap size={20} className="text-primary" />
               <div>
@@ -988,6 +1082,8 @@ const budgets: Budget[] = [
 ];
 const partOrder = ["CPU", "GPU", "Motherboard", "RAM", "Storage", "PSU", "Cooler", "Cabinet"];
 const partLabels: Record<string, string> = { Cooler: "CPU Cooler" };
+/** The recommendation's reason for a build that has no card (`recommendations.ts`, unchanged). */
+const INTEGRATED_GRAPHICS_HIGHLIGHT = "The processor's integrated graphics";
 const explanations: Record<string, string> = {
   CPU: "Handles general system processing and gaming workloads.",
   GPU: "Responsible primarily for gaming graphics and GPU-accelerated creative workloads.",
@@ -1033,6 +1129,11 @@ type DetailBuild = {
   purposeNotes?: string[];
   /** Where the compared parts' specifications came from. */
   specSources?: { CPU?: string; GPU?: string };
+  /**
+   * The Find My PC purpose this build was found for, which decides whether it needs a graphics card (D2). A
+   * saved build has none, and is purpose-neutral (D6).
+   */
+  purpose?: string;
 };
 
 function resolvedBudget(answers: Answers) {
@@ -1045,8 +1146,6 @@ function resolvedBudget(answers: Answers) {
       band.id === "150+" ? band.label.replace(/\s/g, "") : `${money(band.min)}–${money(band.max)}`,
   };
 }
-const sumParts = (parts: Record<string, ComponentOption>) =>
-  Object.values(parts).reduce((sum, item) => sum + item.price, 0);
 function alternativeFor(
   catalog: Record<string, ComponentOption[]>,
   parts: Record<string, ComponentOption>,
@@ -1187,16 +1286,31 @@ function BuildDetail({
       }
     }
   }, [store.loggedIn]);
-  const priced: Record<string, ComponentOption> = { ...parts };
-  owned.forEach((type) => delete priced[type]);
-  const unavailable = Object.keys(priced).filter((type) => isUnavailable(priced[type]));
-  unavailable.forEach((type) => delete priced[type]);
-  const componentTotal = sumParts(priced);
-  const assembly = store.assemblyCharge || 0;
-  const total = componentTotal + assembly;
+  const { componentTotal, assembly, total, lines } = summariseBuildPrice(parts, {
+    ownedSlots: owned,
+    assembly: store.assemblyCharge || 0,
+  });
+  // Each breakdown line is what the total counts for that part: unit price times quantity (Stage 4A-4).
+  const lineTotal = (type: string) => lines.find((line) => line.slot === type)?.lineTotal ?? 0;
   const checks = compatibility(parts, { ownedSlots: owned });
-  const canRequest = checks.valid && checks.complete && unavailable.length === 0;
-  const missing = missingForQuotation(parts, owned);
+  // With the purpose the build was found for, so a card it needs is still needed when customising (D2).
+  const assessment = assessParts(parts, checks.summary, owned, initial.purpose);
+  const canRequest = assessment.quotationReady;
+  const badge = STATE_BADGE[assessment.state];
+  // Less the checks a part still to choose already explains (closure decision 2).
+  const shownChecks = customerChecks(checks.result, checks.summary, assessment);
+  // Gaming, creation and professional need a card (D2), so the processor's own graphics are never offered
+  // as a way to finish the build (closure decision 1).
+  const needsCard = Boolean(
+    initial.purpose && purposeProfile(initial.purpose).requiresDedicatedGpu,
+  );
+  // The parts with a price: not the customer's own, and still available.
+  const priced: Record<string, ComponentOption> = Object.fromEntries(
+    Object.entries(parts).filter(
+      ([type]) =>
+        !owned.includes(type) && !assessment.unavailableSlots.includes(type as ComponentSlotId),
+    ),
+  );
   const changed = JSON.stringify(parts) !== JSON.stringify(initial.parts);
   // While customizing, every slot stays on screen, so a removed part can be added back.
   const rows = customizing
@@ -1206,15 +1320,18 @@ function BuildDetail({
     owned.includes(type)
       ? "Already owned"
       : parts[type]?.name ||
-        (type === "GPU" && parts.CPU?.hasIntegratedGraphics
+        (type === "GPU" && parts.CPU?.hasIntegratedGraphics && !needsCard
           ? "Integrated graphics (built into CPU)"
           : type === "GPU"
             ? "No graphics card selected"
             : "Not selected");
   const storageIsNvme = /nvme/i.test(parts.Storage?.interface || "");
   const why = [
-    ...initial.highlights,
-    !parts.GPU && parts.CPU?.hasIntegratedGraphics
+    // The recommendation's own reason for a build without a card isn't one for a use that needs a card.
+    ...initial.highlights.filter(
+      (highlight) => !(needsCard && highlight === INTEGRATED_GRAPHICS_HIGHLIGHT),
+    ),
+    !parts.GPU && parts.CPU?.hasIntegratedGraphics && !needsCard
       ? "Uses the processor's integrated graphics"
       : "",
     `Chosen for ${initial.designedFor}`,
@@ -1326,13 +1443,7 @@ function BuildDetail({
   const handleRequestQuotation = async () => {
     if (submittingQuote) return;
     if (!canRequest) {
-      store.notify(
-        unavailable.length > 0
-          ? `Please replace what's no longer available: ${unavailable.join(", ")}.`
-          : !checks.valid
-            ? "Please resolve compatibility issues before requesting a quotation."
-            : `Still to choose: ${missing.join(", ")}.`,
-      );
+      store.notify(blockerMessage(assessment));
       return;
     }
 
@@ -1344,6 +1455,8 @@ function BuildDetail({
         parts,
         name: name.trim() || initial.name,
         ownedSlots: owned,
+        // The purpose goes back with the build, so a card it needs is still needed after sign-in (D2).
+        ...(initial.purpose ? { intent: { purpose: initial.purpose } } : {}),
       });
       store.notify(
         "Please sign in to submit your official quotation request. Your build has been saved!",
@@ -1368,6 +1481,8 @@ function BuildDetail({
         parts,
         name: name.trim() || initial.name,
         ownedSlots: owned,
+        // The purpose goes back with the build, so a card it needs is still needed after sign-in (D2).
+        ...(initial.purpose ? { intent: { purpose: initial.purpose } } : {}),
       });
       store.notify("Please sign in to submit your official quotation request.");
       store.setAuthOpen(true);
@@ -1473,9 +1588,7 @@ function BuildDetail({
                       </p>
                       <p className="mt-0.5 text-sm font-semibold">{display(type)}</p>
                       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {isOwned
-                          ? "Not included in the estimate — you already own this."
-                          : explanations[type]}
+                        {isOwned ? OWNED_PART_NOTE : explanations[type]}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1538,68 +1651,52 @@ function BuildDetail({
             <div className="mt-4 rounded-2xl bg-muted p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold">Compatibility check</p>
-                <Badge
-                  tone={
-                    !checks.valid
-                      ? "red"
-                      : checks.summary.status === "compatible"
-                        ? "green"
-                        : "amber"
-                  }
-                >
-                  {!checks.valid
-                    ? "Needs attention"
-                    : checks.summary.status === "compatible"
-                      ? "Compatible"
-                      : checks.summary.status === "conditional"
-                        ? "See Advice"
-                        : "Needs checking"}
-                </Badge>
+                <Badge tone={badge.tone}>{badge.label}</Badge>
               </div>
-              {checks.summary.items.some((item) => item.status === "unknown") && (
-                <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                  {UNVERIFIED_NOTICE} IT HUB will check these before confirming your quotation.
-                </p>
-              )}
+              <ReviewNotice
+                assessment={assessment}
+                hasUnknown={checks.summary.items.some((item) => item.status === "unknown")}
+                className="mt-3"
+              />
               <div className="mt-3 space-y-1.5">
-                {checks.result.map((check, index) => (
-                  <p
-                    key={index}
-                    className={`flex gap-2 text-xs ${
-                      check.state === "ok"
-                        ? "text-emerald-700"
-                        : check.state === "error"
-                          ? "text-red-600"
-                          : "text-amber-700"
-                    }`}
-                  >
-                    {/* A check whose text wraps mustn't squeeze its icon. */}
-                    {check.state === "ok" ? (
-                      <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                    ) : check.state === "error" ? (
-                      <XCircle size={14} className="mt-0.5 shrink-0" />
-                    ) : (
-                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                    )}
-                    <span>
-                      {check.label}
-                      {check.advice && (
-                        <span className="mt-0.5 block text-muted-foreground">{check.advice}</span>
+                {shownChecks
+                  .filter((check) => !check.advice)
+                  .map((check, index) => (
+                    <p
+                      key={index}
+                      className={`flex gap-2 text-xs ${
+                        check.state === "ok"
+                          ? "text-emerald-700"
+                          : check.state === "error"
+                            ? "text-red-600"
+                            : "text-amber-700"
+                      }`}
+                    >
+                      {/* A check whose text wraps mustn't squeeze its icon. */}
+                      {check.state === "ok" ? (
+                        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                      ) : check.state === "error" ? (
+                        <XCircle size={14} className="mt-0.5 shrink-0" />
+                      ) : (
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                       )}
-                      {check.missing && (
-                        <span className="mt-0.5 block break-words text-muted-foreground">
-                          {check.missing}
-                        </span>
-                      )}
-                    </span>
-                  </p>
-                ))}
+                      <span>
+                        {check.label}
+                        {check.missing && (
+                          <span className="mt-0.5 block break-words text-muted-foreground">
+                            {check.missing}
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  ))}
                 {(checks.summary.notes || []).map((note) => (
                   <p key={note} className="text-xs leading-5 text-muted-foreground">
                     {note}
                   </p>
                 ))}
               </div>
+              <AdviceList checks={shownChecks} />
               {customizing && (
                 <button
                   onClick={() => onExpert(parts, name, owned)}
@@ -1637,11 +1734,16 @@ function BuildDetail({
             {breakdown && (
               <div className="mt-3 space-y-2 text-xs">
                 {partOrder
-                  .filter((type) => priced[type])
+                  .filter((type) => parts[type] && !owned.includes(type))
                   .map((type) => (
                     <p key={type} className="flex justify-between gap-3">
                       <span className="text-muted-foreground">{partLabels[type] || type}</span>
-                      <span>{money(priced[type].price)}</span>
+                      {/* An unavailable part's price isn't in the total, so it isn't shown (W21). */}
+                      {assessment.unavailableSlots.includes(type as ComponentSlotId) ? (
+                        <span className="text-red-600">{NO_LONGER_AVAILABLE}</span>
+                      ) : (
+                        <span>{money(lineTotal(type))}</span>
+                      )}
                     </p>
                   ))}
                 <p className="flex justify-between gap-3 border-t border-border pt-2 font-semibold">
@@ -1650,8 +1752,9 @@ function BuildDetail({
                 </p>
                 <p className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Assembly / Service Charge</span>
-                  <span className={assembly ? "" : "font-semibold text-emerald-700"}>
-                    {assembly ? money(assembly) : "Free"}
+                  {/* Never "Free": IT HUB's assembly policy isn't confirmed (W31). */}
+                  <span className="text-right">
+                    {assembly ? money(assembly) : ASSEMBLY_NOT_SET}
                   </span>
                 </p>
                 <p className="flex justify-between gap-3">
@@ -1723,13 +1826,7 @@ function BuildDetail({
                 </Button>
               )}
               {!canRequest && (
-                <p className="text-[11px] text-red-600">
-                  {unavailable.length > 0
-                    ? `Replace what's no longer available: ${unavailable.join(", ")}.`
-                    : !checks.valid
-                      ? "Resolve compatibility issues to continue."
-                      : `Still to choose: ${missing.join(", ")}.`}
-                </p>
+                <Blockers assessment={assessment} className="space-y-1 text-[11px] text-red-600" />
               )}
             </div>
           </div>
@@ -1818,7 +1915,13 @@ function BuildDetail({
         description="Each option is checked against the rest of your build, as far as its specifications allow."
       >
         <div className="space-y-3">
-          {selection === "GPU" && parts.GPU && parts.CPU?.hasIntegratedGraphics && (
+          {/* A use that needs a card says so, in place of offering the processor's own graphics (D2). */}
+          {selection === "GPU" && needsCard && (
+            <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+              {CARD_NEEDED_FOR_PURPOSE}
+            </p>
+          )}
+          {selection === "GPU" && parts.GPU && parts.CPU?.hasIntegratedGraphics && !needsCard && (
             <button
               className="flex w-full items-center justify-between rounded-xl border border-border p-4 text-left text-sm hover:bg-secondary"
               onClick={() => {
@@ -1875,7 +1978,7 @@ function BuildDetail({
                               : item.isVerified === false
                                 ? "Specifications unverified"
                                 : unverifiedCheck
-                                  ? `Needs checking: ${unverifiedCheck.label}`
+                                  ? pickerReviewLabel(unverifiedCheck.label)
                                   : "Compatible with this build"}
                     </p>
                   </div>
@@ -1938,7 +2041,7 @@ function SmartBuilder() {
               name: b.name,
               // Saved in the engine's model. An empty catalogue converts without judging availability.
               parts: reconcileBuildParts(b.components, {}).parts,
-              price: Object.values(b.components).reduce((sum, c) => sum + (c?.price || 0), 0),
+              price: summariseBuildPrice(b.components, { ownedSlots: b.ownedSlots }).componentTotal,
               designedFor: b.designedFor,
               templateId: b.templateId,
               owned: b.ownedSlots as any,
@@ -1972,6 +2075,8 @@ function SmartBuilder() {
         parts: pending.parts,
         owned: pending.ownedSlots || [],
         templateId: pending.build?.templateId,
+        // Kept with the build when it went to sign-in, so a card it needs is still needed (D2).
+        purpose: typeof pending.intent?.purpose === "string" ? pending.intent.purpose : undefined,
       });
       setMode("smart");
     }
@@ -1980,13 +2085,19 @@ function SmartBuilder() {
   const update = (next: Partial<Answers>) => setAnswers({ ...answers, ...next });
   const budget = resolvedBudget(answers);
   // Cheaper builds IT HUB has to check are offered beside confirmed ones, and each one says so.
-  const { recommendations, shortfallInfo } = useMemo(() => {
-    if (step !== 2) return { recommendations: [], shortfallInfo: null };
-    const builds = generateDynamicCatalogRecommendations(store.componentCatalog, answers, budget, {
+  const { recommendations, offerNotices, cheaperFrom, shortfallInfo } = useMemo(() => {
+    if (step !== 2) {
+      return { recommendations: [], offerNotices: [], cheaperFrom: undefined, shortfallInfo: null };
+    }
+    // Every build offered is within the range the customer chose (the owner's ruling, 7 November 2026).
+    const offer = generateCatalogOffer(store.componentCatalog, answers, budget, {
       allowUnverified: true,
     });
+    const builds = offer.builds;
     return {
       recommendations: builds,
+      offerNotices: offer.notices,
+      cheaperFrom: offer.cheaperFrom,
       shortfallInfo:
         builds.length > 0
           ? null
@@ -1995,6 +2106,24 @@ function SmartBuilder() {
             }),
     };
   }, [step, store.componentCatalog, answers, budget?.min, budget?.max]);
+  // Each card says what its build's page says on opening: the same assessment, with the same owned parts and
+  // purpose, and the same price summary, assembly included (Stage 4A-4).
+  const cardViews = useMemo(
+    () =>
+      recommendations.map((build) => {
+        const owned = build.owned || [];
+        const { summary } = compatibility(build.parts, { ownedSlots: owned });
+        const assessment = assessParts(build.parts, summary, owned, answers.purpose || undefined);
+        return {
+          status: cardStatus(assessment, build),
+          price: summariseBuildPrice(build.parts, {
+            ownedSlots: owned,
+            assembly: store.assemblyCharge || 0,
+          }),
+        };
+      }),
+    [recommendations, answers.purpose, store.assemblyCharge],
+  );
   const essentialSlots = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
   const missingSlots = essentialSlots.filter(
     (slot) =>
@@ -2002,6 +2131,10 @@ function SmartBuilder() {
       !(store.componentCatalog[slot] || []).some((part) => !hasRejectedSpecs(part.specs)),
   );
   const purposeInfo = purposes.find((item) => item.id === answers.purpose);
+  // A use that needs a card is never shown the processor's own graphics as its card (D2).
+  const cardNeeded = Boolean(
+    answers.purpose && purposeProfile(answers.purpose).requiresDedicatedGpu,
+  );
   const basedOn = [purposeInfo?.title, budget?.label].filter(Boolean).join(" • ");
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const go = (next: number) => {
@@ -2110,9 +2243,10 @@ function SmartBuilder() {
                     <h3 className="text-xs font-bold text-foreground line-clamp-1">{b.name}</h3>
                     <p className="text-xs text-primary font-bold mt-1">
                       {money(
-                        Object.values(
+                        summariseBuildPrice(
                           reconcileBuildParts(b.parts, store.componentCatalog).parts,
-                        ).reduce((sum, part) => sum + (isUnavailable(part) ? 0 : part.price), 0),
+                          { ownedSlots: b.owned, assembly: store.assemblyCharge || 0 },
+                        ).total,
                       )}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -2148,7 +2282,8 @@ function SmartBuilder() {
     return (
       <Page>
         <BuildDetail
-          key={JSON.stringify(detail.parts) + detail.name}
+          // The purpose too: the same build opened for another use starts afresh, with nothing kept over.
+          key={JSON.stringify(detail.parts) + detail.name + (detail.purpose || "")}
           initial={detail}
           savedId={saved?.id}
           startCustomizing={Boolean(saved)}
@@ -2269,6 +2404,7 @@ function SmartBuilder() {
             Based on: <strong className="text-foreground">{basedOn}</strong>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{RANKING_BASIS}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{ROLE_BASIS}</p>
           <div className="mt-6">
             <CatalogWarning />
           </div>
@@ -2277,122 +2413,142 @@ function SmartBuilder() {
               <p className="text-sm font-medium text-muted-foreground">Loading live products…</p>
             </div>
           ) : recommendations.length ? (
-            <div className="mt-8 grid gap-4 lg:grid-cols-3">
-              {recommendations.map((build, index) => {
-                const unavailable = Object.values(build.parts).some(
-                  (part: any) => part?.stock === 0,
-                );
-                return (
-                  <article
-                    key={build.templateId}
-                    className="flex flex-col rounded-3xl border border-border bg-white p-6"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
-                        BUILD 0{index + 1}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <Badge>{build.tradeoff}</Badge>
-                        {build.confidenceBadge === "certified" && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
-                            title="Every component's specifications are on IT HUB's specification list, and every check passed."
-                          >
-                            <CheckCircle2 size={11} className="text-emerald-600" /> Specs Confirmed
-                          </span>
-                        )}
-                        {build.confidenceBadge === "advisory" && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-                            title="Every component's specifications are on file. Read the advice on this build."
-                          >
-                            <AlertTriangle size={11} className="text-amber-600" /> See Advice
-                          </span>
-                        )}
-                        {(build.confidenceBadge === "high" ||
-                          (build.confidenceBadge === "review" && !build.requiresReview)) && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-                            title="Core components have stated specifications. IT HUB confirms the rest."
-                          >
-                            <AlertTriangle size={11} className="text-amber-600" /> Some Specs
-                            Unconfirmed
-                          </span>
-                        )}
-                        {build.requiresReview && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                            <AlertTriangle size={11} className="text-amber-600" /> Needs IT HUB
-                            review
-                          </span>
-                        )}
+            <>
+              {offerNotices.length > 0 && (
+                <div className="mt-6 space-y-1 text-sm text-muted-foreground">
+                  {offerNotices.map((notice) => (
+                    <p key={notice}>{notice}</p>
+                  ))}
+                </div>
+              )}
+              <div className="mt-8 grid gap-4 lg:grid-cols-3">
+                {recommendations.map((build, index) => {
+                  // The card's state, chips and price, as its build's page will show them (Stage 4A-4).
+                  const { status, price } = cardViews[index];
+                  return (
+                    <article
+                      key={build.templateId}
+                      className="flex flex-col rounded-3xl border border-border bg-white p-6"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-bold tracking-widest text-muted-foreground">
+                          BUILD 0{index + 1}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Badge>{build.tradeoff}</Badge>
+                          {/* Incompatible or Incomplete: no chip that says the build passed or only needs review. */}
+                          {status.badge && (
+                            <Badge tone={status.badge.tone}>{status.badge.label}</Badge>
+                          )}
+                          {status.specsConfirmed && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800"
+                              title="Every component's specifications are on IT HUB's specification list, and every check passed."
+                            >
+                              <CheckCircle2 size={11} className="text-emerald-600" /> Specs
+                              Confirmed
+                            </span>
+                          )}
+                          {/* An advisory build has no chip: its advice is shown on the card (W30). */}
+                          {!status.badge &&
+                            (build.confidenceBadge === "high" ||
+                              (build.confidenceBadge === "review" && !build.requiresReview)) && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                                title="Core components have stated specifications. IT HUB confirms the rest."
+                              >
+                                <AlertTriangle size={11} className="text-amber-600" /> Some Specs
+                                Unconfirmed
+                              </span>
+                            )}
+                          {status.review && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                              <AlertTriangle size={11} className="text-amber-600" /> Needs IT HUB
+                              review
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <h2 className="mt-3 text-xl font-bold">{build.name}</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Designed for {build.designedFor}
-                    </p>
-                    <RankingEvidence build={build} compact />
-                    <ul className="mt-5 space-y-2 text-sm">
-                      {["CPU", "GPU", "RAM", "Storage"].map((type) => (
-                        <li key={type} className="flex gap-2">
-                          <span className="w-16 shrink-0 text-xs text-muted-foreground">
-                            {type}
-                          </span>
-                          <span className="font-medium">
-                            {build.owned.includes(type)
-                              ? "Already owned"
-                              : build.parts[type]?.name ||
-                                (type === "GPU" && build.parts.CPU?.hasIntegratedGraphics
-                                  ? "Integrated graphics"
-                                  : "—")}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-auto pt-6">
-                      <p className="text-xs text-muted-foreground">Estimated price</p>
-                      <p className="font-display text-2xl font-bold text-primary">
-                        {money(build.price + (store.assemblyCharge || 0))}
-                      </p>
-                      {build.note && (
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{build.note}</p>
-                      )}
-                      {build.requiresReview && (
-                        <p className="mt-2 text-xs leading-5 text-amber-800">
-                          {build.hasUnknownSpecs ? `${UNVERIFIED_NOTICE} ` : ""}IT HUB will check
-                          this build before confirming it.
+                      <h2 className="mt-3 text-xl font-bold">{build.name}</h2>
+                      {/* A use that needs a card, with none to offer: nothing suggests the processor's graphics will do. */}
+                      {status.noCardAvailable ? (
+                        <p className="mt-1 text-xs font-medium text-foreground">
+                          {NO_CARD_AVAILABLE}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Designed for {build.designedFor}
                         </p>
                       )}
-                      {(build.advisories || []).map(
-                        (advice: { label: string; explanation: string }) => (
-                          <div
-                            key={advice.label}
-                            className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"
-                          >
-                            <p className="font-semibold">{advice.label}</p>
-                            <p>{advice.explanation}</p>
-                          </div>
-                        ),
-                      )}
-                      {unavailable && (
-                        <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
-                          <PackageX size={13} /> One part is out of stock — alternative available
+                      <RankingEvidence build={build} compact />
+                      <ul className="mt-5 space-y-2 text-sm">
+                        {["CPU", "GPU", "RAM", "Storage"].map((type) => (
+                          <li key={type} className="flex gap-2">
+                            <span className="w-16 shrink-0 text-xs text-muted-foreground">
+                              {type}
+                            </span>
+                            <span className="font-medium">
+                              {build.owned.includes(type)
+                                ? "Already owned"
+                                : build.parts[type]?.name ||
+                                  (type === "GPU" && cardNeeded
+                                    ? "No graphics card selected"
+                                    : type === "GPU" && build.parts.CPU?.hasIntegratedGraphics
+                                      ? "Integrated graphics"
+                                      : "—")}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-auto pt-6">
+                        <p className="text-xs text-muted-foreground">Estimated price</p>
+                        <p className="font-display text-2xl font-bold text-primary">
+                          {money(price.total)}
                         </p>
-                      )}
-                      <Button
-                        className="mt-5 w-full"
-                        onClick={() => {
-                          setDetail(build);
-                          scrollTop();
-                        }}
-                      >
-                        View Build <ArrowRight size={15} />
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                        {build.note && (
+                          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                            {build.note}
+                          </p>
+                        )}
+                        {/* It can't be quoted yet, so it doesn't say it can (W26). */}
+                        {status.review && (
+                          <p className="mt-2 text-xs leading-5 text-amber-800">
+                            {build.hasUnknownSpecs ? `${UNVERIFIED_NOTICE} ` : ""}
+                            {REVIEW_MESSAGE}
+                          </p>
+                        )}
+                        {(build.advisories || []).map(
+                          (advice: { label: string; explanation: string }) => (
+                            <div
+                              key={advice.label}
+                              className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800"
+                            >
+                              <p className="font-semibold">{advice.label}</p>
+                              <p>{advice.explanation}</p>
+                            </div>
+                          ),
+                        )}
+                        {status.outOfStock && (
+                          <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
+                            <PackageX size={13} /> One part is out of stock — alternative available
+                          </p>
+                        )}
+                        <Button
+                          className="mt-5 w-full"
+                          onClick={() => {
+                            // Opened with its purpose, which decides whether it needs a card (D2).
+                            setDetail({ ...build, purpose: answers.purpose || undefined });
+                            scrollTop();
+                          }}
+                        >
+                          View Build <ArrowRight size={15} />
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
           ) : missingSlots.length > 0 ? (
             <div className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-950">
               <PackageX className="mx-auto h-10 w-10 text-amber-700 mb-3" />
@@ -2436,7 +2592,10 @@ function SmartBuilder() {
               <div className="mt-6 flex flex-wrap justify-center gap-3">
                 <Button
                   onClick={() => {
-                    setDetail(shortfallInfo.closestBuild);
+                    setDetail({
+                      ...shortfallInfo.closestBuild,
+                      purpose: answers.purpose || undefined,
+                    });
                     scrollTop();
                   }}
                 >
@@ -2452,6 +2611,38 @@ function SmartBuilder() {
                 <a
                   href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
                     `Hi IT HUB, I was looking for a custom PC for ${basedOn || "custom use"} with budget ${budget?.label || "custom"}. The closest build starts at ${money(shortfallInfo.closestBuild.price)} (Shortfall: ${money(shortfallInfo.shortfallAmount)}). Could you assist with component sourcing or custom pricing?`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:brightness-95 transition"
+                >
+                  <WhatsAppIcon size={16} /> Contact on WhatsApp
+                </a>
+              </div>
+            </div>
+          ) : cheaperFrom !== undefined ? (
+            // Nothing within the range: what the builds found cost is said, and none below it is offered.
+            <div className="mt-8 rounded-3xl border border-blue-200 bg-blue-50/70 p-8 text-center text-slate-900">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700 mb-3">
+                <SlidersHorizontal size={22} />
+              </div>
+              <h2 className="text-xl font-bold">
+                No suitable build was found within {budget?.label || "your range"}
+              </h2>
+              <p className="mt-2 text-sm text-slate-700 max-w-xl mx-auto">
+                The suitable builds we found cost less, from{" "}
+                <strong className="text-foreground">{money(cheaperFrom)}</strong>.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button onClick={() => go(1)}>
+                  <RotateCcw size={14} /> Adjust Budget
+                </Button>
+                <Button variant="secondary" onClick={() => setMode("expert")}>
+                  <Wrench size={14} /> Open Expert Mode
+                </Button>
+                <a
+                  href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
+                    `Hi IT HUB, I was looking for a custom PC for ${basedOn || "custom use"} with budget ${budget?.label || "custom"}. The suitable builds found cost less, from ${money(cheaperFrom)}. Could you help me choose?`,
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"

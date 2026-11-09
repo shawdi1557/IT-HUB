@@ -214,7 +214,38 @@ export interface CanonicalBuild {
   updatedAt: string;
 }
 
-export type BuildPurpose = "gaming" | "creation" | "programming" | "office" | "general" | "custom";
+/** Every purpose the Find My PC page offers, plus "custom". `work` and `professional` are sent by the page. */
+/**
+ * The rule that put a build on offer, when no evidence label did (Stage 3 contract, sections 2.2 and 11). A role
+ * is a selection rule only: it never says a build is compatible, confirmed or faster.
+ */
+export type OfferRole =
+  | "Value Choice"
+  | "Performance Priority"
+  | "Balanced Choice"
+  | "Another Option";
+
+/**
+ * The chip of a Stage 2 guarantee build that has neither an evidence label nor a role. The owner's wording,
+ * used only where it's true of the build: a confirmed build whose specifications aren't all confirmed says it
+ * needs no review, and a cheaper twin that doesn't need review says some specifications are unconfirmed.
+ */
+export type GuaranteeReason =
+  | "No graphics card"
+  | "Confirmed specifications"
+  | "No review needed"
+  | "Review required"
+  | "Some specifications unconfirmed";
+
+export type BuildPurpose =
+  | "gaming"
+  | "creation"
+  | "work"
+  | "programming"
+  | "professional"
+  | "office"
+  | "general"
+  | "custom";
 
 export interface GuidedAnswers {
   purpose: BuildPurpose;
