@@ -290,7 +290,8 @@ Deno.test("S4A-W10 (D3, W6): an advice-only build is Compatible, and its advice 
 
 Deno.test("S4A-W11: both screens badge, block and explain from the assessment, never their own rules", () => {
   assertEquals(page.split("const canRequest = assessment.quotationReady;").length - 1, 2);
-  assertEquals(page.split("store.notify(blockerMessage(assessment));").length - 1, 2);
+  // Both quotation requests, both saves and the WhatsApp request (the last three guarded since Stage 4A-5).
+  assertEquals(page.split("store.notify(blockerMessage(assessment));").length - 1, 5);
   assertEquals(page.split("<Blockers").length - 1, 2);
   assertEquals(page.split("<ReviewNotice").length - 1, 2);
   // The old per-screen rules are gone.
@@ -332,12 +333,13 @@ Deno.test("S4A-W12 (D6): only Find My PC passes a purpose; saved builds and Expe
 
 Deno.test("S4A-W13 (W21, W31, W32): unavailable parts show no price, and assembly is never called free", () => {
   assertEquals(page.split("{NO_LONGER_AVAILABLE}").length - 1, 2);
-  assertEquals(page.split("ASSEMBLY_NOT_SET}").length - 1, 2);
+  // Both screens, and the confirmation after a request (Stage 4A-5).
+  assertEquals(page.split("ASSEMBLY_NOT_SET}").length - 1, 3);
   assert(account.includes("{assembly ? money(assembly) : ASSEMBLY_NOT_SET}"));
   for (const source of [page, account]) assert(!source.includes(': "Free"'));
-  // Expert Mode's breakdown matches Find My PC's.
+  // Expert Mode's breakdown matches Find My PC's, and so does the confirmation after a request (Stage 4A-5).
   for (const label of ["Component Total", "Assembly / Service Charge", "Estimated Total"]) {
-    assertEquals(page.split(`>${label}<`).length - 1, 2, label);
+    assertEquals(page.split(`>${label}<`).length - 1, 3, label);
   }
   assert(account.includes("Assembly / Service Charge"));
 });

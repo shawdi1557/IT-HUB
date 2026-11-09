@@ -2,7 +2,18 @@
 // IT HUB PC Builder Commerce & Quotation Finalization Layer
 // Prepares Shopify multi-item cart checkouts and structured WhatsApp quotations.
 
-import type { CanonicalBuild, ComponentSlotId } from "./types";
+import type { CanonicalBuild, CompatibilitySummary, ComponentSlotId } from "./types";
+import { checkCompatibility } from "./compatibility";
+import { assessBuild, type BuildAssessment } from "./completeness";
+import {
+  ASSEMBLY_NOT_SET,
+  NO_LONGER_AVAILABLE,
+  STATE_BADGE,
+  WHATSAPP_ESTIMATE_NOTE,
+  WHATSAPP_HEADING,
+  slotLabel,
+} from "./completeness-wording";
+import { COMPONENT_SLOTS } from "./slots";
 import { createShopifyCart, checkShopifyAvailability, shopifyConfig } from "../shopify";
 import {
   CHECKOUT_EMAIL_REQUIRED,
@@ -131,33 +142,49 @@ export interface QuotationMessageResult {
 }
 
 /**
- * Generates a formal, structured quotation request for IT HUB Kothamangalam via WhatsApp.
+ * The customer's WhatsApp message to IT HUB: a quotation request with an estimate, never a confirmed quotation
+ * or a confirmed compatibility (Stage 4A-5, the owner's approved wording). Priced as every screen prices it, and
+ * the build's status is its assessment's: the page passes its own, with the use a Find My PC build was found for.
  */
 export function generateWhatsAppQuotation(
   build: CanonicalBuild,
   whatsappPhone: string,
+  options: { assessment?: BuildAssessment; assembly?: number } = {},
 ): QuotationMessageResult {
   const referenceId = `ITHUB-PC-${Date.now().toString(36).toUpperCase()}`;
-  const owned = new Set(build.ownedSlots || []);
-
-  const partsList: string[] = [];
-  // Priced as every screen prices it: owned and unavailable parts left out, quantity counted.
-  const total = summariseBuildPrice(build.components, {
+  const components = build.components || {};
+  const price = summariseBuildPrice(components, {
     ownedSlots: build.ownedSlots,
-  }).componentTotal;
+    assembly: options.assembly || 0,
+  });
+  const owned = new Set<string>([...(build.ownedSlots || []), ...price.ownedSlots]);
+  // A build without a full summary (a stored or hand-made one) is checked here, purpose-neutral (D6).
+  const summary: CompatibilitySummary = Array.isArray((build.compatibility as any)?.items)
+    ? build.compatibility
+    : checkCompatibility(components, { ownedSlots: [...owned] });
+  const assessment =
+    options.assessment ||
+    assessBuild(components, summary, { ownedSlots: [...owned] as ComponentSlotId[] });
 
-  for (const [slot, comp] of Object.entries(build.components)) {
-    if (!comp) continue;
-    const isOwned = owned.has(slot as ComponentSlotId);
-    if (isOwned) {
-      partsList.push(`• ${slot}: ${comp.title} (Already Owned)`);
-    } else {
-      partsList.push(`• ${slot}: ${comp.title} — ${money(comp.price)}`);
+  // Each part in the builder's order: the customer's own, one no longer available, or its line total.
+  const order = COMPONENT_SLOTS.map((slot) => slot.id as string);
+  const slots = [
+    ...order.filter((slot) => owned.has(slot) || (components as any)[slot]),
+    ...Object.keys(components).filter((slot) => !order.includes(slot) && (components as any)[slot]),
+  ];
+  const partsList = slots.map((slot) => {
+    const label = slotLabel(slot as ComponentSlotId);
+    if (owned.has(slot)) return `• ${label}: (Already owned)`;
+    const part = (components as any)[slot];
+    if (price.unavailableSlots.includes(slot)) {
+      return `• ${label}: ${part.title} — ${NO_LONGER_AVAILABLE}`;
     }
-  }
+    const line = price.lines.find((item) => item.slot === slot);
+    return `• ${label}: ${part.title} — ${money(line ? line.lineTotal : 0)}`;
+  });
 
   const message = [
-    `*IT HUB PC CONFIGURATION QUOTATION*`,
+    WHATSAPP_HEADING,
     `Ref: ${referenceId}`,
     `Build Name: ${build.name}`,
     `Date: ${new Date().toLocaleDateString("en-IN")}`,
@@ -165,9 +192,12 @@ export function generateWhatsAppQuotation(
     `*Selected Components:*`,
     ...partsList,
     ``,
-    `*Estimated Total: ${money(total)}*`,
-    `Power Estimate: ~${build.compatibility.estimatedSystemLoadWatts}W (Rec. ${build.compatibility.recommendedPsuWatts}W PSU)`,
-    `Compatibility Status: ${build.compatibility.status === "compatible" ? "No issues found in the stated specifications" : build.compatibility.valid ? "Needs checking by IT HUB" : "Requires Review"}`,
+    `Component Total: ${money(price.componentTotal)}`,
+    `Assembly / Service Charge: ${price.assembly ? money(price.assembly) : ASSEMBLY_NOT_SET}`,
+    `*Estimated Total: ${money(price.total)}*`,
+    `Power Estimate: ~${summary.estimatedSystemLoadWatts}W (Rec. ${summary.recommendedPsuWatts}W PSU)`,
+    `Build status: ${STATE_BADGE[assessment.state].label}`,
+    WHATSAPP_ESTIMATE_NOTE,
     ``,
     `Hello IT HUB, please confirm component stock availability and provide your best quotation including assembly and testing at your Kothamangalam store.`,
   ].join("\n");

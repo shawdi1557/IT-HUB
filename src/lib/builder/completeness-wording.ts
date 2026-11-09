@@ -79,7 +79,13 @@ export function pickerReviewLabel(check: string): string {
 }
 
 const SLOT_LABELS: Partial<Record<ComponentSlotId, string>> = { Cooler: "CPU Cooler" };
-const slotLabel = (slot: ComponentSlotId) => SLOT_LABELS[slot] || slot;
+/** A part's name in a list: "CPU Cooler" for the cooler, the slot's own name otherwise. */
+export const slotLabel = (slot: ComponentSlotId) => SLOT_LABELS[slot] || slot;
+
+/** The WhatsApp message (Stage 4A-5, the owner's approved wording, 9 November 2026): a request, with an estimate. */
+export const WHATSAPP_HEADING = "*IT HUB PC BUILD — QUOTATION REQUEST*";
+export const WHATSAPP_ESTIMATE_NOTE =
+  "Estimate only. IT HUB will check this build before confirming your quotation.";
 /** CPU, GPU, RAM and PSU stay in capitals in a sentence; "storage", "CPU cooler" don't. */
 const inSentence = (slot: ComponentSlotId) =>
   slot === "Cooler" ? "CPU cooler" : /^[A-Z]{2,}$/.test(slot) ? slot : slot.toLowerCase();

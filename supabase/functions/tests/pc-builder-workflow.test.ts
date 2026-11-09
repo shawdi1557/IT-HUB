@@ -763,12 +763,23 @@ Deno.test("WORKFLOW: the WhatsApp message doesn't claim a compatibility it didn'
     generateWhatsAppQuotation(build("unknown", true), "91").whatsappUrl,
   );
   assert(!unknown.includes("Verified Compatible"));
-  assert(unknown.includes("Needs checking by IT HUB"));
+  // Stage 4A-5 (the owner's approved wording): a request with an estimate, and the build's own status. With no
+  // assessment passed, the message assesses the build itself: here, with no parts, it's Incomplete.
+  for (const claim of ["No issues found", "CONFIGURATION QUOTATION", "Compatibility Status"]) {
+    assert(!unknown.includes(claim), claim);
+  }
+  assert(unknown.includes("*IT HUB PC BUILD — QUOTATION REQUEST*"));
+  assert(unknown.includes("Build status: Incomplete"));
   assert(
-    generateWhatsAppQuotation(build("incompatible", false), "91").message.includes(
-      "Requires Review",
+    unknown.includes(
+      "Estimate only. IT HUB will check this build before confirming your quotation.",
     ),
   );
+  // The page passes its own assessment, so the message says what the screen says.
+  const reviewed = generateWhatsAppQuotation(build("unknown", true), "91", {
+    assessment: { state: "needs_review" } as any,
+  }).message;
+  assert(reviewed.includes("Build status: Needs IT HUB review"));
 });
 
 Deno.test("WORKFLOW: no made-up WhatsApp number is used when none is configured", () => {

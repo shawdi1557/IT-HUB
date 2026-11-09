@@ -274,6 +274,114 @@ function AdviceList({ checks }: { checks: { label: string; advice?: string }[] }
   );
 }
 
+/** A quotation request that reached IT HUB: each part at its line total, then the screen's breakdown (W32). */
+type QuoteResult = {
+  referenceId: string;
+  buildName: string;
+  parts: Array<{ type: string; name: string; price: number }>;
+  componentTotal: number;
+  assembly: number;
+};
+
+/** The confirmation after a quotation request, the same on both screens (Stage 4A-5). */
+function QuoteReceived({
+  result,
+  whatsapp,
+  onClose,
+}: {
+  result: QuoteResult | null;
+  whatsapp: string;
+  onClose: () => void;
+}) {
+  const estimatedTotal = result ? result.componentTotal + result.assembly : 0;
+  return (
+    <Modal
+      open={Boolean(result)}
+      onOpenChange={(open) => !open && onClose()}
+      title="Your PC Build Request Has Been Received!"
+      description="Quotation Request Confirmation"
+    >
+      {result && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
+            <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
+              <CheckCircle2 size={16} className="text-emerald-600" />
+              <span>Reference ID: {result.referenceId}</span>
+            </div>
+            <p>
+              Thank you for choosing IT HUB. Our team will review your selected components, verify
+              current availability, and contact you soon with the final quotation.
+            </p>
+          </div>
+
+          <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
+            <p className="font-semibold text-foreground mb-2">Build: {result.buildName}</p>
+            {result.parts.map((part) => (
+              <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
+                <span>
+                  <strong className="text-foreground">{partLabels[part.type] || part.type}:</strong>{" "}
+                  {part.name}
+                </span>
+                <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
+              </p>
+            ))}
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-border p-4 bg-card text-xs">
+            <p className="flex justify-between gap-3">
+              <span className="text-muted-foreground">Component Total</span>
+              <span>{money(result.componentTotal)}</span>
+            </p>
+            <p className="flex justify-between gap-3">
+              <span className="text-muted-foreground">Assembly / Service Charge</span>
+              {/* Never "Free": IT HUB's assembly policy isn't confirmed (W31). */}
+              <span className="text-right">
+                {result.assembly ? money(result.assembly) : ASSEMBLY_NOT_SET}
+              </span>
+            </p>
+            <div className="flex items-end justify-between gap-3 border-t border-border pt-2">
+              <div>
+                <span className="text-xs font-semibold text-muted-foreground">Estimated Total</span>
+                <p className="text-[10px] text-muted-foreground">
+                  (Estimate only — final price will be confirmed in your official quotation)
+                </p>
+              </div>
+              <strong className="text-2xl text-primary">{money(estimatedTotal)}</strong>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+            <Info size={16} className="text-primary shrink-0" />
+            <p>
+              <strong className="text-foreground">Next step: </strong>
+              Our team will contact you soon after reviewing your build.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row gap-2">
+            <Button className="flex-1" onClick={onClose}>
+              Continue Building
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <a
+              href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(
+                `Hi IT HUB, I've requested a quotation for PC Build "${result.buildName}" (Ref: ${result.referenceId}, Est: ${money(estimatedTotal)}). Looking forward to hearing from you!`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
+            >
+              <WhatsAppIcon size={16} /> Send via WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function PartThumb({ part }: { part?: ComponentOption }) {
   const image = part?.image && !part.image.includes("placeholder") ? part.image : "";
   return (
@@ -370,12 +478,7 @@ function ExpertBuilder({
   const [savingBuild, setSavingBuild] = useState(false);
   const [submittingQuote, setSubmittingQuote] = useState(false);
   const [pendingRestored, setPendingRestored] = useState(false);
-  const [quoteResult, setQuoteResult] = useState<{
-    referenceId: string;
-    estimatedPrice: number;
-    parts: Array<{ type: string; name: string; price: number }>;
-    buildName: string;
-  } | null>(null);
+  const [quoteResult, setQuoteResult] = useState<QuoteResult | null>(null);
   const [ownedAtStart, setOwnedAtStart] = useState(initialOwned);
   // Choosing a part for a slot means the customer is no longer using their own.
   const owned = ownedAtStart.filter((type) => !parts[type]);
@@ -385,6 +488,9 @@ function ExpertBuilder({
     assembly: store.assemblyCharge || 0,
   });
   const { componentTotal, assembly, total } = pricing;
+  // Each part at what the total counts for it: unit price times quantity (Stage 4A-5).
+  const lineTotal = (type: string) =>
+    pricing.lines.find((line) => line.slot === type)?.lineTotal ?? 0;
   const ownedLabel = (type: string) => (owned.includes(type) ? "Already owned" : undefined);
   const { result, watts, recommended, summary } = compatibility(parts, {
     ownedSlots: owned,
@@ -428,6 +534,11 @@ function ExpertBuilder({
   });
 
   const save = async () => {
+    // The button is off for a blocked build; this holds whatever calls it (D7, Stage 4A-5).
+    if (!canRequest) {
+      store.notify(blockerMessage(assessment));
+      return;
+    }
     if (!store.loggedIn) {
       store.notify("Please log in to save your build");
       store.setAuthOpen(true);
@@ -466,7 +577,7 @@ function ExpertBuilder({
 
   const partList = Object.keys(parts)
     .filter((type) => type !== "Peripherals" && type !== "OS" && parts[type])
-    .map((type) => ({ type, name: parts[type].name, price: parts[type].price }));
+    .map((type) => ({ type, name: parts[type].name, price: lineTotal(type) }));
 
   const handleRequestQuotation = async () => {
     if (submittingQuote) return;
@@ -518,7 +629,9 @@ function ExpertBuilder({
       setPendingRestored(false);
       setQuoteResult({
         referenceId: res.referenceId,
-        estimatedPrice: (res.estimatedPrice ?? componentTotal) + assembly,
+        // The server's own component total when it priced the build, as the estimate it recorded.
+        componentTotal: res.estimatedPrice ?? componentTotal,
+        assembly,
         parts: partList,
         buildName: name.trim() || "My custom PC",
       });
@@ -711,11 +824,8 @@ function ExpertBuilder({
                   <Button
                     size="sm"
                     disabled={!canRequest || submittingQuote}
-                    onClick={async () => {
-                      setPendingRestored(false);
-                      clearPendingQuotation();
-                      await handleRequestQuotation();
-                    }}
+                    // Cleared once the request is accepted, so a failed one can be tried again.
+                    onClick={handleRequestQuotation}
                   >
                     {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
                   </Button>
@@ -819,82 +929,11 @@ function ExpertBuilder({
           </div>
         </aside>
       </div>
-      <Modal
-        open={Boolean(quoteResult)}
-        onOpenChange={(open) => !open && setQuoteResult(null)}
-        title="Your PC Build Request Has Been Received!"
-        description="Quotation Request Confirmation"
-      >
-        {quoteResult && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
-              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                <span>Reference ID: {quoteResult.referenceId}</span>
-              </div>
-              <p>
-                Thank you for choosing IT HUB. Our team will review your selected components, verify
-                current availability, and contact you soon with the final quotation.
-              </p>
-            </div>
-
-            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
-              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
-              {quoteResult.parts.map((part) => (
-                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
-                  <span>
-                    <strong className="text-foreground">{part.type}:</strong> {part.name}
-                  </span>
-                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
-                </p>
-              ))}
-            </div>
-
-            <div className="rounded-xl border border-border p-4 bg-card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Estimated Build Price
-                  </span>
-                  <p className="text-[10px] text-muted-foreground">
-                    (Estimate only — final price will be confirmed in your official quotation)
-                  </p>
-                </div>
-                <strong className="text-2xl text-primary">
-                  {money(quoteResult.estimatedPrice)}
-                </strong>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
-              <Info size={16} className="text-primary shrink-0" />
-              <p>
-                <strong className="text-foreground">Next step: </strong>
-                Our team will contact you soon after reviewing your build.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1" onClick={() => setQuoteResult(null)}>
-                Continue Building
-              </Button>
-              <Button variant="secondary" onClick={() => setQuoteResult(null)}>
-                Close
-              </Button>
-              <a
-                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
-                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`,
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
-              >
-                <WhatsAppIcon size={16} /> Send via WhatsApp
-              </a>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <QuoteReceived
+        result={quoteResult}
+        whatsapp={store.settings.whatsapp}
+        onClose={() => setQuoteResult(null)}
+      />
       <Modal
         open={Boolean(selection)}
         onOpenChange={(open) => {
@@ -1270,12 +1309,7 @@ function BuildDetail({
   const [checkingOut, setCheckingOut] = useState(false);
   const [submittingQuote, setSubmittingQuote] = useState(false);
   const [pendingRestored, setPendingRestored] = useState(false);
-  const [quoteResult, setQuoteResult] = useState<{
-    referenceId: string;
-    estimatedPrice: number;
-    parts: Array<{ type: string; name: string; price: number }>;
-    buildName: string;
-  } | null>(null);
+  const [quoteResult, setQuoteResult] = useState<QuoteResult | null>(null);
 
   // After signing in, offer the build kept for it. A different build on screen is left alone.
   useEffect(() => {
@@ -1378,6 +1412,11 @@ function BuildDetail({
   });
 
   const save = async () => {
+    // The button is off for a blocked build; this holds whatever calls it (D7, Stage 4A-5).
+    if (!canRequest) {
+      store.notify(blockerMessage(assessment));
+      return;
+    }
     if (!store.loggedIn) {
       store.notify("Please log in to save your build");
       store.setAuthOpen(true);
@@ -1412,8 +1451,17 @@ function BuildDetail({
   };
 
   const enquire = () => {
+    // The button is off for a blocked build; this holds whatever calls it (Stage 4A-5).
+    if (!canRequest) {
+      store.notify(blockerMessage(assessment));
+      return;
+    }
     const canonical = createCanonical();
-    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp);
+    // The build's own status, with the use it was found for, and the screen's breakdown (Stage 4A-5).
+    const quote = generateWhatsAppQuotation(canonical, store.settings.whatsapp, {
+      assessment,
+      assembly,
+    });
     store.set((previous) => ({
       pcEnquiries: [
         {
@@ -1424,7 +1472,7 @@ function BuildDetail({
             .map((type) => ({
               type,
               name: priced[type].name,
-              price: priced[type].price,
+              price: lineTotal(type),
             })),
           estimate: total,
           date: new Date().toISOString(),
@@ -1497,12 +1545,14 @@ function BuildDetail({
         .map((type) => ({
           type,
           name: priced[type].name,
-          price: priced[type].price,
+          price: lineTotal(type),
         }));
 
       setQuoteResult({
         referenceId: res.referenceId,
-        estimatedPrice: (res.estimatedPrice ?? componentTotal) + assembly,
+        // The server's own component total when it priced the build, as the estimate it recorded.
+        componentTotal: res.estimatedPrice ?? componentTotal,
+        assembly,
         parts: summaryParts,
         buildName: name.trim() || initial.name,
       });
@@ -1782,11 +1832,8 @@ function BuildDetail({
                   <Button
                     size="sm"
                     disabled={!canRequest || submittingQuote}
-                    onClick={async () => {
-                      setPendingRestored(false);
-                      clearPendingQuotation();
-                      await handleRequestQuotation();
-                    }}
+                    // Cleared once the request is accepted, so a failed one can be tried again.
+                    onClick={handleRequestQuotation}
                   >
                     {submittingQuote ? "Submitting…" : "Confirm & Submit Quotation"}
                   </Button>
@@ -1832,82 +1879,11 @@ function BuildDetail({
           </div>
         </aside>
       </div>
-      <Modal
-        open={Boolean(quoteResult)}
-        onOpenChange={(open) => !open && setQuoteResult(null)}
-        title="Your PC Build Request Has Been Received!"
-        description="Quotation Request Confirmation"
-      >
-        {quoteResult && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 leading-relaxed">
-              <div className="flex items-center gap-2 font-bold text-emerald-950 mb-1">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                <span>Reference ID: {quoteResult.referenceId}</span>
-              </div>
-              <p>
-                Thank you for choosing IT HUB. Our team will review your selected components, verify
-                current availability, and contact you soon with the final quotation.
-              </p>
-            </div>
-
-            <div className="space-y-2 rounded-xl bg-muted p-4 text-xs">
-              <p className="font-semibold text-foreground mb-2">Build: {quoteResult.buildName}</p>
-              {quoteResult.parts.map((part) => (
-                <p key={part.type} className="flex justify-between gap-3 text-muted-foreground">
-                  <span>
-                    <strong className="text-foreground">{part.type}:</strong> {part.name}
-                  </span>
-                  <strong className="shrink-0 text-foreground">{money(part.price)}</strong>
-                </p>
-              ))}
-            </div>
-
-            <div className="rounded-xl border border-border p-4 bg-card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Estimated Build Price
-                  </span>
-                  <p className="text-[10px] text-muted-foreground">
-                    (Estimate only — final price will be confirmed in your official quotation)
-                  </p>
-                </div>
-                <strong className="text-2xl text-primary">
-                  {money(quoteResult.estimatedPrice)}
-                </strong>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-secondary/50 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
-              <Info size={16} className="text-primary shrink-0" />
-              <p>
-                <strong className="text-foreground">Next step: </strong>
-                Our team will contact you soon after reviewing your build.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row gap-2">
-              <Button className="flex-1" onClick={() => setQuoteResult(null)}>
-                Continue Building
-              </Button>
-              <Button variant="secondary" onClick={() => setQuoteResult(null)}>
-                Close
-              </Button>
-              <a
-                href={`https://wa.me/${store.settings.whatsapp}?text=${encodeURIComponent(
-                  `Hi IT HUB, I've requested a quotation for PC Build "${quoteResult.buildName}" (Ref: ${quoteResult.referenceId}, Est: ${money(quoteResult.estimatedPrice)}). Looking forward to hearing from you!`,
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-95"
-              >
-                <WhatsAppIcon size={16} /> Send via WhatsApp
-              </a>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <QuoteReceived
+        result={quoteResult}
+        whatsapp={store.settings.whatsapp}
+        onClose={() => setQuoteResult(null)}
+      />
       <Modal
         open={Boolean(selection)}
         onOpenChange={(open) => !open && setSelection("")}
@@ -2028,6 +2004,21 @@ function SmartBuilder() {
         }
       : null,
   );
+  // A signed-in customer's saved builds arrive after the page does, so a build opened by its link (a reload, or
+  // a bookmark) opens when it arrives, unless something else is already on screen (Stage 4A-5). Purpose-neutral,
+  // like every saved build (D6).
+  useEffect(() => {
+    if (!saved || detail || mode !== "landing") return;
+    setDetail({
+      name: saved.name,
+      designedFor: saved.designedFor || "your custom configuration",
+      highlights: [],
+      parts: saved.parts,
+      owned: saved.owned || [],
+      templateId: saved.templateId,
+    });
+    setMode("smart");
+  }, [saved?.id]);
 
   useEffect(() => {
     loadSavedBuilds().then((savedBuilds) => {

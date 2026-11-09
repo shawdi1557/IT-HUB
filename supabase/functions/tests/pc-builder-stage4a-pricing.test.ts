@@ -151,12 +151,13 @@ Deno.test("S4A-P7: the WhatsApp request's total leaves out owned and unavailable
   const { message } = generateWhatsAppQuotation(build, "");
   const expected = summariseBuildPrice(build.components, { ownedSlots: build.ownedSlots });
   assertEquals(expected.componentTotal, 23000);
-  assert(message.includes("Memory (Already Owned)"));
-  assert(
-    message.includes(`Estimated Total: ₹${(23000).toLocaleString("en-IN")}`) ||
-      message.includes("23,000"),
-    message,
-  );
+  // Stage 4A-5 (the owner's approved wording): the owned part named as the customer's own, the unavailable one
+  // with no price, each line at its line total, and the screen's breakdown.
+  assert(message.includes("• RAM: (Already owned)"), message);
+  assert(message.includes("• GPU: Card — No longer available"), message);
+  assert(message.includes("• Storage: Drive — ₹8,000"), message);
+  assert(message.includes("Component Total: ₹23,000"), message);
+  assert(message.includes("*Estimated Total: ₹23,000*"), message);
 });
 
 // ── The quotation request and the server ───────────────────────────────────────────────────────────

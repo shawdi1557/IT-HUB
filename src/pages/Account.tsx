@@ -39,7 +39,8 @@ import {
   type Build,
 } from "../data/catalog";
 import { summariseBuildPrice } from "../lib/builder/pricing";
-import { ASSEMBLY_NOT_SET } from "../lib/builder/completeness-wording";
+import { ASSEMBLY_NOT_SET, blockerLines } from "../lib/builder/completeness-wording";
+import { liveBuild, type LiveBuild } from "../lib/builder/readiness";
 import { fetchUserSellRequests } from "../lib/sellRequests";
 import { updateCustomerProfile } from "../lib/auth";
 import { updateShopifyCartDiscountCodes } from "../lib/shopify";
@@ -1704,15 +1705,18 @@ function PcBuilds() {
     setRenaming("");
     store.notify("Build renamed");
   };
-  const contact = (build: Build) => {
+  const contact = (build: Build, live: LiveBuild) => {
+    // The button is off for a build that can't go to IT HUB as it stands; this holds whatever calls it.
+    if (!live.assessment.quotationReady) return;
+    const current = { ...build, parts: live.parts, owned: live.owned };
     const message = [
       "Hello IT HUB,",
       "I would like to enquire about the following PC build:",
       `Build:\n${build.name}`,
       ...["CPU", "GPU", "RAM", "Storage", "Motherboard", "PSU", "Cabinet", "Cooler"].map(
-        (type) => `${type === "Cooler" ? "CPU Cooler" : type}:\n${buildPartName(build, type)}`,
+        (type) => `${type === "Cooler" ? "CPU Cooler" : type}:\n${buildPartName(current, type)}`,
       ),
-      `Estimated Price:\n${money(estimate(build))}`,
+      `Estimated Price:\n${money(live.price.total)}`,
       "Please confirm availability and provide the final quotation.",
     ].join("\n\n");
     store.log(`PC enquiry sent via WhatsApp: ${build.name}`);
@@ -1795,115 +1799,142 @@ function PcBuilds() {
         </div>
       )}
       <div className="space-y-4">
-        {store.builds.map((build) => (
-          <div key={build.id} className="rounded-2xl border border-border p-5 md:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                {renaming === build.id ? (
-                  <form
-                    className="flex gap-2"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      rename(build.id);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      aria-label="Build name"
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      className={`${fieldClass} py-2`}
-                    />
-                    <Button type="submit" className="px-4 py-2 text-xs">
-                      Save
-                    </Button>
-                  </form>
-                ) : (
-                  <h3 className="font-bold">{build.name}</h3>
-                )}
-                {build.designedFor && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Designed for {build.designedFor}
-                  </p>
-                )}
+        {store.builds.map((build) => {
+          // As it stands today: matched to the live catalogue, assessed and priced as the builder does (D6).
+          const live = liveBuild(build.parts, build.owned, store.componentCatalog, assembly);
+          const ready = live.assessment.quotationReady;
+          return (
+            <div key={build.id} className="rounded-2xl border border-border p-5 md:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {renaming === build.id ? (
+                    <form
+                      className="flex gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        rename(build.id);
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        aria-label="Build name"
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        className={`${fieldClass} py-2`}
+                      />
+                      <Button type="submit" className="px-4 py-2 text-xs">
+                        Save
+                      </Button>
+                    </form>
+                  ) : (
+                    <h3 className="font-bold">{build.name}</h3>
+                  )}
+                  {build.designedFor && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Designed for {build.designedFor}
+                    </p>
+                  )}
+                </div>
+                <strong className="text-primary">{money(live.price.total)}</strong>
               </div>
-              <strong className="text-primary">{money(estimate(build))}</strong>
+              <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                {buildPartOrder
+                  .filter((type) => live.parts[type])
+                  .map((type) => live.parts[type].name)
+                  .join(" · ")}
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  className="px-4 py-2 text-xs"
+                  onClick={() => setViewing(build)}
+                >
+                  View
+                </Button>
+                <ActionLink
+                  secondary
+                  to={`/pc-builder?build=${build.id}`}
+                  className="px-4 py-2 text-xs"
+                >
+                  Customize
+                </ActionLink>
+                <button
+                  onClick={() => contact(build, live)}
+                  disabled={!ready}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-xs font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <WhatsAppIcon size={14} /> Contact IT HUB
+                </button>
+                <Button
+                  variant="secondary"
+                  className="px-4 py-2 text-xs"
+                  disabled={!ready}
+                  onClick={() =>
+                    ready &&
+                    store.addCart({
+                      id: build.id,
+                      name: build.name,
+                      // At today's prices, without the customer's own parts.
+                      price: live.price.componentTotal,
+                      image: images.pc,
+                      build: {
+                        ...build,
+                        parts: live.parts,
+                        owned: live.owned,
+                        price: live.price.componentTotal,
+                      },
+                    })
+                  }
+                >
+                  Add to cart
+                </Button>
+                <label className="ml-1 flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={compare.includes(build.id)}
+                    onChange={() => toggleCompare(build.id)}
+                    className="accent-[#1a4fd6]"
+                  />
+                  Compare
+                </label>
+                <button
+                  className="text-xs text-primary"
+                  onClick={() => {
+                    setRenaming(build.id);
+                    setDraft(build.name);
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  className="text-xs text-red-600"
+                  onClick={() => {
+                    store.set({
+                      builds: store.builds.filter((item) => item.id !== build.id),
+                    });
+                    setCompare(compare.filter((id) => id !== build.id));
+                    store.notify("Build removed");
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+              {/* Why it can't go to IT HUB as it stands, in the builder's words. "Customize" opens it to fix. */}
+              {!ready && (
+                <div className="mt-3 space-y-1 text-[11px] text-red-600">
+                  {blockerLines(live.assessment).map((line) => (
+                    <div key={line.kind}>
+                      <p>{line.text}</p>
+                      {line.details?.map((detail) => (
+                        <p key={detail}>{detail}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <p className="mt-3 text-xs leading-6 text-muted-foreground">
-              {buildPartOrder
-                .filter((type) => build.parts[type])
-                .map((type) => build.parts[type].name)
-                .join(" · ")}
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                className="px-4 py-2 text-xs"
-                onClick={() => setViewing(build)}
-              >
-                View
-              </Button>
-              <ActionLink
-                secondary
-                to={`/pc-builder?build=${build.id}`}
-                className="px-4 py-2 text-xs"
-              >
-                Customize
-              </ActionLink>
-              <button
-                onClick={() => contact(build)}
-                className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-xs font-semibold text-white hover:brightness-95"
-              >
-                <WhatsAppIcon size={14} /> Contact IT HUB
-              </button>
-              <Button
-                variant="secondary"
-                className="px-4 py-2 text-xs"
-                onClick={() =>
-                  store.addCart({
-                    id: build.id,
-                    name: build.name,
-                    price: build.price,
-                    image: images.pc,
-                    build,
-                  })
-                }
-              >
-                Add to cart
-              </Button>
-              <label className="ml-1 flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={compare.includes(build.id)}
-                  onChange={() => toggleCompare(build.id)}
-                  className="accent-[#1a4fd6]"
-                />
-                Compare
-              </label>
-              <button
-                className="text-xs text-primary"
-                onClick={() => {
-                  setRenaming(build.id);
-                  setDraft(build.name);
-                }}
-              >
-                Rename
-              </button>
-              <button
-                className="text-xs text-red-600"
-                onClick={() => {
-                  store.set({
-                    builds: store.builds.filter((item) => item.id !== build.id),
-                  });
-                  setCompare(compare.filter((id) => id !== build.id));
-                  store.notify("Build removed");
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <Modal
         open={Boolean(viewing)}
