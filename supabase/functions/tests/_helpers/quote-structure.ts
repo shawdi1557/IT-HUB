@@ -1,6 +1,7 @@
 // Stage 4A-6 test helper. The quotation server now refuses a build missing an essential part. Tests written before
 // that, about pricing, sign-in, rate limits or repeats, sent a processor alone. These helpers add the missing
 // essentials at ₹0, so each test still sends what it was about, with the same totals. Made-up IDs, no real stock.
+// Since the Stage 4A closure every part to buy must carry a quantity, so each stand-in is one unit.
 
 export const FILLER_PREFIX = "gid://shopify/ProductVariant/s4a6-filler-";
 
@@ -13,6 +14,7 @@ export const fillerPart = (slot: string) => ({
   title: `Stand-in ${slot}`,
   name: `Stand-in ${slot}`,
   price: 0,
+  quantity: 1,
 });
 
 /** The parts, plus a ₹0 stand-in for each essential slot they leave empty. */

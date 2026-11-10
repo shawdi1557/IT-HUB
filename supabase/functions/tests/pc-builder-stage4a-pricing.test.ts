@@ -274,15 +274,36 @@ Deno.test("S4A-P8: the request carries each part's quantity, and the server pric
   assertEquals(result.priceDivergence, 0);
 });
 
-Deno.test("S4A-P9: a request with no quantities is priced one of each, as before", async () => {
+Deno.test("S4A-P9: a part with no quantity is refused; one of each, stated, is priced as before", async () => {
+  // Since the Stage 4A closure the server requires a quantity on every part to buy (owner decision); the builder
+  // always sends one. Leaving it out of any one part refuses the request, and nothing is stored.
+  for (const slot of ["CPU", "RAM", "Storage"]) {
+    const parts: Record<string, any> = {
+      CPU: { variantId: "gid://shopify/ProductVariant/s4a-cpu", price: 15000, quantity: 1 },
+      RAM: { variantId: "gid://shopify/ProductVariant/s4a-ram", price: 3000, quantity: 1 },
+      Storage: { variantId: "gid://shopify/ProductVariant/s4a-ssd", price: 4000, quantity: 1 },
+    };
+    delete parts[slot].quantity;
+    const refused = await submitToServer({
+      buildName: "QZX no quantity",
+      estimatedPrice: 22000,
+      compatibility: { status: "compatible" },
+      parts,
+    });
+    assertEquals(refused.status, 400, slot);
+    assertEquals(refused.body.code, "invalid_request", slot);
+    assertEquals(refused.body.problems, [{ code: "quantity_missing", slot }], slot);
+    assertEquals(refused.stored.length, 0, slot);
+  }
+
   const { status, body, stored } = await submitToServer({
-    buildName: "QZX no quantities",
+    buildName: "QZX one of each",
     estimatedPrice: 22000,
     compatibility: { status: "compatible" },
     parts: {
-      CPU: { variantId: "gid://shopify/ProductVariant/s4a-cpu", price: 15000 },
-      RAM: { variantId: "gid://shopify/ProductVariant/s4a-ram", price: 3000 },
-      Storage: { variantId: "gid://shopify/ProductVariant/s4a-ssd", price: 4000 },
+      CPU: { variantId: "gid://shopify/ProductVariant/s4a-cpu", price: 15000, quantity: 1 },
+      RAM: { variantId: "gid://shopify/ProductVariant/s4a-ram", price: 3000, quantity: 1 },
+      Storage: { variantId: "gid://shopify/ProductVariant/s4a-ssd", price: 4000, quantity: 1 },
     },
   });
   assertEquals(status, 200);
@@ -300,9 +321,9 @@ Deno.test("S4A-P10: a quantity the server can't price sends the quotation to rev
       estimatedPrice: 22000,
       compatibility: { status: "compatible" },
       parts: {
-        CPU: { variantId: "gid://shopify/ProductVariant/s4a-cpu", price: 15000 },
+        CPU: { variantId: "gid://shopify/ProductVariant/s4a-cpu", price: 15000, quantity: 1 },
         RAM: { variantId: "gid://shopify/ProductVariant/s4a-ram", price: 3000, quantity },
-        Storage: { variantId: "gid://shopify/ProductVariant/s4a-ssd", price: 4000 },
+        Storage: { variantId: "gid://shopify/ProductVariant/s4a-ssd", price: 4000, quantity: 1 },
       },
     });
     assertEquals(status, 200, String(quantity));

@@ -27,14 +27,54 @@ Deno.test("TEST-SEC-1: Client-Side Price Tampering is authoritatively rejected a
     buildName: "Tampered Budget Exploit Build",
     estimatedPrice: 100, // Forged client price!
     parts: {
-      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
-      Motherboard: { id: "p-mobo", variantId: "gid://shopify/ProductVariant/mobo-1", price: 7000 },
-      RAM: { id: "p-ram", variantId: "gid://shopify/ProductVariant/ram-1", price: 3000 },
-      GPU: { id: "p-gpu", variantId: "gid://shopify/ProductVariant/gpu-1", price: 28000 },
-      Storage: { id: "p-ssd", variantId: "gid://shopify/ProductVariant/ssd-1", price: 5000 },
-      PSU: { id: "p-psu", variantId: "gid://shopify/ProductVariant/psu-1", price: 4500 },
-      Cabinet: { id: "p-case", variantId: "gid://shopify/ProductVariant/case-1", price: 4000 },
-      Cooler: { id: "p-cool", variantId: "gid://shopify/ProductVariant/cool-1", price: 1500 },
+      CPU: {
+        id: "p-cpu",
+        variantId: "gid://shopify/ProductVariant/cpu-1",
+        price: 9000,
+        quantity: 1,
+      },
+      Motherboard: {
+        id: "p-mobo",
+        variantId: "gid://shopify/ProductVariant/mobo-1",
+        price: 7000,
+        quantity: 1,
+      },
+      RAM: {
+        id: "p-ram",
+        variantId: "gid://shopify/ProductVariant/ram-1",
+        price: 3000,
+        quantity: 1,
+      },
+      GPU: {
+        id: "p-gpu",
+        variantId: "gid://shopify/ProductVariant/gpu-1",
+        price: 28000,
+        quantity: 1,
+      },
+      Storage: {
+        id: "p-ssd",
+        variantId: "gid://shopify/ProductVariant/ssd-1",
+        price: 5000,
+        quantity: 1,
+      },
+      PSU: {
+        id: "p-psu",
+        variantId: "gid://shopify/ProductVariant/psu-1",
+        price: 4500,
+        quantity: 1,
+      },
+      Cabinet: {
+        id: "p-case",
+        variantId: "gid://shopify/ProductVariant/case-1",
+        price: 4000,
+        quantity: 1,
+      },
+      Cooler: {
+        id: "p-cool",
+        variantId: "gid://shopify/ProductVariant/cool-1",
+        price: 1500,
+        quantity: 1,
+      },
     },
     customerInfo: { name: "Audit Tester", phone: "9876543210" },
   };
@@ -435,7 +475,12 @@ Deno.test("TEST-SEC-9: Unauthenticated guest requests to Edge Function are rejec
     buildName: "Guest Exploit Rig",
     estimatedPrice: 9000,
     parts: {
-      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+      CPU: {
+        id: "p-cpu",
+        variantId: "gid://shopify/ProductVariant/cpu-1",
+        price: 9000,
+        quantity: 1,
+      },
     },
     customerInfo: { name: "Unauthenticated Guest", phone: "9876543210" },
   };
@@ -517,7 +562,12 @@ Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id 
     buildName: "Authenticated Customer Rig",
     estimatedPrice: 9000,
     parts: withEssentials({
-      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+      CPU: {
+        id: "p-cpu",
+        variantId: "gid://shopify/ProductVariant/cpu-1",
+        price: 9000,
+        quantity: 1,
+      },
     }),
     customerInfo: { name: "Logged In User" },
   };
@@ -576,7 +626,12 @@ Deno.test("TEST-SEC-11: Expired or invalid JWT tokens are rejected by Edge Funct
     buildName: "Expired Token Rig",
     estimatedPrice: 9000,
     parts: {
-      CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
+      CPU: {
+        id: "p-cpu",
+        variantId: "gid://shopify/ProductVariant/cpu-1",
+        price: 9000,
+        quantity: 1,
+      },
     },
   };
 

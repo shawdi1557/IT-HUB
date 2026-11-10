@@ -30,7 +30,8 @@ export const QUOTE_OWNABLE_SLOTS = ["RAM", "Storage", "GPU"];
 
 /**
  * The most units of one part a slot can hold. A whole number above this is well formed but can't be priced, so the
- * quotation goes to review (Stage 4A-2). A quantity that isn't a whole number from 1 up is refused (Stage 4A-7).
+ * quotation goes to review (Stage 4A-2). A part to buy with no quantity, or one that isn't a whole number from 1 up,
+ * is refused (Stage 4A-7, Stage 4A closure).
  */
 export const QUOTE_MAX_QUANTITY: Record<string, number> = {
   CPU: 1,
@@ -99,6 +100,7 @@ export type StructureProblemCode =
   | "duplicate_variant"
   | "text_invalid"
   | "price_invalid"
+  | "quantity_missing"
   | "quantity_malformed"
   | "specs_invalid"
   | "missing_essential";
@@ -118,7 +120,7 @@ export interface QuotePart {
   title: string;
   name: string;
   price: number;
-  /** A whole number from 1. None means one, as before (Stage 4A-2). Owned parts have none. */
+  /** A whole number from 1, required on every part to buy. Owned parts have none: nothing is bought or priced. */
   quantity?: number;
   isShopifyLive: boolean;
   specs?: Record<string, unknown>;
@@ -172,7 +174,8 @@ export function ownedQuotePart(slot: string): QuotePart {
 /**
  * Checks a parsed request body. Rejects anything the builder can't have sent: an unknown or repeated slot, a part
  * to buy with no valid variant, an owned part where ownership isn't offered or that names a product, the same
- * variant in two slots, malformed fields, a quantity that isn't a whole number of at least 1, or a build
+ * variant in two slots, malformed fields, a part to buy with no quantity or one that isn't a whole number of at
+ * least 1, or a build
  * missing an essential part. A well-formed quantity above the slot's most isn't refused: it's checked later, and
  * sends the quotation to review rather than pricing it (Stage 4A-2).
  */
@@ -293,13 +296,14 @@ export function checkQuotationStructure(body: unknown): StructureResult {
       problems.push({ code: "price_invalid", slot });
       continue;
     }
-    // The builder sends a JSON whole number of at least 1. Zero, a negative or fractional number, a number written
-    // as text, null, or any other type can't be a real request (owner decision, Stage 4A-7). A quantity left out
-    // means one, as Stage 4A-2 kept it: the server has never required the field.
-    if (
-      raw.quantity !== undefined &&
-      (typeof raw.quantity !== "number" || !Number.isInteger(raw.quantity) || raw.quantity < 1)
-    ) {
+    // The builder sends every part to buy with a JSON whole number of at least 1. A quantity left out, zero, a
+    // negative or fractional number, a number written as text, null, or any other type can't be a real request
+    // (owner decisions, Stage 4A-7 and the Stage 4A closure).
+    if (raw.quantity === undefined) {
+      problems.push({ code: "quantity_missing", slot });
+      continue;
+    }
+    if (typeof raw.quantity !== "number" || !Number.isInteger(raw.quantity) || raw.quantity < 1) {
       problems.push({ code: "quantity_malformed", slot });
       continue;
     }
@@ -317,7 +321,7 @@ export function checkQuotationStructure(body: unknown): StructureResult {
       isShopifyLive: raw.isShopifyLive === undefined ? true : raw.isShopifyLive === true,
     };
     if (typeof raw.productId === "string") part.productId = raw.productId;
-    if (raw.quantity !== undefined) part.quantity = raw.quantity;
+    part.quantity = raw.quantity;
     // Reported by the browser and stored for the technician. Nothing on the server reads them.
     if (isPlainObject(raw.specs)) part.specs = raw.specs;
     bySlot.set(slot, part);
@@ -355,8 +359,9 @@ export function checkQuotationStructure(body: unknown): StructureResult {
 
 /**
  * Whether a part's quantity can be priced: a whole number from 1 to its slot's most. The structure check has
- * already refused anything that isn't a whole number from 1, so in practice this catches a quantity above the
- * slot's most, which sends the quotation to a technician with no verified price, as Stage 4A-2 decided.
+ * already refused a part to buy without a whole number from 1, so in practice this catches a quantity above the
+ * slot's most, which sends the quotation to a technician with no verified price, as Stage 4A-2 decided. An owned
+ * part carries no quantity and nothing is priced for it, so it passes.
  */
 export function quantityPriceable(part: QuotePart): boolean {
   const quantity = part.quantity === undefined ? 1 : part.quantity;

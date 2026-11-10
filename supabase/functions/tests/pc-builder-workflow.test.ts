@@ -867,6 +867,7 @@ Deno.test("QUOTE: Shopify's name and price replace what the browser sent", async
           title: "Free CPU",
           name: "Free CPU",
           price: 1,
+          quantity: 1,
         },
       },
       compatibility: { status: "compatible" },
@@ -900,6 +901,7 @@ Deno.test("QUOTE: a part the customer owns isn't priced, and always goes to a te
           variantId: "gid://shopify/ProductVariant/v1",
           title: "CPU",
           price: 9000,
+          quantity: 1,
         },
         GPU: { slot: "GPU", title: "GPU", price: 28000, owned: true },
       },
@@ -928,6 +930,7 @@ Deno.test("QUOTE: a sold-out part stops the quotation and nothing is stored", as
           variantId: "gid://shopify/ProductVariant/v1",
           title: "CPU",
           price: 9000,
+          quantity: 1,
         },
       },
       compatibility: {},
@@ -945,7 +948,13 @@ Deno.test("QUOTE: a sold-out part stops the quotation and nothing is stored", as
 
 Deno.test("QUOTE: a repeat of a recent request returns the same reference", async () => {
   const parts = withEssentials({
-    CPU: { slot: "CPU", variantId: "gid://shopify/ProductVariant/v1", title: "CPU", price: 9000 },
+    CPU: {
+      slot: "CPU",
+      variantId: "gid://shopify/ProductVariant/v1",
+      title: "CPU",
+      price: 9000,
+      quantity: 1,
+    },
   });
   const harness = quotationHarness({
     recent: [
@@ -991,6 +1000,7 @@ Deno.test("QUOTE: a different build isn't treated as a repeat", async () => {
           variantId: "gid://shopify/ProductVariant/v1",
           title: "CPU",
           price: 9000,
+          quantity: 1,
         },
       },
       compatibility: {},
@@ -1420,6 +1430,7 @@ const reviewFlag = async (compatibilityValue: unknown) => {
           variantId: "gid://shopify/ProductVariant/v1",
           title: "CPU",
           price: 9000,
+          quantity: 1,
         },
       },
       compatibility: compatibilityValue,
@@ -1444,7 +1455,13 @@ Deno.test("QUOTE: anything short of confirmed compatibility goes to a technician
 
 Deno.test("QUOTE: a repeat request keeps the original review flag", async () => {
   const parts = withEssentials({
-    CPU: { slot: "CPU", variantId: "gid://shopify/ProductVariant/v1", title: "CPU", price: 9000 },
+    CPU: {
+      slot: "CPU",
+      variantId: "gid://shopify/ProductVariant/v1",
+      title: "CPU",
+      price: 9000,
+      quantity: 1,
+    },
   });
   const harness = quotationHarness({
     recent: [

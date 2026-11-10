@@ -39,12 +39,25 @@ const V = (id: string) => `gid://shopify/ProductVariant/${id}`;
 
 /** A complete build as the page sends it: six essentials, each a real-looking variant. */
 const completeParts = (): Record<string, any> => ({
-  CPU: { slot: "CPU", variantId: V("s6-cpu"), title: "Processor", name: "Processor", price: 15000 },
-  Motherboard: { slot: "Motherboard", variantId: V("s6-board"), title: "Board", price: 9000 },
+  CPU: {
+    slot: "CPU",
+    variantId: V("s6-cpu"),
+    title: "Processor",
+    name: "Processor",
+    price: 15000,
+    quantity: 1,
+  },
+  Motherboard: {
+    slot: "Motherboard",
+    variantId: V("s6-board"),
+    title: "Board",
+    price: 9000,
+    quantity: 1,
+  },
   RAM: { slot: "RAM", variantId: V("s6-ram"), title: "Memory", price: 3000, quantity: 1 },
-  Storage: { slot: "Storage", variantId: V("s6-ssd"), title: "Drive", price: 4000 },
-  PSU: { slot: "PSU", variantId: V("s6-psu"), title: "Supply", price: 3500 },
-  Cabinet: { slot: "Cabinet", variantId: V("s6-case"), title: "Case", price: 2500 },
+  Storage: { slot: "Storage", variantId: V("s6-ssd"), title: "Drive", price: 4000, quantity: 1 },
+  PSU: { slot: "PSU", variantId: V("s6-psu"), title: "Supply", price: 3500, quantity: 1 },
+  Cabinet: { slot: "Cabinet", variantId: V("s6-case"), title: "Case", price: 2500, quantity: 1 },
 });
 const COMPLETE_TOTAL = 15000 + 9000 + 3000 + 4000 + 3500 + 2500;
 
@@ -438,7 +451,10 @@ Deno.test("S4A-S11: an owned part must be where ownership is offered, and must n
   // `owned: false` is a part to buy, priced like any other.
   const bought = await send(
     request(
-      { ...completeParts(), GPU: { owned: false, variantId: V("s6-gpu"), price: 28000 } },
+      {
+        ...completeParts(),
+        GPU: { owned: false, variantId: V("s6-gpu"), price: 28000, quantity: 1 },
+      },
       { estimatedPrice: COMPLETE_TOTAL + 28000 },
     ),
   );
@@ -568,10 +584,12 @@ Deno.test("S4A-S16: extra fields in a part are dropped, and browser specificatio
   const result = await send(request(parts));
   assertEquals(result.status, 200);
   const stored = result.calls.inserted[0].parts.CPU;
+  // Quantity is stored because every part to buy must now state one (Stage 4A closure).
   assertEquals(Object.keys(stored).sort(), [
     "isShopifyLive",
     "name",
     "price",
+    "quantity",
     "slot",
     "specs",
     "title",
@@ -737,12 +755,44 @@ Deno.test("S4A-S25: a malformed quantity is refused with 400; a whole number ove
   );
   assertEquals(most.body.authoritativePrice, COMPLETE_TOTAL + 3000 * 3 + 4000);
   assertEquals(most.body.technicianReviewRequired, false);
+});
 
-  // A quantity left out means one, as before; the builder always sends one.
-  const { quantity: _left, ...noQuantity } = completeParts().RAM as Record<string, unknown>;
-  const absent = await send(request({ ...completeParts(), RAM: noQuantity }));
-  assertEquals(absent.body.authoritativePrice, COMPLETE_TOTAL);
-  assertEquals("quantity" in absent.calls.inserted[0].parts.RAM, false);
+Deno.test("S4A-S26: every part to buy must state its quantity; an owned part needs none", async () => {
+  // Owner decision, Stage 4A closure: a missing quantity is refused with 400, like a malformed one. The builder
+  // always sends one, so only a hand-made or altered request is affected.
+  const withGraphics = {
+    ...completeParts(),
+    GPU: { slot: "GPU", variantId: V("s6-gpu"), title: "Card", price: 28000, quantity: 1 },
+  };
+  for (const slot of Object.keys(withGraphics)) {
+    const { quantity: _left, ...noQuantity } = (withGraphics as Record<string, any>)[slot];
+    const result = await send(request({ ...withGraphics, [slot]: noQuantity }));
+    assertRefused(result, 400, "invalid_request", "quantity_missing", slot);
+    assertEquals(result.body.error, MESSAGE_UNREADABLE, slot);
+    assertEquals(result.body.problems, [{ code: "quantity_missing", slot }], slot);
+  }
+
+  // Leaving quantities out of several parts names each one.
+  const { quantity: _cpu, ...cpu } = completeParts().CPU as Record<string, unknown>;
+  const { quantity: _psu, ...psu } = completeParts().PSU as Record<string, unknown>;
+  const several = await send(request({ ...completeParts(), CPU: cpu, PSU: psu }));
+  assertEquals(several.status, 400);
+  assertEquals(several.body.problems, [
+    { code: "quantity_missing", slot: "CPU" },
+    { code: "quantity_missing", slot: "PSU" },
+  ]);
+
+  // A part the customer owns is neither bought nor priced, so it carries no quantity and isn't refused for that.
+  const owned = await send(request({ ...completeParts(), RAM: { owned: true } }));
+  assertEquals(owned.status, 200, JSON.stringify(owned.body));
+  assertEquals(owned.calls.inserted[0].parts.RAM.owned, true);
+  assertEquals("quantity" in owned.calls.inserted[0].parts.RAM, false);
+
+  // Stated quantities are stored as sent.
+  const stated = await send(request(completeParts()));
+  assertEquals(stated.status, 200);
+  for (const part of Object.values(stated.calls.inserted[0].parts) as any[])
+    assertEquals(part.quantity, 1);
 });
 
 // ── Compatibility stays the browser's claim ────────────────────────────────────────────────────────
