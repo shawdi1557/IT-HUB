@@ -13,6 +13,7 @@ import {
   getPendingQuotation,
   clearPendingQuotation,
 } from "../../../src/lib/builder/persistence.ts";
+import { withEssentials } from "./_helpers/quote-structure.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 
@@ -152,7 +153,8 @@ Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute thre
   const payload = {
     buildName: "Rate Limit Test Build",
     estimatedPrice: 62000,
-    parts: [],
+    // Stage 4A-6: a structurally complete build, so the limiter is what decides each answer.
+    parts: withEssentials({}),
     customerInfo: { name: "Rate Limit Tester" },
   };
 
@@ -514,9 +516,9 @@ Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id 
   const payload = {
     buildName: "Authenticated Customer Rig",
     estimatedPrice: 9000,
-    parts: {
+    parts: withEssentials({
       CPU: { id: "p-cpu", variantId: "gid://shopify/ProductVariant/cpu-1", price: 9000 },
-    },
+    }),
     customerInfo: { name: "Logged In User" },
   };
 

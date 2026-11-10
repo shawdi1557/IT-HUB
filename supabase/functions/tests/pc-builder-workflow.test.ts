@@ -19,6 +19,7 @@ const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
 const { generateWhatsAppQuotation } = await import("../../../src/lib/builder/checkout.ts");
 const { submitQuotationRequest } = await import("../../../src/lib/builder/persistence.ts");
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
+const { withEssentials, answeringFillers } = await import("./_helpers/quote-structure.ts");
 
 let nextId = 1;
 const product = (name: string, extra: Record<string, unknown> = {}): any => {
@@ -835,16 +836,20 @@ const variantNode = (title: string, amount: string, availableForSale = true) => 
   availableForSale,
 });
 
-function submit(body: Record<string, unknown>, harness: any, nodes: any[]) {
+/**
+ * Stage 4A-6: the server refuses a build missing an essential part, so each test's parts are sent with ₹0
+ * stand-ins for the essentials it isn't about. Its own nodes still answer its own parts, and totals are unchanged.
+ */
+function submit(body: Record<string, any>, harness: any, nodes: any[]) {
   return handleQuotationVerification(
     new Request("http://localhost/verify-and-submit-pc-quotation", {
       method: "POST",
       headers: { Authorization: "Bearer customer-token", "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, parts: withEssentials(body.parts) }),
     }),
     {
       supabaseClient: harness.supabaseClient,
-      shopifyFetch: () => Promise.resolve({ data: { nodes } }),
+      shopifyFetch: answeringFillers(() => nodes),
     },
   );
 }
@@ -856,7 +861,13 @@ Deno.test("QUOTE: Shopify's name and price replace what the browser sent", async
       buildName: "Tampered",
       estimatedPrice: 1,
       parts: {
-        CPU: { slot: "CPU", variantId: "v1", title: "Free CPU", name: "Free CPU", price: 1 },
+        CPU: {
+          slot: "CPU",
+          variantId: "gid://shopify/ProductVariant/v1",
+          title: "Free CPU",
+          name: "Free CPU",
+          price: 1,
+        },
       },
       compatibility: { status: "compatible" },
       customerInfo: { name: "A", phone: "910000000000" },
@@ -884,8 +895,13 @@ Deno.test("QUOTE: a part the customer owns isn't priced, and always goes to a te
     {
       estimatedPrice: 9000,
       parts: {
-        CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 },
-        GPU: { slot: "GPU", variantId: "v2", title: "GPU", price: 28000, owned: true },
+        CPU: {
+          slot: "CPU",
+          variantId: "gid://shopify/ProductVariant/v1",
+          title: "CPU",
+          price: 9000,
+        },
+        GPU: { slot: "GPU", title: "GPU", price: 28000, owned: true },
       },
       compatibility: { status: "compatible" },
       customerInfo: {},
@@ -906,7 +922,14 @@ Deno.test("QUOTE: a sold-out part stops the quotation and nothing is stored", as
   const res = await submit(
     {
       estimatedPrice: 9000,
-      parts: { CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 } },
+      parts: {
+        CPU: {
+          slot: "CPU",
+          variantId: "gid://shopify/ProductVariant/v1",
+          title: "CPU",
+          price: 9000,
+        },
+      },
       compatibility: {},
       customerInfo: {},
     },
@@ -921,7 +944,9 @@ Deno.test("QUOTE: a sold-out part stops the quotation and nothing is stored", as
 });
 
 Deno.test("QUOTE: a repeat of a recent request returns the same reference", async () => {
-  const parts = { CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 } };
+  const parts = withEssentials({
+    CPU: { slot: "CPU", variantId: "gid://shopify/ProductVariant/v1", title: "CPU", price: 9000 },
+  });
   const harness = quotationHarness({
     recent: [
       {
@@ -960,7 +985,14 @@ Deno.test("QUOTE: a different build isn't treated as a repeat", async () => {
   const res = await submit(
     {
       estimatedPrice: 9000,
-      parts: { CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 } },
+      parts: {
+        CPU: {
+          slot: "CPU",
+          variantId: "gid://shopify/ProductVariant/v1",
+          title: "CPU",
+          price: 9000,
+        },
+      },
       compatibility: {},
       customerInfo: {},
     },
@@ -1382,7 +1414,14 @@ const reviewFlag = async (compatibilityValue: unknown) => {
   const res = await submit(
     {
       estimatedPrice: 9000,
-      parts: { CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 } },
+      parts: {
+        CPU: {
+          slot: "CPU",
+          variantId: "gid://shopify/ProductVariant/v1",
+          title: "CPU",
+          price: 9000,
+        },
+      },
       compatibility: compatibilityValue,
       customerInfo: {},
     },
@@ -1404,7 +1443,9 @@ Deno.test("QUOTE: anything short of confirmed compatibility goes to a technician
 });
 
 Deno.test("QUOTE: a repeat request keeps the original review flag", async () => {
-  const parts = { CPU: { slot: "CPU", variantId: "v1", title: "CPU", price: 9000 } };
+  const parts = withEssentials({
+    CPU: { slot: "CPU", variantId: "gid://shopify/ProductVariant/v1", title: "CPU", price: 9000 },
+  });
   const harness = quotationHarness({
     recent: [
       {

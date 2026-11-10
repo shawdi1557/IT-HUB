@@ -10,6 +10,7 @@ const { calculateBuildTotal, submitQuotationRequest, ownedPartRecord } =
   await import("../../../src/lib/builder/persistence.ts");
 const { generateWhatsAppQuotation } = await import("../../../src/lib/builder/checkout.ts");
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
+const { withEssentials, isFiller } = await import("./_helpers/quote-structure.ts");
 
 const selection = (name: string, price: number, extra: Record<string, unknown> = {}) => ({
   id: `p-${name}`,
@@ -171,7 +172,8 @@ const shopifyFetch = async (_query: string, vars: any) => ({
   data: {
     nodes: vars.ids.map((id: string) => ({
       id,
-      price: { amount: PRICES[id], currencyCode: "INR" },
+      // Stage 4A-6: the ₹0 stand-ins for essentials a test isn't about.
+      price: { amount: isFiller(id) ? "0.00" : PRICES[id], currencyCode: "INR" },
       availableForSale: true,
     })),
   },
@@ -205,7 +207,9 @@ async function submitToServer(body: any) {
     new Request("http://localhost/verify-and-submit-pc-quotation", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer s4a-customer-token" },
-      body: JSON.stringify(body),
+      // Stage 4A-6: the server refuses a build missing an essential part, so the essentials these tests aren't
+      // about are added at ₹0. Totals are unchanged.
+      body: JSON.stringify({ ...body, parts: withEssentials(body.parts) }),
     }),
     { supabaseClient: serverClient(stored) as any, shopifyFetch },
   );
@@ -288,7 +292,9 @@ Deno.test("S4A-P9: a request with no quantities is priced one of each, as before
 });
 
 Deno.test("S4A-P10: a quantity the server can't price sends the quotation to review with no verified price", async () => {
-  for (const quantity of [0, 5, 1.5, -1, "2"]) {
+  // Whole numbers above the slot's most. Since Stage 4A-7, zero, negative, fractional and text quantities are
+  // refused outright instead (owner decision): see S4A-S25.
+  for (const quantity of [5, 6, 100]) {
     const { status, body, stored } = await submitToServer({
       buildName: "QZX odd quantity",
       estimatedPrice: 22000,

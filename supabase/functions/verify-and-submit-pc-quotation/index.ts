@@ -5,10 +5,15 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import {
+  checkQuotationStructure,
+  MAX_BODY_BYTES,
+  MESSAGE_TOO_LARGE,
+  MESSAGE_UNREADABLE,
+  quantityPriceable,
+} from "./structure.ts";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
-/** The most of one part a build can hold: four memory modules. More can't be priced here, so it goes to review. */
-const MAX_UNITS_PER_PART = 4;
 
 export interface QuotationVerificationDeps {
   supabaseClient?: any;
@@ -37,15 +42,6 @@ export async function handleQuotationVerification(
   }
 
   try {
-    const body = await req.json();
-    const {
-      buildName = "Custom PC Build",
-      parts = {},
-      estimatedPrice = 0,
-      compatibility = {},
-      customerInfo = {},
-    } = body;
-
     // 1. Initialize Supabase Admin Client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("VITE_SUPABASE_URL") || "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -197,16 +193,48 @@ export async function handleQuotationVerification(
       }
     }
 
-    // 4. Extract Variant GIDs & Recalculate Authoritative Pricing. A part the customer already owns
-    // is recorded for the technician, but isn't sold, so it isn't priced.
-    const allParts = (Array.isArray(parts) ? parts : Object.values(parts)).filter(Boolean) as any[];
-    const partsArray = allParts.filter((part) => !part.owned);
-    const variantGids: string[] = [];
-    for (const part of partsArray) {
-      if (part.variantId) {
-        variantGids.push(part.variantId);
-      }
+    // 4. Structural checks (Stage 4A-6), after sign-in and the rate limit, so a refused request still counts.
+    // They check the request's shape only. Nothing here makes a build compatible: that needs Stage 4S.
+    const reject = (status: number, payload: Record<string, unknown>) =>
+      new Response(JSON.stringify({ success: false, ...payload }), {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    const declaredLength = Number(req.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+      return reject(413, { error: MESSAGE_TOO_LARGE, code: "request_too_large" });
     }
+    const rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
+      return reject(413, { error: MESSAGE_TOO_LARGE, code: "request_too_large" });
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return reject(400, {
+        error: MESSAGE_UNREADABLE,
+        code: "invalid_request",
+        problems: [{ code: "body_not_json" }],
+      });
+    }
+    const checked = checkQuotationStructure(body);
+    if (!checked.ok) {
+      return reject(checked.status, {
+        error: checked.error,
+        code: checked.code,
+        problems: checked.problems,
+        ...(checked.missingSlots ? { missingSlots: checked.missingSlots } : {}),
+      });
+    }
+    const { buildName, estimatedPrice, compatibility, customerInfo } = checked;
+
+    // 5. Recalculate Authoritative Pricing from the variant IDs. A part the customer already owns
+    // is recorded for the technician, but isn't sold, so it isn't priced.
+    const allParts = checked.parts;
+    const partsArray = allParts.filter((part) => !part.owned);
+    // Every part to buy has a valid variant ID by now, and a build has at least four of them.
+    const variantGids = partsArray.map((part) => part.variantId as string);
 
     let authoritativePrice = 0;
     let hasAuthoritativeLookup = false;
@@ -215,17 +243,14 @@ export async function handleQuotationVerification(
     const shopifyDomain = Deno.env.get("VITE_SHOPIFY_STORE_DOMAIN") || "";
     const shopifyToken = Deno.env.get("VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN") || "";
     const shopifyApiVersion = Deno.env.get("VITE_SHOPIFY_API_VERSION") || "2025-10";
-    // A part with no variant can't be priced by Shopify, so the total can't be verified.
-    const everyPartHasVariant = partsArray.length > 0 && variantGids.length === partsArray.length;
-    // Priced as the browser prices it: unit price times quantity, one when none is given. A quantity that isn't
-    // a whole number from 1 to 4 can't be priced, so the quotation goes to a technician with no verified price.
-    const quantities = partsArray.map((part) => (part.quantity === undefined ? 1 : part.quantity));
-    const quantitiesValid = quantities.every(
-      (quantity) => Number.isInteger(quantity) && quantity >= 1 && quantity <= MAX_UNITS_PER_PART,
-    );
+    // Priced as the browser prices it: unit price times quantity. Every quantity is a whole number from 1 by now;
+    // one above the slot's most (4 memory modules, 2 drives, 1 of anything else) can't be priced, so the
+    // quotation goes to a technician with no verified price.
+    const quantitiesValid = partsArray.every(quantityPriceable);
+    const quantities = partsArray.map((part) => (quantitiesValid ? (part.quantity ?? 1) : 1));
     const unavailableParts: string[] = [];
 
-    if (everyPartHasVariant && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
+    if (partsArray.length > 0 && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
       const query = `
         query getVariantPrices($ids: [ID!]!) {
           nodes(ids: $ids) {
@@ -263,26 +288,33 @@ export async function handleQuotationVerification(
           });
 
         const shopifyData = await fetcher(query, { ids: variantGids });
-        if (shopifyData?.data?.nodes && Array.isArray(shopifyData.data.nodes)) {
+        const nodes = shopifyData?.data?.nodes;
+        // Shopify answers one node per ID, in order. Any other answer can't be matched to the parts, so the
+        // price stays unverified and the quotation goes to review, as before.
+        if (Array.isArray(nodes) && nodes.length === variantGids.length) {
           let foundNodes = 0;
-          for (const [index, node] of shopifyData.data.nodes.entries()) {
-            if (node && node.price?.amount) {
-              const price = Math.round(parseFloat(node.price.amount));
-              authoritativePrice += price * (quantitiesValid ? quantities[index] : 1);
-              foundNodes++;
-              // What's stored is what Shopify says, whatever name and price the browser sent.
-              const part = partsArray[index];
-              part.price = price;
-              if (node.product?.title) {
-                part.title = node.product.title;
-                part.name = node.product.title;
-              }
-              if (node.availableForSale === false) {
-                unavailableParts.push(part.slot || part.title || "A component");
-              }
+          for (const [index, node] of nodes.entries()) {
+            const part = partsArray[index];
+            const amount = parseFloat(node?.price?.amount);
+            // Stage 4A-6: a variant the store doesn't know, or one with no price, isn't a part IT HUB can quote.
+            if (!node || !Number.isFinite(amount)) {
+              unavailableParts.push(part.slot);
+              continue;
+            }
+            const price = Math.round(amount);
+            authoritativePrice += price * quantities[index];
+            foundNodes++;
+            // What's stored is what Shopify says, whatever name and price the browser sent.
+            part.price = price;
+            if (node.product?.title) {
+              part.title = node.product.title;
+              part.name = node.product.title;
+            }
+            if (node.availableForSale === false) {
+              unavailableParts.push(part.slot);
             }
           }
-          if (foundNodes === variantGids.length && variantGids.length > 0 && quantitiesValid) {
+          if (foundNodes === variantGids.length && quantitiesValid) {
             hasAuthoritativeLookup = true;
           }
         }
@@ -350,9 +382,9 @@ export async function handleQuotationVerification(
       }
     }
 
-    // 5. Anti-Tampering & Price Divergence Audit. Client-supplied prices are never authoritative,
+    // 6. Anti-Tampering & Price Divergence Audit. Client-supplied prices are never authoritative,
     // so an unverified quotation records no authoritative price at all.
-    const clientPrice = Math.round(Number(estimatedPrice) || 0);
+    const clientPrice = Math.round(estimatedPrice);
     const priceDivergence = hasAuthoritativeLookup ? Math.abs(authoritativePrice - clientPrice) : 0;
     // The compatibility result comes from the browser, so it can only add a reason to review. A
     // missing result counts as unconfirmed.
@@ -363,30 +395,31 @@ export async function handleQuotationVerification(
       // Nothing here can check a customer's own part, and the browser is what marked it as owned.
       allParts.some((part) => part.owned);
 
-    // 6. Generate Authoritative Reference ID
+    // 7. Generate Authoritative Reference ID
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase();
     const referenceId = `ITH-PC-${today}-${randomHex}`;
 
-    // 7. Persist to pc_builds table
+    // 8. Persist to pc_builds table
     let buildId = `quote-${Date.now()}`;
     if (supabase) {
       const { data: inserted, error: insErr } = await supabase
         .from("pc_builds")
         .insert({
           user_id: userId,
-          name: String(buildName).slice(0, 120),
+          name: buildName,
           reference_id: referenceId,
-          parts,
+          // Keyed by slot, in the builder's shape, with Shopify's names and prices for the parts to buy.
+          parts: Object.fromEntries(allParts.map((part) => [part.slot, part])),
           estimated_price: hasAuthoritativeLookup ? authoritativePrice : clientPrice,
           authoritative_price: hasAuthoritativeLookup ? authoritativePrice : null,
           price_divergence: priceDivergence,
           technician_review_required: technicianReviewRequired,
           // Worked out in the customer's browser, so it's a note for the technician, not a finding.
           compatibility: { ...compatibility, reportedBy: "customer_browser" },
-          customer_name: customerInfo.name?.trim() || null,
-          customer_phone: verifiedPhone || customerInfo.phone?.trim() || null,
-          customer_email: customerInfo.email?.trim() || null,
+          customer_name: customerInfo.name,
+          customer_phone: verifiedPhone || customerInfo.phone,
+          customer_email: customerInfo.email,
           enquiry_status: "New",
         })
         .select("id")

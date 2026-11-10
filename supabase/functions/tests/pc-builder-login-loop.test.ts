@@ -14,6 +14,7 @@ import {
   TEST_SUPABASE_URL,
   dbTest,
 } from "./_helpers/disposable_env.ts";
+import { withEssentials } from "./_helpers/quote-structure.ts";
 
 const LOCAL_SUPABASE_URL = TEST_SUPABASE_URL;
 const LOCAL_SUPABASE_ANON = TEST_ANON_KEY;
@@ -98,10 +99,12 @@ async function createAuthenticatedClient(session: any) {
   return client;
 }
 
+// Since Stage 4A-6 the server refuses a build missing an essential part, so the parts this test isn't about are
+// ₹0 stand-ins. The test is still about sign-in, not the build.
 const sampleBuild: any = {
   id: "test-build-login-loop",
   name: "Login Loop Test PC",
-  components: {
+  components: withEssentials({
     CPU: {
       slot: "CPU",
       productId: "test-cpu",
@@ -116,7 +119,7 @@ const sampleBuild: any = {
       price: 8999,
       variantId: "gid://shopify/ProductVariant/4455667789",
     },
-  },
+  }),
 };
 
 Deno.test("LOGIN-LOOP-1: Logged-out user quotation request triggers requiresAuth", async () => {
