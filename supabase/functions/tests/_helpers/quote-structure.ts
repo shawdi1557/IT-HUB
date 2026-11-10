@@ -26,18 +26,48 @@ export function withEssentials(parts: Record<string, any>): Record<string, any> 
 
 export const isFiller = (id: string) => id.startsWith(FILLER_PREFIX);
 
-/** Shopify's answer for a stand-in: on sale at ₹0. */
+/**
+ * The taxonomy category IT HUB's store files each kind of part under, as recorded from the real catalogue
+ * (test-env/browser/fixtures/stage2-catalogue.json). Since Stage 4S-1 the server places a product by these.
+ */
+export const SLOT_CATEGORY: Record<string, string> = {
+  CPU: "Computer Processors",
+  Motherboard: "Motherboards",
+  RAM: "RAM",
+  GPU: "Video Cards & Adapters",
+  Storage: "Solid State Drives",
+  PSU: "Computer Power Supplies",
+  Cabinet: "Desktop Computer & Server Cases",
+  Cooler: "CPU Air Coolers & Heat Sinks",
+  Monitor: "Monitors",
+};
+
+/** Shopify's product for a part in a slot, shaped as the server's query asks for it. Made-up IDs. */
+export const storefrontProduct = (slot: string, title: string) => ({
+  id: `gid://shopify/Product/test-${slot.toLowerCase()}`,
+  title,
+  productType: "",
+  tags: [] as string[],
+  category: { name: SLOT_CATEGORY[slot] },
+  collections: { edges: [] as unknown[] },
+});
+
+const fillerSlot = (id: string) =>
+  ESSENTIALS.find((slot) => slot.toLowerCase() === id.slice(FILLER_PREFIX.length)) ?? "CPU";
+
+/** Shopify's answer for a stand-in: on sale at ₹0, filed under its slot's category. */
 export const fillerNode = (id: string) => ({
   id,
   title: "Default Title",
-  product: { title: "Stand-in part" },
+  product: storefrontProduct(fillerSlot(id), "Stand-in part"),
   price: { amount: "0.00", currencyCode: "INR" },
   availableForSale: true,
 });
 
 /**
  * Wraps a test's own Shopify answer: stand-ins are answered at ₹0, and the test's nodes answer its own IDs in
- * the order the server asks for them.
+ * the order the server asks for them. Like Shopify, each node names the variant it answers, unless the test's node
+ * names one itself.
  */
 export function answeringFillers(nodesForOwnIds: (ownIds: string[]) => any[]) {
   return (_query: string, vars: { ids: string[] }) => {
@@ -45,7 +75,13 @@ export function answeringFillers(nodesForOwnIds: (ownIds: string[]) => any[]) {
     const own = nodesForOwnIds(ownIds);
     let next = 0;
     return Promise.resolve({
-      data: { nodes: vars.ids.map((id) => (isFiller(id) ? fillerNode(id) : own[next++])) },
+      data: {
+        nodes: vars.ids.map((id) => {
+          if (isFiller(id)) return fillerNode(id);
+          const node = own[next++];
+          return node ? { id, ...node } : node;
+        }),
+      },
     });
   };
 }

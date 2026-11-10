@@ -11,7 +11,9 @@ import {
   MESSAGE_TOO_LARGE,
   MESSAGE_UNREADABLE,
   quantityPriceable,
+  quotationFingerprint,
 } from "./structure.ts";
+import { checkVariantNode, slotCheckLabel, VARIANT_QUERY } from "./resolve.ts";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -250,25 +252,13 @@ export async function handleQuotationVerification(
     const quantities = partsArray.map((part) => (quantitiesValid ? (part.quantity ?? 1) : 1));
     const unavailableParts: string[] = [];
 
+    // Stage 4S-1: what Shopify says each part is. Until it has answered reliably, every part's slot is unconfirmed.
+    const wrongSlotParts: string[] = [];
+    let slotsUnconfirmed = partsArray.length > 0;
+    let backordered = false;
+    for (const part of partsArray) part.slotCheck = "unconfirmed";
+
     if (partsArray.length > 0 && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
-      const query = `
-        query getVariantPrices($ids: [ID!]!) {
-          nodes(ids: $ids) {
-            ... on ProductVariant {
-              id
-              title
-              product {
-                title
-              }
-              price {
-                amount
-                currencyCode
-              }
-              availableForSale
-            }
-          }
-        }
-      `;
       try {
         const fetcher =
           deps?.shopifyFetch ??
@@ -287,32 +277,52 @@ export async function handleQuotationVerification(
             return await res.json();
           });
 
-        const shopifyData = await fetcher(query, { ids: variantGids });
+        const shopifyData = await fetcher(VARIANT_QUERY, { ids: variantGids });
         const nodes = shopifyData?.data?.nodes;
-        // Shopify answers one node per ID, in order. Any other answer can't be matched to the parts, so the
-        // price stays unverified and the quotation goes to review, as before.
-        if (Array.isArray(nodes) && nodes.length === variantGids.length) {
+        // Shopify answers one node per ID, in order, each naming the variant it describes. Any other answer can't be
+        // matched to the parts: nothing in it is used, the price and stock stay unverified, and a technician reviews
+        // the quotation (Stage 4A-2, Stage 4S decision 3).
+        const checks =
+          Array.isArray(nodes) && nodes.length === variantGids.length
+            ? nodes.map((node: any, index: number) =>
+                checkVariantNode(node, variantGids[index], partsArray[index].slot),
+              )
+            : null;
+        if (checks && !checks.some((check) => check.kind === "mismatched")) {
           let foundNodes = 0;
-          for (const [index, node] of nodes.entries()) {
+          slotsUnconfirmed = false;
+          for (const [index, check] of checks.entries()) {
             const part = partsArray[index];
-            const amount = parseFloat(node?.price?.amount);
             // Stage 4A-6: a variant the store doesn't know, or one with no price, isn't a part IT HUB can quote.
-            if (!node || !Number.isFinite(amount)) {
+            if (check.kind !== "resolved") {
               unavailableParts.push(part.slot);
+              slotsUnconfirmed = true;
               continue;
             }
-            const price = Math.round(amount);
-            authoritativePrice += price * quantities[index];
+            authoritativePrice += check.price * quantities[index];
             foundNodes++;
-            // What's stored is what Shopify says, whatever name and price the browser sent.
-            part.price = price;
-            if (node.product?.title) {
-              part.title = node.product.title;
-              part.name = node.product.title;
+            // What's stored is what Shopify says, whatever name, price and product the browser sent.
+            part.price = check.price;
+            if (check.title) {
+              part.title = check.title;
+              part.name = check.title;
             }
-            if (node.availableForSale === false) {
-              unavailableParts.push(part.slot);
+            if (check.productId) {
+              if (part.productId && part.productId !== check.productId) {
+                part.reportedProductId = part.productId;
+              }
+              part.productId = check.productId;
             }
+            if (!check.availableForSale) unavailableParts.push(part.slot);
+            if (check.backordered) backordered = true;
+            // Stage 4S decision 2: Shopify's own fields placing the product elsewhere refuse the request; no
+            // confident answer either way leaves it for a technician.
+            if (check.slot.kind === "other_part" || check.slot.kind === "not_a_part") {
+              wrongSlotParts.push(part.slot);
+            } else if (check.slot.kind === "unknown") {
+              slotsUnconfirmed = true;
+            }
+            part.slotCheck = slotCheckLabel(check.slot);
           }
           if (foundNodes === variantGids.length && quantitiesValid) {
             hasAuthoritativeLookup = true;
@@ -321,6 +331,14 @@ export async function handleQuotationVerification(
       } catch {
         // The price stays unverified and the quotation goes to a technician for review.
       }
+    }
+
+    if (wrongSlotParts.length > 0) {
+      return reject(400, {
+        error: MESSAGE_UNREADABLE,
+        code: "invalid_request",
+        problems: wrongSlotParts.map((slot) => ({ code: "variant_wrong_slot", slot })),
+      });
     }
 
     if (unavailableParts.length > 0) {
@@ -334,8 +352,9 @@ export async function handleQuotationVerification(
       );
     }
 
-    // A second click or a retry returns the request already made, instead of filing another one.
-    const buildKey = JSON.stringify(allParts.map((part) => part.variantId || part.title).sort());
+    // A second click or a retry returns the request already made, instead of filing another one. Only the same
+    // request counts: the same slots, ownership, variants and quantities (Stage 4S decision 6).
+    const buildKey = quotationFingerprint(allParts);
     if (supabase) {
       try {
         const { data: recent } = await supabase
@@ -346,20 +365,9 @@ export async function handleQuotationVerification(
           .eq("user_id", userId)
           .eq("enquiry_status", "New")
           .gte("created_at", new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString());
-        const duplicate = (recent || []).find((row: any) => {
-          const stored = (
-            Array.isArray(row.parts) ? row.parts : Object.values(row.parts || {})
-          ) as any[];
-          return (
-            row.reference_id &&
-            JSON.stringify(
-              stored
-                .filter(Boolean)
-                .map((part) => part.variantId || part.title)
-                .sort(),
-            ) === buildKey
-          );
-        });
+        const duplicate = (recent || []).find(
+          (row: any) => row.reference_id && quotationFingerprint(row.parts) === buildKey,
+        );
         if (duplicate) {
           return new Response(
             JSON.stringify({
@@ -392,6 +400,9 @@ export async function handleQuotationVerification(
       priceDivergence > 100 ||
       !hasAuthoritativeLookup ||
       compatibility?.status !== "compatible" ||
+      // Stage 4S-1: a part Shopify couldn't confirm belongs in its slot, or one sold while out of stock.
+      slotsUnconfirmed ||
+      backordered ||
       // Nothing here can check a customer's own part, and the browser is what marked it as owned.
       allParts.some((part) => part.owned);
 

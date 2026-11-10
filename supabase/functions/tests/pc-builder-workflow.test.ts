@@ -19,7 +19,8 @@ const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
 const { generateWhatsAppQuotation } = await import("../../../src/lib/builder/checkout.ts");
 const { submitQuotationRequest } = await import("../../../src/lib/builder/persistence.ts");
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
-const { withEssentials, answeringFillers } = await import("./_helpers/quote-structure.ts");
+const { withEssentials, answeringFillers, storefrontProduct } =
+  await import("./_helpers/quote-structure.ts");
 
 let nextId = 1;
 const product = (name: string, extra: Record<string, unknown> = {}): any => {
@@ -829,9 +830,10 @@ function quotationHarness(options: { recent?: any[] } = {}) {
   return { inserted, supabaseClient };
 }
 
-const variantNode = (title: string, amount: string, availableForSale = true) => ({
+const variantNode = (title: string, amount: string, availableForSale = true, slot = "CPU") => ({
   title: "Default Title",
-  product: { title },
+  // Since Stage 4S-1 the server reads the product's category to confirm its slot.
+  product: storefrontProduct(slot, title),
   price: { amount, currencyCode: "INR" },
   availableForSale,
 });

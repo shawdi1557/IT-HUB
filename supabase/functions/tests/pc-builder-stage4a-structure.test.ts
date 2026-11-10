@@ -8,7 +8,7 @@
 
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { GOLDEN_CATALOGUES } from "./_helpers/stage3-golden.ts";
-import { withEssentials } from "./_helpers/quote-structure.ts";
+import { storefrontProduct, withEssentials } from "./_helpers/quote-structure.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const {
@@ -72,12 +72,26 @@ const PRICES: Record<string, string> = {
   [V("s6-cooler")]: "1500.00",
 };
 
+/** Which slot each test variant is a part for, so Shopify's answer files it under that slot's category. */
+const SLOT_OF: Record<string, string> = {
+  [V("s6-cpu")]: "CPU",
+  [V("s6-board")]: "Motherboard",
+  [V("s6-ram")]: "RAM",
+  [V("s6-ssd")]: "Storage",
+  [V("s6-psu")]: "PSU",
+  [V("s6-case")]: "Cabinet",
+  [V("s6-gpu")]: "GPU",
+  [V("s6-cooler")]: "Cooler",
+};
+
 interface ServerOptions {
   /** Replaces Shopify's answer. Defaults to every known variant on sale at its price. */
   nodes?: (ids: string[]) => any;
   allowed?: boolean;
   authenticated?: boolean;
   priceOf?: Record<string, string>;
+  /** Shopify's product for each variant. Defaults to one filed under the test variant's slot category. */
+  productOf?: Record<string, any>;
 }
 
 /** The handler with Shopify, sign-in, the rate limiter and the table stubbed, recording what each was asked. */
@@ -123,7 +137,10 @@ async function send(
           prices[id]
             ? {
                 id,
-                product: { title: `Shopify ${id.split("/").pop()}` },
+                // Stage 4S-1: filed under its slot's category, as the store does.
+                product:
+                  options.productOf?.[id] ??
+                  storefrontProduct(SLOT_OF[id] ?? "CPU", `Shopify ${id.split("/").pop()}`),
                 price: { amount: prices[id], currencyCode: "INR" },
                 availableForSale: true,
               }
@@ -206,6 +223,19 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
     const listings = make() as any[];
     const catalogue = syncBuilderCatalogWithShopify(listings).componentCatalog;
     const prices: Record<string, string> = {};
+    // Stage 4S-1: Shopify answers each variant with the listing's own product data, so the server places each part
+    // by the same fields the builder placed it by.
+    const productOf: Record<string, any> = {};
+    for (const listing of listings) {
+      productOf[listing.variantId] = {
+        id: listing.id,
+        title: listing.name,
+        productType: listing.productType ?? "",
+        tags: listing.tags ?? [],
+        category: listing.category ? { name: listing.category } : null,
+        collections: { edges: [] },
+      };
+    }
     for (const items of Object.values(catalogue) as any[][]) {
       for (const item of items || [])
         if (item.variantId) prices[item.variantId] = `${item.price}.00`;
@@ -247,7 +277,7 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
               auth: { getUser: async () => ({ data: { user: { id: "u" } } }) },
               functions: {
                 invoke: async (_name: string, { body }: any) => {
-                  server = await send(body, { priceOf: prices });
+                  server = await send(body, { priceOf: prices, productOf });
                   return { data: server.body, error: null };
                 },
               },
@@ -589,13 +619,17 @@ Deno.test("S4A-S16: extra fields in a part are dropped, and browser specificatio
     "isShopifyLive",
     "name",
     "price",
+    "productId",
     "quantity",
     "slot",
+    "slotCheck",
     "specs",
     "title",
     "variantId",
   ]);
   assertEquals(stored.specs, { socket: "AM5" });
+  // Stage 4S-1: the server records how Shopify placed the product, here by its category.
+  assertEquals(stored.slotCheck, "shopify_fields");
   // The stored review flag and price are the server's, not the part's.
   assertEquals(result.calls.inserted[0].authoritative_price, COMPLETE_TOTAL);
 });

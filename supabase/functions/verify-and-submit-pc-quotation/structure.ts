@@ -124,6 +124,13 @@ export interface QuotePart {
   quantity?: number;
   isShopifyLive: boolean;
   specs?: Record<string, unknown>;
+  /**
+   * Stage 4S-1, set by the server for each part to buy: how Shopify's data placed the product in its slot (its own
+   * fields, or its title), or that it couldn't be confirmed. Owned parts have none.
+   */
+  slotCheck?: "shopify_fields" | "title" | "unconfirmed";
+  /** Stage 4S-1: the product ID the browser sent, kept only when it isn't the variant's product in Shopify. */
+  reportedProductId?: string;
 }
 
 export type StructureResult =
@@ -371,4 +378,32 @@ export function quantityPriceable(part: QuotePart): boolean {
     quantity >= 1 &&
     quantity <= (QUOTE_MAX_QUANTITY[part.slot] ?? 1)
   );
+}
+
+/**
+ * What makes two quotation requests the same request, for the two-minute repeat check (Stage 4S decision 6):
+ * each slot, whether the customer owns the part there, and for a part to buy its variant and quantity. The same
+ * parts in other quantities, other parts, or a part now owned rather than bought are a different request, so
+ * they never get an earlier reference or price. Works on a request's checked parts and on a stored row's
+ * `parts` (keyed by slot, or a list from older rows). A stored part to buy with no quantity predates quantities
+ * being stored, when none meant one.
+ */
+export function quotationFingerprint(parts: unknown): string {
+  const entries: [string, unknown][] = Array.isArray(parts)
+    ? parts.map((part) => [String((part as any)?.slot ?? ""), part])
+    : isPlainObject(parts)
+      ? Object.entries(parts)
+      : [];
+  const lines = entries
+    .filter(([, part]) => isPlainObject(part))
+    .map(([key, part]) => {
+      const raw = part as Record<string, unknown>;
+      const slot = typeof raw.slot === "string" && raw.slot ? raw.slot : key;
+      if (raw.owned === true) return [slot, "owned"];
+      const quantity =
+        typeof raw.quantity === "number" && Number.isInteger(raw.quantity) ? raw.quantity : 1;
+      return [slot, "buy", typeof raw.variantId === "string" ? raw.variantId : null, quantity];
+    })
+    .sort((a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0));
+  return JSON.stringify(lines);
 }

@@ -15,6 +15,7 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import * as path from "https://deno.land/std@0.224.0/path/mod.ts";
+import { FakeTime } from "https://deno.land/std@0.224.0/testing/time.ts";
 import {
   isRescheduleEligible,
   validateRequestedAppointmentDate,
@@ -106,20 +107,32 @@ Deno.test("RESCHED-1: Customer appointment rescheduling strictly restricted to O
 });
 
 Deno.test("RESCHED-2: validateRequestedAppointmentDate strictly enforces future dates and Sunday closure", () => {
-  // Past date
-  const pastRes = validateRequestedAppointmentDate("2020-01-01");
-  assertEquals(pastRes.valid, false);
-  assertStringIncludes(pastRes.error || "", "future");
+  // A fixed clock: midday on Monday 9 November 2026, local time. The rules compare against "today", so a real
+  // clock made this test fail once its example date arrived.
+  const time = new FakeTime(new Date(2026, 10, 9, 12, 0, 0));
+  try {
+    // Past date
+    const pastRes = validateRequestedAppointmentDate("2020-01-01");
+    assertEquals(pastRes.valid, false);
+    assertStringIncludes(pastRes.error || "", "future");
 
-  // Sunday validation: IT HUB closed
-  // 2026-11-01 was a Sunday
-  const sundayRes = validateRequestedAppointmentDate("2026-11-01");
-  assertEquals(sundayRes.valid, false);
-  assertStringIncludes(sundayRes.error || "", "Sunday");
+    // Today isn't in the future either.
+    const todayRes = validateRequestedAppointmentDate("2026-11-09");
+    assertEquals(todayRes.valid, false);
+    assertStringIncludes(todayRes.error || "", "future");
 
-  // Non-Sunday future date (e.g. 2026-11-10 is a Tuesday)
-  const mondayRes = validateRequestedAppointmentDate("2026-11-10");
-  assertEquals(mondayRes.valid, true);
+    // Sunday validation: IT HUB closed
+    // 2026-11-01 was a Sunday
+    const sundayRes = validateRequestedAppointmentDate("2026-11-01");
+    assertEquals(sundayRes.valid, false);
+    assertStringIncludes(sundayRes.error || "", "Sunday");
+
+    // Non-Sunday future date (2026-11-10 is a Tuesday, the day after the fixed clock)
+    const mondayRes = validateRequestedAppointmentDate("2026-11-10");
+    assertEquals(mondayRes.valid, true);
+  } finally {
+    time.restore();
+  }
 });
 
 Deno.test("RESCHED-3: CustomerRescheduleManager displays guidance for ineligible walk-in and courier tickets", async () => {
