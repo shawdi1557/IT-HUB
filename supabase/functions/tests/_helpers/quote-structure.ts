@@ -3,6 +3,8 @@
 // essentials at ₹0, so each test still sends what it was about, with the same totals. Made-up IDs, no real stock.
 // Since the Stage 4A closure every part to buy must carry a quantity, so each stand-in is one unit.
 
+import { SPEC_METAFIELD_KEYS } from "../../verify-and-submit-pc-quotation/resolve.ts";
+
 export const FILLER_PREFIX = "gid://shopify/ProductVariant/s4a6-filler-";
 
 const ESSENTIALS = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
@@ -42,6 +44,15 @@ export const SLOT_CATEGORY: Record<string, string> = {
   Monitor: "Monitors",
 };
 
+/**
+ * Shopify's answer to the server's metafield request (Stage 4S-2): one entry per key asked for, in order, null where
+ * the product has no value, as the Storefront API answers `metafields(identifiers:)`. `values` sets some.
+ */
+export const specMetafields = (values: Record<string, string> = {}) =>
+  SPEC_METAFIELD_KEYS.map((key) =>
+    key in values ? { namespace: "pc_builder", key, value: values[key], type: "" } : null,
+  );
+
 /** Shopify's product for a part in a slot, shaped as the server's query asks for it. Made-up IDs. */
 export const storefrontProduct = (slot: string, title: string) => ({
   id: `gid://shopify/Product/test-${slot.toLowerCase()}`,
@@ -50,6 +61,7 @@ export const storefrontProduct = (slot: string, title: string) => ({
   tags: [] as string[],
   category: { name: SLOT_CATEGORY[slot] },
   collections: { edges: [] as unknown[] },
+  metafields: specMetafields(),
 });
 
 const fillerSlot = (id: string) =>

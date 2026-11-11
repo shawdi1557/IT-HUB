@@ -5,11 +5,26 @@
 // scripts/sync-server-builder.cjs).
 
 import { classifyProductSlot, type SlotClassification } from "../_shared/builder/slot-detection.ts";
+import { PC_BUILDER_METAFIELDS, PC_BUILDER_NAMESPACE } from "../_shared/builder/spec-schema.ts";
 import type { ComponentSlotId } from "../_shared/builder/types.ts";
 
 /**
- * One Storefront request for every variant to buy: identity, price, whether it can be bought, and the product
- * fields the builder places products by (type, tags, taxonomy category, collections), as the storefront reads them.
+ * Stage 4S-2: the product metafields the server reads specifications from. Every pc_builder key the Storefront API
+ * exposes, from the one schema definition; the storefront's catalogue query asks for the same keys
+ * (`pc-builder-stage4s-specs.test.ts` compares them). `spec_reviewed_by` isn't exposed, so it isn't asked for.
+ */
+export const SPEC_METAFIELD_KEYS: readonly string[] = PC_BUILDER_METAFIELDS.filter(
+  (field) => field.storefront === "public",
+).map((field) => field.key);
+
+const metafieldIdentifiers = SPEC_METAFIELD_KEYS.map(
+  (key) => `{ namespace: "${PC_BUILDER_NAMESPACE}", key: "${key}" }`,
+).join("\n            ");
+
+/**
+ * One Storefront request for every variant to buy: identity, price, whether it can be bought, the product fields the
+ * builder places products by (type, tags, taxonomy category, collections), as the storefront reads them, and
+ * (Stage 4S-2) the product's pc_builder specification metafields.
  * Stock counts aren't asked for: the Storefront token can't read them (`quantityAvailable` is refused without the
  * `unauthenticated_read_product_inventory` scope, checked 10 November 2026).
  */
@@ -39,6 +54,17 @@ export const VARIANT_QUERY = `
                 title
               }
             }
+          }
+          metafields(
+            identifiers: [
+            ${metafieldIdentifiers}
+            ]
+          ) {
+            namespace
+            key
+            value
+            type
+            updatedAt
           }
         }
       }

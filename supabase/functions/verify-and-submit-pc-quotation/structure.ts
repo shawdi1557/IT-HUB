@@ -9,6 +9,8 @@
 // The slot lists repeat the builder's (`src/lib/builder/slots.ts`, `completeness.ts`, `persistence.ts`), because
 // an Edge Function is deployed on its own. `pc-builder-stage4a-structure.test.ts` fails if the two drift apart.
 
+import type { ServerSpecRecord } from "./specs.ts";
+
 /** Every slot a quotation can fill: the builder's slots, and nothing else. */
 export const QUOTE_SLOTS = [
   "CPU",
@@ -131,6 +133,12 @@ export interface QuotePart {
   slotCheck?: "shopify_fields" | "title" | "unconfirmed";
   /** Stage 4S-1: the product ID the browser sent, kept only when it isn't the variant's product in Shopify. */
   reportedProductId?: string;
+  /**
+   * Stage 4S-2, set by the server for each part to buy: the specifications it resolved from Shopify's answer, with
+   * each value's status and provenance. `specs` above is the browser's report, kept as it was sent. Owned parts have
+   * none.
+   */
+  serverSpecs?: ServerSpecRecord;
 }
 
 export type StructureResult =

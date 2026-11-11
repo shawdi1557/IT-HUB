@@ -621,6 +621,7 @@ Deno.test("S4A-S16: extra fields in a part are dropped, and browser specificatio
     "price",
     "productId",
     "quantity",
+    "serverSpecs",
     "slot",
     "slotCheck",
     "specs",
@@ -630,6 +631,16 @@ Deno.test("S4A-S16: extra fields in a part are dropped, and browser specificatio
   assertEquals(stored.specs, { socket: "AM5" });
   // Stage 4S-1: the server records how Shopify placed the product, here by its category.
   assertEquals(stored.slotCheck, "shopify_fields");
+  // Stage 4S-2: the server's own specifications sit beside the browser's. Shopify states no socket for this product,
+  // so the server has none: the browser's "AM5" is only noted as a difference, never taken as the value.
+  assertEquals(stored.serverSpecs.resolvedBy, "server");
+  const socket = stored.serverSpecs.fields.find((field: any) => field.field === "socket");
+  assertEquals(socket.status, "missing");
+  assertEquals("value" in socket, false);
+  assertEquals(
+    stored.serverSpecs.browserDifferences.find((d: any) => d.field === "socket"),
+    { field: "socket", browser: "AM5", server: null },
+  );
   // The stored review flag and price are the server's, not the part's.
   assertEquals(result.calls.inserted[0].authoritative_price, COMPLETE_TOTAL);
 });

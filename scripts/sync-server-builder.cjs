@@ -28,6 +28,9 @@ const MODULES = [
   "compatibility",
   "completeness",
   "slot-detection",
+  // Stage 4S-2: how a product's specifications are read and resolved.
+  "shopify-fields",
+  "spec-registry",
 ];
 
 const header = (name) =>

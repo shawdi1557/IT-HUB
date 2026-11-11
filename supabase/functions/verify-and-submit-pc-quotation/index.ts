@@ -14,6 +14,7 @@ import {
   quotationFingerprint,
 } from "./structure.ts";
 import { checkVariantNode, slotCheckLabel, VARIANT_QUERY } from "./resolve.ts";
+import { resolvePartSpecs, unresolvedSpecRecord } from "./specs.ts";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -256,7 +257,12 @@ export async function handleQuotationVerification(
     const wrongSlotParts: string[] = [];
     let slotsUnconfirmed = partsArray.length > 0;
     let backordered = false;
-    for (const part of partsArray) part.slotCheck = "unconfirmed";
+    // Stage 4S-2: what the server resolves each part's specifications to. Until Shopify has answered reliably, none
+    // is resolved, and that alone sends the quotation to a technician.
+    for (const part of partsArray) {
+      part.slotCheck = "unconfirmed";
+      part.serverSpecs = unresolvedSpecRecord("shopify_unavailable", part.variantId);
+    }
 
     if (partsArray.length > 0 && ((shopifyDomain && shopifyToken) || deps?.shopifyFetch)) {
       try {
@@ -288,6 +294,12 @@ export async function handleQuotationVerification(
                 checkVariantNode(node, variantGids[index], partsArray[index].slot),
               )
             : null;
+        if (Array.isArray(nodes) && !(checks && !checks.some((c) => c.kind === "mismatched"))) {
+          // Shopify answered, but not for the variants asked about: nothing in it is used.
+          for (const part of partsArray) {
+            part.serverSpecs = unresolvedSpecRecord("answer_unreliable", part.variantId);
+          }
+        }
         if (checks && !checks.some((check) => check.kind === "mismatched")) {
           let foundNodes = 0;
           slotsUnconfirmed = false;
@@ -328,6 +340,9 @@ export async function handleQuotationVerification(
               slotsUnconfirmed = true;
             }
             part.slotCheck = slotCheckLabel(check.slot);
+            // Stage 4S-2: the part's specifications, from this answer only. The browser's are compared, never used.
+            const specs = resolvePartSpecs(nodes[index], part.slot, check.slot, part.specs);
+            part.serverSpecs = specs.record;
           }
           if (foundNodes === variantGids.length && quantitiesValid) {
             hasAuthoritativeLookup = true;
@@ -398,6 +413,7 @@ export async function handleQuotationVerification(
     // 6. Anti-Tampering & Price Divergence Audit. Client-supplied prices are never authoritative,
     // so an unverified quotation records no authoritative price at all.
     const clientPrice = Math.round(estimatedPrice);
+    const specsNeedReview = partsArray.some((part) => part.serverSpecs?.reviewRequired === true);
     const priceDivergence = hasAuthoritativeLookup ? Math.abs(authoritativePrice - clientPrice) : 0;
     // The compatibility result comes from the browser, so it can only add a reason to review. A
     // missing result counts as unconfirmed.
@@ -408,6 +424,9 @@ export async function handleQuotationVerification(
       // Stage 4S-1: a part Shopify couldn't confirm belongs in its slot, or one sold while out of stock.
       slotsUnconfirmed ||
       backordered ||
+      // Stage 4S-2: a part whose specifications the server couldn't resolve, or resolved with a rejected,
+      // conflicting or unreadable value. (Unresolved parts are also caught above: no verified price.)
+      specsNeedReview ||
       // Nothing here can check a customer's own part, and the browser is what marked it as owned.
       allParts.some((part) => part.owned);
 
