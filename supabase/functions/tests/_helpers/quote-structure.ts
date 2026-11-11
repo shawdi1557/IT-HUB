@@ -4,6 +4,7 @@
 // Since the Stage 4A closure every part to buy must carry a quantity, so each stand-in is one unit.
 
 import { SPEC_METAFIELD_KEYS } from "../../verify-and-submit-pc-quotation/resolve.ts";
+import { reviewedSpecs } from "./stage3-golden.ts";
 
 export const FILLER_PREFIX = "gid://shopify/ProductVariant/s4a6-filler-";
 
@@ -53,15 +54,30 @@ export const specMetafields = (values: Record<string, string> = {}) =>
     key in values ? { namespace: "pc_builder", key, value: values[key], type: "" } : null,
   );
 
-/** Shopify's product for a part in a slot, shaped as the server's query asks for it. Made-up IDs. */
-export const storefrontProduct = (slot: string, title: string) => ({
+/**
+ * Stage 4S-3: every value the compatibility rules read for a part in this slot, reviewed against a (made-up) maker's
+ * datasheet, as `stage3-golden.ts` defines them. The parts fit together, and the processor has graphics of its own
+ * and a boxed cooler, so the six essentials alone are a Complete build on the server's own assessment.
+ */
+export const verifiedValues = (slot: string, extra: Record<string, string> = {}) =>
+  reviewedSpecs(slot as any, slot === "CPU" ? { integrated_graphics: "true", ...extra } : extra);
+
+/**
+ * Shopify's product for a part in a slot, shaped as the server's query asks for it, with fully reviewed values
+ * unless others are given. Made-up IDs and values: test catalogue only.
+ */
+export const storefrontProduct = (
+  slot: string,
+  title: string,
+  values: Record<string, string> = verifiedValues(slot),
+) => ({
   id: `gid://shopify/Product/test-${slot.toLowerCase()}`,
   title,
   productType: "",
   tags: [] as string[],
   category: { name: SLOT_CATEGORY[slot] },
   collections: { edges: [] as unknown[] },
-  metafields: specMetafields(),
+  metafields: specMetafields(values),
 });
 
 const fillerSlot = (id: string) =>

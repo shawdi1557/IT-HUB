@@ -8,7 +8,12 @@
 // specification registry. None of it is IT HUB stock or a selling price. No network.
 
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { SLOT_CATEGORY, specMetafields, storefrontProduct } from "./_helpers/quote-structure.ts";
+import {
+  SLOT_CATEGORY,
+  specMetafields,
+  storefrontProduct,
+  verifiedValues,
+} from "./_helpers/quote-structure.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const { MESSAGE_UNREADABLE } = await import("../verify-and-submit-pc-quotation/structure.ts");
@@ -70,21 +75,25 @@ const listing = (slot: string, title: string, values: Record<string, string> = {
   metafields: specMetafields(values),
 });
 
-/** The test catalogue for a build: one made-up listing per part. */
+const AM5 = { socket: "AM5", ram_generation: "DDR5" };
+
+/**
+ * The test catalogue for a build: one made-up listing per part, an AM5 and DDR5 build that is Complete on the
+ * server's own assessment (Stage 4S-3).
+ */
 const PRODUCTS: Record<string, any> = {
   // Matches the registry entry cpu-r5-7600, whose socket, power, graphics and cooler have a maker's page.
   [V("cpu")]: listing("CPU", "AMD Ryzen 5 7600"),
   // No registry entry: everything comes from the listing's own, reviewed, metafields.
   [V("board")]: listing("Motherboard", "IT-HUB Test Board TB-1", {
-    socket: "AM5",
-    ram_generation: "DDR5",
+    ...verifiedValues("Motherboard", AM5),
     form_factor: "Micro-ATX",
     ...REVIEWED,
   }),
-  [V("ram")]: listing("RAM", "IT-HUB Test Memory TM-1", { ram_generation: "DDR5" }),
-  [V("ssd")]: listing("Storage", "IT-HUB Test Drive TD-1"),
-  [V("psu")]: listing("PSU", "IT-HUB Test Supply TS-1 650W"),
-  [V("case")]: listing("Cabinet", "IT-HUB Test Case TC-1"),
+  [V("ram")]: listing("RAM", "IT-HUB Test Memory TM-1", verifiedValues("RAM", AM5)),
+  [V("ssd")]: listing("Storage", "IT-HUB Test Drive TD-1", verifiedValues("Storage")),
+  [V("psu")]: listing("PSU", "IT-HUB Test Supply TS-1 650W", verifiedValues("PSU")),
+  [V("case")]: listing("Cabinet", "IT-HUB Test Case TC-1", verifiedValues("Cabinet")),
 };
 
 const node = (id: string, product: any = PRODUCTS[id], overrides: Record<string, any> = {}) => ({
@@ -361,7 +370,7 @@ Deno.test("S4S2-6: IT HUB's rejection of a listing's values is honoured: none is
 // ── 5. Uncertain and unsupported values ──────────────────────────────────────────────────────────────
 
 Deno.test("S4S2-7: a title-read value is uncertain; a value for another kind of part is unsupported, not read", () => {
-  const supply = resolveOne("PSU", PRODUCTS[V("psu")]).record;
+  const supply = resolveOne("PSU", listing("PSU", "IT-HUB Test Supply TS-1 650W")).record;
   assertEquals(field(supply, "ratedWattage"), {
     field: "ratedWattage",
     status: "uncertain",
@@ -460,7 +469,7 @@ Deno.test("S4S2-9: the browser's specifications are never used: only noted where
     provenance: "manufacturer_verified",
   }).record;
   assertEquals(claimed.browserDifferences, [
-    { field: "provenance", browser: "manufacturer_verified", server: "supplier_spec" },
+    { field: "provenance", browser: "manufacturer_verified", server: "it_hub_reviewed" },
   ]);
   // Junk in the browser's specs can't break anything or reach the record as a value.
   for (const junk of [null, "AM5", 42, [1, 2], { socket: { $gt: "" } }]) {

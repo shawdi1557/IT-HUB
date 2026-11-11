@@ -876,7 +876,7 @@ Deno.test("QUOTE: Shopify's name and price replace what the browser sent", async
       customerInfo: { name: "A", phone: "910000000000" },
     },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   const body = await res.json();
   assertEquals(res.status, 200);
@@ -884,7 +884,7 @@ Deno.test("QUOTE: Shopify's name and price replace what the browser sent", async
   assertEquals(body.technicianReviewRequired, true);
 
   const row = harness.inserted[0];
-  assertEquals(row.parts.CPU.title, "AMD Ryzen 5 5600");
+  assertEquals(row.parts.CPU.title, "AMD Ryzen 5 5600G");
   assertEquals(row.parts.CPU.price, 9000);
   assertEquals(row.estimated_price, 9000);
   assertEquals(row.compatibility.reportedBy, "customer_browser");
@@ -911,7 +911,7 @@ Deno.test("QUOTE: a part the customer owns isn't priced, and always goes to a te
       customerInfo: {},
     },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   const body = await res.json();
   assertEquals(body.authoritativePrice, 9000);
@@ -939,7 +939,7 @@ Deno.test("QUOTE: a sold-out part stops the quotation and nothing is stored", as
       customerInfo: {},
     },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00", false)],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00", false)],
   );
   const body = await res.json();
   assertEquals(res.status, 409);
@@ -972,7 +972,7 @@ Deno.test("QUOTE: a repeat of a recent request returns the same reference", asyn
   const res = await submit(
     { estimatedPrice: 9000, parts, compatibility: {}, customerInfo: {} },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   const body = await res.json();
   assertEquals(body.success, true);
@@ -1009,7 +1009,7 @@ Deno.test("QUOTE: a different build isn't treated as a repeat", async () => {
       customerInfo: {},
     },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   assertNotEquals((await res.json()).referenceId, "ITH-PC-EXISTING");
   assertEquals(harness.inserted.length, 1);
@@ -1439,20 +1439,25 @@ const reviewFlag = async (compatibilityValue: unknown) => {
       customerInfo: {},
     },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   const body = await res.json();
   assertEquals(harness.inserted[0].technician_review_required, body.technicianReviewRequired);
   return body.technicianReviewRequired;
 };
 
-Deno.test("QUOTE: anything short of confirmed compatibility goes to a technician", async () => {
-  assertEquals(await reviewFlag({ status: "compatible" }), false);
-  assertEquals(await reviewFlag({ status: "conditional" }), true);
-  assertEquals(await reviewFlag({ status: "unknown" }), true);
-  assertEquals(await reviewFlag({ status: "incompatible" }), true);
-  assertEquals(await reviewFlag({}), true);
-  assertEquals(await reviewFlag(undefined), true);
+Deno.test("QUOTE: the browser's claimed compatibility neither clears nor sets review (Stage 4S-3)", async () => {
+  // The build is Complete on the server's own assessment, so nothing the browser claims changes the outcome.
+  for (const claim of [
+    { status: "compatible" },
+    { status: "conditional" },
+    { status: "unknown" },
+    { status: "incompatible" },
+    {},
+    undefined,
+  ]) {
+    assertEquals(await reviewFlag(claim), false, JSON.stringify(claim));
+  }
 });
 
 Deno.test("QUOTE: a repeat request keeps the original review flag", async () => {
@@ -1480,7 +1485,7 @@ Deno.test("QUOTE: a repeat request keeps the original review flag", async () => 
   const res = await submit(
     { estimatedPrice: 9000, parts, compatibility: { status: "compatible" }, customerInfo: {} },
     harness,
-    [variantNode("AMD Ryzen 5 5600", "9000.00")],
+    [variantNode("AMD Ryzen 5 5600G", "9000.00")],
   );
   assertEquals((await res.json()).technicianReviewRequired, true);
 });

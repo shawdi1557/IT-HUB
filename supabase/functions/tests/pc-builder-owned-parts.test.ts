@@ -260,8 +260,10 @@ Deno.test("PAGE: Find My PC offers review builds beside confirmed ones", () => {
 });
 
 Deno.test("QUOTATION: a build with owned parts reaches a technician", () => {
-  // The function flags anything short of compatible, and owned parts make a build "unknown".
-  assert(edge.includes('compatibility?.status !== "compatible"'));
+  // The function sends any owned part to review, and its own assessment (Stage 4S-3) is never Complete with one:
+  // owned parts make a build "unknown".
+  assert(edge.includes("allParts.some((part) => part.owned)"));
+  assert(edge.includes('verdict.record.state !== "complete"'));
   const [build] = offer(["GPU"]);
   assert(compatibility(build.parts, { ownedSlots: ["GPU"] }).summary.status !== "compatible");
 });

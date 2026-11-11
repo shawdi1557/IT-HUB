@@ -46,11 +46,11 @@ const TOTAL = 15000 + 9000 + 3000 + 4000 + 3500 + 2500;
 
 /** Shopify's product for each test variant, filed under its slot's category as the store does. */
 const PRODUCTS: Record<string, any> = {
-  [V("cpu")]: storefrontProduct("CPU", "AMD Ryzen 5 5600"),
+  [V("cpu")]: storefrontProduct("CPU", "AMD Ryzen 5 5600G"),
   [V("board")]: storefrontProduct("Motherboard", "ASUS Prime B550M-A"),
   [V("ram")]: storefrontProduct("RAM", "Corsair Vengeance 16GB DDR4"),
   [V("ssd")]: storefrontProduct("Storage", "Kingston NV2 1TB NVMe"),
-  [V("psu")]: storefrontProduct("PSU", "Deepcool PK550D"),
+  [V("psu")]: storefrontProduct("PSU", "Deepcool PK650D"),
   [V("case")]: storefrontProduct("Cabinet", "Ant Esports ICE-100"),
 };
 

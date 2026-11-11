@@ -8,7 +8,7 @@
 
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { GOLDEN_CATALOGUES } from "./_helpers/stage3-golden.ts";
-import { storefrontProduct, withEssentials } from "./_helpers/quote-structure.ts";
+import { specMetafields, storefrontProduct, withEssentials } from "./_helpers/quote-structure.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const {
@@ -234,6 +234,8 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
         tags: listing.tags ?? [],
         category: listing.category ? { name: listing.category } : null,
         collections: { edges: [] },
+        // Stage 4S-3: the listing's own pc_builder values, so the server resolves and judges the build itself.
+        metafields: specMetafields(listing.specs || {}),
       };
     }
     for (const items of Object.values(catalogue) as any[][]) {
@@ -298,6 +300,19 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
             const where = `${name} ${purpose} ${owned} ${min}-${max}`;
             assertEquals(server?.status, 200, `${where}: ${JSON.stringify(server?.body)}`);
             assert(result.success, where);
+            // Stage 4S-3: the server reaches the same verdict as the page, judged without a purpose as the server
+            // is (the request carries none), from the parts it resolved itself.
+            const neutral = assessBuild(components as any, checks.summary, { ownedSlots } as any);
+            assertEquals(
+              server!.calls.inserted[0].compatibility.serverAssessment.state,
+              neutral.state,
+              where,
+            );
+            assertEquals(
+              server!.body.technicianReviewRequired,
+              neutral.state !== "complete" || ownedSlots.length > 0,
+              where,
+            );
             assertEquals(result.priceDivergence, 0, where);
             assert(server!.body.authoritativePrice > 0, where);
             checked++;
@@ -631,15 +646,15 @@ Deno.test("S4A-S16: extra fields in a part are dropped, and browser specificatio
   assertEquals(stored.specs, { socket: "AM5" });
   // Stage 4S-1: the server records how Shopify placed the product, here by its category.
   assertEquals(stored.slotCheck, "shopify_fields");
-  // Stage 4S-2: the server's own specifications sit beside the browser's. Shopify states no socket for this product,
-  // so the server has none: the browser's "AM5" is only noted as a difference, never taken as the value.
+  // Stage 4S-2: the server's own specifications sit beside the browser's. Shopify's reviewed listing says AM4, so
+  // that's the server's value: the browser's "AM5" is only noted as a difference, never taken as the value.
   assertEquals(stored.serverSpecs.resolvedBy, "server");
   const socket = stored.serverSpecs.fields.find((field: any) => field.field === "socket");
-  assertEquals(socket.status, "missing");
-  assertEquals("value" in socket, false);
+  assertEquals(socket.status, "verified");
+  assertEquals(socket.value, "AM4");
   assertEquals(
     stored.serverSpecs.browserDifferences.find((d: any) => d.field === "socket"),
-    { field: "socket", browser: "AM5", server: null },
+    { field: "socket", browser: "AM5", server: "AM4" },
   );
   // The stored review flag and price are the server's, not the part's.
   assertEquals(result.calls.inserted[0].authoritative_price, COMPLETE_TOTAL);
@@ -840,27 +855,40 @@ Deno.test("S4A-S26: every part to buy must state its quantity; an owned part nee
     assertEquals(part.quantity, 1);
 });
 
-// ── Compatibility stays the browser's claim ────────────────────────────────────────────────────────
+// ── Compatibility is the server's own verdict (Stage 4S-3) ──────────────────────────────────────────────
 
-Deno.test("S4A-S21: passing the structure check never makes a build compatible on the server's word", async () => {
-  // Claimed compatible, priced exactly: no review. That's the open Stage 4S gap, and the check doesn't hide it:
-  // the stored result is still marked as the browser's.
-  const claimed = await send(request(completeParts()));
-  assertEquals(claimed.body.technicianReviewRequired, false);
-  assertEquals(claimed.calls.inserted[0].compatibility, {
-    status: "compatible",
-    reportedBy: "customer_browser",
+Deno.test("S4A-S21: the server's own assessment decides review; the browser's claimed status is only recorded", async () => {
+  // A build the server finds Complete, priced exactly: no review, whatever status the browser claims.
+  for (const status of ["compatible", "unknown", "conditional", "incompatible", undefined]) {
+    const result = await send(request(completeParts(), { compatibility: { status } }));
+    assertEquals(result.status, 200, String(status));
+    assertEquals(result.body.technicianReviewRequired, false, String(status));
+    const stored = result.calls.inserted[0].compatibility;
+    // The browser's report is kept as its note; the server's verdict sits beside it.
+    assertEquals(stored.status, status);
+    assertEquals(stored.reportedBy, "customer_browser");
+    assertEquals(stored.serverAssessment.state, "complete");
+    assertEquals(stored.serverAssessment.browserStatus, status ?? null);
+    assertEquals(
+      stored.serverAssessment.agreesWithBrowser,
+      status === undefined ? null : status === "compatible",
+    );
+  }
+  // Claimed compatible, but the server finds values nobody has reviewed: review.
+  const unreviewed = await send(request(completeParts()), {
+    productOf: {
+      [V("s6-ram")]: storefrontProduct("RAM", "Shopify s6-ram", { ram_generation: "DDR4" }),
+    },
   });
-  // Claimed compatible, but the price can't be verified: always review.
+  assertEquals(unreviewed.status, 200);
+  assertEquals(unreviewed.body.technicianReviewRequired, true);
+  assertEquals(unreviewed.calls.inserted[0].compatibility.serverAssessment.state, "needs_review");
+  // Claimed compatible, but the price can't be verified: always review, with no verdict.
   const unverified = await send(request(completeParts()), {
     nodes: () => ({ errors: [{ message: "unavailable" }] }),
   });
   assertEquals(unverified.body.technicianReviewRequired, true);
-  // Anything short of a compatible claim: review, as before.
-  for (const status of ["unknown", "conditional", "incompatible", undefined]) {
-    const result = await send(request(completeParts(), { compatibility: { status } }));
-    assertEquals(result.body.technicianReviewRequired, true, String(status));
-  }
+  assertEquals(unverified.calls.inserted[0].compatibility.serverAssessment.state, "not_assessed");
 });
 
 Deno.test("S4A-S22: the structure check is pure and doesn't change what it's given", () => {

@@ -31,6 +31,8 @@ const MODULES = [
   // Stage 4S-2: how a product's specifications are read and resolved.
   "shopify-fields",
   "spec-registry",
+  // Stage 4S-3: the builder's approved wording for an Incompatible or Incomplete build.
+  "completeness-wording",
 ];
 
 const header = (name) =>

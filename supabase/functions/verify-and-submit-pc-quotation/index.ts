@@ -14,7 +14,8 @@ import {
   quotationFingerprint,
 } from "./structure.ts";
 import { checkVariantNode, slotCheckLabel, VARIANT_QUERY } from "./resolve.ts";
-import { resolvePartSpecs, unresolvedSpecRecord } from "./specs.ts";
+import { resolvePartSpecs, unresolvedSpecRecord, type PartSpecResolution } from "./specs.ts";
+import { assessmentRefusal, assessQuotation } from "./assess.ts";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -259,6 +260,7 @@ export async function handleQuotationVerification(
     let backordered = false;
     // Stage 4S-2: what the server resolves each part's specifications to. Until Shopify has answered reliably, none
     // is resolved, and that alone sends the quotation to a technician.
+    const resolved = new Map<string, PartSpecResolution>();
     for (const part of partsArray) {
       part.slotCheck = "unconfirmed";
       part.serverSpecs = unresolvedSpecRecord("shopify_unavailable", part.variantId);
@@ -343,6 +345,7 @@ export async function handleQuotationVerification(
             // Stage 4S-2: the part's specifications, from this answer only. The browser's are compared, never used.
             const specs = resolvePartSpecs(nodes[index], part.slot, check.slot, part.specs);
             part.serverSpecs = specs.record;
+            resolved.set(part.slot, specs);
           }
           if (foundNodes === variantGids.length && quantitiesValid) {
             hasAuthoritativeLookup = true;
@@ -371,6 +374,25 @@ export async function handleQuotationVerification(
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // Stage 4S-3: the server's own verdict, from the unchanged engine and completeness rules run on the parts it
+    // resolved. The browser's compatibility report is only recorded. A part left unresolved means no verdict, and
+    // review. A build the server finds Incompatible or Incomplete is refused, as the builder would refuse it, and
+    // nothing is stored.
+    const verdict = assessQuotation(
+      partsArray.map(
+        (part) =>
+          resolved.get(part.slot) ?? {
+            slot: part.slot,
+            record: part.serverSpecs!,
+            component: null,
+          },
+      ),
+      allParts.filter((part) => part.owned).map((part) => part.slot),
+      compatibility,
+    );
+    const refusal = assessmentRefusal(verdict);
+    if (refusal) return reject(refusal.status, refusal.payload);
 
     // A second click or a retry returns the request already made, instead of filing another one. Only the same
     // request counts: the same slots, ownership, variants and quantities (Stage 4S decision 6).
@@ -415,12 +437,12 @@ export async function handleQuotationVerification(
     const clientPrice = Math.round(estimatedPrice);
     const specsNeedReview = partsArray.some((part) => part.serverSpecs?.reviewRequired === true);
     const priceDivergence = hasAuthoritativeLookup ? Math.abs(authoritativePrice - clientPrice) : 0;
-    // The compatibility result comes from the browser, so it can only add a reason to review. A
-    // missing result counts as unconfirmed.
     const technicianReviewRequired =
       priceDivergence > 100 ||
       !hasAuthoritativeLookup ||
-      compatibility?.status !== "compatible" ||
+      // Stage 4S-3: anything but Complete on the server's own assessment (Needs Review, or not assessed). The
+      // browser's claimed status plays no part.
+      verdict.record.state !== "complete" ||
       // Stage 4S-1: a part Shopify couldn't confirm belongs in its slot, or one sold while out of stock.
       slotsUnconfirmed ||
       backordered ||
@@ -450,8 +472,13 @@ export async function handleQuotationVerification(
           authoritative_price: hasAuthoritativeLookup ? authoritativePrice : null,
           price_divergence: priceDivergence,
           technician_review_required: technicianReviewRequired,
-          // Worked out in the customer's browser, so it's a note for the technician, not a finding.
-          compatibility: { ...compatibility, reportedBy: "customer_browser" },
+          // The browser's report, kept as a note, with the server's own verdict written last so the browser can't
+          // supply it (Stage 4S-3).
+          compatibility: {
+            ...compatibility,
+            reportedBy: "customer_browser",
+            serverAssessment: verdict.record,
+          },
           customer_name: customerInfo.name,
           customer_phone: verifiedPhone || customerInfo.phone,
           customer_email: customerInfo.email,
