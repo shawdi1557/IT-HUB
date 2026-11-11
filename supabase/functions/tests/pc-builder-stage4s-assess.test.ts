@@ -83,10 +83,13 @@ interface Send {
   owned?: string[];
   /** Sends a part in another slot than its listing's. */
   sendAs?: Record<string, string>;
+  /** Further request fields, such as a purpose (decision S3-B). */
+  extra?: Record<string, unknown>;
+  customerInfo?: Record<string, unknown>;
 }
 
 async function send(products: Catalogue, options: Send = {}) {
-  const calls = { inserted: [] as any[], repeatLookups: 0 };
+  const calls = { inserted: [] as any[], repeatLookups: 0, shopify: 0, logs: [] as string[] };
   const client = {
     auth: {
       getUser: async () => ({
@@ -115,6 +118,7 @@ async function send(products: Catalogue, options: Send = {}) {
   };
   const bySlotOfVariant = Object.fromEntries(Object.keys(products).map((slot) => [V(slot), slot]));
   const shopifyFetch = async (_query: string, vars: { ids: string[] }) => {
+    calls.shopify++;
     if (options.reply) return options.reply(vars.ids);
     return {
       data: {
@@ -139,6 +143,9 @@ async function send(products: Catalogue, options: Send = {}) {
   }
   for (const slot of options.owned || []) parts[slot] = { slot, owned: true };
   const ownedPrice = (options.owned || []).reduce((sum, slot) => sum + (PRICE[slot] || 0), 0);
+  // The function's diagnostic log lines (decision S3-A), captured instead of printed.
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => calls.logs.push(args.map(String).join(" "));
   const res = await handleQuotationVerification(
     new Request("http://localhost/verify-and-submit-pc-quotation", {
       method: "POST",
@@ -148,17 +155,23 @@ async function send(products: Catalogue, options: Send = {}) {
         estimatedPrice: totalOf(products) - ownedPrice,
         compatibility:
           "compatibility" in options ? options.compatibility : { status: "compatible" },
-        customerInfo: {},
+        customerInfo: options.customerInfo ?? {},
         parts,
+        ...options.extra,
       }),
     }),
     { supabaseClient: client as any, shopifyFetch },
-  );
+  ).finally(() => {
+    console.warn = warn;
+  });
   return { status: res.status, body: await res.json(), calls };
 }
 
-/** What the builder page concludes about the same Shopify listings: the storefront's own path, purpose-neutral. */
-function pageVerdict(products: Catalogue, owned: string[] = []) {
+/**
+ * What the builder page concludes about the same Shopify listings: the storefront's own path, with the use the build
+ * was found for, or purpose-neutral (Expert Mode).
+ */
+function pageVerdict(products: Catalogue, owned: string[] = [], purpose?: string) {
   const components: Record<string, any> = {};
   for (const [slot, product] of Object.entries(products)) {
     const node = {
@@ -187,7 +200,10 @@ function pageVerdict(products: Catalogue, owned: string[] = []) {
     );
   }
   const summary = checkCompatibility(components, { ownedSlots: owned });
-  return assessBuild(components as any, summary, { ownedSlots: owned });
+  return assessBuild(components as any, summary, {
+    ownedSlots: owned,
+    ...(purpose ? { purpose } : {}),
+  });
 }
 
 const assessmentOf = (result: Awaited<ReturnType<typeof send>>) =>
@@ -549,9 +565,334 @@ Deno.test("S4S3-14: the verdict is the builder's own engine and assessment, on t
     "supabase/functions/verify-and-submit-pc-quotation/assess.ts",
   );
   assert(assess.includes("checkCompatibility(components, { ownedSlots })"));
-  assert(assess.includes("assessBuild(components, summary, { ownedSlots })"));
+  assert(assess.includes("assessBuild(components, summary, {"));
+  assert(assess.includes("...(purpose ? { purpose } : {}),"));
   // Only the generated copies, never src/.
   assert(!/from\s*["'][^"']*\/src\//.test(assess));
   // Every slot the page can send has a category in the test catalogue.
   for (const slot of SLOTS) assert(SLOT_CATEGORY[slot], slot);
+});
+
+// ── Decision S3-B: the Find My PC purpose ────────────────────────────────────────────────────────────
+
+const { QUOTE_PURPOSES } = await import("../verify-and-submit-pc-quotation/structure.ts");
+const { purposeProfile } = await import("../../../src/lib/builder/purpose.ts");
+const { submitQuotationRequest } = await import("../../../src/lib/builder/persistence.ts");
+const { compareWithBrowser, disagreementLog } =
+  await import("../verify-and-submit-pc-quotation/assess.ts");
+
+/**
+ * The approved requirement of each use, as the page applies it at the quotation gate (`purposeProfile(purpose)`,
+ * no details, 4A decision D2). Documented before S3-B; not a new rule.
+ */
+const CARD_REQUIRED: Record<string, boolean> = {
+  gaming: true,
+  creation: true,
+  professional: true,
+  programming: false,
+  work: false,
+  general: false,
+};
+
+Deno.test("S4S3-15: the server accepts exactly the uses Find My PC offers, with their approved requirements", () => {
+  const page = Deno.readTextFileSync("src/pages/Builder.tsx");
+  const type = page.match(/type PurposeId = ([^;]+);/);
+  assert(type, "PurposeId not found in Builder.tsx");
+  const offered = [...type[1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
+  assertEquals([...QUOTE_PURPOSES].sort(), offered.sort());
+  assertEquals(Object.keys(CARD_REQUIRED).sort(), offered.sort());
+  for (const purpose of QUOTE_PURPOSES) {
+    assertEquals(purposeProfile(purpose).requiresDedicatedGpu, CARD_REQUIRED[purpose], purpose);
+  }
+});
+
+Deno.test("S4S3-16: each use's requirement is applied on the server, as the page applies it", async () => {
+  // A processor with graphics of its own and no card: enough unless the use needs a card.
+  const noCard = catalogue();
+  const withCard = catalogue({}, ["GPU"]);
+  for (const purpose of QUOTE_PURPOSES) {
+    const result = await send(noCard, { extra: { purpose }, compatibility: FORGED_CLAIMS });
+    const page = pageVerdict(noCard, [], purpose);
+    if (CARD_REQUIRED[purpose]) {
+      assertRefused(result, "incomplete_build", purpose);
+      assertEquals(result.body.missingSlots, ["GPU"], purpose);
+      assertEquals(result.body.error, "Still to choose: GPU.", purpose);
+      assertEquals(page.state, "incomplete", purpose);
+    } else {
+      assertEquals(result.status, 200, purpose);
+      assertEquals(result.body.technicianReviewRequired, false, purpose);
+      assertEquals(assessmentOf(result).state, "complete", purpose);
+      assertEquals(page.state, "complete", purpose);
+    }
+    // With a card, every use is Complete, and the verdict records the use.
+    const carded = await send(withCard, { extra: { purpose } });
+    assertEquals(carded.status, 200, purpose);
+    assertEquals(assessmentOf(carded).state, "complete", purpose);
+    assertEquals(assessmentOf(carded).purpose, purpose, purpose);
+    // The customer's own card counts for a use that needs one: review, not a refusal.
+    const owned = await send(noCard, { extra: { purpose }, owned: ["GPU"] });
+    assertEquals(owned.status, 200, purpose);
+    assertEquals(owned.body.technicianReviewRequired, true, purpose);
+    assertEquals(assessmentOf(owned).state, "needs_review", purpose);
+  }
+});
+
+Deno.test("S4S3-17: Expert Mode and earlier requests carry no purpose, and stay purpose-neutral", async () => {
+  for (const extra of [{}, { purpose: null }]) {
+    const result = await send(catalogue(), { extra });
+    assertEquals(result.status, 200);
+    assertEquals(result.body.technicianReviewRequired, false);
+    assertEquals(assessmentOf(result).state, "complete");
+    assertEquals(assessmentOf(result).purpose, null);
+  }
+});
+
+Deno.test("S4S3-18: a use the page doesn't offer is refused as unreadable, before Shopify is asked", async () => {
+  for (const purpose of [
+    "office",
+    "custom",
+    "GAMING",
+    "gaming ",
+    "",
+    "mining",
+    5,
+    true,
+    {},
+    ["gaming"],
+  ]) {
+    const result = await send(catalogue(), { extra: { purpose } });
+    const label = JSON.stringify(purpose);
+    assertEquals(result.status, 400, label);
+    assertEquals(result.body.code, "invalid_request", label);
+    assertEquals(result.body.error, MESSAGE_UNREADABLE, label);
+    assert(
+      result.body.problems.some((p: any) => p.code === "purpose_invalid"),
+      label,
+    );
+    assertEquals(result.calls.shopify, 0, label);
+    assertEquals(result.calls.inserted.length, 0, label);
+  }
+});
+
+Deno.test("S4S3-19: requirements come from the server's own rules, never from the request", async () => {
+  // A professional build with no card, whatever the browser says about what professional work needs.
+  const forged = await send(catalogue(), {
+    extra: {
+      purpose: "professional",
+      details: { type: "Software Development" },
+      requiresDedicatedGpu: false,
+      purposeProfile: { requiresDedicatedGpu: false },
+    },
+  });
+  assertRefused(forged, "incomplete_build", "forged requirements");
+  // Software development needs no card, whatever the browser says it needs.
+  const claimed = await send(catalogue(), {
+    extra: { purpose: "programming", requiresDedicatedGpu: true },
+  });
+  assertEquals(claimed.status, 200);
+  assertEquals(assessmentOf(claimed).state, "complete");
+});
+
+Deno.test("S4S3-20: the page sends the purpose from Find My PC, and none from Expert Mode", async () => {
+  const bodies: any[] = [];
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: "u" } } }) },
+    functions: {
+      invoke: async (_name: string, { body }: any) => {
+        bodies.push(body);
+        return { data: { success: true, referenceId: "R" }, error: null };
+      },
+    },
+  };
+  const build = {
+    id: "b",
+    name: "B",
+    mode: "guided",
+    currency: "INR",
+    components: {},
+    compatibility: { status: "compatible" },
+    ownedSlots: [],
+  } as any;
+  await submitQuotationRequest(build, {}, { supabaseClient: client }, { purpose: "gaming" });
+  await submitQuotationRequest(build, {}, { supabaseClient: client });
+  assertEquals(bodies[0].purpose, "gaming");
+  assertEquals("purpose" in bodies[1], false);
+  // The customise view passes the use its build was found for; Expert Mode's call passes none.
+  const page = Deno.readTextFileSync("src/pages/Builder.tsx");
+  assert(page.includes("initial.purpose ? { purpose: initial.purpose } : {},"));
+  assertEquals(page.split("submitQuotationRequest(").length - 1, 2);
+});
+
+// ── Decision S3-A: disagreements are recorded, never acted on ────────────────────────────────────────
+
+const STATUSES = ["compatible", "conditional", "unknown", "incompatible"] as const;
+const summaryOf = (status: string, extra: Record<string, unknown> = {}) =>
+  ({ status, valid: status !== "incompatible", complete: true, items: [], ...extra }) as any;
+const CONTACT = {
+  name: "Test Customer",
+  email: "test.customer@example.com",
+  phone: "+919000000000",
+};
+
+Deno.test("S4S3-21: every combination of the browser's status and the server's is compared correctly", () => {
+  for (const server of STATUSES) {
+    for (const browser of [...STATUSES, "weird <b>text</b>"]) {
+      const result = compareWithBrowser({ status: browser }, summaryOf(server));
+      const shown = (STATUSES as readonly string[]).includes(browser) ? browser : "unrecognised";
+      const label = `${browser} vs ${server}`;
+      assertEquals(result.compared, true, label);
+      assertEquals(result.agrees, shown === server, label);
+      assertEquals(
+        result.differences,
+        shown === server ? [] : [{ field: "status", browser: shown, server }],
+        label,
+      );
+    }
+    // No claim, or no recognisable one: nothing to compare.
+    for (const claim of [undefined, null, {}, { status: 5 }, "compatible", []]) {
+      const result = compareWithBrowser(claim, summaryOf(server));
+      assertEquals([result.compared, result.agrees], [false, null], JSON.stringify(claim));
+    }
+  }
+  // No verdict (unresolved parts): nothing to compare, whatever the browser says.
+  assertEquals(compareWithBrowser({ status: "compatible" }, undefined).agrees, null);
+});
+
+Deno.test("S4S3-22: the flags and blocking rules are compared, and nothing else of the browser's is kept", () => {
+  const server = summaryOf("incompatible", {
+    valid: false,
+    complete: true,
+    items: [
+      { ruleId: "RULE_A_SOCKET_MISMATCH", severity: "error" },
+      { ruleId: "RULE_J_SPEC_UNVERIFIED", severity: "warning" },
+    ],
+  });
+  const result = compareWithBrowser(
+    {
+      status: "incompatible",
+      valid: true,
+      complete: false,
+      items: [
+        { ruleId: "RULE_D_GPU_LENGTH_EXCEEDED", severity: "error" },
+        { ruleId: "customer@example.com", severity: "error" },
+        { ruleId: "RULE_" + "X".repeat(200), severity: "error" },
+        { ruleId: "RULE_J_SPEC_UNVERIFIED", severity: "warning" },
+        "junk",
+        null,
+      ],
+      customerName: "Someone",
+    },
+    server,
+  );
+  assertEquals(result.agrees, false);
+  assertEquals(result.differences, [
+    { field: "valid", browser: true, server: false },
+    { field: "complete", browser: false, server: true },
+  ]);
+  assertEquals(result.errorRules, {
+    onlyServer: ["RULE_A_SOCKET_MISMATCH"],
+    onlyBrowser: ["RULE_D_GPU_LENGTH_EXCEEDED"],
+  });
+  assert(!JSON.stringify(result).includes("example.com"));
+  assert(!JSON.stringify(result).includes("Someone"));
+  // A long list is bounded.
+  const many = Array.from({ length: 50 }, (_, i) => ({ ruleId: `RULE_R${i}`, severity: "error" }));
+  const bounded = compareWithBrowser({ items: many }, summaryOf("compatible"));
+  assertEquals(bounded.errorRules.onlyBrowser.length, 20);
+});
+
+Deno.test("S4S3-23: whatever the browser claims, every server outcome is decided the same way", async () => {
+  const outcomes: [string, Catalogue, Send][] = [
+    ["complete", catalogue(), {}],
+    ["needs review", catalogue({ RAM: listing("RAM", null, "QZX S4S3 Memory") }), {}],
+    ["not assessed", catalogue(), { reply: () => ({ errors: [{ message: "down" }] }) }],
+    ["incompatible", catalogue({ CPU: listing("CPU", { socket: "AM5" }) }), {}],
+    ["incomplete", catalogue(), { extra: { purpose: "gaming" } }],
+  ];
+  const claims = [
+    { status: "compatible", valid: true, complete: true },
+    { status: "incompatible", valid: false, complete: false },
+    { status: "conditional" },
+    { status: "unknown" },
+    {},
+  ];
+  const secrets = [
+    CONTACT.name,
+    CONTACT.email,
+    CONTACT.phone,
+    "s4s3-token",
+    "s4s3-cpu",
+    "0000000004s3",
+  ];
+  for (const [label, products, options] of outcomes) {
+    const results = [];
+    for (const compatibility of claims) {
+      results.push(await send(products, { ...options, compatibility, customerInfo: CONTACT }));
+    }
+    // The same status, refusal code and review flag for every claim.
+    const decided = results.map((r) => [r.status, r.body.code, r.body.technicianReviewRequired]);
+    for (const [index, decision] of decided.entries()) {
+      assertEquals(decision, decided[0], `${label}, claim ${JSON.stringify(claims[index])}`);
+    }
+    for (const [index, result] of results.entries()) {
+      const where = `${label}, claim ${JSON.stringify(claims[index])}`;
+      const verdict = assessmentOf(result);
+      if (verdict) {
+        // Stored outcomes record the comparison, and its agreement is the stored flag.
+        assertEquals(verdict.agreesWithBrowser, verdict.browserComparison.agrees, where);
+        if (verdict.state === "not_assessed") {
+          assertEquals(verdict.browserComparison.compared, false, where);
+          assertEquals(result.calls.logs.length, 0, where);
+        } else {
+          assertEquals(
+            result.calls.logs.length,
+            verdict.browserComparison.agrees === false ? 1 : 0,
+            where,
+          );
+        }
+      }
+      // A disagreement is logged, refused or not; the log names no customer, account or product.
+      for (const line of result.calls.logs) {
+        const entry = JSON.parse(line);
+        assertEquals(entry.event, "pc_quotation_browser_disagreement", where);
+        for (const secret of secrets) {
+          assert(!line.includes(secret), `${where}: the log holds ${secret}`);
+        }
+      }
+    }
+    // Refused outcomes store nothing, but a browser claiming the opposite is still logged. The page sends the
+    // engine's summary, which says nothing about a use's needs: for a gaming build with no card the engine is
+    // "compatible" too, so that claim agrees, and the refusal comes from completeness.
+    if (label === "incompatible") {
+      assertEquals(results[0].calls.logs.length, 1, `${label}: a "compatible" claim not logged`);
+    }
+    if (label === "incomplete") assertEquals(results[0].calls.logs.length, 0, label);
+  }
+  // The refused, incompatible build the browser calls compatible: its disagreement in the log.
+  const refused = await send(catalogue({ CPU: listing("CPU", { socket: "AM5" }) }));
+  assertRefused(refused, "incompatible_build", "refused");
+  const entry = JSON.parse(refused.calls.logs[0]);
+  assertEquals(entry.serverState, "incompatible");
+  assertEquals(entry.differences, [
+    { field: "status", browser: "compatible", server: "incompatible" },
+  ]);
+});
+
+Deno.test("S4S3-24: a disagreement alone never sends a Complete build to review, and agreement never clears one", async () => {
+  // Complete on the server; the browser says it's incompatible and lists a clash: no review.
+  const complete = await send(catalogue(), {
+    compatibility: {
+      status: "incompatible",
+      valid: false,
+      items: [{ ruleId: "RULE_A_SOCKET_MISMATCH", severity: "error" }],
+    },
+  });
+  assertEquals(complete.body.technicianReviewRequired, false);
+  assertEquals(assessmentOf(complete).browserComparison.agrees, false);
+  assertEquals(disagreementLog(assessmentOf(complete))?.serverState, "complete");
+  // Needs Review on the server; the browser agrees it's fine in every way it can: still review.
+  const review = await send(catalogue({ RAM: listing("RAM", null, "QZX S4S3 Memory") }), {
+    compatibility: FORGED_CLAIMS,
+  });
+  assertEquals(review.body.technicianReviewRequired, true);
 });

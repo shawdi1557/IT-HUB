@@ -27,6 +27,23 @@ export const QUOTE_SLOTS = [
 /** The slots every quotation must fill, with a part to buy or, where allowed, the customer's own. */
 export const QUOTE_ESSENTIAL_SLOTS = ["CPU", "Motherboard", "RAM", "Storage", "PSU", "Cabinet"];
 
+/**
+ * Stage 4S-3 (decision S3-B): the uses Find My PC offers, as the page names them (`PurposeId` in
+ * src/pages/Builder.tsx). A request may name one; what it requires (a dedicated graphics card for gaming, content
+ * creation and professional work) comes from the builder's own `purposeProfile`, never from the request. No
+ * purpose means Expert Mode, which is purpose-neutral (4A decision D6). `pc-builder-stage4s-purpose.test.ts` fails
+ * if this list and the page's drift apart.
+ */
+export const QUOTE_PURPOSES = [
+  "gaming",
+  "creation",
+  "work",
+  "programming",
+  "professional",
+  "general",
+] as const;
+export type QuotePurpose = (typeof QUOTE_PURPOSES)[number];
+
 /** The slots where the customer may use a part they already own. */
 export const QUOTE_OWNABLE_SLOTS = ["RAM", "Storage", "GPU"];
 
@@ -87,6 +104,7 @@ export type StructureProblemCode =
   | "build_name_invalid"
   | "estimated_price_invalid"
   | "compatibility_invalid"
+  | "purpose_invalid"
   | "customer_info_invalid"
   | "parts_missing"
   | "too_many_parts"
@@ -147,6 +165,8 @@ export type StructureResult =
       buildName: string;
       estimatedPrice: number;
       compatibility: Record<string, unknown>;
+      /** The Find My PC use the build was found for. Absent for Expert Mode. */
+      purpose?: QuotePurpose;
       customerInfo: { name: string | null; phone: string | null; email: string | null };
       /** In slot order. Owned parts carry no product and no price. */
       parts: QuotePart[];
@@ -212,6 +232,7 @@ export function checkQuotationStructure(body: unknown): StructureResult {
     estimatedPrice = 0,
     compatibility = {},
     customerInfo = {},
+    purpose = null,
   } = body as Record<string, unknown>;
 
   // The page lets a customer type any name, so a long one is shortened, as before, not refused.
@@ -225,6 +246,10 @@ export function checkQuotationStructure(body: unknown): StructureResult {
   }
   // The browser's result is stored as a note for the technician, so it only has to be an object.
   if (!isPlainObject(compatibility)) problems.push({ code: "compatibility_invalid" });
+  // A use the page doesn't offer can't have come from it.
+  if (purpose !== null && !(QUOTE_PURPOSES as readonly unknown[]).includes(purpose)) {
+    problems.push({ code: "purpose_invalid" });
+  }
   if (
     !isPlainObject(customerInfo) ||
     !textOk(customerInfo.name) ||
@@ -363,6 +388,7 @@ export function checkQuotationStructure(body: unknown): StructureResult {
     buildName: (buildName as string).slice(0, 120),
     estimatedPrice: estimatedPrice as number,
     compatibility: compatibility as Record<string, unknown>,
+    ...(purpose !== null ? { purpose: purpose as QuotePurpose } : {}),
     customerInfo: {
       name: clean(info.name),
       phone: clean(info.phone),

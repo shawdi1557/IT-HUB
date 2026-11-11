@@ -1515,11 +1515,17 @@ function BuildDetail({
 
     setSubmittingQuote(true);
     const canonical = createCanonical();
-    const res = await submitQuotationRequest(canonical, {
-      name: store.profile?.name,
-      phone: store.profile?.phone,
-      email: store.profile?.email,
-    });
+    const res = await submitQuotationRequest(
+      canonical,
+      {
+        name: store.profile?.name,
+        phone: store.profile?.phone,
+        email: store.profile?.email,
+      },
+      undefined,
+      // The use the build was found for, so the server requires what the page requires (decision S3-B).
+      initial.purpose ? { purpose: initial.purpose } : {},
+    );
     setSubmittingQuote(false);
 
     if (res.requiresAuth) {

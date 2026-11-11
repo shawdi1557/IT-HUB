@@ -394,6 +394,11 @@ export async function submitQuotationRequest(
   build: CanonicalBuild,
   customerInfo?: CustomerContactInfo,
   deps?: { supabaseClient?: any },
+  /**
+   * Stage 4S-3 (decision S3-B): the Find My PC use the build was found for, so the server applies the same
+   * requirements the page does (a graphics card for gaming, say). Expert Mode sends none.
+   */
+  options: { purpose?: string } = {},
 ): Promise<QuotationSubmissionResult> {
   const activeSupabase = deps?.supabaseClient ?? supabase;
   const referenceId = generateQuotationReference();
@@ -453,6 +458,7 @@ export async function submitQuotationRequest(
             parts: partsPayload,
             estimatedPrice,
             compatibility: compatibilityPayload,
+            ...(options.purpose ? { purpose: options.purpose } : {}),
             customerInfo: {
               name: customerInfo?.name?.trim() || null,
               phone: customerInfo?.phone?.trim() || null,

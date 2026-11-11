@@ -296,21 +296,20 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
               } as any,
               {},
               { supabaseClient: client },
+              // As the page sends it from a Find My PC build (decision S3-B).
+              { purpose },
             );
             const where = `${name} ${purpose} ${owned} ${min}-${max}`;
             assertEquals(server?.status, 200, `${where}: ${JSON.stringify(server?.body)}`);
             assert(result.success, where);
-            // Stage 4S-3: the server reaches the same verdict as the page, judged without a purpose as the server
-            // is (the request carries none), from the parts it resolved itself.
-            const neutral = assessBuild(components as any, checks.summary, { ownedSlots } as any);
-            assertEquals(
-              server!.calls.inserted[0].compatibility.serverAssessment.state,
-              neutral.state,
-              where,
-            );
+            // Stage 4S-3: the server reaches the same verdict as the page, for the same use (decision S3-B), from
+            // the parts it resolved itself.
+            const verdict = server!.calls.inserted[0].compatibility.serverAssessment;
+            assertEquals(verdict.state, assessment.state, where);
+            assertEquals(verdict.purpose, purpose, where);
             assertEquals(
               server!.body.technicianReviewRequired,
-              neutral.state !== "complete" || ownedSlots.length > 0,
+              assessment.state !== "complete" || ownedSlots.length > 0,
               where,
             );
             assertEquals(result.priceDivergence, 0, where);

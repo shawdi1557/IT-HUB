@@ -15,7 +15,7 @@ import {
 } from "./structure.ts";
 import { checkVariantNode, slotCheckLabel, VARIANT_QUERY } from "./resolve.ts";
 import { resolvePartSpecs, unresolvedSpecRecord, type PartSpecResolution } from "./specs.ts";
-import { assessmentRefusal, assessQuotation } from "./assess.ts";
+import { assessmentRefusal, assessQuotation, disagreementLog } from "./assess.ts";
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -231,7 +231,7 @@ export async function handleQuotationVerification(
         ...(checked.missingSlots ? { missingSlots: checked.missingSlots } : {}),
       });
     }
-    const { buildName, estimatedPrice, compatibility, customerInfo } = checked;
+    const { buildName, estimatedPrice, compatibility, customerInfo, purpose } = checked;
 
     // 5. Recalculate Authoritative Pricing from the variant IDs. A part the customer already owns
     // is recorded for the technician, but isn't sold, so it isn't priced.
@@ -390,7 +390,11 @@ export async function handleQuotationVerification(
       ),
       allParts.filter((part) => part.owned).map((part) => part.slot),
       compatibility,
+      purpose,
     );
+    // Decision S3-A: a browser that disagrees is noted for diagnosis, refused or not. It changes nothing.
+    const disagreement = disagreementLog(verdict.record);
+    if (disagreement) console.warn(JSON.stringify(disagreement));
     const refusal = assessmentRefusal(verdict);
     if (refusal) return reject(refusal.status, refusal.payload);
 
