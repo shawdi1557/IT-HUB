@@ -108,7 +108,10 @@ export function checkVariantNode(node: any, variantId: string, slot: string): Va
   };
 }
 
-/** What a stored part records about the server's slot check, for the technician. */
+/**
+ * What a stored part records about the server's slot check, for the technician: confirmed by Shopify's own fields,
+ * matched by title only (provisional, so the quotation goes to review), or unconfirmed.
+ */
 export function slotCheckLabel(
   slot: SlotClassification,
 ): "shopify_fields" | "title" | "unconfirmed" {

@@ -156,8 +156,8 @@ export type SlotClassification =
 /**
  * Whether a product belongs in the slot a quotation request put it in (Stage 4S decision 2). Only the fields IT HUB
  * sets in Shopify (tags, product type, category) can positively identify a product, so only they can make the
- * server refuse it. A title is a weaker signal: it can confirm a slot, but a title that disagrees, or says nothing,
- * leaves the product unknown, for a technician to check. Uses `detectComponentSlot` unchanged, so whatever the
+ * server refuse it, or confirm it. A title is a weaker signal: a title match is provisional (the quotation server
+ * sends it to a technician), and a title that disagrees, or says nothing, leaves the product unknown. Uses `detectComponentSlot` unchanged, so whatever the
  * builder offers in a slot because of those fields, the server accepts there too.
  */
 export function classifyProductSlot(

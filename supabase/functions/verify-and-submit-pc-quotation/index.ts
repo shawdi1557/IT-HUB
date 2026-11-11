@@ -321,6 +321,11 @@ export async function handleQuotationVerification(
               wrongSlotParts.push(part.slot);
             } else if (check.slot.kind === "unknown") {
               slotsUnconfirmed = true;
+            } else if (check.slot.source === "title") {
+              // Stage 4S-1 closure: only Shopify's category, type or tags confirm a slot. A title match is
+              // provisional ("Ryzen" also names coolers and boards), so a technician checks it; it's recorded as
+              // `slotCheck: "title"` so staff can see why.
+              slotsUnconfirmed = true;
             }
             part.slotCheck = slotCheckLabel(check.slot);
           }

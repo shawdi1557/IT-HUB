@@ -346,13 +346,29 @@ Deno.test("S4S1-7: a product Shopify can't confidently place goes to a technicia
     assertEquals(result.calls.inserted[0].parts.CPU.slotCheck, "unconfirmed");
     assertEquals(result.calls.inserted[0].parts.RAM.slotCheck, "shopify_fields");
   }
-  // A title alone that names the right part confirms it.
-  const byTitle = await send(
+  // Stage 4S-1 closure: a title alone is provisional. Even a title naming the right part goes to a technician, with
+  // the title match kept as the evidence; titles that only mention a part ("for Ryzen") are why.
+  for (const title of [
+    "AMD Ryzen 5 5600",
+    "AMD Wraith Prism cooler for Ryzen",
+    "Ryzen-ready B550 motherboard",
+  ]) {
+    const byTitle = await send(
+      { parts: parts() },
+      { answer: { [V("cpu")]: productAs({ title, category: null }) } },
+    );
+    assertEquals(byTitle.status, 200, title);
+    assertEquals(byTitle.calls.inserted[0].parts.CPU.slotCheck, "title", title);
+    assertEquals(byTitle.body.technicianReviewRequired, true, title);
+    assertEquals(byTitle.body.authoritativePrice, TOTAL, title);
+  }
+  // Shopify's category confirms the slot whatever the title says, and needs no review.
+  const byCategory = await send(
     { parts: parts() },
-    { answer: { [V("cpu")]: productAs({ title: "AMD Ryzen 5 5600", category: null }) } },
+    { answer: { [V("cpu")]: productAs({ title: "Processor (cooler included)" }) } },
   );
-  assertEquals(byTitle.calls.inserted[0].parts.CPU.slotCheck, "title");
-  assertEquals(byTitle.body.technicianReviewRequired, false);
+  assertEquals(byCategory.calls.inserted[0].parts.CPU.slotCheck, "shopify_fields");
+  assertEquals(byCategory.body.technicianReviewRequired, false);
 });
 
 Deno.test("S4S1-8: an answer for a different variant is unreliable: nothing in it is used or claimed", async () => {
