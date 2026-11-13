@@ -13,14 +13,38 @@ import {
   MessageCircle,
 } from "lucide-react";
 import {
+  type AssignableStaff,
   type PcQuotationRecord,
   type QuotationQueryResult,
+  type ServerStateFilter,
+  STATUS_LABELS,
+  fetchAssignableStaff,
   fetchQuotations,
 } from "../lib/quotations";
+import { BUILD_STATE_LABELS, NOT_RECORDED, readServerAssessment } from "../lib/quotation-records";
+import type { StaffRole } from "../lib/auth";
 import { getAuditBadgeStyle } from "../lib/uiHelpers";
 import { QuotationDetailModal } from "../components/QuotationDetailModal";
+import { HardwareNav } from "../components/HardwareNav";
 
-export function Quotations() {
+const STATUS_BADGE: Record<string, string> = {
+  New: "bg-blue-100 text-blue-800",
+  Contacted: "bg-amber-100 text-amber-800",
+  Quoted: "bg-purple-100 text-purple-800",
+  Closed: "bg-emerald-100 text-emerald-800",
+  Archived: "bg-slate-200 text-slate-700",
+  Withdrawn: "bg-rose-100 text-rose-800",
+};
+
+const selectClass =
+  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-blue-600 focus:outline-none focus:ring-3 focus:ring-blue-100 min-h-[40px]";
+
+interface QuotationsProps {
+  role: StaffRole | null;
+  userId: string | null;
+}
+
+export function Quotations({ role, userId }: QuotationsProps) {
   const [quotations, setQuotations] = useState<PcQuotationRecord[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -31,6 +55,15 @@ export function Quotations() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedQuote, setSelectedQuote] = useState<PcQuotationRecord | null>(null);
+  const [reviewRequired, setReviewRequired] = useState<"ALL" | "yes" | "no">("ALL");
+  const [serverState, setServerState] = useState<ServerStateFilter>("ALL");
+  const [assignment, setAssignment] = useState("ALL");
+  const [staff, setStaff] = useState<AssignableStaff[]>([]);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    fetchAssignableStaff().then(setStaff);
+  }, []);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -55,6 +88,9 @@ export function Quotations() {
       page,
       pageSize,
       status,
+      reviewRequired,
+      serverState,
+      assignment: assignment === "MINE" ? userId || "ALL" : assignment,
       searchQuery: debouncedSearch,
       sortBy: "created_at",
       sortOrder: "desc",
@@ -62,8 +98,9 @@ export function Quotations() {
     setQuotations(result.quotations);
     setTotalCount(result.totalCount);
     setTotalPages(result.totalPages || 1);
+    setLoadError(result.error ? "The quotation queue couldn't be loaded." : "");
     setLoading(false);
-  }, [page, pageSize, status, debouncedSearch]);
+  }, [page, pageSize, status, reviewRequired, serverState, assignment, userId, debouncedSearch]);
 
   useEffect(() => {
     loadData();
@@ -82,14 +119,18 @@ export function Quotations() {
 
   const statusFilters = [
     { id: "ALL", label: "All Requests" },
-    { id: "New", label: "New", countClass: "bg-blue-100 text-blue-800" },
-    { id: "Contacted", label: "Contacted", countClass: "bg-amber-100 text-amber-800" },
-    { id: "Quoted", label: "Quoted", countClass: "bg-purple-100 text-purple-800" },
-    { id: "Closed", label: "Closed", countClass: "bg-emerald-100 text-emerald-800" },
+    // The staff labels (STATUS_LABELS), the same ones the status badges show.
+    { id: "New", label: STATUS_LABELS.New, countClass: "bg-blue-100 text-blue-800" },
+    { id: "Contacted", label: STATUS_LABELS.Contacted, countClass: "bg-amber-100 text-amber-800" },
+    { id: "Quoted", label: STATUS_LABELS.Quoted, countClass: "bg-purple-100 text-purple-800" },
+    { id: "Closed", label: STATUS_LABELS.Closed, countClass: "bg-emerald-100 text-emerald-800" },
+    { id: "Archived", label: STATUS_LABELS.Archived },
+    { id: "Withdrawn", label: STATUS_LABELS.Withdrawn },
   ];
 
   return (
     <div className="space-y-6">
+      <HardwareNav />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -166,6 +207,67 @@ export function Quotations() {
         </form>
       </div>
 
+      {/* Review, server verdict and assignment filters */}
+      <div className="flex flex-wrap items-center gap-2" data-testid="quotation-filters">
+        <select
+          aria-label="Review required"
+          value={reviewRequired}
+          onChange={(e) => {
+            setReviewRequired(e.target.value as "ALL" | "yes" | "no");
+            setPage(1);
+          }}
+          className={selectClass}
+          data-testid="filter-review"
+        >
+          <option value="ALL">Review: any</option>
+          <option value="yes">Review required</option>
+          <option value="no">No review required</option>
+        </select>
+        <select
+          aria-label="Server verdict"
+          value={serverState}
+          onChange={(e) => {
+            setServerState(e.target.value as ServerStateFilter);
+            setPage(1);
+          }}
+          className={selectClass}
+          data-testid="filter-server-state"
+        >
+          <option value="ALL">Server verdict: any</option>
+          <option value="complete">{BUILD_STATE_LABELS.complete}</option>
+          <option value="needs_review">{BUILD_STATE_LABELS.needs_review}</option>
+          <option value="incomplete">{BUILD_STATE_LABELS.incomplete}</option>
+          <option value="incompatible">{BUILD_STATE_LABELS.incompatible}</option>
+          <option value="not_assessed">{BUILD_STATE_LABELS.not_assessed}</option>
+          <option value="not_recorded">{NOT_RECORDED}</option>
+        </select>
+        <select
+          aria-label="Assignment"
+          value={assignment}
+          onChange={(e) => {
+            setAssignment(e.target.value);
+            setPage(1);
+          }}
+          className={selectClass}
+          data-testid="filter-assignment"
+        >
+          <option value="ALL">Assigned: anyone</option>
+          <option value="MINE">Assigned to me</option>
+          <option value="unassigned">Unassigned</option>
+          {staff.map((member) => (
+            <option key={member.user_id} value={member.user_id}>
+              {member.full_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loadError && (
+        <div role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-800">
+          {loadError}
+        </div>
+      )}
+
       {/* ─────────────────────────────────────────────────────────────────────────────
           A. Desktop View: Quotations Table (md+)
           ───────────────────────────────────────────────────────────────────────────── */}
@@ -203,8 +305,8 @@ export function Quotations() {
                 </tr>
               ) : (
                 quotations.map((item) => {
-                  const divergence = Math.round(Number(item.price_divergence) || 0);
-                  const flagged = item.technician_review_required || divergence > 100;
+                  const flagged = item.technician_review_required === true;
+                  const verdict = readServerAssessment(item.server_assessment);
 
                   return (
                     <tr
@@ -267,24 +369,17 @@ export function Quotations() {
                             </span>
                           );
                         })()}
+                        <p className="mt-1 text-[10px] text-slate-500" data-testid="row-verdict">
+                          {verdict ? BUILD_STATE_LABELS[verdict.state] : NOT_RECORDED}
+                        </p>
                       </td>
 
                       {/* Enquiry Status */}
                       <td className="px-4 py-3.5">
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                            item.enquiry_status === "New"
-                              ? "bg-blue-100 text-blue-800"
-                              : item.enquiry_status === "Contacted"
-                                ? "bg-amber-100 text-amber-800"
-                                : item.enquiry_status === "Quoted"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : item.enquiry_status === "Closed"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-slate-100 text-slate-800"
-                          }`}
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_BADGE[item.enquiry_status] ?? "bg-slate-100 text-slate-800"}`}
                         >
-                          {item.enquiry_status}
+                          {STATUS_LABELS[item.enquiry_status] ?? item.enquiry_status}
                         </span>
                       </td>
 
@@ -364,8 +459,7 @@ export function Quotations() {
           </div>
         ) : (
           quotations.map((item) => {
-            const divergence = Math.round(Number(item.price_divergence) || 0);
-            const flagged = item.technician_review_required || divergence > 100;
+            const flagged = item.technician_review_required === true;
 
             return (
               <div
@@ -380,19 +474,9 @@ export function Quotations() {
                       {item.reference_id || `#${item.id.slice(0, 8)}`}
                     </span>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                        item.enquiry_status === "New"
-                          ? "bg-blue-100 text-blue-800"
-                          : item.enquiry_status === "Contacted"
-                            ? "bg-amber-100 text-amber-800"
-                            : item.enquiry_status === "Quoted"
-                              ? "bg-purple-100 text-purple-800"
-                              : item.enquiry_status === "Closed"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-slate-100 text-slate-800"
-                      }`}
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_BADGE[item.enquiry_status] ?? "bg-slate-100 text-slate-800"}`}
                     >
-                      {item.enquiry_status}
+                      {STATUS_LABELS[item.enquiry_status] ?? item.enquiry_status}
                     </span>
                   </div>
 
@@ -513,6 +597,7 @@ export function Quotations() {
       {selectedQuote && (
         <QuotationDetailModal
           quotation={selectedQuote}
+          role={role}
           onClose={() => setSelectedQuote(null)}
           onUpdated={loadData}
         />

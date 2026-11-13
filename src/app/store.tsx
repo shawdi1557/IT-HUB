@@ -17,7 +17,7 @@ import {
   type VariantAvailabilityInfo,
   recordInventoryMeasurement,
 } from "../lib/shopify";
-import { syncBuilderCatalogWithShopify } from "../lib/builder/catalog";
+import { loadHardwareRegistry, syncBuilderCatalogWithShopify } from "../lib/builder/catalog";
 import { WEBSITE_CATEGORIES } from "../lib/categoryMapping";
 
 import { subscribeToAuthChanges, fetchOrCreateProfile } from "../lib/auth";
@@ -641,6 +641,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           fetchAllShopifyProducts({ force: options.force }),
           fetchActiveOffersDetailed(),
           fetchActiveCouponsDetailed(),
+          // Stage 4B-5: the hardware registry, read before the builder's catalogue is rebuilt below.
+          loadHardwareRegistry(),
         ]);
 
         // Discard stale out-of-order response

@@ -51,3 +51,99 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(226, 232, 240, 0.8);
 }
+
+/* ─── Stage 4B-6: portal-wide interaction polish ─────────────────────────────────────────────────── */
+
+/* A clear, consistent keyboard focus ring on every control. Mouse clicks don't show it. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Buttons acknowledge a press. */
+:where(button:not(:disabled)) {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 120ms ease;
+}
+:where(button:not(:disabled)):active {
+  transform: scale(0.98);
+}
+
+/* Each page fades in when it's opened. */
+@keyframes portal-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.portal-page-enter {
+  animation: portal-page-in 180ms ease-out both;
+}
+
+/* Feedback messages and panels appear gently. */
+@keyframes portal-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.portal-pop-in {
+  animation: portal-pop-in 160ms ease-out both;
+}
+
+/* Loading placeholders. */
+@keyframes portal-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.portal-skeleton {
+  background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 37%, #eef2f7 63%);
+  background-size: 400% 100%;
+  animation: portal-shimmer 1.4s ease infinite;
+  border-radius: 0.5rem;
+}
+
+/* Expandable sections open smoothly (grid-rows technique; no height measuring). */
+.portal-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+.portal-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.portal-collapse > div {
+  overflow: hidden;
+}
+
+/* People who ask for less motion get none: no page fades, presses, shimmer or sliding sections. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  :where(button:not(:disabled)):active {
+    transform: none;
+  }
+}

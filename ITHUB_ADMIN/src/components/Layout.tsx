@@ -81,7 +81,9 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
       to: "/quotations",
       label: "PC Quotations",
       icon: Cpu,
-      active: location.pathname.startsWith("/quotations"),
+      // Stage 4B: the Hardware Specification Manager's pages sit under the PC Builder area.
+      active:
+        location.pathname.startsWith("/quotations") || location.pathname.startsWith("/hardware"),
       visible: profile.permissions.can_manage_quotations,
       badge: badgeCounts.quotations,
     },
@@ -439,7 +441,10 @@ export function Layout({ profile, onSignOut, children }: LayoutProps) {
           ───────────────────────────────────────────────────────────────────────────── */}
       <div className="md:pl-[72px] min-h-screen flex flex-col min-w-0 transition-[padding] duration-300">
         <main className="flex-1 w-full min-w-0 px-3.5 py-5 sm:px-6 lg:px-8 xl:px-10">
-          {children}
+          {/* Stage 4B-6: a short fade as each page opens (none with reduced motion). */}
+          <div key={location.pathname} className="portal-page-enter">
+            {children}
+          </div>
         </main>
 
         <footer className="border-t border-slate-200/80 bg-white/80 backdrop-blur-xs py-4 px-4 text-center text-xs text-slate-500">

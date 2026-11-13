@@ -1474,6 +1474,10 @@ export type Build = {
   /** Part types the customer already owns (excluded from estimate) */
 
   owned?: string[];
+
+  /** Stage 4S-4: set when the build was submitted as a quotation request. */
+
+  quotation?: { referenceId: string; status: string; version: number };
 };
 
 export type CartItem = {

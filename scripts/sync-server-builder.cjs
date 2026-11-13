@@ -33,7 +33,27 @@ const MODULES = [
   "spec-registry",
   // Stage 4S-3: the builder's approved wording for an Incompatible or Incomplete build.
   "completeness-wording",
+  // Stage 4B: the Hardware Specification Manager's fields, validation and resolution order.
+  "hardware-spec",
 ];
+
+/**
+ * Stage 4B: modules the Staff Portal (ITHUB_ADMIN, which compiles only its own src/) also needs. Each must import
+ * nothing, so the copy is the source with a header. Written to ITHUB_ADMIN/src/lib/<name>.ts.
+ */
+const PORTAL_MODULES = ["hardware-spec"];
+const PORTAL_DIR = "ITHUB_ADMIN/src/lib";
+
+const portalHeader = (name) =>
+  `// GENERATED from ${SOURCE_DIR}/${name}.ts by scripts/sync-server-builder.cjs. Don't edit: change the source and\n` +
+  "// run `node scripts/sync-server-builder.cjs`. The Staff Portal's copy, unchanged.\n\n";
+
+function portalCopy(name, source) {
+  if (/\bfrom\s*["']/.test(source)) {
+    throw new Error(`${name}.ts imports another module, so the portal can't copy it`);
+  }
+  return portalHeader(name) + source.replace(/\r\n/g, "\n");
+}
 
 const header = (name) =>
   `// GENERATED from ${SOURCE_DIR}/${name}.ts by scripts/sync-server-builder.cjs. Don't edit: change the source and\n` +
@@ -72,16 +92,27 @@ function main() {
       fs.writeFileSync(targetPath, wanted);
     }
   }
+  for (const name of PORTAL_MODULES) {
+    const source = fs.readFileSync(path.join(ROOT, SOURCE_DIR, `${name}.ts`), "utf8");
+    const wanted = portalCopy(name, source);
+    const targetPath = path.join(ROOT, PORTAL_DIR, `${name}.ts`);
+    const current = fs.existsSync(targetPath)
+      ? fs.readFileSync(targetPath, "utf8").replace(/\r\n/g, "\n")
+      : null;
+    if (current === wanted) continue;
+    stale.push(`portal:${name}`);
+    if (!check) fs.writeFileSync(targetPath, wanted);
+  }
   if (check) {
     if (stale.length > 0) {
       console.log(`Out of date: ${stale.join(", ")}. Run: node scripts/sync-server-builder.cjs`);
       process.exit(1);
     }
-    console.log(`All ${MODULES.length} server copies match their sources.`);
+    console.log(`All ${MODULES.length} server copies and the portal copy match their sources.`);
   } else {
     console.log(stale.length ? `Wrote ${stale.join(", ")}.` : "Nothing to write.");
   }
 }
 
 if (require.main === module) main();
-module.exports = { MODULES, serverCopy };
+module.exports = { MODULES, PORTAL_MODULES, serverCopy, portalCopy };

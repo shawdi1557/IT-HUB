@@ -14,6 +14,7 @@ import {
   storefrontProduct,
   verifiedValues,
 } from "./_helpers/quote-structure.ts";
+import { quotationClient } from "./_helpers/quotation-client.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const { MESSAGE_UNREADABLE, messageMissingParts } =
@@ -89,33 +90,18 @@ interface Send {
 }
 
 async function send(products: Catalogue, options: Send = {}) {
-  const calls = { inserted: [] as any[], repeatLookups: 0, shopify: 0, logs: [] as string[] };
-  const client = {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: "00000000-0000-0000-0000-0000000004s3" } },
-        error: null,
-      }),
+  // Stage 4S-4: the database is reached only through its two quotation functions. A refusal must come before
+  // the quotation is stored, which is also where repeats are now found.
+  const db = quotationClient({ userId: "00000000-0000-0000-0000-0000000004s3" });
+  const calls = {
+    inserted: db.inserted,
+    get repeatLookups() {
+      return db.calls.create.length;
     },
-    rpc: async () => ({ data: true, error: null }),
-    from: () => {
-      const query: any = {
-        select: () => query,
-        eq: () => query,
-        gte: async () => {
-          calls.repeatLookups++;
-          return { data: [], error: null };
-        },
-        insert: (row: any) => {
-          calls.inserted.push(row);
-          return {
-            select: () => ({ single: async () => ({ data: { id: "s4s3-row" }, error: null }) }),
-          };
-        },
-      };
-      return query;
-    },
+    shopify: 0,
+    logs: [] as string[],
   };
+  const client = db.client;
   const bySlotOfVariant = Object.fromEntries(Object.keys(products).map((slot) => [V(slot), slot]));
   const shopifyFetch = async (_query: string, vars: { ids: string[] }) => {
     calls.shopify++;
@@ -207,7 +193,7 @@ function pageVerdict(products: Catalogue, owned: string[] = [], purpose?: string
 }
 
 const assessmentOf = (result: Awaited<ReturnType<typeof send>>) =>
-  result.calls.inserted[0]?.compatibility?.serverAssessment;
+  result.calls.inserted[0]?.server_assessment;
 
 /** A refusal: 422 with the code, nothing stored, and the repeat lookup never reached. */
 function assertRefused(
@@ -455,9 +441,13 @@ Deno.test("S4S3-8: a browser can't supply the server's verdict", async () => {
   };
   const result = await send(products, { compatibility: forgedVerdict });
   assertEquals(result.body.technicianReviewRequired, true);
-  const stored = result.calls.inserted[0].compatibility;
-  assertEquals(stored.serverAssessment.state, "needs_review");
-  assert(stored.serverAssessment.reviewChecks.length > 0);
+  // Stage 4S-4: the verdict has its own column (D1); a verdict the browser claims is dropped from its note.
+  const row = result.calls.inserted[0];
+  assertEquals(row.server_assessment.state, "needs_review");
+  assert(row.server_assessment.reviewChecks.length > 0);
+  assertEquals("serverAssessment" in row.compatibility, false);
+  assertEquals(row.compatibility.status, "compatible");
+  assertEquals(row.compatibility.reportedBy, "customer_browser");
 });
 
 // ── 10. Wrong slot ───────────────────────────────────────────────────────────────────────────────────
@@ -895,4 +885,145 @@ Deno.test("S4S3-24: a disagreement alone never sends a Complete build to review,
     compatibility: FORGED_CLAIMS,
   });
   assertEquals(review.body.technicianReviewRequired, true);
+});
+
+// ── Owner decision F1 (after 4S-6): every stored verdict is complete ──────────────────────────────────────────
+// A stored verdict missing the lists the Staff Portal reads blanks the whole portal (F1). The database accepts any
+// JSON in that column, written only by the service role through create_pc_quotation and never changed afterwards,
+// so the guarantee rests on this function. This proves every verdict it stores, for every stored outcome and every
+// browser claim, carries every field the portal's verdict panel reads, in the right shape.
+
+const { readServerAssessment, BUILD_STATE_LABELS } =
+  await import("../../../ITHUB_ADMIN/src/lib/quotation-records.ts");
+
+/** Every field the portal's verdict panel (QuotationDetailModal `ServerVerdict`) reads, checked for shape. */
+function assertCompleteVerdict(verdict: any, where: string) {
+  const fail = (what: string) => `${where}: ${what} in ${JSON.stringify(verdict).slice(0, 300)}`;
+  const strings = (value: unknown) =>
+    Array.isArray(value) && value.every((item) => typeof item === "string");
+  const checks = (value: unknown) =>
+    Array.isArray(value) &&
+    value.every(
+      (check: any) =>
+        typeof check?.ruleId === "string" &&
+        typeof check?.label === "string" &&
+        strings(check?.slots),
+    );
+  assert(verdict && typeof verdict === "object", fail("no verdict"));
+  assertEquals(verdict.assessedBy, "server", fail("assessedBy"));
+  assertEquals(verdict.stage, "4S-3", fail("stage"));
+  assert(verdict.state in BUILD_STATE_LABELS, fail("state"));
+  assert(verdict.purpose === null || typeof verdict.purpose === "string", fail("purpose"));
+  for (const list of ["mismatches", "reviewChecks", "advice"]) {
+    assert(checks(verdict[list]), fail(list));
+  }
+  assert(
+    Array.isArray(verdict.gaps) &&
+      verdict.gaps.every(
+        (gap: any) =>
+          typeof gap?.slot === "string" &&
+          (gap.need === "missing" || gap.need === "unconfirmed") &&
+          typeof gap.reason === "string",
+      ),
+    fail("gaps"),
+  );
+  assert(
+    Array.isArray(verdict.reviewReasons) &&
+      verdict.reviewReasons.every((reason: any) => typeof reason?.kind === "string"),
+    fail("reviewReasons"),
+  );
+  assert(strings(verdict.ownedSlots), fail("ownedSlots"));
+  if (verdict.unresolvedSlots !== undefined)
+    assert(strings(verdict.unresolvedSlots), fail("unresolvedSlots"));
+  if (verdict.power !== undefined) {
+    assert(
+      Number.isFinite(verdict.power?.estimatedSystemLoadWatts) &&
+        Number.isFinite(verdict.power?.recommendedPsuWatts),
+      fail("power"),
+    );
+  }
+  assert(
+    verdict.agreesWithBrowser === null || typeof verdict.agreesWithBrowser === "boolean",
+    fail("agreesWithBrowser"),
+  );
+  const comparison = verdict.browserComparison;
+  assert(
+    typeof comparison?.compared === "boolean" &&
+      (comparison.agrees === null || typeof comparison.agrees === "boolean") &&
+      Array.isArray(comparison.differences) &&
+      comparison.differences.every((d: any) => typeof d?.field === "string") &&
+      strings(comparison.errorRules?.onlyServer) &&
+      strings(comparison.errorRules?.onlyBrowser),
+    fail("browserComparison"),
+  );
+  // The portal reads it as a verdict, not as "not recorded".
+  assert(readServerAssessment(verdict) !== null, fail("portal reader"));
+  // And what's stored is plain JSON: the database keeps exactly this.
+  assertEquals(JSON.parse(JSON.stringify(verdict)), verdict, fail("not plain JSON"));
+}
+
+Deno.test("S4S6-F1: every verdict the server stores carries every field the Staff Portal reads", async () => {
+  const outcomes: [string, Catalogue, Send, string][] = [
+    ["complete", catalogue(), {}, "complete"],
+    [
+      "complete, Find My PC use",
+      catalogue({}, ["GPU"]),
+      { extra: { purpose: "gaming" } },
+      "complete",
+    ],
+    [
+      "unreviewed values",
+      catalogue({ RAM: listing("RAM", null, "QZX S4S3 Memory") }),
+      {},
+      "needs_review",
+    ],
+    ["owned part", catalogue(), { owned: ["GPU"] }, "needs_review"],
+    [
+      "incomplete metafields",
+      catalogue({
+        Motherboard: { ...listing("Motherboard"), metafields: specMetafields({ socket: "AM4" }) },
+      }),
+      {},
+      "needs_review",
+    ],
+    [
+      "conflicting values",
+      catalogue({ CPU: { ...listing("CPU", {}, "AMD Ryzen 5 7600") } }),
+      {},
+      "needs_review",
+    ],
+    [
+      "malformed specifications",
+      catalogue({ Motherboard: { ...listing("Motherboard"), metafields: { socket: "AM4" } } }),
+      {},
+      "not_assessed",
+    ],
+    [
+      "Shopify unreachable",
+      catalogue(),
+      { reply: () => ({ errors: [{ message: "down" }] }) },
+      "not_assessed",
+    ],
+  ];
+  const claims: unknown[] = [
+    { status: "compatible", valid: true, complete: true },
+    { status: "incompatible", valid: false, complete: false, errorRules: ["RULE_A_SOCKET"] },
+    { status: "made-up" },
+    FORGED_CLAIMS,
+    {},
+  ];
+  // A claim that isn't an object is refused as unreadable (`compatibility_invalid`) before anything is stored, so it has no verdict.
+  let stored = 0;
+  for (const [label, products, options, state] of outcomes) {
+    for (const compatibility of claims) {
+      const where = `${label}, claim ${JSON.stringify(compatibility)}`;
+      const result = await send(products, { ...options, compatibility });
+      assertEquals(result.status, 200, `${where}: ${JSON.stringify(result.body)}`);
+      const verdict = assessmentOf(result);
+      assertEquals(verdict?.state, state, where);
+      assertCompleteVerdict(verdict, where);
+      stored++;
+    }
+  }
+  assertEquals(stored, outcomes.length * claims.length);
 });

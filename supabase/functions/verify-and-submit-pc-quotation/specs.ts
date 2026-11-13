@@ -39,6 +39,12 @@ import {
   type SpecProblem,
 } from "../_shared/builder/spec-schema.ts";
 import type { SlotClassification } from "../_shared/builder/slot-detection.ts";
+import {
+  registryBuilderValues,
+  registryLookup,
+  registryRecordFromRow,
+  type RegistryListingRecord,
+} from "../_shared/builder/hardware-spec.ts";
 import type {
   CanonicalBuildComponent,
   ComponentSlotId,
@@ -63,6 +69,8 @@ export type SpecFieldStatus =
 export type SpecOrigin =
   | "code_registry"
   | "database_registry"
+  /** Stage 4B: the Hardware Specification Manager (override, model or base model). */
+  | "hardware_registry"
   | "shopify_metafield"
   | "product_title"
   /** Present on the part, but none of the sources above can be shown to have given it. */
@@ -105,7 +113,9 @@ export type SpecUnresolvedReason =
   /** The product's metafields came back in a shape Shopify never sends. */
   | "malformed_answer"
   /** The resolver gave no part for this product. */
-  | "not_resolvable";
+  | "not_resolvable"
+  /** Stage 4B: the Hardware Specification Manager couldn't be read, so no part is resolved without it. */
+  | "registry_unavailable";
 
 /**
  * What the server stored for one part to buy, in `pc_builds.parts[slot].serverSpecs`. The quotation's existing parts
@@ -124,6 +134,15 @@ export interface ServerSpecRecord {
   productId: string | null;
   /** The code registry entry the product matched, if any. */
   registryKey?: string;
+  /** Stage 4B: the canonical model and the revisions its values came from, when the listing is linked. */
+  hardwareRecord?: {
+    modelId: string;
+    linkId: string;
+    specRevision: number;
+    overrideRevision: number;
+    /** Each registry value's layer: override, model or base. */
+    sources: Record<string, string>;
+  };
   /** The resolver's overall provenance and verified flag, as the storefront computes them. */
   provenance?: string;
   isVerified?: boolean;
@@ -272,8 +291,10 @@ function fieldOrigin(
   field: keyof TechnicalSpecs,
   component: CanonicalBuildComponent,
   stated: ReturnType<typeof readStatedSpecs>,
+  registryFields?: Set<string>,
 ): { origin: SpecOrigin; metafield?: string } {
   const key = component.matchedModelKey;
+  if (registryFields?.has(field)) return { origin: "hardware_registry" };
   if (key?.startsWith("db-")) return { origin: "database_registry" };
   const entry = key ? VERIFIED_HARDWARE_SPECS[key] : undefined;
   if (entry && entry.specs[field] !== undefined) return { origin: "code_registry" };
@@ -339,6 +360,7 @@ export function resolvePartSpecs(
   partSlot: string,
   slot: SlotClassification,
   browserSpecs?: unknown,
+  registry?: RegistryLookup,
 ): PartSpecResolution {
   const variantId = typeof node?.id === "string" ? node.id : null;
   const metafields = readSpecMetafields(node?.product);
@@ -351,8 +373,11 @@ export function resolvePartSpecs(
   }
   const product = specSourceProduct(node, metafields);
   const slotId = partSlot as ComponentSlotId;
-  // No database registry: the storefront never loads one, and the two must resolve a part identically.
-  const component = resolveShopifyComponent(product, slotId, {});
+  // Stage 4B-5: the Hardware Specification Manager, read by the server itself (never the browser's copy). The
+  // October database table stays unused, as on the storefront.
+  const component = resolveShopifyComponent(product, slotId, {
+    registrySpecs: registry ? (variant, productId) => registry(variant, productId) : undefined,
+  });
   if (!component) {
     return {
       slot: partSlot,
@@ -373,6 +398,12 @@ export function resolvePartSpecs(
   const isCritical = (field: string) =>
     critical.some((group) => group.includes(field as keyof TechnicalSpecs));
   const problems = component.specs.specProblems || [];
+  const listing =
+    component.matchedModelKey?.startsWith("hw-") && registry && variantId
+      ? registry(variantId, product.id)
+      : undefined;
+  const registryValues = listing ? registryBuilderValues(listing) : undefined;
+  const registryFields = registryValues ? new Set(Object.keys(registryValues.specs)) : undefined;
 
   const fields: ServerSpecField[] = [];
   const specs = component.specs as Record<string, unknown>;
@@ -388,7 +419,7 @@ export function resolvePartSpecs(
       status: slotConfirmed && CONFIRMED_CONFIDENCE.has(confidence) ? "verified" : "uncertain",
       value,
       confidence,
-      ...fieldOrigin(field, component, stated),
+      ...fieldOrigin(field, component, stated, registryFields),
       critical: isCritical(field),
     });
   }
@@ -440,6 +471,17 @@ export function resolvePartSpecs(
     variantId,
     productId: product.id || null,
     ...(component.matchedModelKey ? { registryKey: component.matchedModelKey } : {}),
+    ...(listing && registryValues
+      ? {
+          hardwareRecord: {
+            modelId: listing.modelId,
+            linkId: listing.linkId,
+            specRevision: listing.specRevision,
+            overrideRevision: listing.overrideRevision,
+            sources: registryValues.resolved.sources,
+          },
+        }
+      : {}),
     provenance: component.specs.provenance,
     isVerified: component.isVerified,
     fields,
@@ -454,6 +496,40 @@ export function resolvePartSpecs(
   const differences = browserDifferences(browserSpecs, fields, component.specs.provenance);
   if (differences) record.browserDifferences = differences;
   return { slot: partSlot, record, component };
+}
+
+/** Stage 4B-5: a listing's registry record by variant and product id. */
+export type RegistryLookup = (
+  variantId: string,
+  productId: string,
+) => RegistryListingRecord | undefined;
+
+/**
+ * Stage 4B-5: the Hardware Specification Manager's records for the listings in a request, read by the server through
+ * `get_pc_builder_registry_specs`. Null when it can't be read, or a row isn't in the function's shape: then no part
+ * is resolved without it, and the quotation goes to a technician.
+ */
+export async function loadRegistryLookup(
+  supabase: any,
+  productIds: string[],
+  variantIds: string[],
+): Promise<RegistryLookup | null> {
+  try {
+    const { data, error } = await supabase.rpc("get_pc_builder_registry_specs", {
+      p_product_ids: productIds,
+      p_variant_ids: variantIds,
+    });
+    if (error || !Array.isArray(data)) return null;
+    const records: RegistryListingRecord[] = [];
+    for (const row of data) {
+      const record = registryRecordFromRow(row);
+      if (!record) return null;
+      records.push(record);
+    }
+    return registryLookup(records);
+  } catch {
+    return null;
+  }
 }
 
 /**

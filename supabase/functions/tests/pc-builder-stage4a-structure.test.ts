@@ -9,6 +9,7 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { GOLDEN_CATALOGUES } from "./_helpers/stage3-golden.ts";
 import { specMetafields, storefrontProduct, withEssentials } from "./_helpers/quote-structure.ts";
+import { quotationClient } from "./_helpers/quotation-client.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const {
@@ -102,32 +103,20 @@ async function send(
 ) {
   const calls = { shopify: 0, rateLimit: 0, inserted: [] as any[] };
   const prices = options.priceOf || PRICES;
-  const client = {
-    auth: {
-      getUser: async () =>
-        options.authenticated === false
-          ? { data: { user: null }, error: new Error("invalid") }
-          : { data: { user: { id: "00000000-0000-0000-0000-0000000004a6" } }, error: null },
-    },
-    rpc: async () => {
+  // Stage 4S-4: the database is reached only through its two quotation functions. The guard is where the rate
+  // limit is taken.
+  const db = quotationClient({
+    userId: "00000000-0000-0000-0000-0000000004a6",
+    authError: options.authenticated === false,
+    guard: () => {
       calls.rateLimit++;
-      return { data: options.allowed ?? true, error: null };
+      return options.allowed === false
+        ? { allowed: false, code: "rate_limited" }
+        : { allowed: true };
     },
-    from: () => {
-      const query: any = {
-        select: () => query,
-        eq: () => query,
-        gte: async () => ({ data: [], error: null }),
-        insert: (row: any) => {
-          calls.inserted.push(row);
-          return {
-            select: () => ({ single: async () => ({ data: { id: "s6-row" }, error: null }) }),
-          };
-        },
-      };
-      return query;
-    },
-  };
+  });
+  calls.inserted = db.inserted;
+  const client = db.client;
   const shopifyFetch = async (_query: string, vars: { ids: string[] }) => {
     calls.shopify++;
     if (options.nodes) return options.nodes(vars.ids);
@@ -304,7 +293,7 @@ Deno.test("S4A-S2: every Find My PC build, sent as the page sends it, passes and
             assert(result.success, where);
             // Stage 4S-3: the server reaches the same verdict as the page, for the same use (decision S3-B), from
             // the parts it resolved itself.
-            const verdict = server!.calls.inserted[0].compatibility.serverAssessment;
+            const verdict = server!.calls.inserted[0].server_assessment;
             assertEquals(verdict.state, assessment.state, where);
             assertEquals(verdict.purpose, purpose, where);
             assertEquals(
@@ -863,15 +852,13 @@ Deno.test("S4A-S21: the server's own assessment decides review; the browser's cl
     assertEquals(result.status, 200, String(status));
     assertEquals(result.body.technicianReviewRequired, false, String(status));
     const stored = result.calls.inserted[0].compatibility;
-    // The browser's report is kept as its note; the server's verdict sits beside it.
+    // The browser's report is kept as its note; the server's verdict has its own column (4S-4, D1).
     assertEquals(stored.status, status);
     assertEquals(stored.reportedBy, "customer_browser");
-    assertEquals(stored.serverAssessment.state, "complete");
-    assertEquals(stored.serverAssessment.browserStatus, status ?? null);
-    assertEquals(
-      stored.serverAssessment.agreesWithBrowser,
-      status === undefined ? null : status === "compatible",
-    );
+    const verdict = result.calls.inserted[0].server_assessment;
+    assertEquals(verdict.state, "complete");
+    assertEquals(verdict.browserStatus, status ?? null);
+    assertEquals(verdict.agreesWithBrowser, status === undefined ? null : status === "compatible");
   }
   // Claimed compatible, but the server finds values nobody has reviewed: review.
   const unreviewed = await send(request(completeParts()), {
@@ -881,13 +868,13 @@ Deno.test("S4A-S21: the server's own assessment decides review; the browser's cl
   });
   assertEquals(unreviewed.status, 200);
   assertEquals(unreviewed.body.technicianReviewRequired, true);
-  assertEquals(unreviewed.calls.inserted[0].compatibility.serverAssessment.state, "needs_review");
+  assertEquals(unreviewed.calls.inserted[0].server_assessment.state, "needs_review");
   // Claimed compatible, but the price can't be verified: always review, with no verdict.
   const unverified = await send(request(completeParts()), {
     nodes: () => ({ errors: [{ message: "unavailable" }] }),
   });
   assertEquals(unverified.body.technicianReviewRequired, true);
-  assertEquals(unverified.calls.inserted[0].compatibility.serverAssessment.state, "not_assessed");
+  assertEquals(unverified.calls.inserted[0].server_assessment.state, "not_assessed");
 });
 
 Deno.test("S4A-S22: the structure check is pure and doesn't change what it's given", () => {

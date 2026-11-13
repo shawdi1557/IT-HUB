@@ -47,11 +47,16 @@ async function main() {
       "--disable-triggers",
       "--schema=public",
     ]);
-    if (dump.status !== 0) refuse(`could not read clean data: ${dump.stderr.trim()}`);
+    // Inside the try, failures throw (not exit) so the finally below always drops the scratch database.
+    if (dump.status !== 0) throw new Error(`could not read clean data: ${dump.stderr.trim()}`);
 
     const wipe = psqlAdmin(
       "postgres",
-      `do $$
+      // The append-only quotation tables (migrations 20261111000001/2) refuse TRUNCATE through ordinary triggers.
+      // For this session only, replica mode skips ordinary triggers so the disposable data can be emptied; every
+      // other session, and every application path, keeps the protection.
+      `set session_replication_role = replica;
+       do $$
        declare tables text;
        begin
          select string_agg(format('public.%I', tablename), ', ') into tables
@@ -59,10 +64,11 @@ async function main() {
          execute 'truncate ' || tables || ', auth.users restart identity cascade';
        end $$;`,
     );
-    if (wipe.status !== 0) refuse(`could not empty the tables: ${wipe.stderr.trim()}`);
+    if (wipe.status !== 0) throw new Error(`could not empty the tables: ${wipe.stderr.trim()}`);
 
     const restore = psqlAdmin("postgres", dump.stdout);
-    if (restore.status !== 0) refuse(`could not restore clean data: ${restore.stderr.trim()}`);
+    if (restore.status !== 0)
+      throw new Error(`could not restore clean data: ${restore.stderr.trim()}`);
   } finally {
     psqlAdmin("postgres", `drop database if exists ${SCRATCH};`);
   }

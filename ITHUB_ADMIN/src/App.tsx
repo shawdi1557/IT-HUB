@@ -16,6 +16,10 @@ import { Certificates } from "./pages/Certificates";
 import { Settings } from "./pages/Settings";
 import { SellRequests } from "./pages/SellRequests";
 import { Audits } from "./pages/Audits";
+import { HardwareRegistry } from "./pages/HardwareRegistry";
+import { HardwareModelDetail } from "./pages/HardwareModelDetail";
+import { ShopifySync } from "./pages/ShopifySync";
+import { HardwareActivity } from "./pages/HardwareActivity";
 
 export function App() {
   const [loading, setLoading] = useState(true);
@@ -93,7 +97,49 @@ export function App() {
             path="/quotations"
             element={
               profile.permissions.can_manage_quotations ? (
-                <Quotations />
+                <Quotations role={profile.role} userId={profile.user_id} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/* Stage 4B: the Hardware Specification Manager, for Admin and Staff (the PC Builder rule). The database
+              enforces the same rule on every read and change. */}
+          <Route
+            path="/hardware"
+            element={
+              profile.permissions.can_manage_quotations ? (
+                <HardwareRegistry role={profile.role} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/hardware/:id"
+            element={
+              profile.permissions.can_manage_quotations ? (
+                <HardwareModelDetail role={profile.role} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/hardware-sync"
+            element={
+              profile.permissions.can_manage_quotations ? (
+                <ShopifySync role={profile.role} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/hardware-activity"
+            element={
+              profile.permissions.can_manage_quotations ? (
+                <HardwareActivity />
               ) : (
                 <Navigate to="/" replace />
               )

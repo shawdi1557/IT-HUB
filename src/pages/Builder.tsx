@@ -30,7 +30,8 @@ import {
 import { useStore } from "../app/store";
 import { track } from "../lib/analytics";
 import WhatsAppIcon from "../components/WhatsAppIcon";
-import { images, money, type ComponentOption } from "../data/catalog";
+import { images, money, type Build, type ComponentOption } from "../data/catalog";
+import { refreshQuotationStates } from "../lib/builder/quotation-refresh";
 import { Badge, Button, Modal, Page, PageHeading } from "../components/ui";
 
 import {
@@ -2042,10 +2043,15 @@ function SmartBuilder() {
               designedFor: b.designedFor,
               templateId: b.templateId,
               owned: b.ownedSlots as any,
+              // A submitted quotation request: its reference, status and version (Stage 4S-4).
+              ...(b.quotation ? { quotation: b.quotation } : {}),
             }));
           return fresh.length ? { builds: [...prev.builds, ...fresh] } : {};
         });
       }
+      // Owner decision F2 (after 4S-6): builds this browser already holds get the database's current quotation
+      // status and version too. Display only; the server decides every withdrawal on its own records.
+      void refreshQuotationStates<Build>(store.set);
     });
   }, []);
 

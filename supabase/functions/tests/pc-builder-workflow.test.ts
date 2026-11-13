@@ -19,6 +19,8 @@ const { generateDynamicCatalogRecommendations, getBudgetShortfallInfo } =
 const { generateWhatsAppQuotation } = await import("../../../src/lib/builder/checkout.ts");
 const { submitQuotationRequest } = await import("../../../src/lib/builder/persistence.ts");
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
+const { quotationFingerprint } = await import("../verify-and-submit-pc-quotation/structure.ts");
+const { quotationClient, quotationStore } = await import("./_helpers/quotation-client.ts");
 const { withEssentials, answeringFillers, storefrontProduct } =
   await import("./_helpers/quote-structure.ts");
 
@@ -799,35 +801,23 @@ Deno.test("WORKFLOW: no made-up WhatsApp number is used when none is configured"
 
 // ── Quotation, with Shopify and the database stubbed: nothing is submitted anywhere ─────────────
 
+/**
+ * Stage 4S-4: the server reaches the database only through its two quotation functions (stand-in in
+ * _helpers/quotation-client.ts). A `recent` row is one of this customer's quotations stored in the last two minutes,
+ * carrying the request fingerprint the server stored with it.
+ */
 function quotationHarness(options: { recent?: any[] } = {}) {
-  const inserted: any[] = [];
-  const supabaseClient = {
-    auth: {
-      getUser: () =>
-        Promise.resolve({
-          data: { user: { id: "user-1", phone: "919800000001" } },
-          error: null,
-        }),
-    },
-    rpc: () => Promise.resolve({ data: true, error: null }),
-    from: () => {
-      const query: any = {
-        select: () => query,
-        eq: () => query,
-        gte: () => Promise.resolve({ data: options.recent || [], error: null }),
-        insert: (row: any) => {
-          inserted.push(row);
-          return {
-            select: () => ({
-              single: () => Promise.resolve({ data: { id: "build-1" }, error: null }),
-            }),
-          };
-        },
-      };
-      return query;
-    },
-  };
-  return { inserted, supabaseClient };
+  const store = quotationStore(
+    (options.recent || []).map((row) => ({
+      user_id: "user-1",
+      created_at: new Date().toISOString(),
+      enquiry_status: "New",
+      request_fingerprint: quotationFingerprint(row.parts),
+      ...row,
+    })),
+  );
+  const db = quotationClient({ userId: "user-1", phone: "919800000001", store });
+  return { inserted: db.inserted, supabaseClient: db.client };
 }
 
 const variantNode = (title: string, amount: string, availableForSale = true, slot = "CPU") => ({
@@ -1492,9 +1482,14 @@ Deno.test("QUOTE: a repeat request keeps the original review flag", async () => 
 
 Deno.test("PORTAL: the review flag isn't described as only a price problem", () => {
   const modal = Deno.readTextFileSync("ITHUB_ADMIN/src/components/QuotationDetailModal.tsx");
-  assert(modal.includes("Technician Review Required"));
-  assert(!modal.includes("Technician Price Review Required"));
-  assert(modal.includes("Compatibility isn't confirmed"));
+  // Stage 4S-5: the flag explains the review gate, and compatibility comes from the server's verdict, not the
+  // customer's browser (which is shown only as a comparison).
+  assert(modal.includes("Technician review required"));
+  assert(!/Technician Price Review Required/i.test(modal));
+  assert(modal.includes("It can't be Quoted until"));
+  assert(modal.includes("<ServerVerdict record={verdict} />"));
+  assert(modal.includes("(for comparison only)"));
+  assert(!modal.includes("quotation.compatibility?.status"));
   assert(modal.includes("{divergence > 100 && ("));
   const list = Deno.readTextFileSync("ITHUB_ADMIN/src/pages/Quotations.tsx");
   assert(!list.includes("Price Review Flagged"));

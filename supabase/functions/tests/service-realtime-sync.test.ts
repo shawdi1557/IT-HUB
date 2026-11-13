@@ -529,26 +529,47 @@ dbTest(
     let eventReceived = false;
     let receivedRecord: any = null;
 
+    // Realtime confirms the postgres_changes listener separately ("Subscribed to PostgreSQL"). On the first
+    // subscription after Realtime starts, that comes 1–2.5 s after SUBSCRIBED, and a change made in between is
+    // never delivered (4S-6 investigation, approved by the owner). So wait for it before the update.
+    let listenerReady: () => void = () => {};
+    const ready = new Promise<void>((resolve) => (listenerReady = resolve));
+
     // Subscribe to realtime channel using adminClient
-    const channel = adminClient.channel(`test-sync-${Date.now()}`).on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "service_requests",
-        filter: `id=eq.${ticket!.id}`,
-      },
-      (payload) => {
-        eventReceived = true;
-        receivedRecord = payload.new;
-      },
-    );
+    const channel = adminClient
+      .channel(`test-sync-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "service_requests",
+          filter: `id=eq.${ticket!.id}`,
+        },
+        (payload) => {
+          eventReceived = true;
+          receivedRecord = payload.new;
+        },
+      )
+      .on("system", {}, (payload: any) => {
+        if (payload?.extension === "postgres_changes" && payload?.status === "ok") listenerReady();
+      });
 
     await new Promise<void>((resolve) => {
       channel.subscribe((status) => {
         if (status === "SUBSCRIBED") resolve();
       });
     });
+    let readyTimer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      ready,
+      new Promise<never>((_, reject) => {
+        readyTimer = setTimeout(
+          () => reject(new Error("Realtime never confirmed the postgres_changes listener")),
+          10_000,
+        );
+      }),
+    ]).finally(() => clearTimeout(readyTimer));
 
     // Perform update in database
     await adminClient

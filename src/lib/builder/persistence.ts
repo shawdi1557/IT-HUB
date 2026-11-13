@@ -3,6 +3,7 @@
 
 import { supabase } from "../supabase";
 import type { CanonicalBuild } from "./types";
+import type { QuotationState } from "./quotation-status";
 import { checkCompatibility } from "./compatibility";
 import { partQuantity, summariseBuildPrice } from "./pricing";
 
@@ -149,11 +150,14 @@ export async function saveBuild(
   }
 }
 
+/** A saved build, and, for one submitted as a quotation request, its reference, status and version (Stage 4S-4). */
+export type SavedBuild = CanonicalBuild & { quotation?: QuotationState };
+
 /**
  * Loads all saved builds for the current user.
  * Revalidates each build using the deterministic compatibility engine.
  */
-export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
+export async function loadSavedBuilds(): Promise<SavedBuild[]> {
   if (!supabase) {
     return getLocalGuestBuilds();
   }
@@ -164,7 +168,9 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
   if (user) {
     const { data, error } = await supabase
       .from("pc_builds")
-      .select("id, name, parts, estimated_price, enquiry_status, created_at, updated_at")
+      .select(
+        "id, name, parts, estimated_price, enquiry_status, reference_id, version, created_at, updated_at",
+      )
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
 
@@ -185,11 +191,101 @@ export async function loadSavedBuilds(): Promise<CanonicalBuild[]> {
         ownedSlots,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        ...(row.reference_id
+          ? {
+              quotation: {
+                referenceId: row.reference_id,
+                status: row.enquiry_status,
+                version: row.version ?? 1,
+              },
+            }
+          : {}),
       };
     });
   }
 
   return getLocalGuestBuilds();
+}
+
+export type WithdrawResult =
+  | { ok: true; status: string; version: number }
+  | { ok: false; code: "stale_version" | "invalid_transition" | "not_found" | "failed" };
+
+/**
+ * Withdraws a submitted quotation request (Stage 4S-4, D7). The server checks the request belongs to the signed-in
+ * customer, is still New, Contacted or Quoted, and hasn't changed since `expectedVersion`; it records the
+ * withdrawal, and nothing is deleted.
+ */
+export async function withdrawQuotationRequest(
+  quotationId: string,
+  expectedVersion: number,
+  reason?: string,
+  deps?: { supabaseClient?: any },
+): Promise<WithdrawResult> {
+  const client = deps?.supabaseClient ?? supabase;
+  if (!client) return { ok: false, code: "failed" };
+  try {
+    const { data, error } = await client.rpc("customer_withdraw_pc_quotation", {
+      p_quotation_id: quotationId,
+      p_expected_version: expectedVersion,
+      p_reason: reason?.trim() ? reason.trim().slice(0, 1000) : null,
+    });
+    if (error) {
+      const message = String(error.message || "");
+      if (message === "stale_version") return { ok: false, code: "stale_version" };
+      if (message === "invalid_transition") return { ok: false, code: "invalid_transition" };
+      if (message === "quotation_not_found") return { ok: false, code: "not_found" };
+      return { ok: false, code: "failed" };
+    }
+    if (data?.ok === true && typeof data.version === "number") {
+      return { ok: true, status: String(data.status), version: data.version };
+    }
+    return { ok: false, code: "failed" };
+  } catch {
+    return { ok: false, code: "failed" };
+  }
+}
+
+/**
+ * The current status and version of every quotation request the signed-in customer submitted, read from the
+ * database (owner decision F2, after Stage 4S-6). Row-level security limits the answer to the customer's own rows.
+ * Null when it can't be read (no client, not signed in, or an error), so a failed read never looks like "no
+ * quotations". The result is for display: the server checks ownership, status and version on every withdrawal.
+ */
+export async function loadQuotationStates(deps?: {
+  supabaseClient?: any;
+}): Promise<Map<string, QuotationState> | null> {
+  const client = deps?.supabaseClient ?? supabase;
+  if (!client) return null;
+  try {
+    const { data: authData } = await client.auth.getUser();
+    const user = authData?.user;
+    if (!user) return null;
+    const { data, error } = await client
+      .from("pc_builds")
+      .select("id, reference_id, enquiry_status, version")
+      .eq("user_id", user.id)
+      .not("reference_id", "is", null);
+    if (error || !Array.isArray(data)) return null;
+    const states = new Map<string, QuotationState>();
+    for (const row of data) {
+      if (
+        typeof row?.id !== "string" ||
+        !row.reference_id ||
+        typeof row.enquiry_status !== "string"
+      ) {
+        continue;
+      }
+      states.set(row.id, {
+        referenceId: String(row.reference_id),
+        status: row.enquiry_status,
+        version: Number.isInteger(row.version) ? row.version : 1,
+      });
+    }
+    return states;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -210,7 +306,9 @@ export async function deleteSavedBuild(buildId: string): Promise<boolean> {
       .from("pc_builds")
       .delete()
       .eq("id", buildId)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      // Only a draft that was never submitted. A submitted quotation is withdrawn instead (Stage 4S-4).
+      .is("reference_id", null);
 
     return !error;
   }

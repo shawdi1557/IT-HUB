@@ -20,7 +20,14 @@ export function getPageTitle(pathname: string): string {
       return "Customer Audits";
     case "/settings":
       return "Settings";
+    case "/hardware":
+      return "Hardware Registry";
+    case "/hardware-sync":
+      return "Shopify Sync Centre";
+    case "/hardware-activity":
+      return "Revision & Activity History";
     default:
+      if (clean.startsWith("/hardware/")) return "Hardware Model";
       return "Staff Portal";
   }
 }

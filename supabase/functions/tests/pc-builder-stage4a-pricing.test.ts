@@ -11,6 +11,7 @@ const { calculateBuildTotal, submitQuotationRequest, ownedPartRecord } =
 const { generateWhatsAppQuotation } = await import("../../../src/lib/builder/checkout.ts");
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const { withEssentials, isFiller } = await import("./_helpers/quote-structure.ts");
+const { quotationClient } = await import("./_helpers/quotation-client.ts");
 
 const selection = (name: string, price: number, extra: Record<string, unknown> = {}) => ({
   id: `p-${name}`,
@@ -178,28 +179,12 @@ const shopifyFetch = async (_query: string, vars: any) => ({
     })),
   },
 });
+/** Stage 4S-4: the server reaches the database only through its two quotation functions. */
 function serverClient(stored: any[]) {
-  return {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: "00000000-0000-0000-0000-0000000000a4" } },
-        error: null,
-      }),
-    },
-    rpc: async () => ({ data: true, error: null }),
-    from: () => ({
-      // The duplicate check is a courtesy: with nothing to read it finds nothing.
-      select: () => ({
-        eq: () => ({ eq: () => ({ gte: async () => ({ data: [], error: null }) }) }),
-      }),
-      insert: (row: any) => {
-        stored.push(row);
-        return {
-          select: () => ({ single: async () => ({ data: { id: "s4a-quote" }, error: null }) }),
-        };
-      },
-    }),
-  };
+  return quotationClient({
+    userId: "00000000-0000-0000-0000-0000000000a4",
+    onInsert: (row) => stored.push(row),
+  }).client;
 }
 async function submitToServer(body: any) {
   const stored: any[] = [];

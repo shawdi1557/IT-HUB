@@ -16,6 +16,11 @@ import { labelCriticalFields } from "./compatibility";
 import { detectComponentSlot, normalizeHardwareTitle } from "./slot-detection";
 import { toVariantGid } from "./shopify-fields";
 import {
+  fieldDefinition,
+  registryBuilderValues,
+  type RegistryListingRecord,
+} from "./hardware-spec";
+import {
   keysChangedSinceReview,
   readSpecReview,
   readStatedSpecs,
@@ -65,6 +70,12 @@ export interface SpecSourceProduct {
  */
 export interface SpecSources {
   databaseSpecs?: (variantGid: string) => DatabaseHardwareMapping | undefined;
+  /**
+   * Stage 4B: the Hardware Specification Manager's record for a listing (variant link first, then product link), from
+   * `get_pc_builder_registry_specs`. Consulted first: a linked listing's identity is exact, so neither the October
+   * table above, the code registry nor the title is used for it.
+   */
+  registrySpecs?: (variantGid: string, productId: string) => RegistryListingRecord | undefined;
 }
 
 export interface RegistrySource {
@@ -791,6 +802,141 @@ export function shopifyStatedValues(product: SpecSourceProduct): Record<string, 
 }
 
 /**
+ * Stage 4B (4B-5): a listing linked to a canonical model in the Hardware Specification Manager. Its values come from
+ * the registry (override, then model, then the base model's inheritable fields), each counted as IT HUB's own
+ * reviewed value: authorised staff saved it, validated, with its revision recorded. Shopify's stated values only fill
+ * a field the registry leaves unknown (unreviewed, as before); one that disagrees with the registry is a conflict and
+ * neither value is used, so the part goes to review until a sync brings Shopify in line. A record filed under another
+ * category than the part's slot is never used.
+ */
+function registryComponent(
+  product: SpecSourceProduct,
+  slot: ComponentSlotId,
+  variantId: string,
+  rawSpecs: Record<string, string>,
+  review: ReturnType<typeof readSpecReview>,
+  listing: RegistryListingRecord,
+): CanonicalBuildComponent {
+  const problems: SpecProblem[] = [];
+  const specs: TechnicalSpecs = {};
+  const fieldSources: Partial<Record<keyof TechnicalSpecs, SpecConfidence>> = {};
+  const values = specs as Record<string, unknown>;
+  const part = {
+    slot,
+    productId: product.id,
+    variantId,
+    title: product.name,
+    brand: listing.manufacturer || product.brand || "",
+    model: [listing.modelName, listing.modelNumber].filter(Boolean).join(" "),
+    price: Math.round(product.price),
+    currency: "INR",
+    productUrl: `/products/${product.handle || product.id}`,
+    imageUrl: product.image,
+    availability: ((product.availableForSale ?? true) && (product.stock ?? 1) > 0
+      ? "available"
+      : "unavailable") as CanonicalBuildComponent["availability"],
+    quantity: 1,
+    retrievedAt: new Date().toISOString(),
+    isShopifyLive: true,
+    matchedModelKey: `hw-${listing.modelId}`,
+  };
+
+  if (listing.category !== slot) {
+    problems.push({
+      field: "hardware_registry",
+      kind: "conflict",
+      label: "This product's hardware record",
+      detail: `it is recorded as ${listing.category}, but this product is a ${slot}`,
+    });
+    return {
+      ...part,
+      specs: { fieldSources, specProblems: problems, provenance: "registry_unverified" },
+      isVerified: false,
+    };
+  }
+
+  const { resolved, specs: registryValues } = registryBuilderValues(listing);
+  for (const error of resolved.errors) {
+    const definition = fieldDefinition(listing.category, error.field);
+    problems.push({
+      field: definition?.metafieldKey ?? error.field,
+      kind: "invalid",
+      label: definition?.label ?? "A specification",
+      detail: error.message,
+    });
+  }
+  for (const [field, value] of Object.entries(registryValues)) {
+    values[field] = value;
+    fieldSources[field as keyof TechnicalSpecs] = "it_hub_reviewed";
+  }
+  // The pc_builder metafields the registry states, including a value the builder doesn't carry (a "No" BIOS note).
+  const coveredMetafields = new Set(
+    Object.keys(resolved.values)
+      .map((key) => fieldDefinition(listing.category, key)?.metafieldKey)
+      .filter((key): key is string => Boolean(key)),
+  );
+
+  // Shopify's values. A review marked rejected concerns Shopify's own values, so they're ignored here.
+  const unreviewed: string[] = [];
+  if (review.status !== "rejected") {
+    const stated = readStatedSpecs(slot, rawSpecs);
+    const changedKeys = keysChangedSinceReview(review, product.specUpdatedAt);
+    let filledGap = false;
+    for (const [key, value] of Object.entries(stated.specs)) {
+      const field = key as keyof TechnicalSpecs;
+      const metafield = stated.fieldKeys[field] ?? "";
+      const known = values[field];
+      const conflict = (registryValue: unknown) => {
+        delete values[field];
+        delete fieldSources[field];
+        problems.push({
+          field,
+          kind: "conflict",
+          label: specFieldName(metafield),
+          detail: `Shopify says ${String(value)}, but the hardware record says ${String(registryValue)}`,
+        });
+      };
+      if (problems.some((problem) => problem.kind === "conflict" && problem.field === field))
+        continue;
+      if (known !== undefined) {
+        if (!sameSpecValue(known, value)) conflict(known);
+      } else if (coveredMetafields.has(metafield)) {
+        // The registry states this metafield as a value the builder doesn't carry (only "No" can be): Shopify's
+        // "Yes" contradicts it.
+        if (value === true) conflict(false);
+      } else {
+        values[field] = value;
+        const level: SpecConfidence =
+          review.isReviewed && !changedKeys.has(metafield)
+            ? "it_hub_reviewed"
+            : "supplier_provided";
+        fieldSources[field] = level;
+        filledGap = true;
+        if (level === "supplier_provided") unreviewed.push(specFieldName(metafield));
+      }
+    }
+    for (const problem of stated.problems) {
+      // An unreadable Shopify value matters only where the registry leaves the field unknown; a sync replaces it.
+      if (problem.kind === "invalid" && coveredMetafields.has(problem.field)) continue;
+      // A review record that doesn't hold up matters only if one of Shopify's values is used.
+      if (problem.kind === "review" && !filledGap) continue;
+      problems.push(problem);
+    }
+  }
+
+  specs.fieldSources = fieldSources;
+  if (problems.length > 0) specs.specProblems = problems;
+  if (unreviewed.length > 0) specs.unreviewedSpecs = [...new Set(unreviewed)];
+  const confirmed = labelCriticalFields(slot).every((alternatives) => {
+    const field = alternatives.find((candidate) => values[candidate] !== undefined);
+    const level = field === undefined ? undefined : fieldSources[field];
+    return level === "manufacturer_verified" || level === "it_hub_reviewed";
+  });
+  specs.provenance = confirmed ? "it_hub_reviewed" : "registry_unverified";
+  return { ...part, specs, isVerified: confirmed };
+}
+
+/**
  * Maps a Shopify Storefront Product into a CanonicalBuildComponent with verified engineering specifications.
  * (`matchShopifyProductToComponent` in catalog.ts, with the database registry passed in.)
  */
@@ -813,6 +959,10 @@ export function resolveShopifyComponent(
   // What Shopify states for this product. A tag never counts, and rejected values are ignored.
   const rawSpecs = shopifyStatedValues(product);
   const review = readSpecReview(rawSpecs);
+
+  // 0. Stage 4B: the Hardware Specification Manager. A linked listing resolves from its canonical model.
+  const listing = variantId ? sources.registrySpecs?.(variantId, product.id) : undefined;
+  if (listing) return registryComponent(product, slot, variantId, rawSpecs, review, listing);
 
   // 1. Check Database Specification Registry
   const databaseMapping = variantId ? sources.databaseSpecs?.(variantId) : undefined;

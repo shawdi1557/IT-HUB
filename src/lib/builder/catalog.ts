@@ -8,6 +8,7 @@ import { shopifyConfig, fetchAllShopifyProducts } from "../shopify";
 import { toVariantGid } from "../shopify-schema";
 import { supabase } from "../supabase";
 import { resolveShopifyComponent, type DatabaseHardwareMapping } from "./spec-registry";
+import { registryLookup, registryRecordFromRow, type RegistryListingRecord } from "./hardware-spec";
 // Moved to their own module so the quotation server can use them (Stage 4S-1). Still exported from here.
 export { detectComponentSlot, normalizeHardwareTitle } from "./slot-detection";
 export type { DatabaseHardwareMapping } from "./spec-registry";
@@ -47,6 +48,35 @@ export async function loadDatabaseHardwareSpecs(): Promise<void> {
   }
 }
 
+// Stage 4B-5: the Hardware Specification Manager's records, read through `get_pc_builder_registry_specs`, so the
+// storefront resolves a linked listing as the quotation server does. The browser is never authoritative: if the read
+// fails, parts resolve as before 4B, and the server (which reads the registry itself) decides the quotation.
+let hardwareRegistry:
+  | ((variantId: string, productId: string) => RegistryListingRecord | undefined)
+  | undefined;
+
+export function setHardwareRegistryRecords(records: RegistryListingRecord[] | null): void {
+  hardwareRegistry = records ? registryLookup(records) : undefined;
+}
+
+export async function loadHardwareRegistry(): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase.rpc("get_pc_builder_registry_specs");
+    if (error || !Array.isArray(data)) return;
+    const records: RegistryListingRecord[] = [];
+    for (const row of data) {
+      const record = registryRecordFromRow(row);
+      // A row in another shape means the whole answer isn't trusted, as on the server.
+      if (!record) return;
+      records.push(record);
+    }
+    setHardwareRegistryRecords(records);
+  } catch {
+    // Parts resolve as before 4B; the server decides with its own read.
+  }
+}
+
 // The specification registry and resolver live in spec-registry.ts since Stage 4S-2, so the quotation server can run
 // them. Still exported from here.
 export {
@@ -65,6 +95,7 @@ export function matchShopifyProductToComponent(
 ): CanonicalBuildComponent | null {
   return resolveShopifyComponent(product, slotHint, {
     databaseSpecs: (variantGid) => registeredDatabaseSpecs.get(variantGid),
+    registrySpecs: hardwareRegistry,
   });
 }
 
@@ -233,6 +264,7 @@ export async function fetchBuilderComponents(): Promise<
   }
 
   let products: Product[] = [];
+  await loadHardwareRegistry();
   if (shopifyConfig.isConfigured) {
     try {
       const res = await fetchAllShopifyProducts();

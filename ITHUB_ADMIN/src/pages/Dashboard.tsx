@@ -28,6 +28,7 @@ import {
 import { supabase } from "../lib/supabase";
 import type { StaffProfile } from "../lib/auth";
 import { getQuotationStats } from "../lib/quotations";
+import { HardwareDashboardCard } from "../components/HardwareDashboardCard";
 import {
   getServiceStats,
   generateAlertsFromTickets,
@@ -340,6 +341,9 @@ export function Dashboard({ profile }: DashboardProps) {
           </div>
         )}
       </section>
+
+      {/* Stage 4B: the Hardware Specification Manager's summary, for Admin and Staff. */}
+      {profile.permissions.can_manage_quotations && <HardwareDashboardCard />}
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. PC Builder Quotations

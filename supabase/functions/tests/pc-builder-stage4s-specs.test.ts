@@ -14,6 +14,7 @@ import {
   storefrontProduct,
   verifiedValues,
 } from "./_helpers/quote-structure.ts";
+import { quotationClient } from "./_helpers/quotation-client.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const { MESSAGE_UNREADABLE } = await import("../verify-and-submit-pc-quotation/structure.ts");
@@ -113,30 +114,10 @@ interface Options {
 }
 
 async function send(body: Record<string, any>, options: Options = {}) {
-  const calls = { shopify: [] as { query: string; ids: string[] }[], inserted: [] as any[] };
-  const client = {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: "00000000-0000-0000-0000-0000000004s2" } },
-        error: null,
-      }),
-    },
-    rpc: async () => ({ data: true, error: null }),
-    from: () => {
-      const query: any = {
-        select: () => query,
-        eq: () => query,
-        gte: async () => ({ data: [], error: null }),
-        insert: (row: any) => {
-          calls.inserted.push(row);
-          return {
-            select: () => ({ single: async () => ({ data: { id: "s4s2-row" }, error: null }) }),
-          };
-        },
-      };
-      return query;
-    },
-  };
+  // Stage 4S-4: the database is reached only through its two quotation functions.
+  const db = quotationClient({ userId: "00000000-0000-0000-0000-0000000004s2" });
+  const calls = { shopify: [] as { query: string; ids: string[] }[], inserted: db.inserted };
+  const client = db.client;
   const shopifyFetch = async (query: string, vars: { ids: string[] }) => {
     calls.shopify.push({ query, ids: vars.ids });
     if (options.shopifyThrows) throw new Error("network down");

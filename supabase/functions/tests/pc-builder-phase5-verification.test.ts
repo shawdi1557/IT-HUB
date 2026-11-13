@@ -14,6 +14,7 @@ import {
   clearPendingQuotation,
 } from "../../../src/lib/builder/persistence.ts";
 import { withEssentials } from "./_helpers/quote-structure.ts";
+import { quotationClient } from "./_helpers/quotation-client.ts";
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 
@@ -103,23 +104,8 @@ Deno.test("TEST-SEC-1: Client-Side Price Tampering is authoritatively rejected a
     };
   };
 
-  const mockAuthClient = {
-    auth: {
-      getUser: async (token: string) => ({
-        data: { user: { id: "00000000-0000-0000-0000-000000000001" } },
-        error: null,
-      }),
-    },
-    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
-    from: (_table: string) => ({
-      select: () => ({ in: async () => ({ data: [], error: null }) }),
-      insert: () => ({
-        select: () => ({
-          single: async () => ({ data: { id: "quote-tamper-uuid" }, error: null }),
-        }),
-      }),
-    }),
-  };
+  // Stage 4S-4: the database is reached only through its two quotation functions.
+  const mockAuthClient = quotationClient({ userId: "00000000-0000-0000-0000-000000000001" }).client;
 
   const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
     method: "POST",
@@ -150,45 +136,20 @@ Deno.test("TEST-SEC-1: Client-Side Price Tampering is authoritatively rejected a
   assertEquals(body.technicianReviewRequired, true);
 });
 
-Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute threshold", async () => {
-  // In-memory mock simulating PostgreSQL check_distributed_rate_limit
-  const ipStore = new Map<string, { count: number; start: number }>();
-
-  const mockSupabaseClient = {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: "00000000-0000-0000-0000-000000000002" } },
-        error: null,
-      }),
+Deno.test("TEST-SEC-4: each verified customer may submit 5 a minute, whatever IP header the request carries", async () => {
+  // Stage 4S-4 (F9, B1): the limit is keyed on the signed-in customer, counted in the database guard. A client IP is
+  // used only from a trusted header configured for the platform, and only as a salted hash. With none configured
+  // (the default until a hosted rehearsal verifies one), no IP key is sent, however the caller sets
+  // x-forwarded-for, so changing it can't reset anything.
+  const counts = new Map<string, number>();
+  const db = quotationClient({
+    userId: "00000000-0000-0000-0000-000000000002",
+    guard: ({ p_user_id }) => {
+      const count = (counts.get(p_user_id) ?? 0) + 1;
+      counts.set(p_user_id, count);
+      return count <= 5 ? { allowed: true } : { allowed: false, code: "rate_limited" };
     },
-    rpc: async (func: string, params: any) => {
-      if (func === "check_distributed_rate_limit") {
-        const { p_ip_hash, p_max_requests = 5, p_window_seconds = 60 } = params;
-        const now = Date.now();
-        const entry = ipStore.get(p_ip_hash);
-
-        if (!entry || now - entry.start > p_window_seconds * 1000) {
-          ipStore.set(p_ip_hash, { count: 1, start: now });
-          return { data: true, error: null };
-        }
-
-        if (entry.count >= p_max_requests) {
-          return { data: false, error: null };
-        }
-
-        entry.count++;
-        return { data: true, error: null };
-      }
-      return { data: null, error: new Error("Unknown RPC") };
-    },
-    from: () => ({
-      insert: () => ({
-        select: () => ({
-          single: async () => ({ data: { id: "quote-123" }, error: null }),
-        }),
-      }),
-    }),
-  };
+  });
 
   const payload = {
     buildName: "Rate Limit Test Build",
@@ -197,45 +158,35 @@ Deno.test("TEST-SEC-4: Distributed Rate Limiting enforces 5 requests/minute thre
     parts: withEssentials({}),
     customerInfo: { name: "Rate Limit Tester" },
   };
+  const send = (forwardedFor: string) =>
+    handleQuotationVerification(
+      new Request("http://localhost/verify-and-submit-pc-quotation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer valid-auth-token",
+          "x-forwarded-for": forwardedFor,
+        },
+        body: JSON.stringify(payload),
+      }),
+      { supabaseClient: db.client as any, env: { QUOTATION_TRUSTED_IP_HEADER: undefined } },
+    );
 
-  // Fire requests 1 through 5 (Must succeed)
+  // Requests 1 to 5 succeed, each claiming a different IP.
   for (let i = 1; i <= 5; i++) {
-    const req = new Request("http://localhost/verify-and-submit-pc-quotation", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer valid-auth-token",
-        "x-forwarded-for": "10.0.0.99",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const res = await handleQuotationVerification(req, {
-      supabaseClient: mockSupabaseClient as any,
-    });
-    assertEquals(res.status, 200);
+    assertEquals((await send(`10.0.0.${i}`)).status, 200);
   }
-
-  // Request 6 from the same IP MUST be rejected with HTTP 429
-  const req6 = new Request("http://localhost/verify-and-submit-pc-quotation", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer valid-auth-token",
-      "x-forwarded-for": "10.0.0.99",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const res6 = await handleQuotationVerification(req6, {
-    supabaseClient: mockSupabaseClient as any,
-  });
-
+  // Request 6, from yet another claimed IP, is refused: the customer's limit is what counts.
+  const res6 = await send("10.0.0.99");
   assertEquals(res6.status, 429);
   const body6 = await res6.json();
   assertEquals(body6.success, false);
   assertEquals(body6.error.includes("Too Many Requests"), true);
   assertEquals(body6.retryAfter, 60);
+  assertEquals(res6.headers.get("Retry-After"), "60");
+  // No IP reached the guard: neither a raw address nor a hash.
+  assertEquals(db.calls.guard.length, 6);
+  for (const call of db.calls.guard) assertEquals(call.p_ip_key, null);
 });
 
 Deno.test("PHASE5-3: Migration SQL declares rate_limits table and check_distributed_rate_limit RPC", async () => {
@@ -526,35 +477,30 @@ Deno.test("TEST-SEC-9: Unauthenticated guest requests to Edge Function are rejec
 Deno.test("TEST-SEC-10: Authoritative Edge Function binds authenticated user_id from verified JWT token", async () => {
   let recordedInsert: any = null;
 
+  // Stage 4S-4: the database is reached only through its two quotation functions; the customer has a phone
+  // confirmed at sign-in, as every customer account does.
+  const db = quotationClient({
+    userId: "00000000-0000-0000-0000-000000000001",
+    onInsert: (row) => (recordedInsert = row),
+  });
   const mockSupabase = {
+    ...db.client,
     auth: {
       getUser: async (token: string) => {
         if (token === "valid-user-jwt") {
           return {
             data: {
-              user: { id: "00000000-0000-0000-0000-000000000001", email: "auth@ithub.example.com" },
+              user: {
+                id: "00000000-0000-0000-0000-000000000001",
+                email: "auth@ithub.example.com",
+                phone: "919800000001",
+              },
             },
             error: null,
           };
         }
         return { data: { user: null }, error: new Error("Invalid token") };
       },
-    },
-    rpc: async (_func: string, _params: any) => ({ data: true, error: null }),
-    from: (table: string) => {
-      return {
-        select: (_cols?: string) => ({
-          in: async () => ({ data: [], error: null }),
-        }),
-        insert: (record: any) => {
-          recordedInsert = record;
-          return {
-            select: () => ({
-              single: async () => ({ data: { id: "quote-auth-verified-uuid" }, error: null }),
-            }),
-          };
-        },
-      };
     },
   };
 

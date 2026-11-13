@@ -41,6 +41,18 @@ import {
 import { summariseBuildPrice } from "../lib/builder/pricing";
 import { ASSEMBLY_NOT_SET, blockerLines } from "../lib/builder/completeness-wording";
 import { liveBuild, type LiveBuild } from "../lib/builder/readiness";
+import { withdrawQuotationRequest } from "../lib/builder/persistence";
+import { refreshQuotationStates } from "../lib/builder/quotation-refresh";
+import {
+  CANNOT_WITHDRAW_MESSAGE,
+  canWithdraw,
+  customerStatusLabel,
+  WITHDRAW_BUTTON,
+  WITHDRAW_CONFIRMATION,
+  WITHDRAW_REASON_LABEL,
+  WITHDRAWN_MESSAGE,
+  withdrawFailureOutcome,
+} from "../lib/builder/quotation-status";
 import { fetchUserSellRequests } from "../lib/sellRequests";
 import { updateCustomerProfile } from "../lib/auth";
 import { updateShopifyCartDiscountCodes } from "../lib/shopify";
@@ -1683,6 +1695,60 @@ function PcBuilds() {
   const [draft, setDraft] = useState("");
   const [compare, setCompare] = useState<string[]>([]);
   const [viewing, setViewing] = useState<Build | null>(null);
+  // Stage 4S-4 (D7, E7): the quotation request being withdrawn, and the customer's optional reason.
+  const [withdrawing, setWithdrawing] = useState("");
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  // Owner decision F2 (after 4S-6): the status and version shown are read again from the database when these builds
+  // are opened, when the customer comes back to the page, and after every withdrawal attempt. The browser's copy is
+  // only for display; the server checks ownership, status and version on every withdrawal.
+  const refreshQuotations = () => refreshQuotationStates<Build>(store.set);
+  useEffect(() => {
+    void refreshQuotations();
+    const onReturn = () => {
+      if (document.visibilityState === "visible") void refreshQuotations();
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, []);
+  const withdraw = async (build: Build) => {
+    if (!build.quotation || withdrawBusy) return;
+    setWithdrawBusy(true);
+    const result = await withdrawQuotationRequest(
+      build.id,
+      build.quotation.version,
+      withdrawReason,
+    );
+    if (!result.ok) {
+      // Refused: read what the database holds now, so the customer sees the current status and actions.
+      const states = await refreshQuotations();
+      setWithdrawBusy(false);
+      const outcome = withdrawFailureOutcome(result.code, states?.get(build.id));
+      if (!outcome.keepOpen) setWithdrawing("");
+      store.notify(outcome.message);
+      return;
+    }
+    setWithdrawBusy(false);
+    store.set((previous) => ({
+      builds: previous.builds.map((item) =>
+        item.id === build.id && item.quotation
+          ? {
+              ...item,
+              quotation: { ...item.quotation, status: result.status, version: result.version },
+            }
+          : item,
+      ),
+    }));
+    setWithdrawing("");
+    setWithdrawReason("");
+    store.notify(WITHDRAWN_MESSAGE);
+    // Started after the withdrawal, so no earlier read can overwrite it.
+    void refreshQuotations();
+  };
   const assembly = store.assemblyCharge || 0;
   // Priced as every builder screen prices it: owned parts never priced, the assembly charge added.
   const estimate = (build: Build) =>
@@ -1834,6 +1900,20 @@ function PcBuilds() {
                       Designed for {build.designedFor}
                     </p>
                   )}
+                  {/* A submitted quotation request: its status, in the customer's words (D14). */}
+                  {build.quotation && (
+                    <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span
+                        className="rounded-full bg-secondary px-2.5 py-0.5 font-semibold text-primary"
+                        data-quotation-status={build.quotation.status}
+                      >
+                        {customerStatusLabel(build.quotation.status)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        Reference {build.quotation.referenceId}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <strong className="text-primary">{money(live.price.total)}</strong>
               </div>
@@ -1847,7 +1927,10 @@ function PcBuilds() {
                 <Button
                   variant="secondary"
                   className="px-4 py-2 text-xs"
-                  onClick={() => setViewing(build)}
+                  onClick={() => {
+                    setViewing(build);
+                    void refreshQuotations();
+                  }}
                 >
                   View
                 </Button>
@@ -1906,19 +1989,75 @@ function PcBuilds() {
                 >
                   Rename
                 </button>
-                <button
-                  className="text-xs text-red-600"
-                  onClick={() => {
-                    store.set({
-                      builds: store.builds.filter((item) => item.id !== build.id),
-                    });
-                    setCompare(compare.filter((id) => id !== build.id));
-                    store.notify("Build removed");
-                  }}
-                >
-                  Delete
-                </button>
+                {/* A submitted quotation request is withdrawn, never deleted (Stage 4S-4, D7). */}
+                {build.quotation ? (
+                  canWithdraw(build.quotation) ? (
+                    <button
+                      className="text-xs text-red-600"
+                      onClick={() => {
+                        setWithdrawing(build.id);
+                        setWithdrawReason("");
+                      }}
+                    >
+                      {WITHDRAW_BUTTON}
+                    </button>
+                  ) : (
+                    // Withdrawal ended once IT HUB completed or closed it, or it was withdrawn.
+                    <span className="text-xs text-muted-foreground" data-withdraw-unavailable="">
+                      {CANNOT_WITHDRAW_MESSAGE}
+                    </span>
+                  )
+                ) : (
+                  <button
+                    className="text-xs text-red-600"
+                    onClick={() => {
+                      store.set({
+                        builds: store.builds.filter((item) => item.id !== build.id),
+                      });
+                      setCompare(compare.filter((id) => id !== build.id));
+                      store.notify("Build removed");
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
+              {withdrawing === build.id && build.quotation && canWithdraw(build.quotation) && (
+                <div
+                  role="alertdialog"
+                  aria-label={WITHDRAW_BUTTON}
+                  className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs"
+                >
+                  <p className="font-semibold text-red-800">{WITHDRAW_CONFIRMATION}</p>
+                  <label className="mt-3 block text-muted-foreground">
+                    {WITHDRAW_REASON_LABEL}
+                    <textarea
+                      value={withdrawReason}
+                      maxLength={1000}
+                      rows={2}
+                      onChange={(event) => setWithdrawReason(event.target.value)}
+                      className={`${fieldClass} mt-1 py-2`}
+                    />
+                  </label>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      className="px-4 py-2 text-xs"
+                      disabled={withdrawBusy}
+                      onClick={() => withdraw(build)}
+                    >
+                      {WITHDRAW_BUTTON}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="px-4 py-2 text-xs"
+                      disabled={withdrawBusy}
+                      onClick={() => setWithdrawing("")}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
               {/* Why it can't go to IT HUB as it stands, in the builder's words. "Customize" opens it to fix. */}
               {!ready && (
                 <div className="mt-3 space-y-1 text-[11px] text-red-600">

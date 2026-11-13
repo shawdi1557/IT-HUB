@@ -7,6 +7,7 @@ import { assert, assertEquals, assertNotEquals } from "https://deno.land/std@0.2
 
 const { handleQuotationVerification } = await import("../verify-and-submit-pc-quotation/index.ts");
 const { quotationFingerprint } = await import("../verify-and-submit-pc-quotation/structure.ts");
+const { quotationClient, quotationStore } = await import("./_helpers/quotation-client.ts");
 
 const V = (id: string) => `gid://shopify/ProductVariant/rep-${id}`;
 const CUSTOMER = "00000000-0000-0000-0000-00000000f008";
@@ -52,41 +53,19 @@ interface Row extends Record<string, any> {
   created_at: string;
 }
 
-/** A pc_builds table in memory: inserts are kept, and select answers `eq` and `gte` filters as Postgres would. */
+/**
+ * Stage 4S-4: the quotation table in memory, reached only as the server reaches it, through the stand-in for its
+ * database functions (_helpers/quotation-client.ts), which finds a repeat as create_pc_quotation does: the same
+ * customer, the same stored request fingerprint, status New, within two minutes. Seeded rows are quotations the
+ * server stored earlier, so each carries the fingerprint of its parts. The real function is proven by the database
+ * tests.
+ */
 function table(seed: Row[] = []) {
-  const rows: Row[] = [...seed];
-  let next = rows.length;
-  const client = (userId: string) => ({
-    auth: { getUser: async () => ({ data: { user: { id: userId } }, error: null }) },
-    rpc: async () => ({ data: true, error: null }),
-    from: () => {
-      const filters: ((row: Row) => boolean)[] = [];
-      const query: any = {
-        select: () => query,
-        eq: (column: string, value: unknown) => {
-          filters.push((row) => row[column] === value);
-          return query;
-        },
-        gte: async (column: string, value: string) => {
-          filters.push((row) => String(row[column]) >= value);
-          return { data: rows.filter((row) => filters.every((keep) => keep(row))), error: null };
-        },
-        insert: (row: any) => {
-          const stored: Row = {
-            ...structuredClone(row),
-            id: `rep-row-${++next}`,
-            created_at: new Date().toISOString(),
-          };
-          rows.push(stored);
-          return {
-            select: () => ({ single: async () => ({ data: { id: stored.id }, error: null }) }),
-          };
-        },
-      };
-      return query;
-    },
-  });
-  return { rows, client };
+  const store = quotationStore(
+    seed.map((row) => ({ request_fingerprint: quotationFingerprint(row.parts), ...row }) as any),
+  );
+  const client = (userId: string) => quotationClient({ userId, store }).client;
+  return { rows: store.rows, client };
 }
 
 const shopifyFetch = async (_query: string, vars: { ids: string[] }) => ({
