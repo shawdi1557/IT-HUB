@@ -17,6 +17,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { corsFor, PORTAL_DEV_ORIGINS } from "../_shared/cors.ts";
+import {
+  adminAuthFromEnv,
+  adminGraphql,
+  clientCredentialsProvider,
+  ShopifyAuthError,
+  type AdminTokenProvider,
+} from "../_shared/shopify-admin-auth.ts";
 import type { RegistryListingRecord } from "../_shared/builder/hardware-spec.ts";
 import {
   backoffSeconds,
@@ -47,10 +54,18 @@ export interface SyncDeps {
   verifyStaff?: (token: string) => Promise<StaffIdentity | null>;
   /** One Shopify Admin GraphQL request. */
   shopifyAdmin?: (query: string, variables: Record<string, unknown>) => Promise<ShopifyHttpAnswer>;
+  /** The network, for the real Admin path (token exchange and GraphQL). Tests pass a stand-in. */
+  fetchImpl?: typeof fetch;
   env?: Record<string, string | undefined>;
 }
 
 const MAX_BODY_BYTES = 20_000;
+
+/** The connection check's only query: read-only (read_products is enough). */
+export const CONNECTION_TEST_QUERY = `query HardwareSyncConnectionTest {
+  shop { name }
+  products(first: 3, sortKey: UPDATED_AT, reverse: true) { nodes { id title status } }
+}`;
 const MAX_LINKS = 50;
 const MAX_RUN = 10;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -177,10 +192,30 @@ export async function handleHardwareSync(req: Request, deps: SyncDeps = {}): Pro
   if (!store) return json(503, { success: false, code: "not_configured" });
 
   // ── Shopify Admin ──
-  const adminToken = env("SHOPIFY_ADMIN_ACCESS_TOKEN");
-  const domain = env("SHOPIFY_STORE_DOMAIN") || env("VITE_SHOPIFY_STORE_DOMAIN");
+  // A Shopify Dev Dashboard app: its client ID and secret are exchanged for a 24-hour token (client credentials
+  // grant), cached and renewed by _shared/shopify-admin-auth.ts. A legacy static token is still accepted.
+  const adminAuth = adminAuthFromEnv(env);
+  const domain = adminAuth.shop ?? "";
   const apiVersion = env("SHOPIFY_ADMIN_API_VERSION") || env("SHOPIFY_API_VERSION") || "2025-10";
-  const adminConfigured = Boolean(deps.shopifyAdmin || (adminToken && domain));
+  const adminConfigured = Boolean(deps.shopifyAdmin || adminAuth.mode !== "none");
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const staticToken = env("SHOPIFY_ADMIN_ACCESS_TOKEN");
+  let tokenProvider: AdminTokenProvider | null = null;
+  if (adminAuth.mode === "client_credentials") {
+    tokenProvider = clientCredentialsProvider({
+      shop: domain,
+      clientId: env("SHOPIFY_ADMIN_CLIENT_ID"),
+      clientSecret: env("SHOPIFY_ADMIN_CLIENT_SECRET"),
+      fetchImpl,
+    });
+  } else if (adminAuth.mode === "static_token") {
+    tokenProvider = {
+      token: async () => staticToken,
+      invalidate: () => {},
+      grantedScopes: () => null,
+      expiresInSeconds: () => null,
+    };
+  }
   // 4B-6: where a write goes. Only the real Admin API counts as "live"; an injected stand-in (tests, rehearsals)
   // is recorded as such, so no record can suggest a real Shopify sync that never happened.
   const writeTarget = deps.shopifyAdmin
@@ -190,18 +225,16 @@ export async function handleHardwareSync(req: Request, deps: SyncDeps = {}): Pro
   const shopifyAdmin =
     deps.shopifyAdmin ??
     (async (query: string, variables: Record<string, unknown>): Promise<ShopifyHttpAnswer> => {
-      const res = await fetch(`https://${domain}/admin/api/${apiVersion}/graphql.json`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": adminToken },
-        body: JSON.stringify({ query, variables }),
-      });
-      let parsed: unknown = null;
-      try {
-        parsed = await res.json();
-      } catch {
-        parsed = null;
-      }
-      return { status: res.status, retryAfter: res.headers.get("Retry-After"), body: parsed };
+      if (!tokenProvider) throw new ShopifyAuthError("not_configured");
+      const answer = await adminGraphql(
+        tokenProvider,
+        domain,
+        apiVersion,
+        query,
+        variables,
+        fetchImpl,
+      );
+      return { status: answer.status, retryAfter: answer.retryAfter, body: answer.body };
     });
 
   /** One attempt at writing a claimed job's payload. */
@@ -245,7 +278,17 @@ export async function handleHardwareSync(req: Request, deps: SyncDeps = {}): Pro
         metafields: job.payload.map((item) => ({ ownerId: job.shopify_product_id, ...item })),
       });
       return classifyMetafieldsSet(answer, job.payload, job.attempts);
-    } catch {
+    } catch (error) {
+      // A refused credential is a failure with its reason, not a network retry.
+      if (error instanceof ShopifyAuthError && error.code !== "shopify_unreachable") {
+        return {
+          outcome: "failed",
+          error: {
+            code: "shopify_auth_failed",
+            message: `Shopify refused the app's credentials (${error.code})`,
+          },
+        };
+      }
       return {
         outcome: "retry_pending",
         error: { code: "network_error", message: "Shopify couldn't be reached" },
@@ -344,8 +387,11 @@ export async function handleHardwareSync(req: Request, deps: SyncDeps = {}): Pro
             const nodes = answer.body?.data?.product?.metafields?.nodes;
             if (answer.status === 200 && Array.isArray(nodes)) shopifyValues = nodes;
             else shopifyReadError = `Shopify answered ${answer.status}`;
-          } catch {
-            shopifyReadError = "Shopify couldn't be reached";
+          } catch (error) {
+            shopifyReadError =
+              error instanceof ShopifyAuthError && error.code !== "shopify_unreachable"
+                ? `Shopify refused the app's credentials (${error.code})`
+                : "Shopify couldn't be reached";
           }
         }
         return json(200, {
@@ -434,6 +480,57 @@ export async function handleHardwareSync(req: Request, deps: SyncDeps = {}): Pro
         }
         const run = await runJobs([retried.job]);
         return json(200, { success: true, job: retried.job, run });
+      }
+
+      case "connection": {
+        // A read-only check of the Admin connection, for administrators: one token exchange (or the cached token)
+        // and one query for the shop's name and three products. No write, no mutation, no webhook.
+        if (staff.role !== "portal_admin") return json(403, { success: false, code: "forbidden" });
+        const base = {
+          success: true,
+          mode: deps.shopifyAdmin ? "stand_in" : adminAuth.mode,
+          shop: domain || null,
+          requestedApiVersion: apiVersion,
+          writesEnabled,
+        };
+        if (!adminConfigured) {
+          return json(200, { ...base, ok: false, code: adminAuth.problem ?? "not_configured" });
+        }
+        try {
+          const answer = await shopifyAdmin(CONNECTION_TEST_QUERY, {});
+          const scopes = tokenProvider?.grantedScopes() ?? null;
+          const data = answer.body?.data;
+          const ok = answer.status === 200 && !answer.body?.errors && Boolean(data?.shop);
+          return json(200, {
+            ...base,
+            ok,
+            code: ok ? null : answer.status === 403 ? "access_denied" : "query_failed",
+            status: answer.status,
+            grantedScopes: scopes,
+            canReadProducts: scopes
+              ? scopes.includes("read_products") || scopes.includes("write_products")
+              : null,
+            canWriteProducts: scopes ? scopes.includes("write_products") : null,
+            tokenExpiresInSeconds: tokenProvider?.expiresInSeconds() ?? null,
+            shopName: typeof data?.shop?.name === "string" ? data.shop.name : null,
+            products: Array.isArray(data?.products?.nodes)
+              ? data.products.nodes.slice(0, 3).map((p: any) => ({
+                  id: String(p?.id ?? ""),
+                  title: String(p?.title ?? ""),
+                  status: typeof p?.status === "string" ? p.status : null,
+                }))
+              : [],
+          });
+        } catch (error) {
+          const known = error instanceof ShopifyAuthError;
+          return json(200, {
+            ...base,
+            ok: false,
+            code: known ? error.code : "shopify_unreachable",
+            status: known ? error.status : null,
+            shopifyCode: known ? error.shopifyCode : null,
+          });
+        }
       }
 
       default:

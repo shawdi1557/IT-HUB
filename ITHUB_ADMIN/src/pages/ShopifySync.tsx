@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Eye, RefreshCw, RotateCcw, UploadCloud } from "lucide-react";
+import { Eye, RefreshCw, RotateCcw, UploadCloud, PlugZap } from "lucide-react";
 import type { StaffRole } from "../lib/auth";
 import {
   loadMappings,
@@ -18,12 +18,16 @@ import {
   type SyncJobRow,
   type SyncListing,
   type SyncOverview,
+  type SyncConnection,
   type SyncPreview,
 } from "../lib/hardware";
 import { fieldDefinition } from "../lib/hardware-spec";
 import {
+  connectionWording,
   failureWording,
+  modelLabel,
   reachedRealShopify,
+  retryHelps,
   stateWording,
   type ListingState,
 } from "../lib/sync-wording";
@@ -52,6 +56,21 @@ export function ShopifySync({ role }: { role: StaffRole }) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [tab, setTab] = useState<Tab>("listings");
+  const [connection, setConnection] = useState<SyncConnection | null>(null);
+  const [testing, setTesting] = useState(false);
+  const admin = role === "portal_admin";
+
+  const testConnection = async () => {
+    if (testing) return;
+    setTesting(true);
+    const res = await syncAction<SyncConnection>({ action: "connection" });
+    setTesting(false);
+    if (!res.ok || !res.data) {
+      setError(res.message ?? "The connection check couldn't be run.");
+      return;
+    }
+    setConnection(res.data);
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -125,11 +144,66 @@ export function ShopifySync({ role }: { role: StaffRole }) {
         title="Shopify Sync Centre"
         description="Sends each linked listing's specification to its pc_builder fields in Shopify. Nothing else is changed: prices, stock, checkout and other product fields stay as they are."
         actions={
-          <button className={ui.button} onClick={reload} disabled={loading}>
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
-          </button>
+          <>
+            <button className={ui.button} onClick={reload} disabled={loading}>
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+            {admin && (
+              <button
+                className={ui.button}
+                onClick={testConnection}
+                disabled={testing}
+                data-testid="sync-test-connection"
+              >
+                <PlugZap size={14} className={testing ? "animate-pulse" : ""} />
+                {testing ? "Testing…" : "Test Shopify connection"}
+              </button>
+            )}
+          </>
         }
       />
+
+      {connection && (
+        <Notice
+          tone={connection.ok ? "success" : "warning"}
+          onClose={() => setConnection(null)}
+          testId="sync-connection"
+        >
+          <span className="block font-semibold">
+            {connectionWording(connection.ok ? null : connection.code)}
+          </span>
+          <span className="mt-1 block text-[11px]">
+            Read-only check
+            {connection.shop ? ` of ${connection.shop}` : ""} ·{" "}
+            {connection.mode === "client_credentials"
+              ? "Dev Dashboard app (client credentials)"
+              : connection.mode === "static_token"
+                ? "legacy Admin token"
+                : connection.mode === "stand_in"
+                  ? "stand-in"
+                  : "no credential"}
+            {connection.shopName ? ` · shop "${connection.shopName}"` : ""}
+            {connection.grantedScopes
+              ? ` · scopes: ${connection.grantedScopes.join(", ") || "none"}`
+              : ""}
+            {connection.tokenExpiresInSeconds
+              ? ` · token valid for about ${Math.round(connection.tokenExpiresInSeconds / 3600)} h, renewed automatically`
+              : ""}
+            {connection.ok
+              ? connection.canWriteProducts
+                ? " · write_products granted"
+                : " · read-only (no write_products)"
+              : ""}
+            {" · sending "}
+            {connection.writesEnabled ? "switched on" : "switched off"}
+          </span>
+          {connection.products && connection.products.length > 0 && (
+            <span className="mt-1 block text-[11px]" data-testid="sync-connection-products">
+              Products read: {connection.products.map((p) => p.title).join(" · ")}
+            </span>
+          )}
+        </Notice>
+      )}
 
       {overview && (
         <Notice tone={live ? "info" : "warning"} testId="sync-mode">
@@ -202,9 +276,13 @@ export function ShopifySync({ role }: { role: StaffRole }) {
               data-testid="sync-actions"
             >
               <p className="text-xs text-slate-600">
-                {selected.size === 0
-                  ? "Tick the listings to send, or send every ready listing."
-                  : `${selected.size} selected.`}
+                {!overview.adminConfigured
+                  ? "Shopify isn't connected here: a send will be refused and nothing will reach Shopify. Sending works once an administrator adds the Shopify Admin credential."
+                  : !overview.writesEnabled && overview.writeMode === "live"
+                    ? "Sending is switched off here: a send will be refused and nothing will reach Shopify."
+                    : selected.size === 0
+                      ? "Tick the listings to send, or send every ready listing."
+                      : `${selected.size} selected.`}
               </p>
               {confirming ? (
                 <div
@@ -305,6 +383,10 @@ export function ShopifySync({ role }: { role: StaffRole }) {
                     onPreview={() => openPreview(listing)}
                     onRetry={(job) => run({ action: "retry", jobId: job.id }, "Trying again.")}
                     busy={busy}
+                    environment={{
+                      adminConfigured: overview.adminConfigured,
+                      writesEnabled: overview.writesEnabled,
+                    }}
                   />
                 ))}
               </ul>
@@ -318,6 +400,10 @@ export function ShopifySync({ role }: { role: StaffRole }) {
           jobs={overview?.jobs ?? []}
           onRetry={(job) => run({ action: "retry", jobId: job.id }, "Trying again.")}
           busy={busy}
+          environment={{
+            adminConfigured: overview?.adminConfigured ?? false,
+            writesEnabled: overview?.writesEnabled ?? false,
+          }}
         />
       )}
 
@@ -335,6 +421,7 @@ function ListingRow({
   onPreview,
   onRetry,
   busy,
+  environment,
 }: {
   listing: SyncListing;
   selected: boolean;
@@ -342,12 +429,15 @@ function ListingRow({
   onPreview: () => void;
   onRetry: (job: SyncJobRow) => void;
   busy: boolean;
+  environment: { adminConfigured: boolean; writesEnabled: boolean };
 }) {
   const { link, state, problems, latestJob } = listing;
   const wording = stateWording(state as ListingState, latestJob);
   const canSelect = problems.length === 0;
   const canRetry =
-    latestJob && (latestJob.status === "failed" || latestJob.status === "retry_pending");
+    latestJob &&
+    (latestJob.status === "failed" || latestJob.status === "retry_pending") &&
+    retryHelps(latestJob.last_error, environment);
   return (
     <li className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-start" data-testid="sync-row">
       <label className="flex min-w-0 flex-1 items-start gap-3">
@@ -377,7 +467,7 @@ function ListingRow({
               className="font-semibold text-blue-700 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
-              {link.manufacturer} {link.model_name}
+              {modelLabel(link.manufacturer, link.model_name)}
             </Link>
           </span>
         </span>
@@ -440,7 +530,7 @@ function PreviewPanel({ preview, onClose }: { preview: SyncPreview; onClose: () 
         <div>
           <h2 className="text-sm font-extrabold text-slate-900">Preview: what would be sent</h2>
           <p className="text-xs text-slate-500">
-            {preview.link.manufacturer} {preview.link.model_name} → Shopify product{" "}
+            {modelLabel(preview.link.manufacturer, preview.link.model_name)} → Shopify product{" "}
             <span className="font-mono">{shortGid(preview.link.shopify_product_id)}</span>
           </p>
         </div>
@@ -519,10 +609,12 @@ function HistoryList({
   jobs,
   onRetry,
   busy,
+  environment,
 }: {
   jobs: SyncJobRow[];
   onRetry: (job: SyncJobRow) => void;
   busy: boolean;
+  environment: { adminConfigured: boolean; writesEnabled: boolean };
 }) {
   if (jobs.length === 0) {
     return (
@@ -559,11 +651,12 @@ function HistoryList({
             {job.last_error && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <p className="font-semibold text-red-700">{failureWording(job.last_error)}</p>
-                {(job.status === "failed" || job.status === "retry_pending") && (
-                  <button className={ui.button} disabled={busy} onClick={() => onRetry(job)}>
-                    <RotateCcw size={13} /> Try again
-                  </button>
-                )}
+                {(job.status === "failed" || job.status === "retry_pending") &&
+                  retryHelps(job.last_error, environment) && (
+                    <button className={ui.button} disabled={busy} onClick={() => onRetry(job)}>
+                      <RotateCcw size={13} /> Try again
+                    </button>
+                  )}
               </div>
             )}
             {job.last_error?.details !== undefined && (

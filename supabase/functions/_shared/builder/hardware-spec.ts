@@ -1275,6 +1275,21 @@ export function registryLookup(
 }
 
 /** The registry's resolved values for a listing, as the builder's fields, and which registry key gave each. */
+/**
+ * Shopify importer: a record that states nothing yet. An imported model starts with no specification of its own, no
+ * base to inherit from and no listing override; until staff save one, the PC Builder resolves the listing exactly as
+ * it would with no record at all, so an import never changes what the builder knew before.
+ */
+export function registryStatesNothing(record: RegistryListingRecord): boolean {
+  const empty = (value: unknown) =>
+    value === null ||
+    value === undefined ||
+    (typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value as object).length === 0);
+  return empty(record.modelSpecs) && empty(record.baseSpecs) && empty(record.overrides);
+}
+
 export function registryBuilderValues(record: RegistryListingRecord) {
   const resolved = resolveHardwareSpecs({
     category: record.category,

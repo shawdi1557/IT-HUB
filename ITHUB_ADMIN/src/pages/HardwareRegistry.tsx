@@ -6,7 +6,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Boxes, ChevronRight, Factory, Plus, RefreshCw, Search, Tags, X } from "lucide-react";
+import {
+  Boxes,
+  ChevronRight,
+  DownloadCloud,
+  Factory,
+  Plus,
+  RefreshCw,
+  Search,
+  Tags,
+  X,
+} from "lucide-react";
 import type { StaffRole } from "../lib/auth";
 import {
   createModel,
@@ -149,6 +159,13 @@ export function HardwareRegistry({ role }: { role: StaffRole }) {
           <>
             <button className={ui.button} onClick={reload} disabled={loading}>
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+            <button
+              className={ui.button}
+              onClick={() => navigate("/hardware-import")}
+              data-testid="open-import"
+            >
+              <DownloadCloud size={14} /> Import from Shopify
             </button>
             {tab === "models" && !creating && (
               <button

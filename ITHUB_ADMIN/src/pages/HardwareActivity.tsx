@@ -42,10 +42,11 @@ const GROUPS: Record<string, { label: string; test: (action: string) => boolean 
   },
   links: { label: "Shopify links", test: (a) => a.startsWith("link_") },
   sync: { label: "Shopify sending", test: (a) => a.startsWith("sync_") || a === "mapping_updated" },
+  import: { label: "Shopify import", test: (a) => a.startsWith("import_") },
 };
 
 const toneFor = (action: string): Tone =>
-  action === "sync_failed"
+  action === "sync_failed" || action === "import_item_failed"
     ? "danger"
     : action === "sync_succeeded"
       ? "success"

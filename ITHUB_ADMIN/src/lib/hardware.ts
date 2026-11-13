@@ -416,6 +416,24 @@ export interface SyncOverview {
   jobs: SyncJobRow[];
 }
 
+/** The Sync Centre's read-only connection check (administrators). Never carries a credential or token. */
+export interface SyncConnection {
+  ok: boolean;
+  code: string | null;
+  mode: "client_credentials" | "static_token" | "none" | "stand_in";
+  shop: string | null;
+  requestedApiVersion: string;
+  writesEnabled: boolean;
+  status?: number | null;
+  shopifyCode?: string | null;
+  grantedScopes?: string[] | null;
+  canReadProducts?: boolean | null;
+  canWriteProducts?: boolean | null;
+  tokenExpiresInSeconds?: number | null;
+  shopName?: string | null;
+  products?: { id: string; title: string; status: string | null }[];
+}
+
 export interface SyncPreview {
   link: SyncListing["link"];
   payload: SyncListing["payload"];
@@ -486,6 +504,15 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   sync_retry_scheduled: "Shopify sync will retry",
   sync_retried: "Shopify sync retried",
   sync_superseded: "Shopify sync superseded",
+  import_discovery_started: "Shopify discovery started",
+  import_discovery_finished: "Shopify discovery finished",
+  import_item_updated: "Import item corrected",
+  import_item_imported: "Imported from Shopify (new model)",
+  import_item_linked: "Imported from Shopify (linked)",
+  import_item_refreshed: "Shopify link refreshed by the importer",
+  import_item_skipped: "Import item skipped",
+  import_item_failed: "Import item failed",
+  import_rule_changed: "Import category rule changed",
 };
 
 export const ROLE_LABEL: Record<string, string> = {

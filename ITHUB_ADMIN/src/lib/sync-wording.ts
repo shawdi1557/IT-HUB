@@ -98,6 +98,8 @@ export function failureWording(
   switch (error?.code) {
     case "admin_not_configured":
       return "Shopify isn't connected in this environment. An administrator must add the Shopify Admin credential before anything can be sent. Nothing was sent.";
+    case "shopify_auth_failed":
+      return "Shopify refused the app's credentials. An administrator can run Test connection to see why. Nothing was sent.";
     case "writes_disabled":
       return "Sending to Shopify is switched off in this environment. Nothing was sent.";
     case "throttled":
@@ -123,5 +125,56 @@ export function failureWording(
       return error?.message
         ? `${error.message}.`.replace(/\.\.$/, ".")
         : "Something went wrong. Try again.";
+  }
+}
+
+/** A model's name with its manufacturer, without repeating it: "AMD" + "AMD Ryzen 5 5600" reads "AMD Ryzen 5 5600". */
+export function modelLabel(manufacturer: string | null | undefined, modelName: string): string {
+  const maker = (manufacturer ?? "").trim();
+  if (!maker) return modelName;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return norm(modelName).startsWith(norm(maker)) ? modelName : `${maker} ${modelName}`;
+}
+
+/**
+ * Whether trying a failed send again can help now. A send refused because this environment has no Shopify Admin
+ * credential, or has sending switched off, fails the same way until an administrator changes that.
+ */
+export function retryHelps(
+  error: { code?: string } | null | undefined,
+  environment: { adminConfigured: boolean; writesEnabled: boolean },
+): boolean {
+  if (error?.code === "admin_not_configured" && !environment.adminConfigured) return false;
+  if (error?.code === "writes_disabled" && !environment.writesEnabled) return false;
+  return true;
+}
+
+/** What the read-only connection check found, for an administrator. */
+export function connectionWording(code: string | null | undefined): string {
+  switch (code) {
+    case null:
+    case undefined:
+      return "Connected. Shopify accepted the app and answered a read-only query.";
+    case "not_configured":
+      return "The app's Client ID and Client Secret aren't set for this environment in the server's secrets.";
+    case "shop_domain_invalid":
+      return "The store setting isn't the shop's <name>.myshopify.com domain (SHOPIFY_STORE_DOMAIN).";
+    case "shop_not_permitted":
+      return "Shopify refused: the app and the store must belong to the same Shopify organization, and the app must be installed on the store.";
+    case "app_not_installed":
+      return "The app isn't installed on the store. Install it from the Shopify Dev Dashboard (Installs → Install app).";
+    case "invalid_client":
+      return "Shopify didn't accept the Client ID or Client Secret. Check both, or rotate the secret in the Dev Dashboard and update the server's secret.";
+    case "token_request_failed":
+    case "token_response_invalid":
+      return "Shopify didn't give an access token. Check the app's installation and credentials.";
+    case "shopify_unreachable":
+      return "Shopify couldn't be reached. Try again in a few minutes.";
+    case "access_denied":
+      return "Connected, but the app can't read products. Add read_products to a new app version, release it, and approve it on the store.";
+    case "query_failed":
+      return "Connected, but Shopify refused the read-only query.";
+    default:
+      return "The connection check failed.";
   }
 }

@@ -394,6 +394,7 @@ async function call(
     staff?: any;
     token?: string;
     origin?: string;
+    fetchImpl?: typeof fetch;
   },
 ) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -408,6 +409,7 @@ async function call(
     {
       store: deps.store,
       shopifyAdmin: deps.shopifyAdmin,
+      fetchImpl: deps.fetchImpl,
       env: deps.env ?? WRITES,
       verifyStaff: async () => (deps.staff === undefined ? STAFF : deps.staff),
     },
@@ -717,4 +719,31 @@ Deno.test("S4B-SYNC-17 (4B-6): a value its Shopify definition would refuse is ne
     JSON.stringify(plan.problems),
   );
   assert(!plan.metafields.some((m: any) => m.key === "recommended_psu_watts"));
+});
+
+Deno.test("S4B-SYNC-18: with the Dev Dashboard app's credentials but writes switched off, a send never contacts Shopify", async () => {
+  const store = memoryStore();
+  const calls: string[] = [];
+  const fetchImpl = (async (input: string | URL | Request) => {
+    calls.push(String(input));
+    return new Response("{}", { status: 500 });
+  }) as typeof fetch;
+  const env = {
+    ...WRITES,
+    SHOPIFY_SYNC_WRITES: undefined,
+    SHOPIFY_ADMIN_ACCESS_TOKEN: undefined,
+    SHOPIFY_STORE_DOMAIN: "synthetic-store.myshopify.com",
+    SHOPIFY_ADMIN_CLIENT_ID: "synthetic-client-id",
+    SHOPIFY_ADMIN_CLIENT_SECRET: "synthetic-client-secret",
+  };
+  const res = await call({ action: "enqueue", linkIds: [LINK] }, { store, env, fetchImpl });
+  assertEquals(res.body.run[0].status, "failed");
+  assertEquals(res.body.run[0].error.code, "writes_disabled");
+  assertEquals(calls, [], "no token request, no query, no mutation");
+  const overview = await call({ action: "overview" }, { store, env, fetchImpl });
+  assertEquals(
+    [overview.body.adminConfigured, overview.body.writesEnabled, overview.body.writeMode],
+    [true, false, "live"],
+  );
+  assertEquals(calls, []);
 });

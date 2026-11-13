@@ -20,6 +20,7 @@ import { HardwareRegistry } from "./pages/HardwareRegistry";
 import { HardwareModelDetail } from "./pages/HardwareModelDetail";
 import { ShopifySync } from "./pages/ShopifySync";
 import { HardwareActivity } from "./pages/HardwareActivity";
+import { ShopifyImport } from "./pages/ShopifyImport";
 
 export function App() {
   const [loading, setLoading] = useState(true);
@@ -130,6 +131,16 @@ export function App() {
             element={
               profile.permissions.can_manage_quotations ? (
                 <ShopifySync role={profile.role} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/hardware-import"
+            element={
+              profile.permissions.can_manage_quotations ? (
+                <ShopifyImport role={profile.role} />
               ) : (
                 <Navigate to="/" replace />
               )

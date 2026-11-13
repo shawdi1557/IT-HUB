@@ -331,7 +331,9 @@ dbTest(
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where (n.nspname = 'public' and (p.proname like 'staff_%hardware%' or p.proname like 'staff_%shopify%'
             or p.proname like 'staff_%listing%' or p.proname like 'hardware_sync_%' or p.proname = 'get_pc_builder_registry_specs'))
-        or (n.nspname = 'private' and (p.proname like 'hardware_%' or p.proname like 'lock_hardware_%'))`,
+        or (n.nspname = 'private' and (p.proname like 'hardware_%' or p.proname like 'lock_hardware_%')
+            -- The Shopify importer's helpers (20261113000003) are checked by IMP-DB-7.
+            and p.proname not like 'hardware\\_import\\_%')`,
     );
     assertEquals(fns.filter((f) => f.schema === "public").length, 17);
     // 14 helpers from 20261112000001 and the 3 duplicate guards from 20261113000001 (triggers only).

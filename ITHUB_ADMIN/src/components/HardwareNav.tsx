@@ -3,7 +3,7 @@
 // pages sit under "PC Quotations", and these tabs move between them.
 
 import { Link, useLocation } from "react-router";
-import { Boxes, Cpu, History, RefreshCw } from "lucide-react";
+import { Boxes, Cpu, DownloadCloud, History, RefreshCw } from "lucide-react";
 
 const TABS = [
   {
@@ -17,6 +17,12 @@ const TABS = [
     label: "Hardware Registry",
     icon: Boxes,
     match: (p: string) => p === "/hardware" || p.startsWith("/hardware/"),
+  },
+  {
+    to: "/hardware-import",
+    label: "Shopify Import",
+    icon: DownloadCloud,
+    match: (p: string) => p.startsWith("/hardware-import"),
   },
   {
     to: "/hardware-sync",

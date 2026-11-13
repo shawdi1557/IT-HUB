@@ -21,6 +21,7 @@ import { toVariantGid } from "./shopify-fields.ts";
 import {
   fieldDefinition,
   registryBuilderValues,
+  registryStatesNothing,
   type RegistryListingRecord,
 } from "./hardware-spec.ts";
 import {
@@ -963,9 +964,12 @@ export function resolveShopifyComponent(
   const rawSpecs = shopifyStatedValues(product);
   const review = readSpecReview(rawSpecs);
 
-  // 0. Stage 4B: the Hardware Specification Manager. A linked listing resolves from its canonical model.
+  // 0. Stage 4B: the Hardware Specification Manager. A linked listing resolves from its canonical model. A record
+  // that states nothing yet (imported from Shopify, not specified) defers to the sources below, unless it's filed
+  // under another category, which always goes to review.
   const listing = variantId ? sources.registrySpecs?.(variantId, product.id) : undefined;
-  if (listing) return registryComponent(product, slot, variantId, rawSpecs, review, listing);
+  if (listing && (listing.category !== slot || !registryStatesNothing(listing)))
+    return registryComponent(product, slot, variantId, rawSpecs, review, listing);
 
   // 1. Check Database Specification Registry
   const databaseMapping = variantId ? sources.databaseSpecs?.(variantId) : undefined;
