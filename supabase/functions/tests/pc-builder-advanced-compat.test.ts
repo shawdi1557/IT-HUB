@@ -165,6 +165,8 @@ interface Case {
   valid?: boolean;
   complete?: boolean;
   source?: { slot: Slot; field: string; level: string };
+  /** A builder value set directly, for a field that only the Hardware Registry states (no Shopify metafield). */
+  canonical?: Partial<Record<Slot, Record<string, unknown>>>;
 }
 const STATUS_FOR: Record<Kind, string> = {
   positive: "compatible",
@@ -791,6 +793,26 @@ const CASES: Case[] = [
     explains: /free connection/,
     overall: "unknown",
   },
+  // Stage 3 Phase 4 (P4-5): the registry's "M.2 slots accept SATA drives" decides when it's stated.
+  {
+    rule: "RULE_H_M2_SATA_UNSUPPORTED",
+    kind: "negative",
+    name: "an M.2 SATA drive on a board whose M.2 slots take NVMe only",
+    over: { Storage: { storage_interface: "M.2 SATA" } },
+    canonical: { Motherboard: { m2SataSupported: false } },
+    explains: /NVMe drives only/,
+    overall: "incompatible",
+    valid: false,
+  },
+  {
+    rule: "RULE_H_STORAGE_OK",
+    kind: "positive",
+    name: "an M.2 SATA drive on a board whose M.2 slots take SATA",
+    over: { Storage: { storage_interface: "M.2 SATA" } },
+    canonical: { Motherboard: { m2SataSupported: true } },
+    explains: /take SATA drives/,
+    overall: "compatible",
+  },
   {
     rule: "RULE_H_M2_SATA_UNKNOWN",
     kind: "unknown",
@@ -944,6 +966,8 @@ const CASES: Case[] = [
 for (const c of CASES) {
   Deno.test(`ADV ${c.kind} ${c.rule}: ${c.name}`, () => {
     const parts = partsFor(c.over, c.names);
+    for (const [slot, values] of Object.entries(c.canonical ?? {}))
+      Object.assign(parts[slot].specs, values);
     const check = checkCompatibility(parts, c.options as any);
     const item = check.items.find((candidate: any) => candidate.ruleId === c.rule);
     assert(item, `${c.rule} didn't fire. Got: ${check.items.map((i: any) => i.ruleId).join(", ")}`);

@@ -83,7 +83,13 @@ Deno.test("S4B-2: every synced field matches its pc_builder definition, and fill
   }
 });
 
-Deno.test("S4B-3: the migration seeds exactly the TypeScript catalogue and mappings", () => {
+Deno.test("S4B-3: the migrations seed exactly the TypeScript catalogue and mappings", async () => {
+  // Stage 3 Phase 4 (P4-5) adds one field in its own migration; the two together seed the catalogue.
+  const MIGRATION_SEEDS =
+    MIGRATION +
+    (await Deno.readTextFile(
+      new URL("../../migrations/20261113000004_motherboard_m2_sata_field.sql", import.meta.url),
+    ));
   const q = (v: unknown) =>
     v === undefined || v === null ? "null" : `'${String(v).replace(/'/g, "''")}'`;
   const n = (v: unknown) => (v === undefined ? "null" : String(v));
@@ -92,10 +98,10 @@ Deno.test("S4B-3: the migration seeds exactly the TypeScript catalogue and mappi
   for (const f of Spec.HARDWARE_SPEC_FIELDS) {
     order[f.category] = (order[f.category] ?? 0) + 10;
     const row = `(${q(f.category)}, ${q(f.key)}, ${q(f.label)}, ${q(f.type)}, ${q(f.unit)}, ${n(f.min)}, ${n(f.max)}, ${arr(f.choices)}, ${n(f.maxLength)}, ${q(f.pattern)}, ${f.required}, ${f.inheritable}, ${q(f.metafieldKey)}, ${order[f.category]})`;
-    assert(MIGRATION.includes(row), `field row missing or different: ${row}`);
+    assert(MIGRATION_SEEDS.includes(row), `field row missing or different: ${row}`);
   }
   const fieldRows =
-    MIGRATION.match(
+    MIGRATION_SEEDS.match(
       /^  \('(?:CPU|GPU|Motherboard|RAM|Storage|PSU|Cabinet|Cooler|Monitor)', '[a-z0-9_]+', '[^']*', '(?:integer|decimal|text|boolean|enum|enum_list|text_list)', /gm,
     ) ?? [];
   assertEquals(fieldRows.length, Spec.HARDWARE_SPEC_FIELDS.length);

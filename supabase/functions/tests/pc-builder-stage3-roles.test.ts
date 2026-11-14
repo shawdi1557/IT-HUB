@@ -37,6 +37,11 @@ const STRICT = JSON.parse(
 const PHASE3 = JSON.parse(
   await Deno.readTextFile(new URL("./_helpers/stage3-phase3-baseline.json", import.meta.url)),
 );
+// Stage 3 Phase 4 (P4-1, 13 November 2026): every role takes the cheapest drive that fits, so the offers are
+// recorded again, separately. The Phase 3 record is kept as it was.
+const PHASE4 = JSON.parse(
+  await Deno.readTextFile(new URL("./_helpers/stage3-phase4-baseline.json", import.meta.url)),
+);
 
 const catalogueOf = (listings: any[]) => syncBuilderCatalogWithShopify(listings).componentCatalog;
 const searchIn =
@@ -722,9 +727,10 @@ Deno.test("S3P2 strict range: the minimum and the maximum are both inclusive bou
 
 Deno.test("S3P2 strict range: nothing below the range fills a place, and the customer is told what was found", () => {
   // Every suitable sparse build costs less than ₹1,00,000: nothing is offered, and only the price is said.
+  // Phase 4 (P4-1): the cheapest drive that fits (₹2,700, not the ₹4,200 drive titled 1TB), so ₹57,300, not ₹58,800.
   const offer = offerIn(catalogueOf(GOLDEN_CATALOGUES.sparse()))("gaming", {}, 100000, 150000);
   assertEquals(offer.builds, []);
-  assertEquals(offer.cheaperFrom, 58800);
+  assertEquals(offer.cheaperFrom, 57300);
   assertEquals(offer.notices, []);
   // Every golden search: no build outside the range, and fewer than three is always said.
   for (const [name, make] of Object.entries(GOLDEN_CATALOGUES)) {
@@ -1131,9 +1137,9 @@ for (const [name, make] of Object.entries(GOLDEN_CATALOGUES)) {
 // ── The baselines (ruling P2-6). The Phase 1 and first Phase 2 files are never rewritten ─────────
 
 for (const [name, make] of Object.entries(GOLDEN_CATALOGUES)) {
-  Deno.test(`S3P2 baseline ${name}: the builds, prices, chips and roles recorded after Phase 3`, () => {
+  Deno.test(`S3P2 baseline ${name}: the builds, prices, chips and roles recorded after Phase 4`, () => {
     const search = searchIn(catalogueOf(make()));
-    const recorded = PHASE3.catalogues[name];
+    const recorded = PHASE4.catalogues[name];
     assertEquals(make().length, recorded.listings);
     for (const s of GOLDEN_SEARCHES) {
       assertEquals(
@@ -1144,9 +1150,9 @@ for (const [name, make] of Object.entries(GOLDEN_CATALOGUES)) {
     }
   });
 
-  Deno.test(`S3P2 baseline ${name}: the measurements match the Phase 3 record`, () => {
+  Deno.test(`S3P2 baseline ${name}: the measurements match the Phase 4 record`, () => {
     const { milliseconds: _time, ...metrics } = measureOffers(searchIn(catalogueOf(make())));
-    assertEquals(metrics, PHASE3.catalogues[name].metrics);
+    assertEquals(metrics, PHASE4.catalogues[name].metrics);
   });
 }
 
@@ -1179,19 +1185,32 @@ Deno.test("S3P2 baseline: Phase 2 is recorded separately, and the Phase 1 record
   }
   assert(PHASE3.recordedFrom.includes("Stage 3 Phase 3"));
   assertEquals(Object.keys(phase1.catalogues), Object.keys(PHASE3.catalogues));
+  // Phase 4 changes only which drive each build takes: never a build outside the range, never a repeated pair,
+  // labels unchanged, and no catalogue loses a search's every build.
+  assert(PHASE4.recordedFrom.includes("Stage 3 Phase 4"));
+  assertEquals(Object.keys(phase1.catalogues), Object.keys(PHASE4.catalogues));
+  for (const name of Object.keys(phase1.catalogues)) {
+    const [phase3, phase4] = [PHASE3.catalogues[name].metrics, PHASE4.catalogues[name].metrics];
+    assertEquals(phase4.belowBand, 0, name);
+    assertEquals(phase4.repeatedPairs, 0, name);
+    assertEquals(phase4.labelled, phase3.labelled, `${name}: labels are unchanged`);
+    assert(phase4.empty <= phase3.empty, name);
+  }
 });
 
-// ── F1. No guideline is used ─────────────────────────────────────────────────
+// ── F1. Guidelines never steer the engine ─────────────────────────────────────
+// Until 14 November 2026 no guideline was approved and the module didn't exist. The owner then approved G1 to G7
+// as advice only ("Advice shown only"): the module exists for the page, and the engine still never reads it, so the
+// offers equal the publisher-figure-only results (the Phase 4 record, checked above).
 
-Deno.test("S3P2 F1: no guideline module, and the roles read the purpose's priority part only", async () => {
+Deno.test("S3P2 F1: guidelines are advice only; the engine and the checks never read the guideline module", async () => {
   const root = new URL("../../../src/lib/builder/", import.meta.url);
-  let exists = true;
-  try {
-    await Deno.stat(new URL("guidelines.ts", root));
-  } catch {
-    exists = false;
+  await Deno.stat(new URL("guidelines.ts", root));
+  for (const file of ["recommendations.ts", "compatibility.ts", "spec-registry.ts", "catalog.ts"]) {
+    const engine = await Deno.readTextFile(new URL(file, root));
+    assert(
+      !/guideline/i.test(engine.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")),
+      `${file} reads no guideline`,
+    );
   }
-  assertEquals(exists, false);
-  const engine = await Deno.readTextFile(new URL("recommendations.ts", root));
-  assert(!/guideline/i.test(engine.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "")));
 });

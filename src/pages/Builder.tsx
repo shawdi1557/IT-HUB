@@ -32,6 +32,7 @@ import { track } from "../lib/analytics";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import { images, money, type Build, type ComponentOption } from "../data/catalog";
 import { refreshQuotationStates } from "../lib/builder/quotation-refresh";
+import { guidelineAdvice } from "../lib/builder/guidelines";
 import { Badge, Button, Modal, Page, PageHeading } from "../components/ui";
 
 import {
@@ -95,6 +96,34 @@ const isUnconfirmedDetail = (reason: string) =>
   /^(?:Not yet confirmed|Not stated|Read from the product title|Stated but not reviewed)/.test(
     reason,
   );
+
+/**
+ * IT HUB's approved guidelines (G1–G7), as advice only: they never change which builds are offered, their order,
+ * price or checks. Shown only for a build found by Find My PC, which carries its purpose; a saved build has none.
+ */
+function GuidelineAdvice({
+  purpose,
+  parts,
+}: {
+  purpose?: string;
+  parts: Record<string, ComponentOption>;
+}) {
+  const advice = guidelineAdvice(purpose, {}, parts as Record<string, any>);
+  if (advice.length === 0) return null;
+  return (
+    <div
+      data-testid="guideline-advice"
+      className="mt-3 space-y-1 rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground"
+    >
+      <p className="font-semibold text-foreground">IT HUB's recommendations</p>
+      {advice.map((item) => (
+        <p key={item.guidelineId} data-standing={item.standing}>
+          {item.text}
+        </p>
+      ))}
+    </div>
+  );
+}
 
 /** Why a build has its label, and what the figures behind it rest on. */
 function RankingEvidence({ build, compact = false }: { build: DetailBuild; compact?: boolean }) {
@@ -1609,6 +1638,7 @@ function BuildDetail({
             <strong>{initial.designedFor}</strong>
           </p>
           {!changed && <RankingEvidence build={initial} />}
+          {!changed && <GuidelineAdvice purpose={initial.purpose} parts={initial.parts} />}
           {initial.note && !changed && (
             <p className="mt-3 flex gap-2 rounded-xl bg-secondary px-4 py-3 text-xs text-primary">
               <Info size={15} className="mt-0.5 shrink-0" /> {initial.note}
@@ -2484,6 +2514,7 @@ function SmartBuilder() {
                         </p>
                       )}
                       <RankingEvidence build={build} compact />
+                      <GuidelineAdvice purpose={answers.purpose || undefined} parts={build.parts} />
                       <ul className="mt-5 space-y-2 text-sm">
                         {["CPU", "GPU", "RAM", "Storage"].map((type) => (
                           <li key={type} className="flex gap-2">

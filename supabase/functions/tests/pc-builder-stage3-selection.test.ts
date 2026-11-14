@@ -386,7 +386,7 @@ Deno.test("S3P3 saved: a pending quotation of a Phase 3 build restores and match
 
 // ── The earlier records are never rewritten ────────────────────────────────────────────────────────
 
-Deno.test("S3P3 records: the Phase 1, Phase 2 and strict-range records are byte-for-byte unchanged", async () => {
+Deno.test("S3P3 records: the Phase 1, Phase 2, strict-range and Phase 3 records are byte-for-byte unchanged", async () => {
   const sha256 = async (name: string) => {
     const bytes = await Deno.readFile(new URL(`./_helpers/${name}`, import.meta.url));
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -403,5 +403,10 @@ Deno.test("S3P3 records: the Phase 1, Phase 2 and strict-range records are byte-
   assertEquals(
     await sha256("stage3-strict-baseline.json"),
     "111ca0cc847097ca03841ed838f993c8c9adc4f475e4d243000caae4b4c066e8",
+  );
+  // Stage 3 Phase 4 records its offers separately (stage3-phase4-baseline.json); the Phase 3 record stays.
+  assertEquals(
+    await sha256("stage3-phase3-baseline.json"),
+    "f012adf99467388c105433320d2f9fad411bdd6337265fbec50a2856e51ce5da",
   );
 });

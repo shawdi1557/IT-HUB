@@ -477,6 +477,14 @@ export const HARDWARE_SPEC_FIELDS: readonly HardwareFieldDefinition[] = [
       builderConversion: "true_only",
       metafieldKey: "bios_update_required",
     },
+    // Stage 3 Phase 4 (P4-5, 13 November 2026). Read only when an M.2 SATA drive is chosen. Registry only until
+    // its Shopify metafield definition is created (that needs Admin write access).
+    {
+      key: "m2_sata_support",
+      label: "M.2 slots accept SATA drives",
+      type: "boolean",
+      builderFields: ["m2SataSupported"],
+    },
   ]),
   ...fields("RAM", [
     {

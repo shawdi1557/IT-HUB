@@ -488,6 +488,16 @@ Deno.test("INPUT conditional: an unreadable interface asks about the drive, not 
   assertEquals(names(buildInputsMissing(parts)), ["Storage: interface"]);
 });
 
+Deno.test("INPUT conditional (Phase 4, P4-5): once the board states it, M.2 SATA support isn't missing", () => {
+  for (const m2SataSupported of [true, false]) {
+    const parts = buildWith({
+      Storage: { storageInterface: "M.2 SATA" },
+      Motherboard: { m2SataSupported },
+    });
+    assertEquals(names(buildInputsMissing(parts)), [], String(m2SataSupported));
+  }
+});
+
 Deno.test("INPUT conditional: M.2 SATA support is named, though no field can answer it yet", () => {
   const parts = buildWith({ Storage: { storageInterface: "M.2 SATA" } });
   assertEquals(names(buildInputsMissing(parts)), ["Motherboard: M.2 SATA support"]);

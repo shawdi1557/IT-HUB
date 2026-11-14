@@ -879,12 +879,13 @@ function synthesizeBuildConfigurations(
 
       for (const ram of ramBranches) {
         // 3. Storage
-        const allStorage = (itemsBySlot.Storage || []).slice().sort((a, b) => a.price - b.price);
+        // Stage 3 Phase 4 (P4-1, the owner's ruling of 13 November 2026): every role takes the cheapest drive that
+        // fits. A drive is never chosen by what its title says. Preferring a size would be an IT HUB guideline, and
+        // none is approved (contract Q7), so none is applied; a drive whose capacity isn't stated can still be
+        // chosen (P4-4), while an unknown interface still sends the build to review, as before.
+        const allStorage = (itemsBySlot.Storage || []).slice().sort(byPriceThenId);
         if (allStorage.length === 0 && !ownedSlots.has("Storage")) continue;
-        const storage1tb = allStorage.find((s) => s.name.includes("1TB") || s.name.includes("1tb"));
-        const storageOptions = storage1tb
-          ? [storage1tb, ...allStorage.filter((s) => s.id !== storage1tb.id)]
-          : allStorage;
+        const storageOptions = allStorage;
 
         // 4. Cabinet
         const allCabinets = (itemsBySlot.Cabinet || []).slice().sort((a, b) => a.price - b.price);

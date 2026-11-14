@@ -93,7 +93,7 @@ export const FIELD_GROUPS: Record<string, FieldGroup[]> = {
       id: "storage",
       title: "Storage and expansion",
       hint: "Drive connections and expansion slots",
-      fields: ["m2_slots", "sata_ports", "pcie_x16_slots"],
+      fields: ["m2_slots", "m2_sata_support", "sata_ports", "pcie_x16_slots"],
     },
     {
       id: "connectivity",

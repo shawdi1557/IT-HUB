@@ -27,12 +27,13 @@ const { getPendingQuotation, pendingMatchesBuild, savePendingQuotation, clearPen
   await import("../../../src/lib/builder/persistence.ts");
 
 // Phase 2 changes which builds are offered, by the owner's rulings, the strict budget range of 7 November 2026
-// changes them again, and Phase 3's candidate selection (approved the same day) again, so these tests read the
-// separate Phase 3 record. The Phase 1 record (stage3-golden-baseline.json), the first Phase 2 record
-// (stage3-phase2-baseline.json) and the strict-range record (stage3-strict-baseline.json) are kept unchanged,
-// and the selection tests check they are, byte for byte.
+// changes them again, Phase 3's candidate selection (approved the same day) again, and Phase 4's drive rule
+// (P4-1, 13 November 2026: the cheapest drive that fits, never chosen by its title) again, so these tests read
+// the separate Phase 4 record. The Phase 1 (stage3-golden-baseline.json), first Phase 2
+// (stage3-phase2-baseline.json), strict-range (stage3-strict-baseline.json) and Phase 3
+// (stage3-phase3-baseline.json) records are kept unchanged, and the selection tests check they are, byte for byte.
 const BASELINE = JSON.parse(
-  await Deno.readTextFile(new URL("./_helpers/stage3-phase3-baseline.json", import.meta.url)),
+  await Deno.readTextFile(new URL("./_helpers/stage3-phase4-baseline.json", import.meta.url)),
 );
 /** The record's builds without the chip, role and guarantee the roles tests compare. */
 const withoutRoles = (offers: any[]) =>
@@ -79,10 +80,10 @@ const tenOrders = <T>(items: T[]) => [
 const shownAs = (builds: any[]) =>
   builds.map((b) => `${b.templateId}|${b.price}|${offerSet([b])[0].parts}`);
 
-// ── The baseline: the builds offered, and their prices, are the ones recorded after Phase 3 ───────
+// ── The baseline: the builds offered, and their prices, are the ones recorded after Phase 4 ───────
 
 for (const [name, make] of Object.entries(GOLDEN_CATALOGUES)) {
-  Deno.test(`S3 baseline ${name}: the same builds and prices as the Phase 3 record, for every search`, () => {
+  Deno.test(`S3 baseline ${name}: the same builds and prices as the Phase 4 record, for every search`, () => {
     const search = searchIn(catalogueOf(make()));
     const recorded = BASELINE.catalogues[name];
     assertEquals(make().length, recorded.listings);

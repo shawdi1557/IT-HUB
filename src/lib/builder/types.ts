@@ -63,6 +63,8 @@ export interface TechnicalSpecs {
   requiresBiosUpdateForRyzen5000?: boolean;
   m2SlotCount?: number;
   sataPortCount?: number;
+  /** Stage 3 Phase 4 (P4-5): whether the board's M.2 slots take M.2 SATA drives. Unknown when unstated. */
+  m2SataSupported?: boolean;
   hasWifi?: boolean;
 
   // RAM

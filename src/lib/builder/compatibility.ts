@@ -635,7 +635,7 @@ const INPUT_REQUIREMENTS: InputRequirement[] = [
     slot: "Motherboard",
     name: "M.2 SATA support",
     ruleIds: ["RULE_H_M2_SATA_UNKNOWN"],
-    stated: () => false,
+    stated: (specs) => typeof specs.m2SataSupported === "boolean",
     needed: ({ storage, board }) => {
       if (!storage || !board || board.m2SlotCount === 0) return false;
       const { usesM2, usesSata } = storageConnection(storage);
@@ -1412,6 +1412,26 @@ export function checkCompatibility(
         explanation: `${storage.title} is an M.2 drive, but ${mobo.title} has 0 M.2 slots.`,
         suggestedResolution:
           "Select a 2.5-inch SATA SSD or upgrade to a motherboard with M.2 NVMe slots.",
+      });
+    } else if (usesM2Sata && mobo.specs.m2SataSupported === false) {
+      items.push({
+        ruleId: "RULE_H_M2_SATA_UNSUPPORTED",
+        severity: "error",
+        status: "incompatible",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: "Motherboard's M.2 slots don't take SATA drives",
+        explanation: `${storage.title} is an M.2 SATA drive, but ${mobo.title}'s M.2 slots take NVMe drives only.`,
+        suggestedResolution:
+          "Select an M.2 NVMe SSD, a 2.5-inch SATA SSD, or a motherboard whose M.2 slots take SATA.",
+      });
+    } else if (usesM2Sata && mobo.specs.m2SataSupported === true) {
+      items.push({
+        ruleId: "RULE_H_STORAGE_OK",
+        severity: "info",
+        status: "compatible",
+        affectedSlots: ["Storage", "Motherboard"],
+        label: "Storage connection available (M.2 SATA)",
+        explanation: `${mobo.title} lists ${slotCount ?? "its"} M.2 slot(s), and they take SATA drives.`,
       });
     } else if (usesM2Sata) {
       items.push({
